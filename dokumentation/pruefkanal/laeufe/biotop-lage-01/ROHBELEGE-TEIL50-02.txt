@@ -1,0 +1,533 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 50 (Teile 4–165 dieses Stands) · enthält R43 bis R43
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R43 · Teil D: Modellrollen im Code (Ausschnitte 0c2f058) und in der Kasse je Zweig (FK33)
+Beginn: 2026-09-25 16:14:37 CEST (UTC+0200)
+Ende:   2026-09-25 16:14:37 CEST (UTC+0200)
+Dauer:  0.2 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/aufbau/d4_modelle.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/aufbau/d4_modelle.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil D (nur lesend): Modellrollen im Code und in der Kasse — FK33; Versionen — FK36.
+
+1. Ausschnitte am Commit 0c2f058 (git show): nischen.py (NISCHEN, HERSTELLER_MODELLE), generation0.py (Testbau-Modell),
+   landkarte.py (Zusammenfassung), aegis.py (Ansage/Angriff), anbieter/__init__.py (reasoning-Weiche).
+2. Kasse je Datenbankzweig: Modell × Zweck-Präfix (erstes Glied von `zweck`, bei „schwer.“ die ersten zwei Glieder),
+   Anzahl und Summe. STAMM nur mit mode=ro&immutable=1 und nur bei -wal = 0 Bytes; andere Zweige mode=ro.
+"""
+import os
+import sqlite3
+import subprocess
+
+REPO = '/root/biotop'
+C = '0c2f058'
+
+
+def show(p: str) -> list[str]:
+    return subprocess.run(['git', '-C', REPO, 'show', f'{C}:{p}'], check=True,
+                          stdout=subprocess.PIPE).stdout.decode('utf-8', 'replace').splitlines()
+
+
+AUSSCHNITTE = {
+    'biotop/organe/nischen.py': [(14, 60)],
+    'biotop/organe/generation0.py': [(360, 384), (415, 430)],
+    'biotop/organe/landkarte.py': [(20, 30), (195, 210)],
+    'biotop/organe/aegis.py': [(28, 40), (650, 660), (686, 722)],
+    'biotop/anbieter/__init__.py': [(60, 90), (125, 150)],
+    'biotop/organe/aufnahme.py': [(100, 115)],
+    'biotop/organe/jury.py': [(15, 25)],
+    'biotop/kern/kasse.py': [(14, 56)],
+}
+print('== 1. Ausschnitte am Commit 0c2f058')
+for p, bereiche in AUSSCHNITTE.items():
+    z = show(p)
+    for a, b in bereiche:
+        print(f'--- {p} Zeilen {a}–{b} ---')
+        for i in range(a, min(b, len(z)) + 1):
+            print(f'{i:4d}| {z[i - 1]}')
+
+print('\n== 2. Kasse: Modell × Zweck-Präfix je Zweig (Anzahl, Summe €, erste/letzte Zeit)')
+wal = '/root/biotop/daten/biotop.db-wal'
+zweige = []
+if os.path.exists(wal) and os.path.getsize(wal) == 0:
+    zweige.append(('STAMM', 'file:/root/biotop/daten/biotop.db?mode=ro&immutable=1'))
+else:
+    print('STAMM NICHT GEÖFFNET: -wal nicht 0 Bytes')
+zweige += [('VB1', 'file:/root/phase-4-vorbedingung-1/privat/biotop.db?mode=ro'),
+           ('R02', 'file:/root/reparatur-02/privat-cli/privat.db?mode=ro'),
+           ('T3', 'file:/root/biotop-t3/t3.db?mode=ro')]
+for name, uri in zweige:
+    try:
+        con = sqlite3.connect(uri, uri=True)
+        n = con.execute('SELECT count(*), round(sum(kosten_eur),4), max(lauf_id) FROM kasse').fetchone()
+        print(f'-- {name}: {n[0]} Buchungen, {n[1]} €, höchste lauf_id {n[2]}')
+        q = """SELECT modell,
+                 CASE WHEN zweck LIKE 'schwer.%' THEN 'schwer.' || substr(substr(zweck, 8), 1, instr(substr(zweck, 8) || '.', '.') - 1)
+                      ELSE substr(zweck, 1, instr(zweck || '.', '.') - 1) END AS rolle,
+                 count(*), round(sum(kosten_eur), 4), min(zeit), max(zeit)
+               FROM kasse GROUP BY 1, 2 ORDER BY 1, 3 DESC"""
+        for r in con.execute(q):
+            print('   ', ' | '.join(str(x) for x in r))
+        con.close()
+    except Exception as e:
+        print(f'-- {name}: nicht lesbar: {e}')
+print('\n== 3. T3: Modelle der Läufe 26–38 (lauf_id ≥ 26) je Zweck-Präfix')
+con = sqlite3.connect('file:/root/biotop-t3/t3.db?mode=ro', uri=True)
+for r in con.execute("""SELECT modell, substr(zweck, 1, instr(zweck || '.', '.') - 1), count(*), round(sum(kosten_eur),4)
+                        FROM kasse WHERE lauf_id >= 26 GROUP BY 1, 2 ORDER BY 1, 3 DESC"""):
+    print('   ', ' | '.join(str(x) for x in r))
+con.close()
+--- Ende /root/sicherung/biotop-lage-01/entwurf/aufbau/d4_modelle.py ---
+Ausgabe (vollständig, stdout und stderr):
+== 1. Ausschnitte am Commit 0c2f058
+--- biotop/organe/nischen.py Zeilen 14–60 ---
+  14| """
+  15| 
+  16| from __future__ import annotations
+  17| 
+  18| import random
+  19| import sqlite3
+  20| 
+  21| from ..kern import protokoll
+  22| from ..kern.datenbank import j, transaktion
+  23| 
+  24| HERSTELLER_MODELLE = {
+  25|     "openai": "openai/gpt-5.6-luna",
+  26|     "google": "google/gemini-3.5-flash-lite",
+  27|     "deepseek": "deepseek/deepseek-v4.1-flash",
+  28|     "qwen": "qwen/qwen3.8-flash",
+  29| }
+  30| 
+  31| NISCHEN = {
+  32|     "sicher": {
+  33|         "temperatur": 0.2, "ziel": "kernmass",
+  34|         "auftrag": "Du bist „Der Sichere“: Beseitige Fehler, Vertragsverletzungen und Sicherheitsbefunde; härte Verträge; wage nichts Neues; "
+  35|                    "verändere keine öffentliche Signatur. Ein Vorschlag zählt nur, wenn er einen bestätigten Fehler behebt (mit Test, der an der "
+  36|                    "Vorgeneration fällt und einen Vertrag oder Verfassungssatz nennt) oder einen statischen Befund/tote Funktion entfernt.",
+  37|     },
+  38|     "schnell": {
+  39|         "temperatur": 0.3, "ziel": "laufzeit",
+  40|         "auftrag": "Du bist „Der Schnelle“: Senke die Laufzeit auf der Referenzlast (Quelltext der Referenzlast wird mitgegeben) — Algorithmus, "
+  41|                    "Datenstruktur, Zwischenspeicher, unnötige Kopien. Verhalten und Verträge bleiben exakt gleich; alle Tests müssen bestehen. "
+  42|                    "Dein Vorschlag wird angenommen, wenn die Laufzeit des Bereichs um mindestens 15 % sinkt und das Kernmaß gleich bleibt oder steigt. "
+  43|                    "Suche zuerst nach O(n²)-Mustern: Summen über ganze Listen bei jedem Lesen, wiederholtes Parsen derselben Eingabe, Sortieren in Schleifen.",
+  44|     },
+  45|     "elegant": {
+  46|         "temperatur": 0.4, "ziel": "kernmass",
+  47|         "auftrag": "Du bist „Der Elegante“: weniger Code bei gleicher Funktion, klarere Struktur, tote Zweige entfernen, Doppelungen zusammenführen. "
+  48|                    "Verträge bleiben exakt gleich. Gemessen wird nur hart: Ein Vorschlag zählt, wenn er tote Funktionen entfernt oder einen "
+  49|                    "Fehler behebt; reine Umformung ohne Maßgewinn wird abgelehnt — dann antworte lieber KEIN VORSCHLAG.",
+  50|     },
+  51|     "wild": {
+  52|         "temperatur": 0.9, "ziel": "kernmass",
+  53|         "auftrag": "Du bist „Der Wilde“: Schlage vor, was niemand erwartet — eine andere Datenstruktur, ein anderer Algorithmus, eine Grenze, die "
+  54|                    "in Frage gestellt gehört. Du darfst Verträge in Frage stellen (dann nenne sie unter VERTRÄGE; der Nachbar wird gefragt). "
+  55|                    "Gemessen wird trotzdem hart: kein Test darf fallen, Grenzmaße gelten, das Kernmaß darf nicht sinken.",
+  56|     },
+  57| }
+  58| 
+  59| 
+  60| def _tabelle(con: sqlite3.Connection) -> None:
+--- biotop/organe/generation0.py Zeilen 360–384 ---
+ 360| ```"""
+ 361| 
+ 362| 
+ 363| def tests_evolutionieren(con: sqlite3.Connection, lauf_id: int, werk_id: int, werk: Path, paket: str, blind: list[dict], nummern: dict) -> dict:
+ 364|     """Für jeden blinden Mutanten: Schwarm (Nische sicher, 2 Hersteller) erzeugt Tests; ein Test wird ins Werk übernommen,
+ 365|     wenn er am Original besteht UND den Mutanten fängt. Rückgabe: Zahlen + Dateien."""
+ 366|     if sprachprofil.ist_typescript(werk):
+ 367|         return _tests_typescript(con, lauf_id, werk_id, werk, paket, blind, nummern)
+ 368|     neu: dict[str, str] = {}
+ 369|     gefangen_neu = 0
+ 370|     for m in blind:
+ 371|         bereich = m["datei"].split("/")[1]
+ 372|         original = (werk / m["datei"]).read_text()
+ 373|         zeilen = original.splitlines()
+ 374|         z = m["zeile"]
+ 375|         ausschnitt = "\n".join(f"{i+1:4d}: {l}" for i, l in enumerate(zeilen) if abs(i + 1 - z) <= 8)
+ 376|         tests_alt = (werk / "tests" / f"test_{bereich}.py").read_text() if (werk / "tests" / f"test_{bereich}.py").exists() else ""
+ 377|         nutzer = (f"DATEI {m['datei']} (Original, Paket {paket}):\n```python\n{original}\n```\n\nMUTATION in Zeile {z}: {m['beschreibung']} ({m['art']})\n"
+ 378|                   f"Ausschnitt um Zeile {z}:\n{ausschnitt}\n\nVORHANDENE TESTS (tests/test_{bereich}.py, nur lesen):\n```python\n{tests_alt[:6000]}\n```")
+ 379|         gefunden = False
+ 380|         # F4: der Testbau ist stochastisch — je blindem Mutanten zwei Durchläufe (je 2 Hersteller), bevor er als ungefangen gilt
+ 381|         for durchlauf, (hersteller, modell) in [(d, hm) for d in (1, 2) for hm in nischen.waehlen(con, lauf_id, "sicher")]:
+ 382|             try:
+ 383|                 a = aufrufen(con, lauf_id, "openrouter", modell, SYSTEM_TESTBAU, nutzer, zweck=f"generation0.testbau.{bereich}", max_tokens=1500, temperatur=0.2)
+ 384|             except AnbieterFehler as e:
+--- biotop/organe/generation0.py Zeilen 415–430 ---
+ 415|               "Die Tests müssen am Original bestehen und am konkreten Mutanten an einer Assertion fallen. "
+ 416|               "Nur vorhandene Funktionen; kein skip/todo/mock/describe/each. "
+ 417|               "Antwort nur ```typescript ... ```; keine Werkänderung.")
+ 418|     for m in blind:
+ 419|         bereich = m['datei'].split('/')[1]
+ 420|         tests_alt = '\n'.join(p.read_text() for p in sprachprofil.testdateien(werk, bereich))
+ 421|         nutzer = (f"Original {m['datei']}:\n{(werk / m['datei']).read_text()}\n"
+ 422|                   f"Mutation Zeile {m['zeile']}: {m['beschreibung']}\n"
+ 423|                   f"Mutant:\n{m['code']}\nVorhandene Tests nur lesen:\n{tests_alt[:8000]}")
+ 424|         gefunden = False
+ 425|         for durchlauf in (1, 2):
+ 426|             for hersteller, modell in nischen.waehlen(con, lauf_id, 'sicher'):
+ 427|                 try:
+ 428|                     a = aufrufen(con, lauf_id, 'openrouter', modell, system, nutzer,
+ 429|                                  zweck=f'generation0.testbau.{bereich}', max_tokens=1800, temperatur=.2)
+ 430|                 except AnbieterFehler as exc:
+--- biotop/organe/landkarte.py Zeilen 20–30 ---
+  20| 
+  21| from ..anbieter import aufrufen
+  22| from ..kern import protokoll, sprachprofil
+  23| from ..kern.datenbank import j, lj, transaktion
+  24| 
+  25| MODELL_ZUSAMMENFASSUNG = ("openrouter", "google/gemini-3.1-flash-lite")
+  26| 
+  27| 
+  28| def pruefsumme(text: str) -> str:
+  29|     return hashlib.sha256(text.encode()).hexdigest()[:16]
+  30| 
+--- biotop/organe/landkarte.py Zeilen 195–210 ---
+ 195|                 "inhalt=excluded.inhalt, pruefsumme=excluded.pruefsumme, erstellt_am=excluded.erstellt_am, herkunft=excluded.herkunft",
+ 196|                 (werk_id, stufe, schluessel, j(inhalt), ps, protokoll.jetzt(), herkunft))
+ 197| 
+ 198|     def vorhanden(stufe: int, schluessel: str, ps: str) -> dict | None:
+ 199|         z = con.execute("SELECT inhalt, pruefsumme FROM landkarte WHERE werk_id=? AND stufe=? AND schluessel=?",
+ 200|                         (werk_id, stufe, schluessel)).fetchone()
+ 201|         return lj(z["inhalt"]) if z and z["pruefsumme"] == ps else None
+ 202| 
+ 203|     def zusammenfassen(zweck: str, auftrag: str, text: str, max_tokens: int = 300) -> str:
+ 204|         zahlen["modellaufrufe"] += 1
+ 205|         a = aufrufen(con, lauf_id, *MODELL_ZUSAMMENFASSUNG,
+ 206|                      system="Du bist Kartograph eines Software-Werks. Antworte auf Deutsch, knapp, sachlich, ohne Einleitung.",
+ 207|                      nutzer=f"{auftrag}\n\n{text[:12000]}", zweck=zweck, max_tokens=max_tokens, temperatur=0.1)
+ 208|         return a.text.strip()
+ 209| 
+ 210|     # Stufe 3 + 2 je Datei
+--- biotop/organe/aegis.py Zeilen 28–40 ---
+  28| from ..anbieter import AnbieterFehler, aufrufen
+  29| from ..kern import befundklassen, diffwerk, messgeraet, protokoll, sprachprofil
+  30| from ..kern.datenbank import j, lj, transaktion
+  31| from . import kammer, landkarte, masseichung, neutralzaehler, verfassung, verhaltensvergleich, vertraege
+  32| 
+  33| MODELL_ANGRIFF = ("openrouter", "google/gemini-3.5-flash-lite")
+  34| MODELL_ANGRIFF_SCHWER = ("openrouter", "anthropic/claude-sonnet-5")
+  35| 
+  36| ANGRIFF_SYSTEM = """Du bist der Ankläger. Dein einziger Auftrag: den Fehler, den Grenzfall, die Nebenwirkung in einem vorgeschlagenen Änderungssatz finden.
+  37| Du wirst nach Fehlern bewertet, die sich durch Ausführung BESTÄTIGEN lassen — nicht nach Bedenken. Ein Test, der an einem falschen Import oder falschen Methodennamen stirbt, zählt gegen dich.
+  38| Du bekommst den Quelltext des Bereichs (nach Anwendung des Diffs), den Diff selbst, die Verträge des Bereichs und — falls vorhanden — die statische Befundklasse der berührten Stelle mit ihren bekannten Umgehungen.
+  39| Benutze NUR die Klassen, Funktionen und Signaturen, die im Quelltext stehen.
+  40| Liefere bis zu 4 pytest-Tests, die je einen konkreten Vertragsbruch, Fehler oder eine Sicherheits-Umgehung NACHWEISEN: Der Test schlägt mit AssertionError fehl (oder pytest.raises greift nicht), wenn der Fehler vorliegt, und besteht, wenn das Verhalten dem Vertrag entspricht.
+--- biotop/organe/aegis.py Zeilen 650–660 ---
+ 650|     Rückgabe: (Behauptung oder None, bereits_vorhanden).
+ 651|     """
+ 652|     schon_text = ("\n\nBEREITS AUFGESTELLTE BEHAUPTUNGEN IN DIESEM BEREICH — eine davon zu wiederholen ist zwecklos, "
+ 653|                   "der Angriff wird dann nicht ausgeführt:\n" + "\n".join(f"- {s}" for s in schon)) if schon else ""
+ 654|     try:
+ 655|         a = aufrufen(con, lauf_id, *modell, ANSAGE_SYSTEM,
+ 656|                      f"BEREICH {bereich} (Paket {paket}){schon_text}\n\nDIFF:\n```diff\n{diff[:4000]}\n```\n\n"
+ 657|                      f"QUELLTEXT NACH DIFF:\n" + "\n\n".join(quelle)[:12000],
+ 658|                      zweck=f"aegis.ansage.{bereich}", max_tokens=60, temperatur=0.3)
+ 659|     except AnbieterFehler as e:
+ 660|         protokoll.schreiben(con, "aegis.ansage_fehler", lauf_id=lauf_id, bereich=bereich, fehler=str(e)[:200])
+--- biotop/organe/aegis.py Zeilen 686–722 ---
+ 686|     verf_text = ("\n\nVERFASSUNG DES WERKS:\n" + verf["text"]) if verf else ""
+ 687|     befund_text = ""
+ 688|     modell = MODELL_ANGRIFF
+ 689|     if klassen:
+ 690|         befund_text = "\n\nSTATISCHE BEFUNDKLASSE(N) DER BERÜHRTEN STELLE (3.7 F2 — greife die bekannten Umgehungen an):\n" + "\n".join(
+ 691|             "- " + befundklassen.beschreibung(k) for k in klassen)
+ 692|         modell = MODELL_ANGRIFF_SCHWER
+ 693|     # Fassung 6 (3.7): Der Ankläger nennt seine Behauptung VORAB. Ist sie im Bereich schon aufgestellt, wird der
+ 694|     # Angriff gar nicht erst ausgeführt — das spart den teuren Aufruf und verhindert die Doppelung an der Quelle.
+ 695|     schon = bisherige_behauptungen(con, werk_id, bereich, lauf_id, limit=None)
+ 696|     ansage, _ = _ansage(con, lauf_id, modell, bereich, paket, diff, quelle, schon[:25])
+ 697|     if ansage is None:
+ 698|         protokoll.schreiben(con, "aegis.ansage", lauf_id=lauf_id, werk_id=werk_id, kandidat=kandidat_id,
+ 699|                             bereich=bereich, behauptung=None,
+ 700|                             ausgefuehrt=False, grund="Ankläger nennt keine Behauptung (KEIN ANGRIFF)")
+ 701|         return None, modell[1], None
+ 702|     if ansage in schon:
+ 703|         protokoll.schreiben(con, "aegis.ansage", lauf_id=lauf_id, werk_id=werk_id, kandidat=kandidat_id,
+ 704|                             bereich=bereich, behauptung=ansage,
+ 705|                             ausgefuehrt=False, grund="Behauptung in diesem Bereich bereits aufgestellt — Angriff "
+ 706|                                                      "nicht ausgeführt (F6 3.7), spart Aufruf und Kammerlauf",
+ 707|                             bisherige=len(schon))
+ 708|         return None, modell[1], ansage
+ 709|     ansage_nr = protokoll.schreiben(con, "aegis.ansage", lauf_id=lauf_id, werk_id=werk_id,
+ 710|                                     kandidat=kandidat_id, bereich=bereich, behauptung=ansage,
+ 711|                                     ausgefuehrt=True, bisherige=len(schon))
+ 712|     if ansage_kontext is not None:
+ 713|         ansage_kontext["nr"] = ansage_nr
+ 714|     ansage_text = (f"\n\nDU HAST ANGEKÜNDIGT, DIESE BEHAUPTUNG ZU PRÜFEN: {ansage}\n"
+ 715|                    f"Schreibe genau dazu den Test. Weiche nicht auf eine andere Behauptung aus.")
+ 716|     try:
+ 717|         vorlage = ANGRIFF_TYPESCRIPT if sprachprofil.ist_typescript(werk) else ANGRIFF_SYSTEM
+ 718|         a = aufrufen(con, lauf_id, *modell, vorlage,
+ 719|                      f"BEREICH {bereich} (Paket {paket})\n\nVERTRÄGE:\n{vertraege or 'keine dokumentiert'}{verf_text}{befund_text}{ansage_text}\n\nDIFF:\n```diff\n{diff}\n```\n\nQUELLTEXT NACH DIFF:\n" + "\n\n".join(quelle),
+ 720|                      zweck=("schwer." if klassen else "") + f"aegis.angriff.{bereich}", max_tokens=2500, temperatur=0.3)
+ 721|     except AnbieterFehler as e:
+ 722|         protokoll.schreiben(con, "aegis.fehler", lauf_id=lauf_id, fehler=str(e)[:300])
+--- biotop/anbieter/__init__.py Zeilen 60–90 ---
+  60|     modell: str
+  61|     anbieter: str
+  62|     kosten_eur: float
+  63|     protokoll_nr: int
+  64| 
+  65| 
+  66| class AnbieterFehler(RuntimeError):
+  67|     """Ausfall, niemals nutzbarer Beitrag; Verbrauch nur bei Anbieterbeleg."""
+  68| 
+  69|     def __init__(self, meldung, *, verbrauch=None, ausfallart="infrastruktur"):
+  70|         super().__init__(meldung)
+  71|         self.verbrauch = verbrauch
+  72|         self.ausfallart = ausfallart
+  73| 
+  74| 
+  75| def _schluessel(name: str) -> str:
+  76|     v = os.environ.get(name)
+  77|     if v:
+  78|         return v
+  79|     env = Path("/root/.hermes/.env")
+  80|     if env.exists():
+  81|         for zeile in env.read_text().splitlines():
+  82|             if zeile.startswith(name + "="):
+  83|                 return zeile.split("=", 1)[1].strip().strip('"').strip("'")
+  84|     raise AnbieterFehler(f"{name} nicht gesetzt")
+  85| 
+  86| 
+  87| def _tokens_schaetzen(text: str) -> int:
+  88|     # Konservative Vorabreservierung für Textmodelle: UTF-8-Bytes plus
+  89|     # Nachrichtenhülle, nicht Zeichen/3 (bei Unicode deutlich zu niedrig).
+  90|     # Tatsächlicher Verbrauch bleibt separat die Anbieter-Usage.
+--- biotop/anbieter/__init__.py Zeilen 125–150 ---
+ 125|         time.sleep(wartezeit)
+ 126| 
+ 127|     def _senden_einmal(self, modell: str, system: str, nutzer: str, max_tokens: int,
+ 128|                        temperatur: float) -> tuple[str, int, int]:
+ 129|         body = {
+ 130|             "model": modell,
+ 131|             "messages": [{"role": "system", "content": system}, {"role": "user", "content": nutzer}],
+ 132|             "max_tokens": max_tokens,
+ 133|             "temperature": temperatur,
+ 134|             "usage": {"include": True},
+ 135|         }
+ 136|         # Schnellmodelle mit eingebautem Denken (deepseek/qwen) würden sonst das Token-Budget mit Denk-Token
+ 137|         # füllen und leere Antworten liefern (gemessen 19.09.2026, ausgaben/01-modellwahl-rauchtest.txt).
+ 138|         # gemini-3.x lehnt das Abschalten ab („Reasoning is mandatory“, HTTP 400, gemessen 19.09.2026) → dort minimaler Aufwand.
+ 139|         if modell.startswith("google/gemini-3"):
+ 140|             body["reasoning"] = {"effort": "minimal"}
+ 141|         else:
+ 142|             # auch das schwere Modell: Denk-Token würden bei langen JSON-Antworten das Ausgabebudget aufbrauchen
+ 143|             # (Mentor Lauf 16: 3000 Token aus, 0 Zeichen Text, gemessen 19.09.2026, Protokoll #7558)
+ 144|             body["reasoning"] = {"enabled": False}
+ 145|         req = urllib.request.Request(
+ 146|             self.url, data=json.dumps(body).encode(),
+ 147|             headers={"Authorization": f"Bearer {self.key}", "Content-Type": "application/json",
+ 148|                      "HTTP-Referer": "https://biotop.local", "X-Title": "Biotop Phase 1"},
+ 149|         )
+ 150|         try:
+--- biotop/organe/aufnahme.py Zeilen 100–115 ---
+ 100|                 if w in text:
+ 101|                     treffer.append(f"{p.relative_to(werk)}: „{w}“")
+ 102|     beschreibung = ""
+ 103|     for name in ("README.md", "README", "readme.md", "pyproject.toml", "package.json"):
+ 104|         if (werk / name).exists():
+ 105|             beschreibung += f"\n--- {name} ---\n" + (werk / name).read_text(errors="replace")[:3000]
+ 106|     dateiliste = "\n".join(str(p.relative_to(werk)) for p in sorted(werk.rglob("*.py"))[:80])
+ 107|     a = aufrufen(
+ 108|         con, lauf_id, *MODELL_ETHIK,
+ 109|         system="Du prüfst, ob ein Software-Werk schädlichen Zwecken dient: Rüstung, Kriegsgerät, Überwachung von Menschen, Betrug. "
+ 110|                "Antworte in genau zwei Zeilen: Zeile 1 „UNBEDENKLICH“ oder „BEDENKLICH“, Zeile 2 eine Begründung in einem Satz.",
+ 111|         nutzer=f"Beschreibung:{beschreibung or ' (keine)'}\n\nDateien:\n{dateiliste}\n\nStichworttreffer: {treffer or 'keine'}",
+ 112|         zweck="aufnahme.ethik", max_tokens=120, temperatur=0.0,
+ 113|     )
+ 114|     zeilen = a.text.strip().splitlines()
+ 115|     urteil = "BEDENKLICH" if zeilen and "BEDENKLICH" in zeilen[0].upper() and "UNBEDENKLICH" not in zeilen[0].upper() else "UNBEDENKLICH"
+--- biotop/organe/jury.py Zeilen 15–25 ---
+  15| from ..anbieter import AnbieterFehler, aufrufen
+  16| from ..kern import protokoll
+  17| from ..kern.datenbank import j, lj, transaktion
+  18| 
+  19| JUROREN = [("openrouter", "openai/gpt-5.6-luna"), ("openrouter", "google/gemini-3.5-flash-lite"), ("openrouter", "deepseek/deepseek-v4.1-flash")]
+  20| 
+  21| SYSTEM = """Du bist Juror in einem Biotop, das Software-Werke hebt. Zwei Kandidaten (Diffs) für denselben Bereich bestehen alle harten Maße gleich gut.
+  22| Du beurteilst NUR weiche Maße: Lesbarkeit, Klarheit der Struktur, Eleganz (weniger Sonderfälle, sprechende Namen, keine unnötige Komplexität).
+  23| Nicht beurteilen: Korrektheit, Leistung, Sicherheit — das hat die Messung schon entschieden.
+  24| Antworte NUR mit JSON: {"wahl": "A" oder "B", "begruendung": "2–3 Sätze"}"""
+  25| 
+--- biotop/kern/kasse.py Zeilen 14–56 ---
+  14| 
+  15| from . import protokoll
+  16| from .datenbank import transaktion
+  17| 
+  18| # Fester Wechselkurs für die Kasse (Entscheidung Hermes, 18.09.2026, EZB-Referenz
+  19| # gerundet; konservativ leicht zugunsten höherer Euro-Kosten).
+  20| USD_JE_EUR = 1.08
+  21| 
+  22| # USD je Million Token: (eingabe, ausgabe). Quelle: openrouter.ai/api/v1/models, 18.09.2026.
+  23| PREISE_USD_JE_MIO = {
+  24|     "openai/gpt-4.1-mini": (0.40, 1.60),
+  25|     "google/gemini-2.5-flash": (0.30, 2.50),
+  26|     "google/gemini-2.5-flash-lite": (0.10, 0.40),
+  27|     "deepseek/deepseek-chat-v3.1": (0.25, 0.95),
+  28|     "qwen/qwen3-coder": (0.30, 1.00),
+  29|     "mistralai/mistral-small-3.2-24b-instruct": (0.09, 0.25),
+  30|     "openai/gpt-4o-mini": (0.15, 0.60),
+  31|     "openai/gpt-5-mini": (0.25, 2.00),
+  32|     "anthropic/claude-haiku-4.5": (1.00, 5.00),
+  33|     # schweres Modell für Sicherheitsangriffe (3.7 F2); tokenabgerechnet über OpenRouter, weil der
+  34|     # Anthropic-Träger des Teams unangetastet bleibt (Vorgabe Philipp 18.09.2026). Eigene Zählung: zweck-Präfix "schwer.".
+  35|     "anthropic/claude-sonnet-4.5": (3.00, 15.00),
+  36|     # Phase 2 (Masterprompt v3, Abschnitt 10): Katalogprüfung 19.09.2026 — neuere Modelle gleicher Hersteller zu gleichem/niedrigerem Preis
+  37|     "openai/gpt-5.6-luna": (0.20, 1.20),            # ersetzt gpt-4.1-mini (0.40/1.60)
+  38|     "google/gemini-3.5-flash-lite": (0.30, 2.50),   # ersetzt gemini-2.5-flash (0.30/2.50), gleicher Preis
+  39|     "google/gemini-3.1-flash-lite": (0.25, 1.50),
+  40|     "deepseek/deepseek-v4.1-flash": (0.15, 0.60),   # dritter Hersteller
+  41|     "qwen/qwen3.8-flash": (0.15, 0.47),             # vierter Hersteller
+  42|     "anthropic/claude-sonnet-5": (2.00, 10.00),     # schweres Modell, ersetzt sonnet-4.5 (3.00/15.00)
+  43| }
+  44| 
+  45| # Auftragsbudget über mehrere Läufe (Phase-Budget „hart“): Summe aller Läufe ab AUFTRAG_LAUF_AB gegen AUFTRAG_BUDGET_EUR.
+  46| import os as _os
+  47| AUFTRAG_LAUF_AB = int(_os.environ.get("BIOTOP_AUFTRAG_LAUF_AB", "0") or 0)
+  48| AUFTRAG_BUDGET_EUR = float(_os.environ.get("BIOTOP_AUFTRAG_BUDGET_EUR", "0") or 0)
+  49| 
+  50| 
+  51| def auftrag_stand(con: sqlite3.Connection) -> float:
+  52|     if not AUFTRAG_LAUF_AB:
+  53|         return 0.0
+  54|     return con.execute("SELECT COALESCE(SUM(kosten_eur),0) FROM kasse WHERE lauf_id>=?", (AUFTRAG_LAUF_AB,)).fetchone()[0]
+  55| 
+  56| 
+
+== 2. Kasse: Modell × Zweck-Präfix je Zweig (Anzahl, Summe €, erste/letzte Zeit)
+-- STAMM: 4070 Buchungen, 8.6393 €, höchste lauf_id 25
+    anthropic/claude-sonnet-4.5 | schwer.aegis | 27 | 0.6521 | 2026-09-18T22:50:29.044+00:00 | 2026-09-19T00:10:52.126+00:00
+    anthropic/claude-sonnet-5 | schwer.mentor | 15 | 0.5174 | 2026-09-19T11:59:08.428+00:00 | 2026-09-20T01:15:08.013+00:00
+    anthropic/claude-sonnet-5 | schwer.aegis | 15 | 0.4191 | 2026-09-19T12:53:34.820+00:00 | 2026-09-19T13:28:03.746+00:00
+    anthropic/claude-sonnet-5 | phase2 | 1 | 0.0007 | 2026-09-19T00:28:57.035+00:00 | 2026-09-19T00:28:57.035+00:00
+    deepseek/deepseek-v4.1-flash | schwarm | 527 | 0.8725 | 2026-09-19T00:49:15.154+00:00 | 2026-09-20T01:42:42.995+00:00
+    deepseek/deepseek-v4.1-flash | generation0 | 10 | 0.0045 | 2026-09-19T00:43:39.424+00:00 | 2026-09-19T11:27:25.640+00:00
+    deepseek/deepseek-v4.1-flash | jury | 6 | 0.0013 | 2026-09-19T13:22:06.734+00:00 | 2026-09-19T22:24:56.525+00:00
+    deepseek/deepseek-v4.1-flash | phase2 | 1 | 0.0001 | 2026-09-19T00:28:50.690+00:00 | 2026-09-19T00:28:50.690+00:00
+    google/gemini-2.5-flash | aegis | 251 | 0.6207 | 2026-09-18T21:42:22.459+00:00 | 2026-09-19T00:12:24.435+00:00
+    google/gemini-2.5-flash | schwarm | 181 | 0.4012 | 2026-09-18T21:42:16.176+00:00 | 2026-09-19T00:12:06.382+00:00
+    google/gemini-2.5-flash-lite | landkarte | 128 | 0.0077 | 2026-09-18T21:41:27.776+00:00 | 2026-09-19T00:09:31.860+00:00
+    google/gemini-3.1-flash-lite | landkarte | 208 | 0.043 | 2026-09-19T00:41:58.968+00:00 | 2026-09-20T01:13:48.163+00:00
+    google/gemini-3.1-flash-lite | phase2 | 2 | 0.0001 | 2026-09-19T00:28:48.523+00:00 | 2026-09-19T00:46:01.185+00:00
+    google/gemini-3.5-flash-lite | aegis | 665 | 0.9176 | 2026-09-19T00:49:26.030+00:00 | 2026-09-20T01:42:17.230+00:00
+    google/gemini-3.5-flash-lite | schwarm | 577 | 1.7057 | 2026-09-19T00:49:25.379+00:00 | 2026-09-20T01:42:33.292+00:00
+    google/gemini-3.5-flash-lite | generation0 | 20 | 0.0215 | 2026-09-19T00:46:30.768+00:00 | 2026-09-19T11:28:57.474+00:00
+    google/gemini-3.5-flash-lite | jury | 7 | 0.0032 | 2026-09-19T13:22:05.867+00:00 | 2026-09-19T22:24:53.477+00:00
+    google/gemini-3.5-flash-lite | phase2 | 2 | 0.0001 | 2026-09-19T00:28:47.959+00:00 | 2026-09-19T00:46:00.498+00:00
+    openai/gpt-4.1-mini | schwarm | 181 | 0.5098 | 2026-09-18T21:42:13.812+00:00 | 2026-09-19T00:11:52.867+00:00
+    openai/gpt-4.1-mini | aufnahme | 10 | 0.002 | 2026-09-18T21:40:44.991+00:00 | 2026-09-19T00:09:22.609+00:00
+    openai/gpt-5.6-luna | schwarm | 643 | 1.115 | 2026-09-19T00:49:16.533+00:00 | 2026-09-20T01:43:33.219+00:00
+    openai/gpt-5.6-luna | gedaechtnis | 24 | 0.0038 | 2026-09-19T21:31:32.465+00:00 | 2026-09-20T01:35:49.698+00:00
+    openai/gpt-5.6-luna | generation0 | 13 | 0.0074 | 2026-09-19T00:44:44.828+00:00 | 2026-09-19T11:28:28.278+00:00
+    openai/gpt-5.6-luna | aufnahme | 13 | 0.0023 | 2026-09-19T00:41:57.994+00:00 | 2026-09-20T01:13:33.011+00:00
+    openai/gpt-5.6-luna | jury | 7 | 0.0018 | 2026-09-19T13:22:05.162+00:00 | 2026-09-19T22:24:52.358+00:00
+    openai/gpt-5.6-luna | phase2 | 1 | 0.0001 | 2026-09-19T00:28:47.291+00:00 | 2026-09-19T00:28:47.291+00:00
+    qwen/qwen3.8-flash | schwarm | 524 | 0.8004 | 2026-09-19T00:49:53.910+00:00 | 2026-09-20T01:43:32.090+00:00
+    qwen/qwen3.8-flash | generation0 | 10 | 0.0081 | 2026-09-19T00:43:19.407+00:00 | 2026-09-19T11:28:55.996+00:00
+    qwen/qwen3.8-flash | phase2 | 1 | 0.0001 | 2026-09-19T00:28:53.877+00:00 | 2026-09-19T00:28:53.877+00:00
+-- VB1: 4316 Buchungen, 9.0861 €, höchste lauf_id 26
+    anthropic/claude-sonnet-4.5 | schwer.aegis | 27 | 0.6521 | 2026-09-18T22:50:29.044+00:00 | 2026-09-19T00:10:52.126+00:00
+    anthropic/claude-sonnet-5 | schwer.mentor | 16 | 0.5499 | 2026-09-19T11:59:08.428+00:00 | 2026-09-20T19:36:38.498+00:00
+    anthropic/claude-sonnet-5 | schwer.aegis | 15 | 0.4191 | 2026-09-19T12:53:34.820+00:00 | 2026-09-19T13:28:03.746+00:00
+    anthropic/claude-sonnet-5 | phase2 | 1 | 0.0007 | 2026-09-19T00:28:57.035+00:00 | 2026-09-19T00:28:57.035+00:00
+    deepseek/deepseek-v4.1-flash | schwarm | 568 | 0.9515 | 2026-09-19T00:49:15.154+00:00 | 2026-09-20T20:16:10.084+00:00
+    deepseek/deepseek-v4.1-flash | generation0 | 12 | 0.0052 | 2026-09-19T00:43:39.424+00:00 | 2026-09-20T19:35:01.884+00:00
+    deepseek/deepseek-v4.1-flash | jury | 7 | 0.0015 | 2026-09-19T13:22:06.734+00:00 | 2026-09-20T19:45:06.554+00:00
+    deepseek/deepseek-v4.1-flash | phase2 | 1 | 0.0001 | 2026-09-19T00:28:50.690+00:00 | 2026-09-19T00:28:50.690+00:00
+    google/gemini-2.5-flash | aegis | 251 | 0.6207 | 2026-09-18T21:42:22.459+00:00 | 2026-09-19T00:12:24.435+00:00
+    google/gemini-2.5-flash | schwarm | 181 | 0.4012 | 2026-09-18T21:42:16.176+00:00 | 2026-09-19T00:12:06.382+00:00
+    google/gemini-2.5-flash-lite | landkarte | 128 | 0.0077 | 2026-09-18T21:41:27.776+00:00 | 2026-09-19T00:09:31.860+00:00
+    google/gemini-3.1-flash-lite | landkarte | 224 | 0.0464 | 2026-09-19T00:41:58.968+00:00 | 2026-09-20T19:32:13.070+00:00
+    google/gemini-3.1-flash-lite | phase2 | 2 | 0.0001 | 2026-09-19T00:28:48.523+00:00 | 2026-09-19T00:46:01.185+00:00
+    google/gemini-3.5-flash-lite | aegis | 717 | 0.9667 | 2026-09-19T00:49:26.030+00:00 | 2026-09-20T20:15:12.878+00:00
+    google/gemini-3.5-flash-lite | schwarm | 612 | 1.8212 | 2026-09-19T00:49:25.379+00:00 | 2026-09-20T20:14:50.668+00:00
+    google/gemini-3.5-flash-lite | generation0 | 20 | 0.0215 | 2026-09-19T00:46:30.768+00:00 | 2026-09-19T11:28:57.474+00:00
+    google/gemini-3.5-flash-lite | jury | 8 | 0.0037 | 2026-09-19T13:22:05.867+00:00 | 2026-09-20T19:45:04.411+00:00
+    google/gemini-3.5-flash-lite | phase2 | 2 | 0.0001 | 2026-09-19T00:28:47.959+00:00 | 2026-09-19T00:46:00.498+00:00
+    openai/gpt-4.1-mini | schwarm | 181 | 0.5098 | 2026-09-18T21:42:13.812+00:00 | 2026-09-19T00:11:52.867+00:00
+    openai/gpt-4.1-mini | aufnahme | 10 | 0.002 | 2026-09-18T21:40:44.991+00:00 | 2026-09-19T00:09:22.609+00:00
+    openai/gpt-5.6-luna | schwarm | 705 | 1.227 | 2026-09-19T00:49:16.533+00:00 | 2026-09-20T20:15:02.745+00:00
+    openai/gpt-5.6-luna | gedaechtnis | 27 | 0.0044 | 2026-09-19T21:31:32.465+00:00 | 2026-09-20T19:59:10.722+00:00
+    openai/gpt-5.6-luna | aufnahme | 14 | 0.0025 | 2026-09-19T00:41:57.994+00:00 | 2026-09-20T19:31:57.940+00:00
+    openai/gpt-5.6-luna | generation0 | 13 | 0.0074 | 2026-09-19T00:44:44.828+00:00 | 2026-09-19T11:28:28.278+00:00
+    openai/gpt-5.6-luna | jury | 8 | 0.002 | 2026-09-19T13:22:05.162+00:00 | 2026-09-20T19:45:03.392+00:00
+    openai/gpt-5.6-luna | phase2 | 1 | 0.0001 | 2026-09-19T00:28:47.291+00:00 | 2026-09-19T00:28:47.291+00:00
+    qwen/qwen3.8-flash | schwarm | 554 | 0.8534 | 2026-09-19T00:49:53.910+00:00 | 2026-09-20T20:15:38.835+00:00
+    qwen/qwen3.8-flash | generation0 | 10 | 0.0081 | 2026-09-19T00:43:19.407+00:00 | 2026-09-19T11:28:55.996+00:00
+    qwen/qwen3.8-flash | phase2 | 1 | 0.0001 | 2026-09-19T00:28:53.877+00:00 | 2026-09-19T00:28:53.877+00:00
+-- R02: 4070 Buchungen, 8.6393 €, höchste lauf_id 25
+    anthropic/claude-sonnet-4.5 | schwer.aegis | 27 | 0.6521 | 2026-09-18T22:50:29.044+00:00 | 2026-09-19T00:10:52.126+00:00
+    anthropic/claude-sonnet-5 | schwer.mentor | 15 | 0.5174 | 2026-09-19T11:59:08.428+00:00 | 2026-09-20T01:15:08.013+00:00
+    anthropic/claude-sonnet-5 | schwer.aegis | 15 | 0.4191 | 2026-09-19T12:53:34.820+00:00 | 2026-09-19T13:28:03.746+00:00
+    anthropic/claude-sonnet-5 | phase2 | 1 | 0.0007 | 2026-09-19T00:28:57.035+00:00 | 2026-09-19T00:28:57.035+00:00
+    deepseek/deepseek-v4.1-flash | schwarm | 527 | 0.8725 | 2026-09-19T00:49:15.154+00:00 | 2026-09-20T01:42:42.995+00:00
+    deepseek/deepseek-v4.1-flash | generation0 | 10 | 0.0045 | 2026-09-19T00:43:39.424+00:00 | 2026-09-19T11:27:25.640+00:00
+    deepseek/deepseek-v4.1-flash | jury | 6 | 0.0013 | 2026-09-19T13:22:06.734+00:00 | 2026-09-19T22:24:56.525+00:00
+    deepseek/deepseek-v4.1-flash | phase2 | 1 | 0.0001 | 2026-09-19T00:28:50.690+00:00 | 2026-09-19T00:28:50.690+00:00
+    google/gemini-2.5-flash | aegis | 251 | 0.6207 | 2026-09-18T21:42:22.459+00:00 | 2026-09-19T00:12:24.435+00:00
+    google/gemini-2.5-flash | schwarm | 181 | 0.4012 | 2026-09-18T21:42:16.176+00:00 | 2026-09-19T00:12:06.382+00:00
+    google/gemini-2.5-flash-lite | landkarte | 128 | 0.0077 | 2026-09-18T21:41:27.776+00:00 | 2026-09-19T00:09:31.860+00:00
+    google/gemini-3.1-flash-lite | landkarte | 208 | 0.043 | 2026-09-19T00:41:58.968+00:00 | 2026-09-20T01:13:48.163+00:00
+    google/gemini-3.1-flash-lite | phase2 | 2 | 0.0001 | 2026-09-19T00:28:48.523+00:00 | 2026-09-19T00:46:01.185+00:00
+    google/gemini-3.5-flash-lite | aegis | 665 | 0.9176 | 2026-09-19T00:49:26.030+00:00 | 2026-09-20T01:42:17.230+00:00
+    google/gemini-3.5-flash-lite | schwarm | 577 | 1.7057 | 2026-09-19T00:49:25.379+00:00 | 2026-09-20T01:42:33.292+00:00
+    google/gemini-3.5-flash-lite | generation0 | 20 | 0.0215 | 2026-09-19T00:46:30.768+00:00 | 2026-09-19T11:28:57.474+00:00
+    google/gemini-3.5-flash-lite | jury | 7 | 0.0032 | 2026-09-19T13:22:05.867+00:00 | 2026-09-19T22:24:53.477+00:00
+    google/gemini-3.5-flash-lite | phase2 | 2 | 0.0001 | 2026-09-19T00:28:47.959+00:00 | 2026-09-19T00:46:00.498+00:00
+    openai/gpt-4.1-mini | schwarm | 181 | 0.5098 | 2026-09-18T21:42:13.812+00:00 | 2026-09-19T00:11:52.867+00:00
+    openai/gpt-4.1-mini | aufnahme | 10 | 0.002 | 2026-09-18T21:40:44.991+00:00 | 2026-09-19T00:09:22.609+00:00
+    openai/gpt-5.6-luna | schwarm | 643 | 1.115 | 2026-09-19T00:49:16.533+00:00 | 2026-09-20T01:43:33.219+00:00
+    openai/gpt-5.6-luna | gedaechtnis | 24 | 0.0038 | 2026-09-19T21:31:32.465+00:00 | 2026-09-20T01:35:49.698+00:00
+    openai/gpt-5.6-luna | generation0 | 13 | 0.0074 | 2026-09-19T00:44:44.828+00:00 | 2026-09-19T11:28:28.278+00:00
+    openai/gpt-5.6-luna | aufnahme | 13 | 0.0023 | 2026-09-19T00:41:57.994+00:00 | 2026-09-20T01:13:33.011+00:00
+    openai/gpt-5.6-luna | jury | 7 | 0.0018 | 2026-09-19T13:22:05.162+00:00 | 2026-09-19T22:24:52.358+00:00
+    openai/gpt-5.6-luna | phase2 | 1 | 0.0001 | 2026-09-19T00:28:47.291+00:00 | 2026-09-19T00:28:47.291+00:00
+    qwen/qwen3.8-flash | schwarm | 524 | 0.8004 | 2026-09-19T00:49:53.910+00:00 | 2026-09-20T01:43:32.090+00:00
+    qwen/qwen3.8-flash | generation0 | 10 | 0.0081 | 2026-09-19T00:43:19.407+00:00 | 2026-09-19T11:28:55.996+00:00
+    qwen/qwen3.8-flash | phase2 | 1 | 0.0001 | 2026-09-19T00:28:53.877+00:00 | 2026-09-19T00:28:53.877+00:00
+-- T3: 6673 Buchungen, 18.3679 €, höchste lauf_id 38
+    anthropic/claude-sonnet-4.5 | schwer.aegis | 27 | 0.6521 | 2026-09-18T22:50:29.044+00:00 | 2026-09-19T00:10:52.126+00:00
+    anthropic/claude-sonnet-5 | aegis | 168 | 2.0068 | 2026-09-21T14:54:33.343+00:00 | 2026-09-22T19:24:53.575+00:00
+    anthropic/claude-sonnet-5 | schwer.aegis | 110 | 2.7475 | 2026-09-19T12:53:34.820+00:00 | 2026-09-22T19:25:02.671+00:00
+    anthropic/claude-sonnet-5 | schwer.mentor | 15 | 0.5174 | 2026-09-19T11:59:08.428+00:00 | 2026-09-20T01:15:08.013+00:00
+    anthropic/claude-sonnet-5 | phase2 | 1 | 0.0007 | 2026-09-19T00:28:57.035+00:00 | 2026-09-19T00:28:57.035+00:00
+    deepseek/deepseek-v4.1-flash | schwarm | 981 | 2.0438 | 2026-09-19T00:49:15.154+00:00 | 2026-09-22T19:26:08.390+00:00
+    deepseek/deepseek-v4.1-flash | generation0 | 343 | 0.2704 | 2026-09-19T00:43:39.424+00:00 | 2026-09-22T15:10:50.301+00:00
+    deepseek/deepseek-v4.1-flash | jury | 10 | 0.0026 | 2026-09-19T13:22:06.734+00:00 | 2026-09-22T18:03:01.385+00:00
+    deepseek/deepseek-v4.1-flash | phase2 | 1 | 0.0001 | 2026-09-19T00:28:50.690+00:00 | 2026-09-19T00:28:50.690+00:00
+    google/gemini-2.5-flash | aegis | 251 | 0.6207 | 2026-09-18T21:42:22.459+00:00 | 2026-09-19T00:12:24.435+00:00
+    google/gemini-2.5-flash | schwarm | 181 | 0.4012 | 2026-09-18T21:42:16.176+00:00 | 2026-09-19T00:12:06.382+00:00
+    google/gemini-2.5-flash-lite | landkarte | 128 | 0.0077 | 2026-09-18T21:41:27.776+00:00 | 2026-09-19T00:09:31.860+00:00
+    google/gemini-3.1-flash-lite | landkarte | 238 | 0.0499 | 2026-09-19T00:41:58.968+00:00 | 2026-09-21T03:46:21.731+00:00
+    google/gemini-3.1-flash-lite | phase2 | 2 | 0.0001 | 2026-09-19T00:28:48.523+00:00 | 2026-09-19T00:46:01.185+00:00
+    google/gemini-3.5-flash-lite | schwarm | 791 | 2.7689 | 2026-09-19T00:49:25.379+00:00 | 2026-09-22T19:22:43.124+00:00
+    google/gemini-3.5-flash-lite | aegis | 775 | 1.0913 | 2026-09-19T00:49:26.030+00:00 | 2026-09-22T19:11:24.451+00:00
+    google/gemini-3.5-flash-lite | generation0 | 96 | 0.1588 | 2026-09-19T00:46:30.768+00:00 | 2026-09-22T15:09:49.283+00:00
+    google/gemini-3.5-flash-lite | jury | 11 | 0.0061 | 2026-09-19T13:22:05.867+00:00 | 2026-09-22T18:02:49.404+00:00
+    google/gemini-3.5-flash-lite | phase2 | 2 | 0.0001 | 2026-09-19T00:28:47.959+00:00 | 2026-09-19T00:46:00.498+00:00
+    openai/gpt-4.1-mini | schwarm | 181 | 0.5098 | 2026-09-18T21:42:13.812+00:00 | 2026-09-19T00:11:52.867+00:00
+    openai/gpt-4.1-mini | aufnahme | 10 | 0.002 | 2026-09-18T21:40:44.991+00:00 | 2026-09-19T00:09:22.609+00:00
+    openai/gpt-5.6-luna | schwarm | 1097 | 2.29 | 2026-09-19T00:49:16.533+00:00 | 2026-09-22T19:26:01.942+00:00
+    openai/gpt-5.6-luna | generation0 | 155 | 0.1558 | 2026-09-19T00:44:44.828+00:00 | 2026-09-22T15:10:33.597+00:00
+    openai/gpt-5.6-luna | gedaechtnis | 54 | 0.0099 | 2026-09-19T21:31:32.465+00:00 | 2026-09-22T19:16:34.180+00:00
+    openai/gpt-5.6-luna | aufnahme | 26 | 0.0041 | 2026-09-19T00:41:57.994+00:00 | 2026-09-22T13:43:15.323+00:00
+    openai/gpt-5.6-luna | jury | 11 | 0.0033 | 2026-09-19T13:22:05.162+00:00 | 2026-09-22T18:02:48.439+00:00
+    openai/gpt-5.6-luna | phase2 | 1 | 0.0001 | 2026-09-19T00:28:47.291+00:00 | 2026-09-19T00:28:47.291+00:00
+    qwen/qwen3.8-flash | schwarm | 822 | 1.5268 | 2026-09-19T00:49:53.910+00:00 | 2026-09-22T19:22:31.147+00:00
+    qwen/qwen3.8-flash | ausfall | 115 | 0.462 | 2026-09-21T05:29:28.297+00:00 | 2026-09-22T19:12:44.973+00:00
+    qwen/qwen3.8-flash | generation0 | 69 | 0.058 | 2026-09-19T00:43:19.407+00:00 | 2026-09-22T15:11:27.094+00:00
+    qwen/qwen3.8-flash | phase2 | 1 | 0.0001 | 2026-09-19T00:28:53.877+00:00 | 2026-09-19T00:28:53.877+00:00
+
+== 3. T3: Modelle der Läufe 26–38 (lauf_id ≥ 26) je Zweck-Präfix
+    anthropic/claude-sonnet-5 | aegis | 168 | 2.0068
+    anthropic/claude-sonnet-5 | schwer | 95 | 2.3284
+    deepseek/deepseek-v4.1-flash | schwarm | 454 | 1.1712
+    deepseek/deepseek-v4.1-flash | generation0 | 333 | 0.2659
+    deepseek/deepseek-v4.1-flash | jury | 4 | 0.0013

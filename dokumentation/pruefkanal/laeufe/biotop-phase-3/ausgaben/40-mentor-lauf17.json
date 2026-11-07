@@ -1,0 +1,107 @@
+{
+ "mentor_id": 2,
+ "richtungen": [
+  {
+   "name": "Filtern: Sicherheitsbefund und Fehlschlag beheben",
+   "ziel": "Den fehlgeschlagenen Test und die 11 Sicherheitspunkte in `filtern` beseitigen, indem die Shell-Integration der Pfadverarbeitung durch eine argumentlose Subprozess-Aufruflogik ersetzt wird.",
+   "ertrag": "Kernmaß filtern steigt von −12 auf 0 (−1 Test, −11 Sicherheit entfernt)",
+   "risiko": "Berührt Vertrag test_vertrag_filtern_lesen und die externe Kommando-Schnittstelle; falsches Escaping kann Pfadmuster brechen",
+   "aufwand_generationen": 2,
+   "bereiche": [
+    "filtern"
+   ],
+   "vertraege": [
+    "test_vertrag_filtern_lesen.py"
+   ],
+   "artgedaechtnis": [],
+   "nische": "sicher"
+  },
+  {
+   "name": "Zaehlen: toten Code entfernen",
+   "ziel": "Die eine tote Funktion in `zaehlen` identifizieren und entfernen, ohne die Kennzahlen-Schnittstelle zu verändern.",
+   "ertrag": "Kernmaß zaehlen steigt von −1 auf 0 (tote Funktionen 1→0)",
+   "risiko": "Falls die Funktion Teil des öffentlichen Vertrags test_vertrag_ausgabe_zaehlen oder test_vertrag_zaehlen_lesen ist, droht Bruch der Schnittstelle",
+   "aufwand_generationen": 1,
+   "bereiche": [
+    "zaehlen"
+   ],
+   "vertraege": [
+    "test_vertrag_ausgabe_zaehlen.py",
+    "test_vertrag_zaehlen_lesen.py"
+   ],
+   "artgedaechtnis": [],
+   "nische": "elegant"
+  },
+  {
+   "name": "Laufzeit filtern senken",
+   "ziel": "Die Laufzeit von `filtern` (31.16ms, höchste im Werk) durch effizientere Pfadmuster-Prüfung ohne externe Prozessaufrufe pro Zeile senken.",
+   "ertrag": "Grenzmaß Laufzeit filtern sinkt deutlich, potenziell auf Niveau von lesen (~28ms) oder darunter",
+   "risiko": "Kann mit der Sicherheits-Reparatur kollidieren, da beide dieselbe Shell-Integrationslogik betreffen; Tauschregel ×2/×3 beachten",
+   "aufwand_generationen": 2,
+   "bereiche": [
+    "filtern"
+   ],
+   "vertraege": [
+    "test_vertrag_filtern_lesen.py"
+   ],
+   "artgedaechtnis": [],
+   "nische": "schnell"
+  },
+  {
+   "name": "Ausgabe und Lesen: Sättigung anerkennen",
+   "ziel": "Für `ausgabe` und `lesen` das Kernmaß ist bereits am Höchstwert 0; hier keine Umformung ohne Maßgewinn vornehmen.",
+   "ertrag": "Kein weiterer Kernmaß-Zuwachs möglich; einzig Grenzmaße (Laufzeit, größte Funktion) bleiben als Ziel",
+   "risiko": "Jede Änderung ohne Maßgewinn wird laut Verfassung abgelehnt; Risiko unnötiger Vertragsberührung",
+   "aufwand_generationen": 1,
+   "bereiche": [
+    "ausgabe",
+    "lesen"
+   ],
+   "vertraege": [],
+   "artgedaechtnis": [],
+   "nische": "sicher"
+  },
+  {
+   "name": "Wilde Exploration: Kapselung an Modulgrenzen prüfen",
+   "ziel": "Analog zu Erfahrungen aus lagerhaus (Kapselungsbrüche über private Attribute) prüfen, ob `ausgabe` oder `zaehlen` unerlaubt auf interne Strukturen des jeweils anderen Bereichs zugreifen.",
+   "ertrag": "Potenziell keine direkte Zahl, aber Vermeidung künftiger Vertragsbrüche; nur verfolgen falls konkreter Fund vorliegt",
+   "risiko": "Hohe Ablehnungswahrscheinlichkeit ohne konkreten Befund, wie A192/A178/A177 zeigen; sollte nur bei echtem Fund verfolgt werden",
+   "aufwand_generationen": 1,
+   "bereiche": [
+    "ausgabe",
+    "zaehlen"
+   ],
+   "vertraege": [
+    "test_vertrag_ausgabe_zaehlen.py"
+   ],
+   "artgedaechtnis": [
+    "A192",
+    "A178",
+    "A177",
+    "A194"
+   ],
+   "nische": "wild"
+  }
+ ],
+ "empfehlung": "Filtern: Sicherheitsbefund und Fehlschlag beheben",
+ "begruendung": "filtern ist der einzige Bereich unter dem Höchstwert (−12) mit klarem Sicherheitsbefund und Testfehler, dessen Behebung laut Verfassung Vorrang vor Laufzeit hat; die anderen Bereiche stehen bereits am Kernmaß-Höchstwert 0.",
+ "pruefung": {
+  "anzahl": 5,
+  "anzahl_ok": true,
+  "pflichtfelder_ok": [
+   true,
+   true,
+   true,
+   true,
+   true
+  ],
+  "artgedaechtnis_verweise": [
+   "A192",
+   "A178",
+   "A177",
+   "A194"
+  ],
+  "erfundene_verweise": []
+ },
+ "modell": "anthropic/claude-sonnet-5"
+}

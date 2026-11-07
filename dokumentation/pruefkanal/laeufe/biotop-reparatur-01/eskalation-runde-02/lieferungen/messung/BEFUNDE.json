@@ -1,0 +1,175 @@
+{
+  "auftrag": "Fassung 7, disjunkter Messgerät-Dateiteil der zweiten und letzten automatischen Fixrunde",
+  "abgrenzung": "Nur Nachweisleser des Kernpfads. Keine Integration, kein Commit, keine produktiven Bestände, keine Modelle/Netzaufrufe. Originalschutz gegen bereitgestelltes QUELLEN.json, nicht durch Lesen der Produktion.",
+  "coverage": {
+    "gelesen": "Vollständige ursprüngliche biotop/kern/messgeraet.py (491 Zeilen), zugehörige Kammer, konkrete Aufrufer in Aegis/Vorspann/lauf/eichung und die zugeteilten Eigen-Tests.",
+    "inventar": "Alle ursprünglichen Suchtreffer zu messgeraet.py werden separat als roh/SUCHTREFFER-messgeraet.json geliefert.",
+    "grenze": "Kein vollständiger Biotop-Audit durch diesen Subagenten. Andere Dateiteile bleiben beim Parent. Erste breite Suchausgabe war abgeschnitten; relevante konkrete Aufrufer wurden enger erneut gesucht. Ausbleibende weitere Funde ist keine Entwarnung. Keine historischen Privatwerk-Replays ohne autorisierte Kopien."
+  },
+  "lesestellen": [
+    {
+      "id": "M01", "original": "MESSSKRIPT:79-95, insbesondere :89", "urteil": "belegt und behoben",
+      "kernpfadbezug": "JUnit -> Bereichsfehlschläge/Kernmaß und werk.tests_fehlgeschlagen_liste -> Pareto sowie Aegis-Testaufnahme; messen.gueltig wurde trotz skipped grün.",
+      "befund": "Echt ausgeführtes pytest erzeugt bei skip und xfail(run=False) rc0 und <skipped>; Original meldet tests_bestanden=1, gueltig=True ohne Testkörpermarker.",
+      "minimalfix": "Skipped-JUnit wird verworfen; der begleitende Call-/Abschlussnachweis sperrt bereits nicht ausgeführte Fälle.",
+      "negativtests": ["test_skipped_junit_ist_keine_gueltige_messung"],
+      "gegenroute": ["test_ausgefuehrter_erfolg_und_fehlschlag_bleiben_messbar"],
+      "tdd": ["03-skip-red-korrigiert", "04-skip-green"],
+      "evidenzart": "echte pytest-/JUnit-Läufe im echten Docker-Kammerpfad",
+      "grenzen": "Auch ein ausgeführtes erwartetes xfail bleibt ein skipped-JUnit und kein grüner Nachweis. Fassung-7-Gültigkeit der Folgemessung kann ältere Aegis-Integrationsannahmen ändern, siehe INTEGRATIONSHINWEIS.md."
+    },
+    {
+      "id": "M02", "original": "MESSSKRIPT:79-95, :134-136", "urteil": "belegt und behoben",
+      "kernpfadbezug": "Fehlendes/leeres JUnit wurde als Null-Testfehlschläge in Kernmaß und Pareto eingespeist; Collection-/Interrupt-Fehler verschwanden hinter dem äußeren erfolgreichen Messskript.",
+      "befund": "Entferntes oder leeres JUnit nach echtem Testlauf, keine gesammelten Tests, Collection-Abbruch, KeyboardInterrupt nach Erfolg und os._exit(0) lieferten im Original gueltig=True.",
+      "minimalfix": "JUnit muss existieren und Testfälle enthalten; pytest rc außerhalb 0/1 ist ungültig. Fehlende Abschlussdatei wird nicht ersetzt.",
+      "negativtests": ["test_fehlendes_oder_leeres_junit_ist_rot", "test_leer_oder_abgebrochen_ist_keine_messung"],
+      "gegenroute": ["test_ausgefuehrter_erfolg_und_fehlschlag_bleiben_messbar"],
+      "tdd": ["06-junit-red-korrigiert", "07-junit-green"],
+      "evidenzart": "echte pytest-Läufe; fehlendes/leeres JUnit teilweise als ausdrücklich gestellter Dateieingriff nach tatsächlicher Ausführung",
+      "grenzen": "Echte Assertion-Fehlschläge mit pytest rc1 bleiben gültige Messungen; kein pauschales rc1-Verbot. Ein früher Roharchivfehler ist in VERSUCHE.json ausdrücklich erhalten."
+    },
+    {
+      "id": "M03", "original": "MESSSKRIPT:79-95 (keine Vollständigkeitsprüfung)", "urteil": "belegt und behoben",
+      "kernpfadbezug": "Teil-JUnit liefert unvollständige Fehlerlisten an Pareto und kann aus fehlenden Dateinamen Aegis-Aufnahmen erzeugen.",
+      "befund": "Maxfail, pytest.exit(returncode=1), Setup-Fehler und --continue-on-collection-errors werden im Original trotz unvollständiger Ausführung grün gemessen.",
+      "minimalfix": "Kleiner pytest-Begleitbeleg aus genau demselben Subprozess: gesammelte Node-IDs müssen Call- und Teardown-Reports haben; Sammlungsfehler sperren.",
+      "negativtests": ["test_teilabbruch_mit_pytest_rc1_bleibt_rot"],
+      "gegenroute": ["test_vollstaendige_mischsuite_mit_fehlschlag_bleibt_messbar", "test_ausgefuehrter_erfolg_und_fehlschlag_bleiben_messbar"],
+      "tdd": ["08-teilabbruch-red", "09-teilabbruch-green"],
+      "evidenzart": "echte Fehler/Abbrüche in eigener Kammer-Fixture; keine simulierte Ergebnisfunktion",
+      "grenzen": "Gültigkeit gilt für abgeschlossene Standard-pytest-Fälle. Kein Schutz gegen beliebig gefälschte konsistente Reports oder böswillig ersetzte pytest-Implementationen."
+    },
+    {
+      "id": "M04", "original": "MESSSKRIPT:68, :85-95, :134", "urteil": "belegt und behoben",
+      "kernpfadbezug": "Explizite Testdateien werden später durch Aegis aus Abwesenheit in der Fehlliste aufgenommen; ein grüner Nachbar darf keine leere/ausgesteuerte Pflichtdatei decken.",
+      "befund": "Im Original grün: entfernte einzelne Fehlermeldung aus JUnit, mit -k abgewählter Test, Bereich ohne Test und leere zusätzliche Testdatei sowohl direkt in tests als auch unter tests/vertraege.",
+      "minimalfix": "Vor dem Lauf erwartete test_*.py rekursiv erfassen; jede Datei muss im selben gesammelten/ausgeführten Bestand vorkommen. Abwahl und JUnit-/Sammlungszähl-Differenz sperren. Kein Bereichszähler per fehlendem defaultdict mehr als Nullbeleg.",
+      "negativtests": ["test_junit_mit_entferntem_fehlschlag_ist_unvollstaendig", "test_abgewaehlter_pflichttest_ist_kein_vollstaendiger_beleg", "test_bereich_ohne_tests_ist_nicht_als_null_gemessen", "test_erwartete_leere_testdatei_verschwindet_nicht_neben_gruener_datei"],
+      "gegenroute": ["test_erwartete_testdatei_mit_ausgefuehrtem_test_zaehlt", "test_vollstaendige_mischsuite_mit_fehlschlag_bleibt_messbar"],
+      "tdd": ["16-vollstaendigkeit-red", "17-pflichtdatei-red", "18-vollstaendigkeit-green"],
+      "evidenzart": "echte Kammer; gelöschter XML-Knoten ist ein gekennzeichneter Eingriff, Leerdateien/-k sind echte pytest-Routen",
+      "grenzen": "Erwartete Dateien nach Biotop-Konvention test_*.py unter tests. Nicht beliebige projektspezifische Testdiscovery oder beweissichere Identitätsbindung gegen inhaltlich gefälschtes XML."
+    },
+    {
+      "id": "M05", "original": "MESSSKRIPT:98-106", "urteil": "belegt und behoben",
+      "kernpfadbezug": "bandit() liefert sicherheit_punkte direkt an kernmass_f2_bereich/PARETO_F2; eine Scannerstörung wurde zum vermeintlichen Sicherheitsgewinn.",
+      "befund": "Leere/kaputte Ausgabe, fehlendes results-Feld, rc2 trotz JSON, errors-Liste und fehlende Scanmetrik ergeben im Original gültige Sicherheit0.",
+      "minimalfix": "Kein 0-Rückfall für JSON-Fehler; rc nur 0/1, Pflichtfelder results/errors/metrics und mindestens eine gescannte Zieldatei verlangen.",
+      "negativtests": ["test_bandit_ohne_ausgefuehrten_scan_ist_nicht_sicherheit_null"],
+      "gegenroute": ["test_ausgefuehrter_erfolg_und_fehlschlag_bleiben_messbar", "test_echte_scannerbefunde_bleiben_gueltige_negative_masse"],
+      "tdd": ["10-bandit-red", "11-bandit-green"],
+      "evidenzart": "gestellte Scanner-Protokollantworten über tatsächlich gestartete python -m bandit Subprozesse und unveränderten Messdatenfluss; Gutkontrollen verwenden das wirklich installierte Bandit",
+      "grenzen": "Keine Behauptung, dass die Scanfehler natürlich im Bestand vorkamen. Keine kryptografische Absicherung konsistent gefälschter Scannerantworten; Gewichte und Sicherheitsschwellen unverändert."
+    },
+    {
+      "id": "M06", "original": "MESSSKRIPT:108-111", "urteil": "belegt und behoben",
+      "kernpfadbezug": "vulture() liefert tote_funktionen direkt an Kernmaß/Pareto; ignoriertes rc und unlesbare Ausgabe ergeben falsches Tote0.",
+      "befund": "rc1/2 leer, rc3 leer und kaputte rc0/3-Ausgabe wurden als gültige Null gewertet.",
+      "minimalfix": "Vulture rc0/3 und seine Befundzeilenform prüfen; rc3 braucht Befunde. Reguläre leere stdout bei beendetem rc0 bleibt erlaubt.",
+      "negativtests": ["test_vulture_fehler_ist_nicht_tote_null"],
+      "gegenroute": ["test_echte_scannerbefunde_bleiben_gueltige_negative_masse", "test_vulture_befund_anderer_art_bleibt_ausgefuehrte_null", "test_vulture_erkennt_unerreichbaren_code_ohne_funktionsbefund", "test_ausgefuehrter_erfolg_und_fehlschlag_bleiben_messbar"],
+      "tdd": ["12-vulture-red", "13-vulture-green", "14-marker-red", "15-marker-green"],
+      "evidenzart": "Scanner-Doubles über echten Subprozess; echte installierte Vulture-Gutkontrollen für sauberes Werk, tote Funktion, unbenutzte Variable und unreachable code",
+      "grenzen": "Eine erste zu enge Zeilenprüfung wies gültiges unreachable code ab; vor Lieferung mit eigener Gegenroute korrigiert, Rohversuch erhalten. Scannerversion/Formate außerhalb des vorhandenen Images nicht pauschal verifiziert."
+    },
+    {
+      "id": "M07", "original": "messen:208-216", "urteil": "belegt und behoben",
+      "kernpfadbezug": "gueltig ist die Eingangssperre für Aegis, Pflichtvorspann und Generalprobe vor Kernmaß/Pareto.",
+      "befund": "Ein Marker trotz äußerem rc1/124/137 oder fehlendem angeforderten Bereich/Werk-Pflichtfeld wurde gültig, teils Kernmaß0.",
+      "minimalfix": "Äußeres rc muss 0 sein; angeforderte Bereiche und Werk-Pflichtfelder vor gueltig prüfen. Ungültige Rückgabe enthält keine nutzbaren Bereiche oder kernmass.",
+      "negativtests": ["test_abgebrochene_kammer_trotz_marker_ist_rot", "test_fehlende_pflichtmessung_im_marker_ist_rot"],
+      "gegenroute": ["test_ausgefuehrter_erfolg_und_fehlschlag_bleiben_messbar"],
+      "tdd": ["14-marker-red", "15-marker-green"],
+      "evidenzart": "gezielte Unit-Doubles der Kammer.Ergebnis-Übergabe; direkte Gutkontrollen dagegen echte Kammerläufe",
+      "grenzen": "Kein realer OOM/äußerer Kill für diese Marker-Unitfälle erzeugt. Echter innerer Testabbruch separat M02/M03. Keine generische Schemavalidierungsarchitektur oder vollständige Anti-Fälschungsprüfung."
+    },
+    {
+      "id": "M08", "original": "MESSSKRIPT:142-166 -> messen:212-216 -> grenzen_f2:432-437", "urteil": "belegt und behoben",
+      "kernpfadbezug": "Bestellte Laufzeit ist Grenzmaß im Kernurteil; None wurde von grenzen_f2 ausgelassen, während die Messung grün blieb.",
+      "befund": "Angeforderte Referenzlast ohne last_alpha oder mit ausgelöster Exception liefert im Original gueltig=True/laufzeit_ms=None.",
+      "minimalfix": "Nur bei tatsächlich bestellter Referenzlast wird das Ergebnis je angefordertem Bereich verpflichtend, sonst bleibt None erlaubt.",
+      "negativtests": ["test_bestellte_referenzlast_braucht_ein_ergebnis"],
+      "gegenroute": ["test_referenzlast_nur_wenn_bestellt_und_dann_dreimal"],
+      "tdd": ["19-last-red", "20-last-green"],
+      "evidenzart": "echte Referenzfunktionen/fehlende Funktion im Kammerlauf; gültige Last mit drei geschriebenen Aufrufmarkern",
+      "grenzen": "Kein Rauschcollector-, NaN-/Null-Rauschwert- oder Transitivitätsfix. Keine Laufzeitschwelle geändert. None ohne Bestellung ist absichtlich kein Pflichtbeleg."
+    },
+    {
+      "id": "M09", "original": "pareto_f2:292-293 -> urteil_f2:455-490", "urteil": "belegt und behoben",
+      "kernpfadbezug": "Fehlende Einzeltestliste wird im entscheidenden Pareto-Leser zu [] und kann echte Zulassung ok=True liefern.",
+      "befund": "Fehlendes/None-Feld auf Basis oder Kandidat gibt bei sonstigem Kerngewinn im Original ok=True.",
+      "minimalfix": "Fehlende/unbrauchbare Liste ausdrücklich als Nachweisverletzung in schlechter melden, echte ausgeführte leere Fehlliste beibehalten.",
+      "negativtests": ["test_pareto_ohne_einzeltestbeleg_gibt_keine_zulassung"],
+      "gegenroute": ["test_pareto_ausgefuehrte_leere_fehlliste_ist_erlaubt", "test_ausgefuehrter_erfolg_und_fehlschlag_bleiben_messbar"],
+      "tdd": ["21-pareto-red", "22-pareto-green"],
+      "evidenzart": "Unit-Übergabe an originale urteil_f2/pareto_f2; kein nachgestellter Pareto-Algorithmus",
+      "grenzen": "Die synthetische messung-Fixture ist kein Kammer-Ausführungsbeleg; echte leere Listen sind in separaten echten Kammer-Gutkontrollen belegt. Vollständige Suite/CLI beim Parent."
+    },
+    {
+      "id": "M10", "original": "MESSSKRIPT:87, :134-136", "urteil": "belegt und behoben, nötige Erhaltung ausgeführter Gutkontrollen",
+      "kernpfadbezug": "classname-Endstück wurde als Dateiname gelesen; tatsächlich ausgeführte Klassenfehlschläge verschwanden als Null im Bereichs-Kernmaß.",
+      "befund": "Original-Replay zeigt bei Testklasse gültige Messung mit tests_gesamt=0 und bei echter AssertionFailure tests_fehlgeschlagen=0. Die neue Bereichs-Pflichtsperre hätte diese echten Tests sonst pauschal ungültig gemacht.",
+      "minimalfix": "pytests xunit1-Dateifeld bestellen und tatsächlichen Dateinamen lesen; keine Änderung des bestehenden Datei::Testname-Formats.",
+      "negativtests": ["test_testklasse_bleibt_ausgefuehrter_bereichsnachweis"],
+      "gegenroute": ["test_testklasse_bleibt_ausgefuehrter_bereichsnachweis", "test_ausgefuehrter_erfolg_und_fehlschlag_bleiben_messbar"],
+      "tdd": ["23-klasse-red", "24-klasse-green", "28-original-replay"],
+      "evidenzart": "echte Klassen-Tests, bestanden und fehlgeschlagen; Originalzählfehler zusätzlich mit versiegeltem Ausgangsmodul wiederholt",
+      "grenzen": "IDs bleiben aus Kompatibilität Datei::Testname; allgemeine Namenskollisionen verschiedener Testklassen sind nicht neu gelöst."
+    },
+    {
+      "id": "M11", "original": "MESSSKRIPT:95", "urteil": "belegt und behoben",
+      "kernpfadbezug": "Die auf 100 gekürzte Liste wird unverändert von Einzeltest-Pareto/Aegis-Testaufnahme als vollständiger Nachweis konsumiert.",
+      "befund": "101 tatsächlich ausgeführte Fehlschläge ergeben gültige Messung, Zähler101, aber nur 100 Fehler-IDs; test_100 fehlt im entscheidenden Beleg.",
+      "minimalfix": "Entscheidungsrelevante Fehlliste nicht abschneiden; reine Anzeigekürzungen bleiben unberührt.",
+      "negativtests": ["test_einzeltestnachweis_wird_nicht_bei_hundert_abgeschnitten"],
+      "gegenroute": ["test_ausgefuehrter_erfolg_und_fehlschlag_bleiben_messbar", "test_einzeltestnachweis_wird_nicht_bei_hundert_abgeschnitten"],
+      "tdd": ["25-liste-red", "26-liste-green"],
+      "evidenzart": "echtes pytest mit 101 Fehlern; vollständiges JUnit im Rohtransport bei Bedarf verlustfrei zlib/base64 komprimiert",
+      "grenzen": "Kammers stdout-Gesamtlimit bleibt unverändert. Wird deshalb der Messmarker abgeschnitten, scheitert die Messung rot; größere Transportarchitektur nicht Gegenstand."
+    },
+    {
+      "id": "M12", "original": "vergleichen:236-256; bereich_masse:226-229; werk_masse:232-233", "urteil": "kein belegtes falsch-grünes Kernurteil; unverändert",
+      "kernpfadbezug": "bereich_masse dient unter anderem Mentor-Anzeige. Für vergleichen wurde in der zugeteilten Produktkopie kein Aufrufer gefunden; der entscheidende F2-Pfad verwendet pareto_f2/grenzen_f2, nicht dessen gleich-Liste.",
+      "befund": "None wird ausdrücklich als 'nicht messbar' in gleich einsortiert. Unsaubere Anzeige allein ist kein reproduziertes Zulassungsgrün.",
+      "negativtests": [], "gegenroute": [], "tdd": [], "evidenzart": "Lesebefund und gezielte Aufrufsuche",
+      "grenzen": "Keine Entwarnung für fremde/Legacy-Aufrufer außerhalb dieser Produktkopie. Keine Anzeige-/Legacy-Skript-Reparatur."
+    },
+    {
+      "id": "M13", "original": "kernmass:219-223; kernmass_f2_bereich:265-266; kernmass_f2/f1:269-274", "urteil": "kein weiterer belegter falsch-grüner Leser; unverändert",
+      "kernpfadbezug": "Direkte arithmetische Ableitung des Kernmaßes; die Eingangsbelege werden davor durch messen/Pareto gesichert.",
+      "befund": "Pflicht-Kernspalten werden mit [] gelesen, fehlen sie entsteht kein stiller Nullwert. Leere Bereichssumme allein ist Mathematik, keine gueltig-/ok-Zulassung; M07 sperrt leere angeforderte Messungen.",
+      "negativtests": ["test_fehlende_kernmass_spalte_ist_nicht_null"], "gegenroute": ["test_kernmass_null_ist_der_hoechstwert", "test_kernmass_belohnt_keine_bestehenden_tests"],
+      "tdd": [], "evidenzart": "bestehende unveränderte direkte Eigen-Tests in 31-final ausgeführt",
+      "grenzen": "Kein generischer Schutz gegen frei konstruierte semantisch inkonsistente Zahlenobjekte. Keine Gewichte/Schwellen verändert."
+    },
+    {
+      "id": "M14", "original": "MESSSKRIPT:55-64, :113-127, :168-192", "urteil": "gelesen, kein eigenständiges zusätzliches falsch-grünes Kernzulassungsbeispiel behoben",
+      "kernpfadbezug": "Bau, größte Funktion und Zyklen fließen in Grenzmaße/Pareto; Bauverdict basiert bereits auf ausgeführtem rc==0.",
+      "befund": "Timeout in lauf() bricht schon ohne Messmarker ab. AST-Parsefehler werden lokal ausgelassen, identische Scanfehler werden nun zuvor am Bandit-Nachweis gesperrt. Zyklen-Null ist eine ausgeführte Berechnung, kein absent-Testdefault.",
+      "negativtests": [], "gegenroute": ["test_ausgefuehrter_erfolg_und_fehlschlag_bleiben_messbar"], "tdd": [], "evidenzart": "Lesebefund; keine erschöpfende AST-/Zyklen-Semantikprüfung",
+      "grenzen": "Nicht als allgemeine AST-/Importgraph-Korrektheit ausgewiesen. Keine neuen allgemeinen Statikanalyseänderungen."
+    },
+    {
+      "id": "M15", "original": "bestwerte:381-401; grenzen_f2:404-449; urteil_f2:452-491", "urteil": "konkreter None-Bestellpfad durch M08 gesperrt; übrige Regeln unverändert",
+      "kernpfadbezug": "Grenzvergleich und Zulassungsentscheidung. Bestwerte sammeln Zahlen; lauf prüft aktuelle Messgültigkeit vor urteil_f2. Pareto-Rückfall separat M09.",
+      "befund": "Optional nicht bestellte Laufzeit wird nicht nachträglich verpflichtend. Gemessene Rauschtoleranz, Sperrbereiche und bestehende Grenzen bleiben gleich.",
+      "negativtests": ["test_bestellte_referenzlast_braucht_ein_ergebnis"], "gegenroute": ["test_referenzlast_nur_wenn_bestellt_und_dann_dreimal", "test_urteil_verwendet_gemessene_statt_fester_rauschtoleranz"], "tdd": [], "evidenzart": "Lesebefund plus ausgeführte M08-/bestehende Rausch-Gutkontrollen",
+      "grenzen": "Keine historische Bereinigung gespeicherter Bestwerte, keine P4-Wirkungskreis-/Transitivitätskorrektur, keine vollständig neue Messschema-Validierung an allen arithmetischen Funktionen."
+    },
+    {
+      "id": "M16", "original": "streuung:300-325; rauschtoleranz_aus_werten:338-378", "urteil": "gelesen; P4-03 nicht repariert",
+      "kernpfadbezug": "Vorbereitung von Rauschtoleranz/Grenzvergleich. Die ausgeschlossene Collector-Frage liegt zudem in eichung._messen_einmal/rauschmessung.",
+      "befund": "Bestehende fünf-Werte-, Aussetzer- und Richtungsregeln unverändert; bestehende direkte Tests ausgeführt.",
+      "negativtests": ["test_ungueltige_rauschwerte_sind_keine_toleranz", "test_rauschmessung_braucht_genau_fuenf_werte"], "gegenroute": ["test_rauschtoleranz_boden_meldeschwelle_und_deckel"], "tdd": [], "evidenzart": "unveränderte bestehende Eigen-Tests, keine neue Collector-Prüfung",
+      "grenzen": "NaN/Null-Rauschcollector ausdrücklich weiterhin offen, keine Nebenreparatur."
+    }
+  ],
+  "bestaetigt_offen_aus_auftrag": [
+    {"id": "P4-01", "thema": "Wirkungskreis/Transitivität", "status": "bestätigt offen laut Auftrag; hier nicht erneut geprüft oder behoben"},
+    {"id": "P4-02", "thema": "Vertragsaustausch", "status": "bestätigt offen laut Auftrag; keine Aegis-/Vertragsdatei geändert"},
+    {"id": "P4-03", "thema": "NaN/Null-Rauschcollector", "status": "bestätigt offen laut Auftrag; keine Collector-Änderung"},
+    {"id": "P4-04", "thema": "Gen0-Erfolgsbindung an Freeze", "status": "bestätigt offen laut Auftrag; keine Generation0-/Freeze-Änderung"}
+  ],
+  "integrationsbefund": "INTEGRATIONSHINWEIS.md: bestehende Setup-Test-Assertion in test_review_vertrag.py erwartet noch gueltig=True; korrekt neue Sperre, vorhandenen Test nicht geändert. Endgültige Gesamt-Suite und CLI beim Parent."
+}

@@ -1,0 +1,61 @@
+# Nachabstraktion des Artgedächtnisses (F5 3.12): Instanzen → Muster
+Angenommene Einträge ohne Muster: 19 (gesamt angenommen: 19)
+
+  [A6] lagerhaus/formeln (laufzeit, Zuwachs 0):
+      Instanz: Die Referenzlast ruft `auswerten` 3000-mal mit nur zwei verschiedenen Formelstrings auf; jede Auswertung parst
+      MUSTER:  Geparste unveränderliche Strukturen zwischenspeichern, wenn identische Eingaben wiederholt verarbeitet werden, um redundante Analyse- und Aufbaukosten zu vermeiden.
+  [A11] lagerhaus/lager (laufzeit, Zuwachs 0):
+      Instanz: Durch den Aufbau eines artikelbezogenen Summen- und Buchungscaches im Journal (`_summen` und `_artikel_eintrae
+      MUSTER:  Wiederholtes Durchsuchen durch mitgeführte Summen und gruppierte Einträge ersetzen, wenn dieselben Daten häufig nach Schlüssel abgefragt werden.
+  [A15] lagerhaus/preise (laufzeit, Zuwachs 0):
+      Instanz: `Artikel.stueckpreis` sortiert die Staffel-Liste bei jedem Preisabruf erneut. Das Vorbereiten einer sortierten
+      MUSTER:  Sortierung einmalig bei der Initialisierung vorbereiten, wenn dieselben Einträge wiederholt in geordneter Form benötigt werden, um laufende Neuordnungen zu vermeiden.
+  [A33] lagerhaus/lager (vertrag, Zuwachs 1):
+      Instanz: Die Methode `reservierung_einloesen` verletzt den Vertrag, dass eingelöste Reservierungen nicht mehr zählen un
+      MUSTER:  Eine verbrauchende Operation muss abhängige Zähler begrenzen, damit Übermengen weder negative Zustände noch Vertragsverletzungen erzeugen.
+  [A61] lagerhaus/lager (laufzeit, Zuwachs 0):
+      Instanz: Die Methode `artikel()` in `Lager` ruft für jeden eindeutigen Artikel im Journal `self.bestand(a)` auf, was zu
+      MUSTER:  Wiederholte Berechnungen durch direkte Filterung einer bereits aggregierten Cache-Struktur ersetzen, wenn deren Schlüsselmenge die gesuchten Einträge vollständig abbildet.
+  [A68] lagerhaus/bericht (laufzeit, Zuwachs 0):
+      Instanz: Die Referenzlast ruft `textbericht` und `bewegungsbericht` 60-mal auf. Aktuell iteriert `bewegungsbericht` das
+      MUSTER:  Wiederholte Auswertungen unveränderlicher oder append-only Daten durch zwischengespeicherte Ergebnisse anhand eines stabilen Zustandsmerkmals beschleunigen.
+  [A132] lagerhaus/formeln (sicherheit, Zuwachs 2):
+      Instanz: `pruefen` und `auswerten` divergieren bei unbekannten Namen — der Modulvertrag verlangt FormelFehler für unbek
+      MUSTER:  Syntaxbäume vor der Ausführung auf erlaubte Namen, Funktionen und Strukturen beschränken, um unbekannte Bezeichner und unsichere Zugriffe an der Validierungsgrenze abzuweisen.
+  [A141] lagerhaus/formeln (laufzeit, Zuwachs 0):
+      Instanz: Durch Caching der vollständigen Evaluierung für exakt gleiche Eingabeparameter wird der rekursive AST-Baumdurc
+      MUSTER:  Ergebnisse deterministischer Berechnungen für identische Eingaben zwischenspeichern, um wiederholte Parser- und Auswertungsdurchläufe zu vermeiden und die Laufzeit zu senken.
+  [A175] lagerhaus/formeln (laufzeit, Zuwachs 0):
+      Instanz: Da die Referenzlast immer wieder dieselben Formeln mit denselben Variablenwerten auswertet, erhöht eine Vergrö
+      MUSTER:  Cache-Größe erhöhen, wenn identische Berechnungen wiederholt auftreten, um Trefferquote und Laufzeit zu verbessern.
+  [A249] lagerhaus/formeln (laufzeit, Zuwachs 0):
+      Instanz: Die Funktion `pruefen` wird in `auswerten` bei jedem Aufruf aufgerufen, was einen vollständigen `ast.walk` übe
+      MUSTER:  Ergebnisse teurer, deterministischer Validierungen nach Eingabe cachen, wenn dieselben unveränderlichen Daten wiederholt geprüft werden.
+  [A270] logmuehle/filtern (sicherheit, Zuwachs 15):
+      Instanz: Der Zeitfilter behandelt `bis` derzeit exklusiv und lässt dadurch den bestehenden Grenzfalltest fehlschlagen. 
+      MUSTER:  Zeitgrenzen inklusiv behandeln und externe Befehle ohne Shellinterpretation ausführen, um Grenzfälle korrekt sowie Shell-Injection-Risiken und Sicherheitswarnungen zu vermeiden
+  [A271] logmuehle/zaehlen (toter_code, Zuwachs 1):
+      Instanz: Der Bereich `zaehlen` hat aktuell 0 Sicherheitspunkte, 0 fehlgeschlagene Tests und nur eine tote Funktion `_me
+      MUSTER:  Toten, nicht mehr referenzierten Code entfernen, um Wartungsaufwand und Verwechslungsgefahr ohne Verhaltensänderung zu reduzieren.
+  [A281] logmuehle/filtern (sicherheit, Zuwachs 2):
+      Instanz: Die aktuelle Implementierung von `extern_filtern` nutzt `subprocess.run` mit einer Argumentliste, was von Band
+      MUSTER:  Externe Befehle durch eine eng begrenzte, intern simulierte Teilmenge ersetzen, um Subprozess- und Shell-Sicherheitsrisiken zu vermeiden.
+  [A296] logmuehle/ausgabe (sicherheit, Zuwachs 1):
+      Instanz: Der Bereich `ausgabe` ruft in `befehl.py` die unsichere Funktion `extern_filtern` aus `filtern` auf, sobald `-
+      MUSTER:  Unsichere Shell-Integrationen durch vollständiges Entfernen des Schalters, Imports und Aufrufpfads beseitigen, statt externe Eingaben weiter zu verarbeiten.
+  [A311] logmuehle/lesen: NICHT ÜBERTRAGBAR (kein Muster gebildet)
+  [A359] lagerhaus/formeln (laufzeit, Zuwachs 0):
+      Instanz: Die Richtung des Mentors betrifft `preise`/`bericht` (Katalog.wert), nicht meinen Bereich `formeln`. In `forme
+      MUSTER:  Wiederholte Validierung identischer Eingaben durch begrenztes Zwischenspeichern ihrer Prüfergebnisse beschleunigen.
+  [A360] lagerhaus/lager (laufzeit, Zuwachs 0):
+      Instanz: Die Methode `artikel()` in `bestand.py` greift direkt auf das private Attribut `_summen` des Journals zu, was 
+      MUSTER:  Interne Datenzugriffe durch öffentliche Schnittstellen ersetzen, um Kapselung zu wahren und Abhängigkeiten von Implementierungsdetails zu vermeiden.
+  [A416] lagerhaus/formeln (laufzeit, Zuwachs 0):
+      Instanz: Die Referenzlast `last_formeln` ruft `auswerten` 3000-mal mit derselben Formel, aber variierenden Parametern a
+      MUSTER:  Redundante Typkonvertierungen entfernen, wenn Eingaben bereits garantiert korrekt typisiert sind und dadurch wiederholte Aufrufe unnötig belastet werden.
+  [A454] lagerhaus/preise (vertrag, Zuwachs 1):
+      Instanz: Behebt den offenen Widerspruch im Katalog-Wert: `Katalog.wert` nutzte fälschlicherweise `stueckpreis(menge)` (
+      MUSTER:  Bei der Katalogbewertung den unveränderten Grundpreis verwenden, wenn Mengenrabatte ausdrücklich nicht berücksichtigt werden sollen.
+
+ERGEBNIS: 18 Muster gebildet, 1 vom Modell als nicht übertragbar gemeldet, 0 Aufruffehler (zählen NICHT als inhaltliches Urteil)
+Kosten der Nachabstraktion: 19 Modellaufrufe, 0.003 €

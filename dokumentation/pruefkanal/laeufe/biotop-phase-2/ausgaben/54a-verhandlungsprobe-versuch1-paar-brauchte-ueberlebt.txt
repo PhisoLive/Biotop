@@ -1,0 +1,20 @@
+# Tor 2 — Verhandlungsprobe (Hermes-eingeschleust, gekennzeichnet): Vertragsänderung an der Grenze preise → formeln
+Zeit: 2026-09-19T03:23:25.508+00:00 | Basis Lauf 13 Generation 13
+Änderung: auswerten() bekommt einen optionalen Parameter `waehrung` (Default 'EUR'); der Vertrag preise→formeln verlangt, dass der Konsument preise ihn übergibt.
+Ohne Anpassung von preise fällt der Vertragstest; mit Anpassung (rabatt.py übergibt 'EUR') besteht das Paar. Der Kandidat benennt den Vertrag unter VERTRÄGE → Verhandlung.
+
+Schritt 1 — Einzelprüfung K1154: abgelehnt — Vertrag verletzt (Schritt 2): test_vertrag_preise_formeln.py::test_konsument_preise_uebergibt_waehrung
+  vertrag_verletzt: ['test_vertrag_preise_formeln.py::test_konsument_preise_uebergibt_waehrung'] | Vertrag benannt: tests/vertraege/test_vertrag_preise_formeln.py — Signatur auswerten erweitert; p
+
+Schritt 2 — Verhandlung (Schwarm des Nachbarn preise, Nische sicher, 2 Hersteller per Bandit): Ergebnis abgelehnt — Vertrag verletzt (Schritt 2): test_vertrag_preise_formeln.py::test_konsument_preise_uebergibt_waehrung
+  vertrag_verletzt nach Paar: ['test_vertrag_preise_formeln.py::test_konsument_preise_uebergibt_waehrung'] | Pareto schlechter: ['formeln.tests_fehlgeschlagen: 1 → 2', 'Regression je Test (bestand an der Vorgeneration, fällt am Kandidaten): test_vertrag_preise_formeln.py::test_konsument_preise_uebergibt_waehrung'] | Kernmaß: -1 → -2
+  Protokoll #7217 verhandlung.begonnen: {"bereich": "formeln", "generation": 13, "kandidat": 1154, "lauf_id": 13, "nachbarn": ["preise"], "verletzt": ["test_vertrag_preise_formeln.py::test_konsument_preise_uebergibt_waehrung"]}
+  Protokoll #7228 verhandlung.paar: {"anpassung": 1155, "generation": 13, "grund": "Kernmaß unverändert (-1 → -1); bestandene Tests zählen nicht", "kandidat": 1154, "lauf_id": 13, "nachbar": "preise", "status": "abgelehnt", "vertrag_verletzt": []}
+  Protokoll #7233 verhandlung.paar: {"anpassung": 1156, "generation": 13, "grund": "Kernmaß unverändert (-2 → -2); bestandene Tests zählen nicht", "kandidat": 1154, "lauf_id": 13, "nachbar": "preise", "status": "abgelehnt", "vertrag_verletzt": []}
+  Protokoll #7234 verhandlung.gescheitert: {"generation": 13, "kandidat": 1154, "lauf_id": 13, "nachbar": "preise"}
+  Anpassung K1155 (preise, openai/gpt-5.6-luna): Anpassung für Kandidat 1154 (formeln): Paar abgelehnt
+    -    if not auswerten(regel.bedingung, menge, preis, summe): | +    if not auswerten(regel.bedingung, menge, preis, summe, "EUR"): | -    betrag = auswerten(regel.betrag, menge, preis, summe) | +    betrag = auswerten(regel.betrag, menge, preis, summe, "EUR")
+  Anpassung K1156 (preise, google/gemini-3.5-flash-lite): Anpassung für Kandidat 1154 (formeln): Paar abgelehnt
+    -    if not auswerten(regel.bedingung, menge, preis, summe): | +    if not auswerten(regel.bedingung, menge, preis, summe, "EUR"): | -    betrag = auswerten(regel.betrag, menge, preis, summe) | +    betrag = auswerten(regel.betrag, menge, preis, summe, "EUR") | -    assert p == ["formel", "menge", "preis", "summe"] | +    assert p == ["formel", "menge", "preis", "summe", "waehrung"] | + | + | +def
+
+ERGEBNIS Verhandlungsprobe: Vertrag im Paar bestanden (0 Vertragstests verletzt): False; verhandlung.bestanden protokolliert: False; Paar-Status abgelehnt (Vertrag verletzt (Schritt 2): test_vertrag_preise_formeln.py::test_konsument_pre)

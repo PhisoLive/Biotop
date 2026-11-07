@@ -1,0 +1,277 @@
+EB20 · Schritt 2.7: Prüfsummenliste /root/biotop NACHHER (nach dem Commit)
+Beginn: 2026-09-25 23:58:22 CEST (UTC+0200)
+Ende:   2026-09-25 23:58:23 CEST (UTC+0200)
+Dauer:  0.3 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/biotop-einlagerung/arbeit/s2_git.py liste /root/biotop biotop-NACHHER-commit
+--- Inhalt von /root/biotop-einlagerung/arbeit/s2_git.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-EINLAGERUNG-01 · Schritt 2: Git festschreiben (Auftrag Abschnitt 3, Schritt 2).
+
+Unterbefehle (jeder über eb.py als Rohbeleg):
+  liste <wurzel> <name>          Prüfsummenliste von <wurzel> ohne die OBERSTE .git/ (verschachtelte .git der Werke
+                                 zählen mit) → pruefsummen/<name>.txt (exklusiv). Format wie BIOTOP-LAGE-01 sich.py
+                                 liste: „<sha256>  <pfad>“, Verweise „VERWEIS -> <ziel>  <pfad>“, Sonderdateien.
+  vergleich <a> <b>              Vergleich zweier Listen (Namen unter pruefsummen/ oder absolute Pfade): Anzahl beider
+                                 Seiten, nur-a, nur-b, verschieden; dazu Gegenprobe: eine Kopie von <a> mit genau einer
+                                 geänderten Zeile muss genau diesen Pfad melden.
+  festschreiben <repo> <basis> <zweig> <erwartet> <nachricht-datei> [--runde5]
+                                 Vorprüfungen (alle vor dem ersten Schreiben): HEAD == <basis>; Zweig und Markierungen
+                                 bestehen nicht; keine Haken außer *.sample; Anzahl der Einträge von `git status`
+                                 == <erwartet> (oder „-“ = nicht vorgegeben); kein verschachteltes .git in unverfolgten
+                                 Ordnern; Geheimnissuche über jede nicht eingecheckte Datei (0 Treffer).
+                                 Dann: [--runde5: Markierung runde-5 auf <basis>] → git switch -c <zweig> → git add -A --
+                                 <genau die Status-Einträge> → Prüfung: vorgemerkte Pfade == nicht eingecheckte Pfade →
+                                 git commit -F <nachricht-datei> → Markierung eingelagert-20260925 → Status leer?
+                                 → bestehender Zweig unverändert? Der Arbeitsbaum wird davor und danach über `liste`
+                                 festgehalten (eigene Aufrufe, damit jede Liste ihren Rohbeleg hat).
+Nichts wird überschrieben: jede Zieldatei exklusiv; nichts wird gelöscht; kein amend, kein reset, keine Umschreibung.
+"""
+import hashlib
+import os
+import stat
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+W = Path('/root/biotop-einlagerung')
+PS = W / 'pruefsummen'
+MARKE = 'eingelagert-20260925'
+ICH = ['-c', 'user.name=Hermes (Biotop)', '-c', 'user.email=hermes@biotop.local']
+
+
+def jetzt() -> str:
+    return time.strftime('%Y-%m-%d %H:%M:%S %Z (UTC%z)')
+
+
+def sha_datei(p) -> str:
+    h = hashlib.sha256()
+    with open(p, 'rb') as f:
+        for block in iter(lambda: f.read(1 << 20), b''):
+            h.update(block)
+    return h.hexdigest()
+
+
+def exklusiv(p: Path, daten: bytes) -> None:
+    p.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(p, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, 'wb') as f:
+        f.write(daten)
+
+
+def git(repo, *args, schreibend=False, pruefen=True) -> str:
+    cmd = ['git'] + ([] if schreibend else ['--no-optional-locks']) + ['-C', str(repo)] + list(args)
+    p = subprocess.run(cmd, capture_output=True)
+    if pruefen and p.returncode != 0:
+        raise SystemExit(f'ABBRUCH: {" ".join(cmd)} rc={p.returncode}: {p.stderr.decode(errors="replace")[:800]}')
+    return p.stdout.decode('utf-8', errors='surrogateescape')
+
+
+# ------------------------------------------------------------------ Prüfsummenliste
+def liste_zeilen(wurzel: str):
+    zeilen, n_dat, n_ver, n_son, byt = [], 0, 0, 0, 0
+    for d, ds, fs in os.walk(wurzel):
+        if d == wurzel:
+            ds[:] = [x for x in ds if x != '.git']
+            fs = [x for x in fs if x != '.git']      # .git als Datei (Arbeitsbaum-Verweis) zählt wie der Ordner nicht
+        ds.sort()
+        for x in list(ds):
+            p = os.path.join(d, x)
+            if os.path.islink(p):
+                fs.append(x)
+                ds.remove(x)
+        for f in sorted(fs):
+            p = os.path.join(d, f)
+            rel = os.path.relpath(p, wurzel)
+            st = os.lstat(p)
+            if stat.S_ISLNK(st.st_mode):
+                zeilen.append(f'VERWEIS -> {os.readlink(p)}  {rel}')
+                n_ver += 1
+            elif stat.S_ISREG(st.st_mode):
+                zeilen.append(f'{sha_datei(p)}  {rel}')
+                n_dat += 1
+                byt += st.st_size
+            else:
+                zeilen.append(f'SONDERDATEI  {rel}')
+                n_son += 1
+    zeilen.sort(key=lambda z: z.split('  ', 1)[1])
+    return zeilen, n_dat, n_ver, n_son, byt
+
+
+def liste(wurzel: str, name: str) -> None:
+    zeilen, n_dat, n_ver, n_son, byt = liste_zeilen(wurzel)
+    text = '\n'.join(zeilen) + '\n'
+    ziel = PS / f'{name}.txt'
+    exklusiv(ziel, text.encode('utf-8', errors='surrogateescape'))
+    print(f'Prüfsummenliste {name}: {wurzel} ohne die oberste .git/ (verschachtelte .git-Ordner zählen mit)')
+    print(f'Zeitpunkt: {jetzt()}')
+    print(f'Dateien: {n_dat} · Verweise: {n_ver} · Sonderdateien: {n_son} · Einträge gesamt: {len(zeilen)} · Bytes der Dateien: {byt}')
+    print(f'Liste: {ziel} · {len(text.encode(errors="surrogateescape"))} Bytes · SHA-256 der Liste '
+          f'{hashlib.sha256(text.encode(errors="surrogateescape")).hexdigest()}')
+
+
+def lade(n: str):
+    p = Path(n) if n.startswith('/') else PS / f'{n}.txt'
+    t = p.read_text(errors='surrogateescape')
+    m = {z.split('  ', 1)[1]: z.split('  ', 1)[0] for z in t.splitlines() if z}
+    return m, hashlib.sha256(t.encode(errors='surrogateescape')).hexdigest(), p
+
+
+def unterschied(ma, mb):
+    nur_a = sorted(set(ma) - set(mb))
+    nur_b = sorted(set(mb) - set(ma))
+    anders = sorted(k for k in set(ma) & set(mb) if ma[k] != mb[k])
+    return nur_a, nur_b, anders
+
+
+def vergleich(a: str, b: str) -> None:
+    ma, ha, pa = lade(a)
+    mb, hb, pb = lade(b)
+    nur_a, nur_b, anders = unterschied(ma, mb)
+    print(f'A = {pa}: {len(ma)} Einträge, SHA-256 der Liste {ha}')
+    print(f'B = {pb}: {len(mb)} Einträge, SHA-256 der Liste {hb}')
+    print(f'nur in A: {len(nur_a)} · nur in B: {len(nur_b)} · Inhalt verschieden: {len(anders)}')
+    for k in nur_a[:60]:
+        print(f'  NUR A: {k}')
+    for k in nur_b[:60]:
+        print(f'  NUR B: {k}')
+    for k in anders[:60]:
+        print(f'  VERSCHIEDEN: {k}  {ma[k][:16]}… → {mb[k][:16]}…')
+    print('ERGEBNIS: Unterschied leer' if not (nur_a or nur_b or anders) else 'ERGEBNIS: Unterschied NICHT leer')
+    # Gegenprobe: dieselbe Vergleichsfunktion gegen eine Kopie von A mit genau einer geänderten Zeile
+    kopie = dict(ma)
+    schluessel = sorted(k for k, v in kopie.items() if len(v) == 64)[len(kopie) // 2]
+    kopie[schluessel] = ('0' if kopie[schluessel][0] != '0' else '1') + kopie[schluessel][1:]
+    g = unterschied(ma, kopie)
+    ok = g == ([], [], [schluessel])
+    print(f'Gegenprobe (Kopie von A, SHA-256 von „{schluessel}“ um ein Zeichen geändert): gemeldet {sum(map(len, g))} '
+          f'Abweichung(en) → {"angeschlagen: genau dieser Pfad" if ok else "NICHT wie erwartet: " + str(g)[:300]}')
+
+
+# ------------------------------------------------------------------ Festschreiben
+def status_eintraege(repo) -> list:
+    roh = git(repo, 'status', '--porcelain=v1', '-z')
+    teile = [t for t in roh.split('\0') if t]
+    eintraege, i = [], 0
+    while i < len(teile):
+        t = teile[i]
+        code, pfad = t[:2], t[3:]
+        if code[0] in 'RC':      # Umbenennung: der nächste Teil ist der alte Pfad
+            eintraege.append((code, pfad, teile[i + 1]))
+            i += 2
+            continue
+        eintraege.append((code, pfad, None))
+        i += 1
+    return eintraege
+
+
+def festschreiben(repo: str, basis: str, zweig: str, erwartet: str, nachricht: str, runde5: bool) -> None:
+    r = Path(repo)
+    print(f'Beginn {jetzt()} · Repository {repo}')
+    # ---- Vorprüfungen, nichts geschrieben
+    head = git(r, 'rev-parse', 'HEAD').strip()
+    basis_voll = git(r, 'rev-parse', f'{basis}^{{commit}}').strip()
+    print(f'HEAD {head} · Basis {basis} = {basis_voll}')
+    if head != basis_voll:
+        raise SystemExit('ABBRUCH: HEAD ist nicht die Basis — nichts geschrieben')
+    alt_zweig = git(r, 'symbolic-ref', '-q', 'HEAD', pruefen=False).strip()
+    alt_spitze = git(r, 'rev-parse', alt_zweig).strip() if alt_zweig else None
+    print(f'bestehender Zweig: {alt_zweig or "(losgelöster HEAD)"} → {alt_spitze}')
+    refs = git(r, 'for-each-ref', '--format=%(refname)').split()
+    fuer = [f'refs/heads/{zweig}', f'refs/tags/{MARKE}'] + (['refs/tags/runde-5'] if runde5 else [])
+    schon = [x for x in fuer if x in refs]
+    if schon:
+        raise SystemExit(f'ABBRUCH: besteht schon: {schon} — nichts geschrieben')
+    gd = Path(git(r, 'rev-parse', '--absolute-git-dir').strip())
+    haken = [h.name for h in (gd / 'hooks').iterdir() if not h.name.endswith('.sample')] if (gd / 'hooks').is_dir() else []
+    print(f'Haken außer *.sample: {haken or "keine"}')
+    if haken:
+        raise SystemExit('ABBRUCH: Haken vorhanden (könnten beim Commit etwas ändern) — nichts geschrieben')
+    ein = status_eintraege(r)
+    print(f'git status: {len(ein)} Einträge')
+    for code, pfad, alt in ein:
+        print(f'  {code!r} {pfad}' + (f' (vorher {alt})' if alt else ''))
+    if erwartet != '-' and len(ein) != int(erwartet):
+        raise SystemExit(f'ABBRUCH: {len(ein)} Einträge statt {erwartet} — nichts geschrieben')
+    geaendert = [p for p in git(r, 'diff', '--name-only', '-z', 'HEAD').split('\0') if p]
+    unverfolgt = [p for p in git(r, 'ls-files', '--others', '--exclude-standard', '-z').split('\0') if p]
+    soll = sorted(set(geaendert) | set(unverfolgt))
+    print(f'Dateien zum Festschreiben: {len(soll)} (geändert/vorgemerkt gegen HEAD {len(geaendert)}, unverfolgt {len(unverfolgt)})')
+    verschachtelt = [p for p in unverfolgt if p.endswith('/.git') or '/.git/' in p or p == '.git']
+    for code, pfad, _ in ein:
+        if code == '??' and pfad.endswith('/') and any((r / pfad).rglob('.git')):
+            verschachtelt.append(pfad)
+    if verschachtelt:
+        raise SystemExit(f'ABBRUCH: verschachteltes .git in Unverfolgtem: {verschachtelt[:5]} — nichts geschrieben')
+    vorhanden = [str(r / p) for p in soll if (r / p).is_file() and not (r / p).is_symlink()]
+    verweise = [p for p in soll if (r / p).is_symlink()]
+    geloescht = [p for p in soll if not os.path.lexists(r / p)]
+    g = subprocess.run([sys.executable, str(W / 'arbeit' / 'geheimnis.py')] + vorhanden, capture_output=True, text=True)
+    zz = [z for z in g.stdout.splitlines() if z.startswith('Durchsucht')]
+    print(f'Geheimnissuche über {len(vorhanden)} vorhandene Dateien (dazu {len(verweise)} Verweise, nur Ziel: '
+          f'{[(p, os.readlink(r / p)) for p in verweise][:5]}; {len(geloescht)} gelöscht): '
+          f'{zz[0] if zz else "ohne Zählzeile"} · rc {g.returncode}')
+    for z in g.stdout.splitlines():
+        if z.startswith('TREFFER'):
+            print('  ' + z.replace(str(r) + '/', ''))
+    if g.returncode != 0 or not zz or not zz[0].endswith('Treffer: 0'):
+        raise SystemExit('ABBRUCH: Geheimnissuche nicht sauber — nichts geschrieben')
+    msg = Path(nachricht).read_text(encoding='utf-8')
+    print(f'Commit-Nachricht ({nachricht}, {len(msg.encode())} B, SHA-256 {hashlib.sha256(msg.encode()).hexdigest()}):')
+    print(msg.rstrip('\n'))
+    # ---- Schreiben
+    if runde5:
+        git(r, 'tag', 'runde-5', basis_voll, schreibend=True)
+        print(f'Markierung runde-5 → {git(r, "rev-parse", "runde-5").strip()}')
+    git(r, 'switch', '-c', zweig, schreibend=True)
+    print(f'ausgecheckt: {git(r, "symbolic-ref", "HEAD").strip()} → {git(r, "rev-parse", "HEAD").strip()}')
+    pfade = sorted({p for _, p, _ in ein} | {a for _, _, a in ein if a})
+    git(r, 'add', '-A', '--', *pfade, schreibend=True)
+    vorgemerkt = sorted(p for p in git(r, 'diff', '--cached', '--name-only', '-z', 'HEAD').split('\0') if p)
+    print(f'vorgemerkt: {len(vorgemerkt)} Pfade · gleich den nicht eingecheckten Dateien: {vorgemerkt == soll}')
+    if vorgemerkt != soll:
+        print(f'  nur vorgemerkt: {sorted(set(vorgemerkt) - set(soll))[:20]}')
+        print(f'  nur nicht eingecheckt: {sorted(set(soll) - set(vorgemerkt))[:20]}')
+        raise SystemExit('ABBRUCH vor dem Commit: vorgemerkte Menge weicht ab — Zweig ist angelegt und ausgecheckt, '
+                         'Index vorgemerkt, KEIN Commit (Stand laut melden)')
+    git(r, *ICH, 'commit', '-q', '-F', nachricht, schreibend=True)
+    neu = git(r, 'rev-parse', 'HEAD').strip()
+    git(r, 'tag', MARKE, neu, schreibend=True)
+    print(f'Commit {neu} · Markierung {MARKE} → {git(r, "rev-parse", MARKE).strip()}')
+    print('--- git show --stat --format=fuller HEAD')
+    print(git(r, 'show', '--stat=200', '--format=fuller', 'HEAD').rstrip())
+    print('--- git show --name-status --format= HEAD')
+    ns = git(r, 'show', '--name-status', '--format=', 'HEAD').strip().splitlines()
+    print('\n'.join(ns))
+    print(f'Einträge im Commit: {len(ns)}')
+    rest = status_eintraege(r)
+    print(f'git status nach dem Commit: {len(rest)} Einträge {"(sauber)" if not rest else rest[:10]}')
+    if alt_zweig:
+        nachher = git(r, 'rev-parse', alt_zweig).strip()
+        print(f'bestehender Zweig {alt_zweig}: vorher {alt_spitze} · nachher {nachher} · unverändert: {nachher == alt_spitze}')
+    print('--- Zweige und Markierungen')
+    print(git(r, 'for-each-ref', '--format=%(refname) %(objectname) %(objecttype)').rstrip())
+    print(f'Ende {jetzt()}')
+
+
+if __name__ == '__main__':
+    cmd, args = sys.argv[1], sys.argv[2:]
+    if cmd == 'liste':
+        liste(*args)
+    elif cmd == 'vergleich':
+        vergleich(*args)
+    elif cmd == 'festschreiben':
+        runde5 = '--runde5' in args
+        args = [a for a in args if a != '--runde5']
+        festschreiben(*args, runde5=runde5)
+    else:
+        raise SystemExit(f'unbekannt: {cmd}')
+--- Ende /root/biotop-einlagerung/arbeit/s2_git.py ---
+Ausgabe (vollständig, stdout und stderr):
+Prüfsummenliste biotop-NACHHER-commit: /root/biotop ohne die oberste .git/ (verschachtelte .git-Ordner zählen mit)
+Zeitpunkt: 2026-09-25 23:58:23 CEST (UTC+0200)
+Dateien: 3153 · Verweise: 0 · Sonderdateien: 0 · Einträge gesamt: 3153 · Bytes der Dateien: 40030538
+Liste: /root/biotop-einlagerung/pruefsummen/biotop-NACHHER-commit.txt · 416235 Bytes · SHA-256 der Liste e67011b931cbb8f386716da020d4723470f29715b8fcda8cf2768f232428dfb6
+=== Ende EB20 ===

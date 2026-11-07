@@ -1,0 +1,81 @@
+EB79 · Schritt 6.6: Abhängigkeiten im entpackten Stand (venv offline aus pip-freeze, docker load aus dem Archiv)
+Beginn: 2026-09-26 02:28:50 CEST (UTC+0200)
+Ende:   2026-09-26 02:28:53 CEST (UTC+0200)
+Dauer:  3.2 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/biotop-einlagerung/arbeit/s6_einrichten.sh /root/biotop-einlagerung/probe/entpackt
+--- Inhalt von /root/biotop-einlagerung/arbeit/s6_einrichten.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-EINLAGERUNG-01 · Schritt 6 (Weg B, Teil „Abhängigkeiten einrichten“, im Kleinen):
+# 1. Python-Umgebung der Regression im entpackten Stand neu bauen, aus der gesicherten Paketliste, ohne Netz (uv --offline,
+#    Pakete aus dem uv-Zwischenspeicher des Servers). Das Archiv enthält keine venv (Abhängigkeitsordner).
+# 2. Kammer-Abbilder aus dem Archiv laden (docker load) und die Kennungen mit dem Stand vor dem Laden vergleichen.
+# Aufruf: s6_einrichten.sh <baum>
+set -u
+B=$1
+V=$B/root/biotop-t3/venv
+F=$B/root/biotop-einlagerung/paket/dokumentation/umgebung/pip-freeze-root-biotop-t3-venv.txt
+T=$B/root/biotop-einlagerung/kammer-abbilder/biotop-kammer-1-und-ts1.docker-save.tar
+echo "== $(date '+%Y-%m-%d %H:%M:%S %Z') · Baum $B"
+[ -e "$V" ] && { echo "ABBRUCH: $V besteht schon"; exit 3; }
+echo "-- 1. venv aus $F ($(wc -l < "$F") Pakete, SHA-256 $(sha256sum "$F" | cut -c1-64))"
+cat "$F"
+/root/.hermes/bin/uv venv --python /usr/bin/python3.12 "$V" 2>&1
+/root/.hermes/bin/uv pip install --offline --python "$V/bin/python" -r "$F" 2>&1
+echo "uv pip install rc=$?"
+/root/.hermes/bin/uv pip freeze --python "$V/bin/python" > "$B/../venv-freeze-neu.txt" 2>/dev/null
+echo "freeze neu gleich freeze gesichert: $(cmp -s "$B/../venv-freeze-neu.txt" "$F" && echo ja || echo NEIN)"
+"$V/bin/python" -m pytest --version 2>&1
+echo "-- 2. Kammer-Abbilder aus dem Archiv: $T ($(stat -c %s "$T") B, SHA-256 $(sha256sum "$T" | cut -c1-64))"
+cat "$B/root/biotop-einlagerung/kammer-abbilder/ABBILDER.txt"
+vor=$(docker image inspect --format '{{index .RepoTags 0}} {{.Id}}' biotop-kammer:1 biotop-kammer:ts1 2>&1)
+echo "vor dem Laden:"; echo "$vor" | sed 's/^/  /'
+docker load -i "$T" 2>&1
+echo "docker load rc=$?"
+nach=$(docker image inspect --format '{{index .RepoTags 0}} {{.Id}}' biotop-kammer:1 biotop-kammer:ts1 2>&1)
+echo "nach dem Laden:"; echo "$nach" | sed 's/^/  /'
+echo "Kennungen gleich den gesicherten (ABBILDER.txt): $(for l in $(echo "$nach" | awk '{print $2}'); do grep -q "$l" "$B/root/biotop-einlagerung/kammer-abbilder/ABBILDER.txt" && echo -n j || echo -n N; done)"
+echo "Konfigurations-Digests im Tar (manifest.json):"; tar -xOf "$T" manifest.json | python3 -c 'import json,sys; [print("  ", m["RepoTags"], m["Config"]) for m in json.load(sys.stdin)]'
+--- Ende /root/biotop-einlagerung/arbeit/s6_einrichten.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== 2026-09-26 02:28:50 CEST · Baum /root/biotop-einlagerung/probe/entpackt
+-- 1. venv aus /root/biotop-einlagerung/probe/entpackt/root/biotop-einlagerung/paket/dokumentation/umgebung/pip-freeze-root-biotop-t3-venv.txt (5 Pakete, SHA-256 6b40513c8a7e5c8a49efde9dbaf2afaa8aa04f4823eca904e2e61937159c3310)
+iniconfig==2.3.0
+packaging==26.3
+pluggy==1.6.0
+pygments==2.21.0
+pytest==9.1.1
+Using CPython 3.12.3 interpreter at: /usr/bin/python3.12
+Creating virtual environment at: probe/entpackt/root/biotop-t3/venv
+Activate with: source probe/entpackt/root/biotop-t3/venv/bin/activate
+Using Python 3.12.3 environment at: probe/entpackt/root/biotop-t3/venv
+Resolved 5 packages in 12ms
+Installed 5 packages in 20ms
+ + iniconfig==2.3.0
+ + packaging==26.3
+ + pluggy==1.6.0
+ + pygments==2.21.0
+ + pytest==9.1.1
+uv pip install rc=0
+freeze neu gleich freeze gesichert: ja
+pytest 9.1.1
+-- 2. Kammer-Abbilder aus dem Archiv: /root/biotop-einlagerung/probe/entpackt/root/biotop-einlagerung/kammer-abbilder/biotop-kammer-1-und-ts1.docker-save.tar (124908544 B, SHA-256 bc035a657b463cc20052fc356dfb899b2d8e1974da4a0f13ea033792631fb807)
+biotop-kammer-1-und-ts1.docker-save.tar · 124908544 B · SHA-256 bc035a657b463cc20052fc356dfb899b2d8e1974da4a0f13ea033792631fb807
+biotop-kammer:1 sha256:ce7bbe9441182aea532f147defd99ca757a95d4cb3ff7c3f5c5d9a64965643ee
+biotop-kammer:ts1 sha256:212e6212cd165b668f5cff7a1ab12c22d739a0ab727bbedc45a87c3793754f9e
+Laden: docker load -i biotop-kammer-1-und-ts1.docker-save.tar
+vor dem Laden:
+  biotop-kammer:1 sha256:ce7bbe9441182aea532f147defd99ca757a95d4cb3ff7c3f5c5d9a64965643ee
+  biotop-kammer:ts1 sha256:212e6212cd165b668f5cff7a1ab12c22d739a0ab727bbedc45a87c3793754f9e
+Loaded image: biotop-kammer:1
+Loaded image: biotop-kammer:ts1
+docker load rc=0
+nach dem Laden:
+  biotop-kammer:1 sha256:ce7bbe9441182aea532f147defd99ca757a95d4cb3ff7c3f5c5d9a64965643ee
+  biotop-kammer:ts1 sha256:212e6212cd165b668f5cff7a1ab12c22d739a0ab727bbedc45a87c3793754f9e
+Kennungen gleich den gesicherten (ABBILDER.txt): jj
+Konfigurations-Digests im Tar (manifest.json):
+   ['biotop-kammer:1'] blobs/sha256/132f7bb6c2a5aa189e4fb28d7d5333ba9bc2a0e4044c7216a966535b69a789ff
+   ['biotop-kammer:ts1'] blobs/sha256/2facf53f0c9bd2f8754ae526d9de8d12fd8969c24ead1c12421653a8e9adfcab
+=== Ende EB79 ===

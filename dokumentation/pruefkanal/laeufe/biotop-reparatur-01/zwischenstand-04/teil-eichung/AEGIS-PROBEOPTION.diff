@@ -1,0 +1,35 @@
+diff --git a/biotop/organe/aegis.py b/biotop/organe/aegis.py
+index efdf753105234ab3e5dbc870c8e1d149f6ad8bb0..c70ba35c774f453aaf1566572b30caed7906c386 100644
+--- a/biotop/organe/aegis.py
++++ b/biotop/organe/aegis.py
+@@ -465,11 +465,17 @@ def aufnahmesperre(con, werk_id: int, lauf_id: int, bereich: str, code: str, tes
+ 
+ def pruefen(con: sqlite3.Connection, lauf_id: int, werk_id: int, kandidat_id: int, werk: Path, paket: str,
+             bereiche: list[str], bstrassen: list[tuple[str, str]], basis: dict, ausgang: dict,
+-            referenzlast: str | None, tausch: dict | None, extra_code: dict[str, str] | None = None) -> dict:
++            referenzlast: str | None, tausch: dict | None, extra_code: dict[str, str] | None = None,
++            *, probe_ohne_modell: bool = False, probe_angriff: str | None = None) -> dict:
+     """extra_code: zusätzliche Dateien (z. B. Anpassung des Nachbarn bei Verhandlung), die zusammen mit dem
+     Kandidaten gemessen werden."""
+     """Vollständige Anklage (F2). Rückgabe: Urteil mit Belegen; Status in der DB gesetzt."""
+     k = con.execute("SELECT * FROM kandidaten WHERE id=?", (kandidat_id,)).fetchone()
++    # Ausschließlich explizit markierte Eichkandidaten dürfen feste Angriffe ohne
++    # Modell verwenden. Klassifikation, Aufnahme und Maß bleiben der normale Pfad.
++    if (probe_ohne_modell or probe_angriff is not None) and not (
++            probe_ohne_modell and "ist_probe" in k.keys() and k["ist_probe"] == 1):
++        raise ValueError("Reine Probeoption verlangt probe_ohne_modell=True und ist_probe=1")
+     bereich = k["bereich"]
+     urteil = {"kandidat": kandidat_id, "bereich": bereich, "status": "abgelehnt", "grund": "", "wirkungskreis": [],
+               "immun": [], "tests_neu": [], "tests_verworfen": [], "immun_bestanden": [], "befundklassen": [],
+@@ -570,7 +576,10 @@ def pruefen(con: sqlite3.Connection, lauf_id: int, werk_id: int, kandidat_id: in
+                 urteil["tests_neu"] += [f"{p}::{n}" for n in sorted(gueltig)]
+ 
+     # Schritt 4: Angriff (schweres Modell bei Befundklasse)
+-    angriff, angriff_modell, ansage_behauptung = _angriff(con, lauf_id, werk_id, paket, bereich, k["diff"], dateien, werk, urteil["befundklassen"])
++    if probe_ohne_modell:
++        angriff, angriff_modell, ansage_behauptung = probe_angriff, "mechanische Eichprobe", None
++    else:
++        angriff, angriff_modell, ansage_behauptung = _angriff(con, lauf_id, werk_id, paket, bereich, k["diff"], dateien, werk, urteil["befundklassen"])
+     urteil["ansage"] = [ansage_behauptung] if ansage_behauptung else []
+     if angriff:
+         ad = f"tests/test_{bereich}_immun_aegis_k{kandidat_id}_{bereich}.py"

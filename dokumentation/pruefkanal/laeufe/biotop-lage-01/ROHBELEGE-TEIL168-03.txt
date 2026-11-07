@@ -1,0 +1,748 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 03 · Teil 168 (Teile 166–239 dieses Stands) · enthält R175 bis R175
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R175 · Schlussbericht des Baus S1c (deleg_c88798ee) im vollen Wortlaut aus dem Zustellbuch der Delegationen (state.db, nur lesend) — Stichzeitpunkt und Stand Runde 6
+Beginn: 2026-09-25 19:37:30 CEST (UTC+0200)
+Ende:   2026-09-25 19:37:30 CEST (UTC+0200)
+Dauer:  0.0 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/s1c_schluss.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/s1c_schluss.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Schlussbericht des Baus S1c (Delegation deleg_c88798ee) im vollen Wortlaut aus dem
+Zustellbuch der Delegationen (/root/.hermes/state.db, Tabelle async_delegations, Spalte result_json).
+Beleg für den Stichzeitpunkt (Ende S1c) und den Stand der Runde 6 zum Stichzeitpunkt (LAGE, CHRONIK).
+Das Ergebnis erreichte die Hauptsitzung als eigener Turn erst nach dem Ende des langen Turns der Nachsteuerung."""
+import datetime as dt
+import json
+import sqlite3
+
+f = lambda t: dt.datetime.fromtimestamp(t).strftime('%Y-%m-%d %H:%M:%S') if t else '—'
+c = sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+r = c.execute("SELECT delegation_id, state, delivery_state, delivery_attempts, dispatched_at, completed_at, delivered_at, "
+              "result_json FROM async_delegations WHERE delegation_id='deleg_c88798ee'").fetchone()
+print(f'{r[0]} · Zustand {r[1]} · Zustellung {r[2]} (Versuche {r[3]}) · gestartet {f(r[4])} · beendet {f(r[5])} · '
+      f'zugestellt (an das Gateway übergeben) {f(r[6])}')
+res = json.loads(r[7] or '{}')
+
+
+def gehe(o, pfad=''):
+    if isinstance(o, dict):
+        for k, v in o.items():
+            gehe(v, f'{pfad}.{k}' if pfad else k)
+    elif isinstance(o, list):
+        for i, v in enumerate(o):
+            gehe(v, f'{pfad}[{i}]')
+    elif isinstance(o, str) and len(o) > 300:
+        print(f'\n===== {pfad} ({len(o)} Zeichen, vollständig) =====\n{o}\n===== Ende {pfad} =====')
+    else:
+        print(f'{pfad}: {str(o)[:300]}')
+
+
+gehe(res)
+--- Ende /root/sicherung/biotop-lage-01/arbeit/s1c_schluss.py ---
+Ausgabe (vollständig, stdout und stderr):
+deleg_c88798ee · Zustand completed · Zustellung delivered (Versuche 1) · gestartet 2026-09-25 12:51:42 · beendet 2026-09-25 17:29:59 · zugestellt (an das Gateway übergeben) 2026-09-25 17:30:00
+results[0].task_index: 0
+results[0].status: completed
+
+===== results[0].summary (11047 Zeichen, vollständig) =====
+# S1c: Schlussbericht (Stand 17:26, abgebrochen an der Iterationsgrenze)
+
+A bis F sind gebaut. Beim Aufzählen der Wege mit `tragfaehig: True` habe ich aber einen weiteren stillen Durchlass derselben Klasse gefunden (G). Dafür steht nur die rote Spezifikation, der Code fehlt. **Deshalb sind im Baum seit 17:25 zehn `test_w_g_*` rot, und nach der Startregel ist T4 damit nicht frei.**
+
+- **A–F:** Bau erst an der Kopie `/tmp/r6-s1c/bau`, dann am Baum. Kopie und Baum sind danach bytegleich (16:40; die Testdatei 06 noch einmal 17:25).
+- **Teillauf Durchgang 5:** alles grün (Zahlen unten). Kosten an allen vier Werken gemessen.
+- **Befund G:** Eine beobachtete, geänderte Funktion schreibt in ein fremdes Modul (`konst.RATE = 7`) oder ruft dort eine schreibende Funktion (`konst.setze_rate(7)`). Ein unverändertes Modul liest den Wert. Ergebnis durch aegis in der echten Kammer: `ueberlebt`, geurteilt „9 von 9 beobachtet“, ohne Enthaltung.
+  - Rohausgaben: `/tmp/r6-s1c/befund-fremdschreiben-schreibt-erstlauf.txt` und `/tmp/r6-s1c/befund-fremdschreiben-ruft.txt`.
+
+## Geänderte Dateien (sha256, vorher → nachher)
+
+**Code und Tests in `/root/biotop`:**
+- `biotop/organe/verhaltensvergleich.py`: 761b9a7c… → `53e676da9aa1284915634a803a79166152d0b76084edff5e9be04f483ee37b4f`
+- `biotop/kern/py/verhalten.py`: c4071c40… → `cbb88f428ab9c011633768cb949653ff94d4b18bbfe5684eb66c8b1215b0381c`
+  - Für E: Die Sonde ruft am Kandidaten den Korpus auch für neue Funktionen.
+- `tests/test_vor_t4_06.py`: 80feee35… → `67bb6b458527a30b91ac54e0e8aed560f0ad758d0c874cee882801c5866c8710`
+  - 92 `test_w_*` angehängt.
+  - Älterer Fall `test_m2_regel_gedeckt_am_organ[zyklus]` hat jetzt das Soll „gedeckt“ (wegen F).
+- `tests/test_t3_verhaltensvergleich.py`: d6f239c4… → `103f2e9204969daefd2fff49e97002dbb68943a58f86a0354773e0a1cdcfca0f`
+  - Zwei ältere Tests zu A und B sicherten „tragfähig“ zu; jetzt Enthaltung.
+- `tests/test_vor_t4_03.py`: 9672cd54… → `707a5a7f8b9a0add3db5ba360e299f6ddde2c71e51a0e68531eceeab0bda3ae9`
+  - Zwei Gegenproben: ihre gestellte Sonde nannte keine eingewickelte Funktion („0 von 0“ = A). Sie nennt jetzt `eingewickelt`.
+- **Unverändert:**
+  - `aegis.py` 71af8ce7… — „Enthaltung → zurückgestellt“ wirkte dort schon.
+  - `test_vor_t4_05.py` 1983452f…, `test_vor_t4_04.py` 788db3c6…, `test_vor_t4_02.py` de095406…, `test_t3_python_annahmen.py` 03a5aff7….
+
+**Neu in `bau/`:**
+- `S1C-PLAN.md`, `S1C-KOSTEN.txt` (`2836f896…`).
+- Bauskripte (je sha256-Präfix): `r6_s1c_werkzeug.py`, `r6_s1c_spez*.py` (spez, n1–n7; n7 = 110c8aed), `r6_s1c_ab` 3031322c, `_d` df522833, `_d_n1` 22c3aab4, `_ef` cb109aec, `_ef_test` babee0b1, `_c` f183a8a3, `_c_n1` c28dbdc7, `_tests03` 21c8142a.
+- Protokolle `S1C-BAU-*.txt`.
+
+**Angehängt in `bau/`:**
+- `S1-VORHER-0c2f058.txt`: e9d812f2… → 7589363d…
+- `S1-VORHER-EINORDNUNG.md`: 81ba3837… → 481f55a9…
+- `TEILLAUF-S1.txt`: 43b6bd65… → f2d347e2…
+- `S1-GEAENDERTE-TESTS.md`: f61b8abf… → 2d9c47ee… (Nr. 7–11)
+
+## Vorher der `test_w_*`
+
+| Teil | Fälle | Proben rot (Baum / 0c2f058) | Gegenproben rot | Wächter rot (Baum / 0c2f058) |
+|---|---|---|---|---|
+| A–F | 77 | 44/44 von 44 | 0/0 von 29 | 0/4 von 4 |
+| G (n7) | 15 | 10/10 von 10 | 0/0 von 5 | — |
+
+- Für A–F ist „Baum“ der Stand nach S1b.
+- Für G ist „Baum“ der Stand nach S1c A–F; den Stand nach S1b habe ich für G nicht gemessen.
+- Die vier Wächter sichern zu, dass E und F die Regel von M2(b) nicht aufweichen; an 0c2f058 gibt es kein M2(b), daher dort rot.
+- Das Vorher von G ist noch nicht an `S1-VORHER-*` angehängt. Rohausgaben: `/tmp/r6-s1c/w-vorher-{baum,vorher}-n7.txt`.
+
+## Teststand Durchgang 5
+
+Stand 06 = e581edfa…, also vor dem Nachtrag n7:
+
+| Stück | Ergebnis |
+|---|---|
+| 1a | 39/39 |
+| 1b (`test_w_`) | 77/77 |
+| 1c | 63/63 |
+| 05 | 27/27 |
+| 04 | 36/36 |
+| 03 | 38/38 |
+| 02 | 18/18 |
+| t3_python_annahmen + t3_verhaltensvergleich | 28/28 |
+| test_vor_t4 | 62/62 |
+| test_verdrahtung | 7/7, 1 abgewählt (ganzer Lauf) |
+| test_tor4_zeilen | 62/62 |
+| **Summe** | **457 von 457 grün** |
+
+- **Zusatz:** 17 weitere Testdateien rufen aegis, laufen aber in keinem Stück 1–9. Ergebnis 166 von 168 grün, 2 übersprungen (`skipif` ohne `BIOTOP_EICHWERK`).
+- **Seit 17:25:** Die Datei 06 hat 194 Fälle, davon 10 rot (die G-Proben, gewollt bis zum Bau). Die übrigen 179 sind danach nicht erneut gelaufen; n7 hat nur angehängt.
+
+## Kosten (`bau/S1C-KOSTEN.txt`, echte Kammer, Code nach S1c A–F)
+
+| Werk | Module mit außerhalb gelesenen Modulwerten | Modulwerte außerhalb gelesen | Klassen / Klassenwerte außerhalb gelesen | nur von unbeobachteter Funktion in M gelesen | A: Module ohne Beobachtung | D |
+|---|---|---|---|---|---|---|
+| lagerhaus | 8 von 12 | 21 von 51 | 11 von 11 / 3 von 17 | 1 | 5 von 12 | 0 |
+| logmuehle | 7 von 12 | 26 von 78 | 5 von 5 / 9 von 20 | 4 | 5 von 12 | 0 |
+| uebungswerk-p2 | 8 von 12 | 21 von 53 | 11 von 12 / 3 von 17 | 3 | 5 von 12 | 0 |
+| versandwerk-t3-02 (TS) | 0 von 24 | 0 | — | 49 | 4 von 24 | 0 |
+
+**Was sich gegenüber S1b durch E/F ändert:**
+
+| Werk | M2(b) stellt zurück, S1b → S1c | davon durch F entfallen | E: neue öffentliche Funktionen, die als beobachtet gelten |
+|---|---|---|---|
+| lagerhaus | 2 → 2 von 39 | 0 | 12 von 12 |
+| logmuehle | 3 → 3 von 25 | 0 | 12 von 12 |
+| uebungswerk-p2 | 14 → 14 von 50 | 0 | 12 von 12 |
+
+- **E:** Unter S1b wurden alle zwölf neuen Funktionen je Werk zurückgestellt. Der Korpus neuer Funktionen verändert keine bestehende Beobachtung (0 Abweichungen).
+- **F:** In keinem Werk gibt es einen selbstrekursiven privaten Helfer; F ändert dort nichts.
+- **C, Python:** Die hohen Zahlen kommen meist von Re-Exporten in Paket-`__init__` und von Importen. Änderungen nur an Funktionskörpern betrifft C nicht.
+- **C, TypeScript:** An der Vorgeneration sind 85 von 123 exportierten Funktionen beobachtet.
+- **G:** Kosten nicht gemessen, weil G nicht gebaut ist.
+
+## Wege von `pruefen` mit `tragfaehig: True` nach dem Bau
+
+Gelesen an `53e676da…`, Z. 1898–2293. Es bleiben zwei Wege.
+
+**1. `keine_quellaenderung` (Z. 1922)**
+- Tritt nur ein, wenn kein Quellmodul geändert ist. Jede geänderte Datei im Quellpaket hat D schon vorher (Z. 1916) zur Enthaltung gemacht.
+- Übrig bleiben Dateien außerhalb des Quellpakets: README, docs/, tests/, Werkzeugdateien an der Wurzel. Sie werden gezählt, wie der Auftrag es verlangt.
+- Beobachtet ist hier nichts. Tragfähig ist das Urteil, weil der Quellcode bytegleich ist und das Werk diese Dateien laut Auftrag nicht zur Laufzeit liest. Gemessen: In allen vier Werken nennt kein Quellmodul eine dieser Dateien.
+- Grenze: Ein Werk, das doch eine Datei außerhalb liest (`open("../…")`), bliebe still. Das ist nicht geprüft.
+
+**2. `geurteilt` (Z. 2284)** — nur, wenn alle diese Bedingungen gelten:
+- Es gibt keine ungedeckte Abweichung.
+- Mindestens eine Funktion ist beobachtet (sonst greift A).
+- Weder M2(b) noch eine betroffene Enthaltung greift. Jede direkt geänderte Einheit ist also entweder beobachtet, neu und am Kandidaten beobachtet (E), oder ein gedeckter privater Helfer (F). Dazu zählt auch jede Einheit in M, die einen geänderten Modulwert liest (C).
+- `ausserhalb` ist leer. Es gibt also keinen der folgenden Fälle:
+  - eine Datei im Quellpaket (D);
+  - einen geänderten Modul- oder Klassenwert, der außerhalb gelesen wird;
+  - eine geänderte Modulebene ohne Namen;
+  - einen Dekorator mit Wirkung beim Import;
+  - einen `__main__`-Block, den runpy ausführt;
+  - ein Modul, das an der Vorgeneration nicht lädt;
+  - bei TypeScript eine unbeobachtete geänderte Funktion oder Klasse.
+
+Dann wirkt jede geänderte Stelle über Funktionen, deren Rückgabe und Argumentzustand die Sonde an beiden Ständen beobachtet.
+
+**Lücke dieses Wegs:**
+- **G, gemessen und offen:** Schreibzugriffe auf den Zustand fremder Module sieht die Sonde nicht.
+- **Statisch nicht bestimmbar:**
+  - Ein- und Ausgabe (Dateien, Umgebung, Prozesse);
+  - Reflexion jenseits von `globals()` und `setattr` (`sys.modules`, `importlib`);
+  - Schreiben über Aliase.
+
+**Alle übrigen Wege liefern `tragfaehig: False`:**
+- **Enthaltung, zurückgestellt:**
+  - nur Dateien im Quellpaket geändert (D allein);
+  - B, A;
+  - `wirkung_ausserhalb_beobachtung` (C/D);
+  - `betroffene_funktion_enthaelt_sich`, `verfaelschungskappe`, `verfaelschung_unvollstaendig`.
+- **Ablehnung:** Zeitlimit oder Inhaltsfehler am Kandidaten, ungedeckte Abweichung.
+- **`SondeAusgefallen`:** aegis stellt zurück.
+
+## Offene Punkte
+
+1. **G bauen, vor T4.** Die Festlegung steht in `S1C-PLAN.md` (17:20):
+   - Eine geänderte Funktion schreibt in ein importiertes Objekt (Zuweisung, verändernde Methode, `setattr`, `globals()`) → Enthaltung.
+   - Sie ruft eine schreibende Funktion im eigenen Modul → die dort geschriebenen Namen gelten als geändert (C).
+   - Sie ruft eine schreibende Funktion in einem anderen Modul → Enthaltung `M:<ruft:K:g>`.
+   - TypeScript entsprechend.
+   - Es fehlen:
+     - `bau/r6_s1c_g.py` (Kopie, dann Baum);
+     - die Kosten von G an den vier Werken;
+     - ein Nachlauf der Teillauf-Stücke;
+     - das Vorher von n7 an `S1-VORHER-*`.
+   - Wenn G nicht in S1c gebaut werden soll, braucht es eine Entscheidung von Hermes oder Chat-Claude.
+2. **Plan nachtragen.** `S1C-PLAN.md` endet bei 17:20. Es fehlt der Schritt von 17:25:
+   - `r6_s1c_spez_n7.py` (110c8aed…);
+   - Datei 06 → 67bb6b45… (Kopie = Baum, 194 Fälle);
+   - Vorher: je 10 Proben rot an beiden Ständen, 5 Gegenproben grün.
+3. **Umsetzung nachtragen.** In `bau/S1-UMSETZUNG.md` fehlt der Abschnitt zu S1c.
+4. **Grenzen ohne Bau:** Dateien außerhalb des Quellpakets, Ein- und Ausgabe, Reflexion, Aliase (siehe oben).
+5. **Voller Verdrahtungslauf** (`test_jedes_organ_wird_im_lauf_aufgerufen`, über 400 s) bleibt beim Auftraggeber.
+6. **Skill:** Die Lehre „Schreiben in fremde Module (G)“ gehört in den Skill `biotop-phase-bauen`. Das ist nicht mehr geschehen.
+
+**Auslegungen, strenger als der Wortlaut (Begründung im Plan):**
+- D: Liegt ein Quellmodul an der Wurzel, gehört die Wurzel zum Quellpaket.
+- B teilweise: ein geändertes Modul, das an der Vorgeneration nicht lädt → Enthaltung (`<ladbar>`).
+- C, Python, zusätzlich:
+  - Klassenwerte und Klassenkopf;
+  - Dekoratoren mit Wirkung beim Import;
+  - `global` und Veränderung eigener Modulnamen;
+  - Leser werden über aufgelöste Importpfade bestimmt.
+- C, TypeScript: TypeScript hat kein M2(b), daher führt eine unbeobachtete geänderte Funktion oder Klasse zur Enthaltung.
+- E:
+  - Eine neue Funktion gilt nur mit Beobachtung am Kandidaten als beobachtet.
+  - Korpusbeobachtungen neuer Funktionen zählen nicht als Abweichung.
+
+## Sperren
+
+Keine. Kein Befehl wurde gesperrt, keine Freigabeabfrage ist abgelaufen, keine Formatsperre. Die Kammer-Sperre `/tmp/biotop-kammer-exklusiv` habe ich vor jedem Kammerstück geprüft; sie bestand nie. Kein Commit, kein Modellaufruf, kein Netz, keine Hintergrundprozesse.
+
+Zwei eigene Skriptfehler blieben ohne Wirkung und sind korrigiert:
+- `teillauf5_summe.py` brach vor dem Schreiben ab.
+- Der erste Lauf von `befund_fremdschreiben.py` erzeugte einen doppelten Diff und damit „Pareto verletzt“. Das ist kein Befund.
+===== Ende results[0].summary =====
+results[0].api_calls: 250
+results[0].duration_seconds: 16697.0
+results[0].model: claude-opus-5-5
+results[0].exit_reason: max_iterations
+results[0].truncated: True
+results[0].tokens.input: 70312232
+results[0].tokens.output: 1414203
+results[0].tool_trace[0].tool: skill_view
+results[0].tool_trace[0].args_bytes: 30
+results[0].tool_trace[0].input_summary.argument_keys[0]: name
+results[0].tool_trace[0].result_bytes: 146
+results[0].tool_trace[0].status: ok
+results[0].tool_trace[1].tool: read_file
+results[0].tool_trace[1].args_bytes: 58
+results[0].tool_trace[1].input_summary.argument_keys[0]: path
+results[0].tool_trace[1].input_summary.targets.path: /root/biotop-vor-t4-06/BAU-S1C-UNBEOBACHTET.md
+results[0].tool_trace[1].result_bytes: 90
+results[0].tool_trace[1].status: ok
+results[0].tool_trace[2].tool: terminal
+results[0].tool_trace[2].args_bytes: 320
+results[0].tool_trace[2].input_summary.argument_keys[0]: command
+results[0].tool_trace[2].input_summary.argument_keys[1]: timeout
+results[0].tool_trace[2].result_bytes: 123
+results[0].tool_trace[2].status: ok
+results[0].tool_trace[3].tool: write_file
+results[0].tool_trace[3].args_bytes: 469
+results[0].tool_trace[3].input_summary.argument_keys[0]: content
+results[0].tool_trace[3].input_summary.argument_keys[1]: path
+results[0].tool_trace[3].input_summary.targets.path: /tmp/r6-s1c/w_vorher_alle.sh
+results[0].tool_trace[3].result_bytes: 60
+results[0].tool_trace[3].status: ok
+results[0].tool_trace[4].tool: terminal
+results[0].tool_trace[4].args_bytes: 69
+results[0].tool_trace[4].input_summary.argument_keys[0]: command
+results[0].tool_trace[4].input_summary.argument_keys[1]: timeout
+results[0].tool_trace[4].result_bytes: 81
+results[0].tool_trace[4].status: ok
+results[0].tool_trace[5].tool: terminal
+results[0].tool_trace[5].args_bytes: 71
+results[0].tool_trace[5].input_summary.argument_keys[0]: command
+results[0].tool_trace[5].input_summary.argument_keys[1]: timeout
+results[0].tool_trace[5].result_bytes: 83
+results[0].tool_trace[5].status: ok
+results[0].tool_trace[6].tool: write_file
+results[0].tool_trace[6].args_bytes: 276
+results[0].tool_trace[6].input_summary.argument_keys[0]: content
+results[0].tool_trace[6].input_summary.argument_keys[1]: path
+results[0].tool_trace[6].input_summary.targets.path: /tmp/r6-s1c/vorher_auswerten.py
+results[0].tool_trace[6].result_bytes: 64
+results[0].tool_trace[6].status: ok
+results[0].tool_trace[7].tool: terminal
+results[0].tool_trace[7].args_bytes: 156
+results[0].tool_trace[7].input_summary.argument_keys[0]: command
+results[0].tool_trace[7].result_bytes: 123
+results[0].tool_trace[7].status: ok
+results[0].tool_trace[8].tool: execute_code
+results[0].tool_trace[8].args_bytes: 236
+results[0].tool_trace[8].input_summary.argument_keys[0]: code
+results[0].tool_trace[8].result_bytes: 97
+results[0].tool_trace[8].status: ok
+results[0].tool_trace[9].tool: terminal
+results[0].tool_trace[9].args_bytes: 208
+results[0].tool_trace[9].input_summary.argument_keys[0]: command
+results[0].tool_trace[9].result_bytes: 123
+results[0].tool_trace[9].status: ok
+results[0].tool_trace[10].tool: terminal
+results[0].tool_trace[10].args_bytes: 185
+results[0].tool_trace[10].input_summary.argument_keys[0]: command
+results[0].tool_trace[10].result_bytes: 123
+results[0].tool_trace[10].status: ok
+results[0].tool_trace[11].tool: execute_code
+results[0].tool_trace[11].args_bytes: 243
+results[0].tool_trace[11].input_summary.argument_keys[0]: code
+results[0].tool_trace[11].result_bytes: 97
+results[0].tool_trace[11].status: ok
+results[0].tool_trace[12].tool: terminal
+results[0].tool_trace[12].args_bytes: 495
+results[0].tool_trace[12].input_summary.argument_keys[0]: command
+results[0].tool_trace[12].result_bytes: 123
+results[0].tool_trace[12].status: ok
+results[0].tool_trace[13].tool: terminal
+results[0].tool_trace[13].args_bytes: 196
+results[0].tool_trace[13].input_summary.argument_keys[0]: command
+results[0].tool_trace[13].result_bytes: 123
+results[0].tool_trace[13].status: ok
+results[0].tool_trace[14].tool: write_file
+results[0].tool_trace[14].args_bytes: 276
+results[0].tool_trace[14].input_summary.argument_keys[0]: content
+results[0].tool_trace[14].input_summary.argument_keys[1]: path
+results[0].tool_trace[14].input_summary.targets.path: /tmp/r6-s1c/vorher_anhaengen.py
+results[0].tool_trace[14].result_bytes: 64
+results[0].tool_trace[14].status: ok
+results[0].tool_trace[15].tool: write_file
+results[0].tool_trace[15].args_bytes: 287
+results[0].tool_trace[15].input_summary.argument_keys[0]: content
+results[0].tool_trace[15].input_summary.argument_keys[1]: path
+results[0].tool_trace[15].input_summary.targets.path: /tmp/r6-s1c/vorher_gegenrechnung.py
+results[0].tool_trace[15].result_bytes: 68
+results[0].tool_trace[15].status: ok
+results[0].tool_trace[16].tool: terminal
+results[0].tool_trace[16].args_bytes: 82
+results[0].tool_trace[16].input_summary.argument_keys[0]: command
+results[0].tool_trace[16].result_bytes: 110
+results[0].tool_trace[16].status: ok
+results[0].tool_trace[17].tool: terminal
+results[0].tool_trace[17].args_bytes: 78
+results[0].tool_trace[17].input_summary.argument_keys[0]: command
+results[0].tool_trace[17].result_bytes: 169
+results[0].tool_trace[17].status: ok
+results[0].tool_trace[18].tool: execute_code
+results[0].tool_trace[18].args_bytes: 233
+results[0].tool_trace[18].input_summary.argument_keys[0]: code
+results[0].tool_trace[18].result_bytes: 97
+results[0].tool_trace[18].status: ok
+results[0].tool_trace[19].tool: execute_code
+results[0].tool_trace[19].args_bytes: 233
+results[0].tool_trace[19].input_summary.argument_keys[0]: code
+results[0].tool_trace[19].result_bytes: 97
+results[0].tool_trace[19].status: ok
+results[0].tool_trace[20].tool: write_file
+results[0].tool_trace[20].args_bytes: 294
+results[0].tool_trace[20].input_summary.argument_keys[0]: content
+results[0].tool_trace[20].input_summary.argument_keys[1]: path
+results[0].tool_trace[20].input_summary.targets.path: /tmp/r6-s1c/spez_n5_anhang.py
+results[0].tool_trace[20].result_bytes: 62
+results[0].tool_trace[20].status: ok
+results[0].tool_trace[21].tool: terminal
+results[0].tool_trace[21].args_bytes: 76
+results[0].tool_trace[21].input_summary.argument_keys[0]: command
+results[0].tool_trace[21].result_bytes: 104
+results[0].tool_trace[21].status: ok
+results[0].tool_trace[22].tool: execute_code
+results[0].tool_trace[22].args_bytes: 238
+results[0].tool_trace[22].input_summary.argument_keys[0]: code
+results[0].tool_trace[22].result_bytes: 97
+results[0].tool_trace[22].status: ok
+results[0].tool_trace[23].tool: execute_code
+results[0].tool_trace[23].args_bytes: 233
+results[0].tool_trace[23].input_summary.argument_keys[0]: code
+results[0].tool_trace[23].result_bytes: 97
+results[0].tool_trace[23].status: ok
+results[0].tool_trace[24].tool: terminal
+results[0].tool_trace[24].args_bytes: 270
+results[0].tool_trace[24].input_summary.argument_keys[0]: command
+results[0].tool_trace[24].input_summary.argument_keys[1]: timeout
+results[0].tool_trace[24].result_bytes: 123
+results[0].tool_trace[24].status: ok
+results[0].tool_trace[25].tool: execute_code
+results[0].tool_trace[25].args_bytes: 237
+results[0].tool_trace[25].input_summary.argument_keys[0]: code
+results[0].tool_trace[25].result_bytes: 97
+results[0].tool_trace[25].status: ok
+results[0].tool_trace[26].tool: terminal
+results[0].tool_trace[26].args_bytes: 270
+results[0].tool_trace[26].input_summary.argument_keys[0]: command
+results[0].tool_trace[26].input_summary.argument_keys[1]: timeout
+results[0].tool_trace[26].result_bytes: 123
+results[0].tool_trace[26].status: ok
+results[0].tool_trace[27].tool: execute_code
+results[0].tool_trace[27].args_bytes: 233
+results[0].tool_trace[27].input_summary.argument_keys[0]: code
+results[0].tool_trace[27].result_bytes: 97
+results[0].tool_trace[27].status: ok
+results[0].tool_trace[28].tool: terminal
+results[0].tool_trace[28].args_bytes: 197
+results[0].tool_trace[28].input_summary.argument_keys[0]: command
+results[0].tool_trace[28].result_bytes: 123
+results[0].tool_trace[28].status: ok
+results[0].tool_trace[29].tool: read_file
+results[0].tool_trace[29].args_bytes: 81
+results[0].tool_trace[29].input_summary.argument_keys[0]: limit
+results[0].tool_trace[29].input_summary.argument_keys[1]: offset
+results[0].tool_trace[29].input_summary.argument_keys[2]: path
+results[0].tool_trace[29].input_summary.targets.path: /root/biotop/biotop/kern/py/verhalten.py
+results[0].tool_trace[29].result_bytes: 86
+results[0].tool_trace[29].status: ok
+results[0].tool_trace[30].tool: terminal
+results[0].tool_trace[30].args_bytes: 134
+results[0].tool_trace[30].input_summary.argument_keys[0]: command
+results[0].tool_trace[30].result_bytes: 123
+results[0].tool_trace[30].status: ok
+results[0].tool_trace[31].tool: read_file
+results[0].tool_trace[31].args_bytes: 72
+results[0].tool_trace[31].input_summary.argument_keys[0]: limit
+results[0].tool_trace[31].input_summary.argument_keys[1]: offset
+results[0].tool_trace[31].input_summary.argument_keys[2]: path
+results[0].tool_trace[31].input_summary.targets.path: /root/biotop/biotop/nachspiel.py
+results[0].tool_trace[31].result_bytes: 77
+results[0].tool_trace[31].status: ok
+results[0].tool_trace[32].tool: execute_code
+results[0].tool_trace[32].args_bytes: 237
+results[0].tool_trace[32].input_summary.argument_keys[0]: code
+results[0].tool_trace[32].result_bytes: 97
+results[0].tool_trace[32].status: ok
+results[0].tool_trace[33].tool: execute_code
+results[0].tool_trace[33].args_bytes: 230
+results[0].tool_trace[33].input_summary.argument_keys[0]: code
+results[0].tool_trace[33].result_bytes: 97
+results[0].tool_trace[33].status: ok
+results[0].tool_trace[34].tool: write_file
+results[0].tool_trace[34].args_bytes: 269
+results[0].tool_trace[34].input_summary.argument_keys[0]: content
+results[0].tool_trace[34].input_summary.argument_keys[1]: path
+results[0].tool_trace[34].input_summary.targets.path: /tmp/r6-s1c/kopie_bauen.sh
+results[0].tool_trace[34].result_bytes: 59
+results[0].tool_trace[34].status: ok
+results[0].tool_trace[35].tool: write_file
+results[0].tool_trace[35].args_bytes: 270
+results[0].tool_trace[35].input_summary.argument_keys[0]: content
+results[0].tool_trace[35].input_summary.argument_keys[1]: path
+results[0].tool_trace[35].input_summary.targets.path: /tmp/r6-s1c/kopie_stueck.sh
+results[0].tool_trace[35].result_bytes: 60
+results[0].tool_trace[35].status: ok
+results[0].tool_trace[36].tool: terminal
+results[0].tool_trace[36].args_bytes: 308
+results[0].tool_trace[36].input_summary.argument_keys[0]: command
+results[0].tool_trace[36].input_summary.argument_keys[1]: timeout
+results[0].tool_trace[36].result_bytes: 123
+results[0].tool_trace[36].status: ok
+results[0].tool_trace[37].tool: terminal
+results[0].tool_trace[37].args_bytes: 165
+results[0].tool_trace[37].input_summary.argument_keys[0]: command
+results[0].tool_trace[37].input_summary.argument_keys[1]: timeout
+results[0].tool_trace[37].result_bytes: 133
+results[0].tool_trace[37].status: ok
+results[0].tool_trace[38].tool: execute_code
+results[0].tool_trace[38].args_bytes: 233
+results[0].tool_trace[38].input_summary.argument_keys[0]: code
+results[0].tool_trace[38].result_bytes: 97
+results[0].tool_trace[38].status: ok
+results[0].tool_trace[39].tool: read_file
+results[0].tool_trace[39].args_bytes: 93
+results[0].tool_trace[39].input_summary.argument_keys[0]: limit
+results[0].tool_trace[39].input_summary.argument_keys[1]: offset
+results[0].tool_trace[39].input_summary.argument_keys[2]: path
+results[0].tool_trace[39].input_summary.targets.path: /tmp/r6-s1c/bau/biotop/organe/verhaltensvergleich.py
+results[0].tool_trace[39].result_bytes: 98
+results[0].tool_trace[39].status: ok
+results[0].tool_trace[40].tool: execute_code
+results[0].tool_trace[40].args_bytes: 237
+results[0].tool_trace[40].input_summary.argument_keys[0]: code
+results[0].tool_trace[40].result_bytes: 97
+results[0].tool_trace[40].status: ok
+results[0].tool_trace[41].tool: terminal
+results[0].tool_trace[41].args_bytes: 297
+results[0].tool_trace[41].input_summary.argument_keys[0]: command
+results[0].tool_trace[41].input_summary.argument_keys[1]: timeout
+results[0].tool_trace[41].result_bytes: 123
+results[0].tool_trace[41].status: ok
+results[0].tool_trace[42].tool: terminal
+results[0].tool_trace[42].args_bytes: 240
+results[0].tool_trace[42].input_summary.argument_keys[0]: command
+results[0].tool_trace[42].input_summary.argument_keys[1]: timeout
+results[0].tool_trace[42].result_bytes: 123
+results[0].tool_trace[42].status: ok
+results[0].tool_trace[43].tool: terminal
+results[0].tool_trace[43].args_bytes: 102
+results[0].tool_trace[43].input_summary.argument_keys[0]: command
+results[0].tool_trace[43].result_bytes: 123
+results[0].tool_trace[43].status: ok
+results[0].tool_trace[44].tool: execute_code
+results[0].tool_trace[44].args_bytes: 234
+results[0].tool_trace[44].input_summary.argument_keys[0]: code
+results[0].tool_trace[44].result_bytes: 97
+results[0].tool_trace[44].status: ok
+results[0].tool_trace[45].tool: terminal
+results[0].tool_trace[45].args_bytes: 318
+results[0].tool_trace[45].input_summary.argument_keys[0]: command
+results[0].tool_trace[45].input_summary.argument_keys[1]: timeout
+results[0].tool_trace[45].result_bytes: 123
+results[0].tool_trace[45].status: ok
+results[0].tool_trace[46].tool: execute_code
+results[0].tool_trace[46].args_bytes: 233
+results[0].tool_trace[46].input_summary.argument_keys[0]: code
+results[0].tool_trace[46].result_bytes: 97
+results[0].tool_trace[46].status: ok
+results[0].tool_trace[47].tool: read_file
+results[0].tool_trace[47].args_bytes: 93
+results[0].tool_trace[47].input_summary.argument_keys[0]: limit
+results[0].tool_trace[47].input_summary.argument_keys[1]: offset
+results[0].tool_trace[47].input_summary.argument_keys[2]: path
+results[0].tool_trace[47].input_summary.targets.path: /tmp/r6-s1c/bau/biotop/organe/verhaltensvergleich.py
+results[0].tool_trace[47].result_bytes: 98
+results[0].tool_trace[47].status: ok
+results[0].tool_trace[48].tool: read_file
+results[0].tool_trace[48].args_bytes: 81
+results[0].tool_trace[48].input_summary.argument_keys[0]: limit
+results[0].tool_trace[48].input_summary.argument_keys[1]: offset
+results[0].tool_trace[48].input_summary.argument_keys[2]: path
+results[0].tool_trace[48].input_summary.targets.path: /root/biotop/biotop/kern/py/verhalten.py
+results[0].tool_trace[48].result_bytes: 86
+results[0].tool_trace[48].status: ok
+results[0].tool_trace[49].tool: execute_code
+results[0].tool_trace[49].args_bytes: 237
+results[0].tool_trace[49].input_summary.argument_keys[0]: code
+results[0].tool_trace[49].result_bytes: 97
+results[0].tool_trace[49].status: ok
+results[0].tool_trace[50].tool: terminal
+results[0].tool_trace[50].args_bytes: 181
+results[0].tool_trace[50].input_summary.argument_keys[0]: command
+results[0].tool_trace[50].result_bytes: 123
+results[0].tool_trace[50].status: ok
+results[0].tool_trace[51].tool: terminal
+results[0].tool_trace[51].args_bytes: 156
+results[0].tool_trace[51].input_summary.argument_keys[0]: command
+results[0].tool_trace[51].result_bytes: 123
+results[0].tool_trace[51].status: ok
+results[0].tool_trace[52].tool: terminal
+results[0].tool_trace[52].args_bytes: 102
+results[0].tool_trace[52].input_summary.argument_keys[0]: command
+results[0].tool_trace[52].result_bytes: 45
+results[0].tool_trace[52].status: ok
+results[0].tool_trace[53].tool: terminal
+results[0].tool_trace[53].args_bytes: 89
+results[0].tool_trace[53].input_summary.argument_keys[0]: command
+results[0].tool_trace[53].result_bytes: 115
+results[0].tool_trace[53].status: ok
+results[0].tool_trace[54].tool: execute_code
+results[0].tool_trace[54].args_bytes: 231
+results[0].tool_trace[54].input_summary.argument_keys[0]: code
+results[0].tool_trace[54].result_bytes: 97
+results[0].tool_trace[54].status: ok
+results[0].tool_trace[55].tool: terminal
+results[0].tool_trace[55].args_bytes: 321
+results[0].tool_trace[55].input_summary.argument_keys[0]: command
+results[0].tool_trace[55].input_summary.argument_keys[1]: timeout
+results[0].tool_trace[55].result_bytes: 123
+results[0].tool_trace[55].status: ok
+results[0].tool_trace[56].tool: terminal
+results[0].tool_trace[56].args_bytes: 170
+results[0].tool_trace[56].input_summary.argument_keys[0]: command
+results[0].tool_trace[56].input_summary.argument_keys[1]: timeout
+results[0].tool_trace[56].result_bytes: 133
+results[0].tool_trace[56].status: ok
+results[0].tool_trace[57].tool: execute_code
+results[0].tool_trace[57].args_bytes: 251
+results[0].tool_trace[57].input_summary.argument_keys[0]: code
+results[0].tool_trace[57].result_bytes: 97
+results[0].tool_trace[57].status: ok
+results[0].tool_trace[58].tool: execute_code
+results[0].tool_trace[58].args_bytes: 236
+results[0].tool_trace[58].input_summary.argument_keys[0]: code
+results[0].tool_trace[58].result_bytes: 97
+results[0].tool_trace[58].status: ok
+results[0].tool_trace[59].tool: terminal
+results[0].tool_trace[59].args_bytes: 176
+results[0].tool_trace[59].input_summary.argument_keys[0]: command
+results[0].tool_trace[59].input_summary.argument_keys[1]: timeout
+results[0].tool_trace[59].result_bytes: 123
+results[0].tool_trace[59].status: ok
+results[0].tool_trace[60].tool: execute_code
+results[0].tool_trace[60].args_bytes: 233
+results[0].tool_trace[60].input_summary.argument_keys[0]: code
+results[0].tool_trace[60].result_bytes: 97
+results[0].tool_trace[60].status: ok
+results[0].tool_trace[61].tool: read_file
+results[0].tool_trace[61].args_bytes: 92
+results[0].tool_trace[61].input_summary.argument_keys[0]: limit
+results[0].tool_trace[61].input_summary.argument_keys[1]: offset
+results[0].tool_trace[61].input_summary.argument_keys[2]: path
+results[0].tool_trace[61].input_summary.targets.path: /tmp/r6-s1c/bau/biotop/organe/verhaltensvergleich.py
+results[0].tool_trace[61].result_bytes: 97
+results[0].tool_trace[61].status: ok
+results[0].tool_trace[62].tool: execute_code
+results[0].tool_trace[62].args_bytes: 233
+results[0].tool_trace[62].input_summary.argument_keys[0]: code
+results[0].tool_trace[62].result_bytes: 97
+results[0].tool_trace[62].status: ok
+results[0].tool_trace[63].tool: write_file
+results[0].tool_trace[63].args_bytes: 267
+results[0].tool_trace[63].input_summary.argument_keys[0]: content
+results[0].tool_trace[63].input_summary.argument_keys[1]: path
+results[0].tool_trace[63].input_summary.targets.path: /tmp/r6-s1c/c_entwurf.py
+results[0].tool_trace[63].result_bytes: 197
+results[0].tool_trace[63].status: ok
+results[0].tool_trace[64].tool: execute_code
+results[0].tool_trace[64].args_bytes: 233
+results[0].tool_trace[64].input_summary.argument_keys[0]: code
+results[0].tool_trace[64].result_bytes: 97
+results[0].tool_trace[64].status: ok
+results[0].tool_trace[65].tool: execute_code
+results[0].tool_trace[65].args_bytes: 232
+results[0].tool_trace[65].input_summary.argument_keys[0]: code
+results[0].tool_trace[65].result_bytes: 97
+results[0].tool_trace[65].status: ok
+results[0].tool_trace[66].tool: execute_code
+results[0].tool_trace[66].args_bytes: 232
+results[0].tool_trace[66].input_summary.argument_keys[0]: code
+results[0].tool_trace[66].result_bytes: 97
+results[0].tool_trace[66].status: ok
+results[0].tool_trace[67].tool: execute_code
+results[0].tool_trace[67].args_bytes: 237
+results[0].tool_trace[67].input_summary.argument_keys[0]: code
+results[0].tool_trace[67].result_bytes: 97
+results[0].tool_trace[67].status: ok
+results[0].tool_trace[68].tool: execute_code
+results[0].tool_trace[68].args_bytes: 235
+results[0].tool_trace[68].input_summary.argument_keys[0]: code
+results[0].tool_trace[68].result_bytes: 97
+results[0].tool_trace[68].status: ok
+results[0].tool_trace[69].tool: execute_code
+results[0].tool_trace[69].args_bytes: 237
+results[0].tool_trace[69].input_summary.argument_keys[0]: code
+results[0].tool_trace[69].result_bytes: 97
+results[0].tool_trace[69].status: ok
+results[0].tool_trace[70].tool: terminal
+results[0].tool_trace[70].args_bytes: 344
+results[0].tool_trace[70].input_summary.argument_keys[0]: command
+results[0].tool_trace[70].input_summary.argument_keys[1]: timeout
+results[0].tool_trace[70].result_bytes: 123
+results[0].tool_trace[70].status: ok
+results[0].tool_trace[71].tool: execute_code
+results[0].tool_trace[71].args_bytes: 233
+results[0].tool_trace[71].input_summary.argument_keys[0]: code
+results[0].tool_trace[71].result_bytes: 97
+results[0].tool_trace[71].status: ok
+results[0].tool_trace[72].tool: terminal
+results[0].tool_trace[72].args_bytes: 128
+results[0].tool_trace[72].input_summary.argument_keys[0]: command
+results[0].tool_trace[72].input_summary.argument_keys[1]: timeout
+results[0].tool_trace[72].result_bytes: 144
+results[0].tool_trace[72].status: ok
+results[0].tool_trace[73].tool: terminal
+results[0].tool_trace[73].args_bytes: 120
+results[0].tool_trace[73].input_summary.argument_keys[0]: command
+results[0].tool_trace[73].input_summary.argument_keys[1]: timeout
+results[0].tool_trace[73].result_bytes: 144
+results[0].tool_trace[73].status: ok
+results[0].tool_trace[74].tool: terminal
+results[0].tool_trace[74].args_bytes: 144
+results[0].tool_trace[74].input_summary.argument_keys[0]: command
+results[0].tool_trace[74].input_summary.argument_keys[1]: timeout
+results[0].tool_trace[74].result_bytes: 145
+results[0].tool_trace[74].status: ok
+results[0].tool_trace[75].tool: terminal
+results[0].tool_trace[75].args_bytes: 90
+results[0].tool_trace[75].input_summary.argument_keys[0]: command
+results[0].tool_trace[75].input_summary.argument_keys[1]: timeout
+results[0].tool_trace[75].result_bytes: 129
+results[0].tool_trace[75].status: ok
+results[0].tool_trace[76].tool: terminal
+results[0].tool_trace[76].args_bytes: 90
+results[0].tool_trace[76].input_summary.argument_keys[0]: command
+results[0].tool_trace[76].input_summary.argument_keys[1]: timeout
+results[0].tool_trace[76].result_bytes: 129
+results[0].tool_trace[76].status: ok
+results[0].tool_trace[77].tool: terminal
+results[0].tool_trace[77].args_bytes: 90
+results[0].tool_trace[77].input_summary.argument_keys[0]: command
+results[0].tool_trace[77].input_summary.argument_keys[1]: timeout
+results[0].tool_trace[77].result_bytes: 102
+results[0].tool_trace[77].status: ok
+results[0].tool_trace[78].tool: read_file
+results[0].tool_trace[78].args_bytes: 79
+results[0].tool_trace[78].input_summary.argument_keys[0]: limit
+results[0].tool_trace[78].input_summary.argument_keys[1]: offset
+results[0].tool_trace[78].input_summary.argument_keys[2]: path
+results[0].tool_trace[78].input_summary.targets.path: /tmp/r6-s1c/bau/tests/test_vor_t4_03.py
+results[0].tool_trace[78].result_bytes: 84
+results[0].tool_trace[78].status: ok
+results[0].tool_trace[79].tool: read_file
+results[0].tool_trace[79].args_bytes: 79
+results[0].tool_trace[79].input_summary.argument_keys[0]: limit
+results[0].tool_trace[79].input_summary.argument_keys[1]: offset
+results[0].tool_trace[79].input_summary.argument_keys[2]: path
+results[0].tool_trace[79].input_summary.targets.path: /tmp/r6-s1c/bau/tests/test_vor_t4_03.py
+results[0].tool_trace[79].result_bytes: 84
+results[0].tool_trace[79].status: ok
+results[0].tool_trace[80].tool: terminal
+results[0].tool_trace[80].args_bytes: 185
+results[0].tool_trace[80].input_summary.argument_keys[0]: command
+results[0].tool_trace[80].input_summary.argument_keys[1]: timeout
+results[0].tool_trace[80].result_bytes: 129
+results[0].tool_trace[80].status: ok
+results[0].tool_trace[81].tool: execute_code
+results[0].tool_trace[81].args_bytes: 233
+results[0].tool_trace[81].input_summary.argument_keys[0]: code
+results[0].tool_trace[81].result_bytes: 97
+results[0].tool_trace[81].status: ok
+results[0].tool_trace[82].tool: terminal
+results[0].tool_trace[82].args_bytes: 179
+results[0].tool_trace[82].input_summary.argument_keys[0]: command
+results[0].tool_trace[82].input_summary.argument_keys[1]: timeout
+results[0].tool_trace[82].result_bytes: 701
+results[0].tool_trace[82].status: ok
+results[0].tool_trace[83].tool: terminal
+results[0].tool_trace[83].args_bytes: 173
+results[0].tool_trace[83].input_summary.argument_keys[0]: command
+results[0].tool_trace[83].input_summary.argument_keys[1]: timeout
+results[0].tool_trace[83].result_bytes: 307
+results[0].tool_trace[83].status: ok
+results[0].tool_trace[84].tool: terminal
+results[0].tool_trace[84].args_bytes: 124
+results[0].tool_trace[84].input_summary.argument_keys[0]: command
+results[0].tool_trace[84].result_bytes: 159
+results[0].tool_trace[84].status: ok
+results[0].tool_trace[85].tool: execute_code
+results[0].tool_trace[85].args_bytes: 980
+results[0].tool_trace[85].input_summary.argument_keys[0]: code
+results[0].tool_trace[85].result_bytes: 301
+results[0].tool_trace[85].status: ok
+results[0].tool_trace[86].tool: terminal
+results[0].tool_trace[86].args_bytes: 339
+results[0].tool_trace[86].input_summary.argument_keys[0]: command
+results[0].tool_trace[86].result_bytes: 918
+results[0].tool_trace[86].status: ok
+results[0].tool_trace[87].tool: write_file
+results[0].tool_trace[87].args_bytes: 14705
+results[0].tool_trace[87].input_summary.argument_keys[0]: content
+results[0].tool_trace[87].input_summary.argument_keys[1]: path
+results[0].tool_trace[87].input_summary.targets.path: /tmp/r6-s1c/kosten_s1c.py
+results[0].tool_trace[87].result_bytes: 199
+results[0].tool_trace[87].status: ok
+results[0].tool_trace[88].tool: write_file
+results[0].tool_trace[88].args_bytes: 847
+results[0].tool_trace[88].input_summary.argument_keys[0]: content
+results[0].tool_trace[88].input_summary.argument_keys[1]: path
+results[0].tool_trace[88].input_summary.targets.path: /tmp/r6-s1c/kosten.sh

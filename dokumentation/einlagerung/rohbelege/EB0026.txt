@@ -1,0 +1,320 @@
+EB26 · Schritt 3: Hermes-Zwischenspeicher (Delegationen, Dokumente) mit Biotop-Bezug kopieren und vergleichen
+Beginn: 2026-09-26 00:13:09 CEST (UTC+0200)
+Ende:   2026-09-26 00:13:10 CEST (UTC+0200)
+Dauer:  0.9 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/biotop-einlagerung/arbeit/s3_vergaenglich.py zwischenspeicher
+--- Inhalt von /root/biotop-einlagerung/arbeit/s3_vergaenglich.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-EINLAGERUNG-01 · Schritt 3: Vergängliches dauerhaft machen (kopieren, nie verschieben; jede Datei per
+SHA-256 verglichen).
+
+Unterbefehle (je über eb.py):
+  tmp            /tmp → /root/biotop-einlagerung/tmp-belege/<eintrag>. Umfang wie BIOTOP-LAGE-01 Teil 2b
+                 (sich.py tmp_teile): jeder Eintrag der obersten Ebene außer Werkzeug- und Systemordnern (Namensanfänge
+                 TMP_AUSSER_PREFIX). Biotop-Bezug je Eintrag wird nur ausgewiesen (Name oder Inhalt nennt „biotop“).
+  zwischenspeicher
+                 /root/.hermes/cache/delegation/live/<id>/ und /root/.hermes/cache/documents/<datei> mit Biotop-Bezug
+                 (Inhalt nennt „biotop“, Groß/klein egal) → /root/biotop-einlagerung/hermes-zwischenspeicher/…
+                 Einträge ohne Biotop-Bezug: nur gezählt und benannt, nicht kopiert (sie liegen in /root/.hermes, das in
+                 KOMPLETT kommt).
+Regeln:
+- Geheimnisdateien werden NICHT kopiert (nur mit Pfad genannt): Name wie in sich.py (.env*, auth.json*, *.pem, *.key,
+  id_*), dazu jede Datei, die einen Zugangswert (OPENROUTER_API_KEY, TELEGRAM_BOT_TOKEN, access/id/refresh_token aus
+  auth.json) oder ein Schlüsselmuster (geheimnis.MUSTER) enthält — „gleichartige Dateien“ (Auftrag Regel 4).
+- Sonderdateien (Sockets, FIFOs) werden nicht kopiert (Protokollzeile).
+- Kopie mit Rechten, Besitzer und Änderungszeit; Verweise als Verweise; nichts wird überschrieben (Zielordner je Eintrag
+  wird exklusiv angelegt).
+- Danach Vergleich: je Datei SHA-256 Quelle = Kopie, je Verweis Ziel = Ziel; Zählung je Quelle (x von x).
+Ausgabe: Tafel je Quelle (Dateien, Verweise, Bytes, gleich, ausgelassen je Grund), Protokoll der Auslassungen.
+"""
+import hashlib
+import json
+import os
+import re
+import shutil
+import stat
+import sys
+import time
+from pathlib import Path
+
+sys.path.insert(0, '/root/biotop-einlagerung/arbeit')
+import geheimnis  # noqa: E402
+
+W = Path('/root/biotop-einlagerung')
+TMP_AUSSER_PREFIX = ('systemd-private-', 'hermes_kernel_', 'hermes_rpc_', 'hermes-codex-schema-', 'claude-',
+                     'node-compile-cache', 'data-gym-cache', 'tirith')
+GEHEIM_NAMEN = {'.env', 'auth.json'}
+GEHEIM_ENDUNGEN = ('.pem', '.key')
+GEHEIM_ANFAENGE = ('id_rsa', 'id_ed25519', 'id_ecdsa', 'id_dsa')
+STRENG_QUELLEN = ('OPENROUTER_API_KEY', 'TELEGRAM_BOT_TOKEN', 'tokens.access_token', 'tokens.id_token',
+                  'tokens.refresh_token')
+WERTE = {v: q for v, q in geheimnis.werte().items() if q.endswith(STRENG_QUELLEN)}
+MUSTER = {n: re.compile(m.encode()) for n, m in geheimnis.MUSTER.items()}
+WERTE_B = {v.encode(): q for v, q in WERTE.items()}
+
+
+def jetzt() -> str:
+    return time.strftime('%Y-%m-%d %H:%M:%S %Z (UTC%z)')
+
+
+def sha_datei(p) -> str:
+    h = hashlib.sha256()
+    with open(p, 'rb') as f:
+        for block in iter(lambda: f.read(1 << 20), b''):
+            h.update(block)
+    return h.hexdigest()
+
+
+def geheim_name(name: str) -> bool:
+    return (name in GEHEIM_NAMEN or name.startswith(('.env', 'auth.json')) or name.endswith(GEHEIM_ENDUNGEN)
+            or name.startswith(GEHEIM_ANFAENGE))
+
+
+def zugang_treffer(p: str) -> list:
+    """Namen der gefundenen Zugangswerte/-muster (nie die Werte). Große Dateien blockweise mit Überlappung."""
+    gefunden = set()
+    rest = b''
+    with open(p, 'rb') as f:
+        while True:
+            block = f.read(8 << 20)
+            if not block:
+                break
+            daten = rest + block
+            for v, q in WERTE_B.items():
+                if v in daten:
+                    gefunden.add('Wert ' + q.rsplit(':', 1)[1])
+            for n, m in MUSTER.items():
+                if m.search(daten):
+                    gefunden.add('Muster ' + n)
+            rest = daten[-4096:]
+    return sorted(gefunden)
+
+
+def kopiere_baum(quelle: Path, ziel: Path, protokoll: list, zahl: dict) -> None:
+    """Kopiert quelle (Datei, Verweis oder Ordner) nach ziel. ziel darf nicht bestehen."""
+    if quelle.is_symlink():
+        os.symlink(os.readlink(quelle), ziel)
+        st = os.lstat(quelle)
+        os.chown(ziel, st.st_uid, st.st_gid, follow_symlinks=False)
+        zahl['verweise'] += 1
+        return
+    if quelle.is_file():
+        kopiere_datei(quelle, ziel, protokoll, zahl)
+        return
+    ordner = []
+    for d, ds, fs in os.walk(quelle):
+        rel = os.path.relpath(d, quelle)
+        zd = ziel if rel == '.' else ziel / rel
+        st = os.lstat(d)
+        zd.mkdir(parents=False, exist_ok=False) if rel != '.' else ziel.mkdir(parents=True, exist_ok=False)
+        os.chown(zd, st.st_uid, st.st_gid)
+        ordner.append((zd, st))
+        zahl['ordner'] += 1
+        for x in sorted(ds):
+            p = Path(d) / x
+            if p.is_symlink():
+                os.symlink(os.readlink(p), zd / x)
+                s = os.lstat(p)
+                os.chown(zd / x, s.st_uid, s.st_gid, follow_symlinks=False)
+                zahl['verweise'] += 1
+        ds[:] = sorted(x for x in ds if not (Path(d) / x).is_symlink())
+        for f in sorted(fs):
+            kopiere_datei(Path(d) / f, zd / f, protokoll, zahl)
+    for zd, st in reversed(ordner):   # Rechte und Zeiten der Ordner zuletzt (Kinder ändern die Zeit)
+        os.chmod(zd, stat.S_IMODE(st.st_mode))
+        os.utime(zd, ns=(st.st_atime_ns, st.st_mtime_ns))
+
+
+def kopiere_datei(p: Path, z: Path, protokoll: list, zahl: dict) -> None:
+    try:
+        st = os.lstat(p)
+    except FileNotFoundError:
+        protokoll.append(f'VERSCHWUNDEN vor dem Kopieren: {p}')
+        zahl['verschwunden'] += 1
+        return
+    if stat.S_ISLNK(st.st_mode):
+        os.symlink(os.readlink(p), z)
+        os.chown(z, st.st_uid, st.st_gid, follow_symlinks=False)
+        zahl['verweise'] += 1
+        return
+    if not stat.S_ISREG(st.st_mode):
+        protokoll.append(f'AUSGELASSEN (Sonderdatei): {p}')
+        zahl['sonder'] += 1
+        return
+    if geheim_name(p.name):
+        protokoll.append(f'AUSGELASSEN (Geheimnisdatei nach Name, nur Pfad): {p}')
+        zahl['geheim'] += 1
+        return
+    t = zugang_treffer(str(p))
+    if t:
+        protokoll.append(f'AUSGELASSEN (enthält Zugangsgeheimnis: {", ".join(t)}; nur Pfad): {p}')
+        zahl['geheim'] += 1
+        return
+    fd = os.open(z, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    os.close(fd)
+    shutil.copyfile(p, z, follow_symlinks=False)
+    shutil.copystat(p, z, follow_symlinks=False)
+    os.chown(z, st.st_uid, st.st_gid)
+    zahl['dateien'] += 1
+    zahl['bytes'] += st.st_size
+
+
+def vergleiche(quelle: Path, ziel: Path, protokoll_aus: set) -> dict:
+    """Je kopierte Datei SHA-256 Quelle = Kopie; je Verweis Ziel gleich. Ausgelassene zählen gesondert."""
+    e = {'dateien': 0, 'gleich': 0, 'verweise': 0, 'verweise_gleich': 0, 'fehlt_in_kopie': 0, 'abweichend': []}
+    wurzeln = [(quelle, ziel)]
+    if quelle.is_dir() and not quelle.is_symlink():
+        paare = []
+        for d, ds, fs in os.walk(quelle):
+            for x in ds + fs:
+                p = Path(d) / x
+                paare.append((p, ziel / p.relative_to(quelle)))
+            ds[:] = [x for x in ds if not (Path(d) / x).is_symlink()]
+    else:
+        paare = wurzeln
+    for p, z in paare:
+        if p.is_symlink():
+            e['verweise'] += 1
+            e['verweise_gleich'] += z.is_symlink() and os.readlink(z) == os.readlink(p)
+        elif p.is_file():
+            if str(p) in protokoll_aus:
+                continue
+            e['dateien'] += 1
+            if not z.is_file():
+                e['fehlt_in_kopie'] += 1
+                e['abweichend'].append(f'fehlt: {z}')
+            elif sha_datei(p) == sha_datei(z):
+                e['gleich'] += 1
+            else:
+                e['abweichend'].append(f'verschieden: {z}')
+    return e
+
+
+def biotop_bezug(p: Path) -> str:
+    if re.search(r'biotop', p.name, re.I):
+        return 'ja (Name)'
+    kandidaten = [p] if p.is_file() else [Path(d) / f for d, _, fs in os.walk(p) for f in fs][:4000]
+    for q in kandidaten:
+        try:
+            if q.is_file() and not q.is_symlink() and q.stat().st_size < 20_000_000 and b'biotop' in q.read_bytes().lower():
+                return 'ja (Inhalt)'
+        except OSError:
+            pass
+    return 'nein'
+
+
+def lauf(quellen: list, zielwurzel: Path, name: str) -> None:
+    print(f'Beginn {jetzt()} · {name} · Quellen {len(quellen)} · Ziel {zielwurzel}')
+    print(f'Zugangswerte gesucht: {len(WERTE)} ({sorted(q.rsplit(":", 1)[1] for q in WERTE.values())}); Muster: {len(MUSTER)}')
+    zielwurzel.mkdir(parents=True, exist_ok=True)
+    tafel, protokoll_alle, summe = [], [], {'dateien': 0, 'gleich': 0, 'bytes': 0, 'geheim': 0}
+    for q, zrel, bezug in quellen:
+        z = zielwurzel / zrel
+        if os.path.lexists(z):
+            raise SystemExit(f'ABBRUCH: {z} besteht schon (nie überschreiben)')
+        z.parent.mkdir(parents=True, exist_ok=True)
+        zahl = {'ordner': 0, 'dateien': 0, 'verweise': 0, 'bytes': 0, 'sonder': 0, 'geheim': 0, 'verschwunden': 0}
+        protokoll = []
+        kopiere_baum(q, z, protokoll, zahl)
+        aus = {x.rsplit(': ', 1)[1] for x in protokoll if x.startswith(('AUSGELASSEN', 'VERSCHWUNDEN'))}
+        v = vergleiche(q, z, aus)
+        ok = v['gleich'] == v['dateien'] == zahl['dateien'] and v['verweise_gleich'] == v['verweise'] and not v['abweichend']
+        tafel.append(f"{q} | Biotop-Bezug {bezug} | Dateien {zahl['dateien']} · Bytes {zahl['bytes']} · Verweise {zahl['verweise']} "
+                     f"| SHA-256 gleich {v['gleich']} von {v['dateien']} · Verweise gleich {v['verweise_gleich']} von {v['verweise']} "
+                     f"| ausgelassen: Geheimnis {zahl['geheim']}, Sonder {zahl['sonder']}, verschwunden {zahl['verschwunden']} "
+                     f"| {'GLEICH' if ok else 'ABWEICHUNG ' + str(v['abweichend'][:3])}")
+        protokoll_alle += protokoll
+        for k in ('dateien', 'gleich', 'bytes', 'geheim'):
+            summe[k] += zahl[k] if k != 'gleich' else v['gleich']
+    print('--- Tafel je Quelle')
+    print('\n'.join(tafel))
+    print(f"--- Summe: Quellen {len(quellen)} · Dateien kopiert {summe['dateien']} · gleich {summe['gleich']} von {summe['dateien']} "
+          f"· Bytes {summe['bytes']} · Geheimnisdateien ausgelassen {summe['geheim']}")
+    print(f'--- Protokoll der Auslassungen ({len(protokoll_alle)} Zeilen)')
+    print('\n'.join(protokoll_alle) or '(keine)')
+    (W / 'protokolle').mkdir(exist_ok=True)
+    fd = os.open(W / 'protokolle' / f's3-{name}.json', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, 'w') as f:
+        json.dump({'tafel': tafel, 'protokoll': protokoll_alle, 'summe': summe}, f, ensure_ascii=False, indent=1)
+    print(f'Ende {jetzt()}')
+
+
+def tmp() -> None:
+    eintraege = [Path('/tmp') / x for x in sorted(os.listdir('/tmp')) if not x.startswith(TMP_AUSSER_PREFIX)]
+    ausser = [x for x in sorted(os.listdir('/tmp')) if x.startswith(TMP_AUSSER_PREFIX)]
+    print(f'/tmp: {len(eintraege) + len(ausser)} Einträge oberster Ebene · kopiert werden {len(eintraege)} · Werkzeug-/'
+          f'Systemordner ausgelassen {len(ausser)}: {ausser}')
+    quellen = []
+    for p in eintraege:
+        if not (p.is_dir() or p.is_file() or p.is_symlink()):
+            print(f'AUSGELASSEN (Sonderdatei oberster Ebene): {p}')
+            continue
+        quellen.append((p, p.name, biotop_bezug(p)))
+    lauf(quellen, W / 'tmp-belege', 'tmp')
+
+
+def zwischenspeicher() -> None:
+    quellen, ohne = [], []
+    L = Path('/root/.hermes/cache/delegation/live')
+    for d in sorted(L.iterdir()):
+        b = biotop_bezug(d)
+        (quellen.append((d, f'delegation/live/{d.name}', b)) if b != 'nein' else ohne.append(str(d)))
+    D = Path('/root/.hermes/cache/documents')
+    for f in sorted(D.iterdir()):
+        b = biotop_bezug(f)
+        (quellen.append((f, f'documents/{f.name}', b)) if b != 'nein' else ohne.append(str(f)))
+    print(f'Delegationen: {sum(1 for _ in L.iterdir())} · Dokumente: {sum(1 for _ in D.iterdir())} · mit Biotop-Bezug: '
+          f'{len(quellen)} · ohne: {len(ohne)}')
+    for o in ohne:
+        print(f'  ohne Biotop-Bezug, nicht kopiert (liegt in /root/.hermes → KOMPLETT): {o}')
+    lauf(quellen, W / 'hermes-zwischenspeicher', 'zwischenspeicher')
+
+
+if __name__ == '__main__':
+    {'tmp': tmp, 'zwischenspeicher': zwischenspeicher}[sys.argv[1]]()
+--- Ende /root/biotop-einlagerung/arbeit/s3_vergaenglich.py ---
+Ausgabe (vollständig, stdout und stderr):
+Delegationen: 30 · Dokumente: 3 · mit Biotop-Bezug: 33 · ohne: 0
+Beginn 2026-09-26 00:13:10 CEST (UTC+0200) · zwischenspeicher · Quellen 33 · Ziel /root/biotop-einlagerung/hermes-zwischenspeicher
+Zugangswerte gesucht: 5 (['OPENROUTER_API_KEY', 'TELEGRAM_BOT_TOKEN', 'auth.providers.[GESCHWÄRZT: Wert aus /root/.hermes/auth.json].tokens.access_token', 'auth.providers.[GESCHWÄRZT: Wert aus /root/.hermes/auth.json].tokens.id_token', 'auth.providers.[GESCHWÄRZT: Wert aus /root/.hermes/auth.json].tokens.refresh_token']); Muster: 9
+--- Tafel je Quelle
+/root/.hermes/cache/delegation/live/deleg_04244892 | Biotop-Bezug ja (Inhalt) | Dateien 2 · Bytes 46551 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/root/.hermes/cache/delegation/live/deleg_1471b95c | Biotop-Bezug ja (Inhalt) | Dateien 2 · Bytes 95772 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/root/.hermes/cache/delegation/live/deleg_16dbf49d | Biotop-Bezug ja (Inhalt) | Dateien 4 · Bytes 138414 · Verweise 0 | SHA-256 gleich 4 von 4 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/root/.hermes/cache/delegation/live/deleg_1c153c9e | Biotop-Bezug ja (Inhalt) | Dateien 2 · Bytes 201918 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/root/.hermes/cache/delegation/live/deleg_24e6fc0b | Biotop-Bezug ja (Inhalt) | Dateien 2 · Bytes 65886 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/root/.hermes/cache/delegation/live/deleg_2942aa9b | Biotop-Bezug ja (Inhalt) | Dateien 2 · Bytes 35194 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/root/.hermes/cache/delegation/live/deleg_29502201 | Biotop-Bezug ja (Inhalt) | Dateien 3 · Bytes 141010 · Verweise 0 | SHA-256 gleich 3 von 3 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/root/.hermes/cache/delegation/live/deleg_2cdfaa0e | Biotop-Bezug ja (Inhalt) | Dateien 4 · Bytes 169354 · Verweise 0 | SHA-256 gleich 4 von 4 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/root/.hermes/cache/delegation/live/deleg_35d24764 | Biotop-Bezug ja (Inhalt) | Dateien 3 · Bytes 228472 · Verweise 0 | SHA-256 gleich 3 von 3 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/root/.hermes/cache/delegation/live/deleg_36533aea | Biotop-Bezug ja (Inhalt) | Dateien 3 · Bytes 104324 · Verweise 0 | SHA-256 gleich 3 von 3 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/root/.hermes/cache/delegation/live/deleg_37933da8 | Biotop-Bezug ja (Inhalt) | Dateien 2 · Bytes 37790 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/root/.hermes/cache/delegation/live/deleg_52027b88 | Biotop-Bezug ja (Inhalt) | Dateien 2 · Bytes 39826 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/root/.hermes/cache/delegation/live/deleg_5736882b | Biotop-Bezug ja (Inhalt) | Dateien 2 · Bytes 27549 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/root/.hermes/cache/delegation/live/deleg_5bf2feeb | Biotop-Bezug ja (Inhalt) | Dateien 2 · Bytes 9295 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/root/.hermes/cache/delegation/live/deleg_606c610d | Biotop-Bezug ja (Inhalt) | Dateien 2 · Bytes 37732 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/root/.hermes/cache/delegation/live/deleg_69c683dc | Biotop-Bezug ja (Inhalt) | Dateien 2 · Bytes 92737 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/root/.hermes/cache/delegation/live/deleg_69fdef75 | Biotop-Bezug ja (Inhalt) | Dateien 4 · Bytes 162570 · Verweise 0 | SHA-256 gleich 4 von 4 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/root/.hermes/cache/delegation/live/deleg_8c3ea1c2 | Biotop-Bezug ja (Inhalt) | Dateien 2 · Bytes 39540 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/root/.hermes/cache/delegation/live/deleg_8ef05398 | Biotop-Bezug ja (Inhalt) | Dateien 2 · Bytes 10398 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/root/.hermes/cache/delegation/live/deleg_a6d28669 | Biotop-Bezug ja (Inhalt) | Dateien 2 · Bytes 32810 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/root/.hermes/cache/delegation/live/deleg_b1c00361 | Biotop-Bezug ja (Inhalt) | Dateien 2 · Bytes 34929 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/root/.hermes/cache/delegation/live/deleg_bbbc3cef | Biotop-Bezug ja (Inhalt) | Dateien 9 · Bytes 816690 · Verweise 0 | SHA-256 gleich 9 von 9 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/root/.hermes/cache/delegation/live/deleg_bd718cc2 | Biotop-Bezug ja (Inhalt) | Dateien 2 · Bytes 36471 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/root/.hermes/cache/delegation/live/deleg_c1485fc2 | Biotop-Bezug ja (Inhalt) | Dateien 2 · Bytes 14456 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/root/.hermes/cache/delegation/live/deleg_c88798ee | Biotop-Bezug ja (Inhalt) | Dateien 2 · Bytes 155236 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/root/.hermes/cache/delegation/live/deleg_c8da8332 | Biotop-Bezug ja (Inhalt) | Dateien 2 · Bytes 58374 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/root/.hermes/cache/delegation/live/deleg_ce891021 | Biotop-Bezug ja (Inhalt) | Dateien 2 · Bytes 35145 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/root/.hermes/cache/delegation/live/deleg_f7f2c0b3 | Biotop-Bezug ja (Inhalt) | Dateien 2 · Bytes 193497 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/root/.hermes/cache/delegation/live/deleg_fc0ccdbc | Biotop-Bezug ja (Inhalt) | Dateien 3 · Bytes 64430 · Verweise 0 | SHA-256 gleich 3 von 3 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/root/.hermes/cache/delegation/live/deleg_ff0437d6 | Biotop-Bezug ja (Inhalt) | Dateien 2 · Bytes 160238 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/root/.hermes/cache/documents/doc_1414008da41a_BIOTOP-EINLAGERUNG-01-Auftrag.md | Biotop-Bezug ja (Name) | Dateien 1 · Bytes 24789 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/root/.hermes/cache/documents/doc_5bf902863a6d_BIOTOP-LAGE-01-Auftrag-v2.md | Biotop-Bezug ja (Name) | Dateien 1 · Bytes 41239 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/root/.hermes/cache/documents/doc_dd9bf99d3832_BIOTOP-EINLAGERUNG-01-Auftrag.md | Biotop-Bezug ja (Name) | Dateien 1 · Bytes 24789 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+--- Summe: Quellen 33 · Dateien kopiert 80 · gleich 80 von 80 · Bytes 3377425 · Geheimnisdateien ausgelassen 0
+--- Protokoll der Auslassungen (0 Zeilen)
+(keine)
+Ende 2026-09-26 00:13:10 CEST (UTC+0200)
+=== Ende EB26 ===

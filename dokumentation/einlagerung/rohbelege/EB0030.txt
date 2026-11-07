@@ -1,0 +1,103 @@
+EB30 · P2 umsetzen (Entscheidung Hermes: vor dem Packen): geschwärzte Kopie, Original aus dem Prüfkanal verschieben, Abrufprobe
+Beginn: 2026-09-26 00:28:11 CEST (UTC+0200)
+Ende:   2026-09-26 00:28:11 CEST (UTC+0200)
+Dauer:  0.6 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/biotop-einlagerung/arbeit/p2_umsetzen.py
+--- Inhalt von /root/biotop-einlagerung/arbeit/p2_umsetzen.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-EINLAGERUNG-01 · P2 (Auftrag Abschnitt 1): Datei mit Philipps Telegram-Kennung.
+1. geschwärzte Kopie ZWISCHENBERICHT-GESCHWAERZT-01.md im selben Ordner (exklusiv), jede Stelle eines Werts aus
+   .env/auth.json und jedes Schlüsselmuster durch „[GESCHWÄRZT]“ ersetzt; Geheimnissuche über die Kopie (0 Treffer
+   verlangt, sonst Abbruch vor dem Veröffentlichen).
+2. Original aus dem Prüfkanal VERSCHIEBEN (os.rename, gleiche Platte: Inhalt, Rechte, Zeiten bleiben) nach
+   /root/biotop-einlagerung/entfernt-aus-pruefkanal/laeufe/biotop-lage-01/zwischenbericht-20260925-163807-r114/; das Ziel
+   darf nicht bestehen. Gelöscht wird nichts.
+3. Belege: SHA-256 vorher = SHA-256 am neuen Ort; alter Pfad besteht nicht mehr; Abrufprobe: alte Adresse → 404,
+   geschwärzte Kopie → 200 mit gleicher SHA-256. Die Adressen werden mit maskiertem Pfadschlüssel ausgegeben.
+Die Datei wird im Skript benannt, nicht auf der Befehlszeile."""
+import grp
+import hashlib
+import os
+import re
+import subprocess
+import sys
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+sys.path.insert(0, '/root/biotop-einlagerung/arbeit')
+import geheimnis  # noqa: E402
+
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+REL = 'laeufe/biotop-lage-01/zwischenbericht-20260925-163807-r114'
+ORD = Path(f'/var/pruefkanal/oeffentlich/_akte/{K}/{REL}')
+URL = f'https://milieulux-reinigung-muenchen.de/_akte/{K}/{REL}'
+ORIG, NEU = ORD / 'ZWISCHENBERICHT.md', ORD / 'ZWISCHENBERICHT-GESCHWAERZT-01.md'
+ZIEL = Path('/root/biotop-einlagerung/entfernt-aus-pruefkanal') / REL / 'ZWISCHENBERICHT.md'
+sha = lambda b: hashlib.sha256(b).hexdigest()
+m = lambda s: str(s).replace(K, '[AKTE]')
+
+
+def abruf(u):
+    try:
+        with urllib.request.urlopen(urllib.request.Request(u, headers={'User-Agent': 'biotop-einlagerung-01-p2'}), timeout=60) as r:
+            return r.status, r.read()
+    except urllib.error.HTTPError as e:
+        return e.code, b''
+
+
+st0, _ = abruf(f'{URL}/ZWISCHENBERICHT.md')
+print(f'vorher: Abruf alte Adresse HTTP {st0} (BIOTOP-LAGE-01: 403, Datei 600)')
+d = ORIG.read_bytes()
+h0 = sha(d)
+print(f'Original: {m(ORIG)} · {len(d)} B · SHA-256 {h0}')
+t = d.decode('utf-8')
+n = 0
+for name, mu in geheimnis.MUSTER.items():
+    t, k = re.subn(mu, '[GESCHWÄRZT]', t)
+    n += k
+for v, q in geheimnis.werte().items():
+    if v in t:
+        print(f'  ersetzt: Wert aus {q.split(":")[0].replace("/root/", "~/")}:{q.split(":")[-1]} · {t.count(v)} Stellen')
+        n += t.count(v)
+        t = t.replace(v, '[GESCHWÄRZT]')
+b = t.encode('utf-8')
+if ZIEL.exists() or NEU.exists():
+    sys.exit('ABBRUCH: Ziel oder Kopie besteht schon — nichts geändert')
+tmp = Path('/root/biotop-einlagerung/tmp/p2-kopie.md')
+fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+with os.fdopen(fd, 'wb') as f:
+    f.write(b)
+g = subprocess.run([sys.executable, '/root/biotop-einlagerung/arbeit/geheimnis.py', str(tmp)], capture_output=True, text=True)
+zz = [z for z in g.stdout.splitlines() if z.startswith('Durchsucht')]
+print(f'geschwärzte Kopie: {len(b)} B · SHA-256 {sha(b)} · ersetzte Stellen {n} · Geheimnissuche: {zz[0] if zz else "?"} · rc {g.returncode}')
+if g.returncode != 0 or n == 0:
+    sys.exit('ABBRUCH: Kopie nicht sauber oder nichts ersetzt — nichts veröffentlicht, Original unverändert')
+fd = os.open(NEU, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o640)
+with os.fdopen(fd, 'wb') as f:
+    f.write(b)
+os.chown(NEU, 0, grp.getgrnam('caddy').gr_gid)
+os.chmod(NEU, 0o640)
+ZIEL.parent.mkdir(parents=True, exist_ok=True)
+os.rename(ORIG, ZIEL)
+st = ZIEL.stat()
+print(f'verschoben: {m(ORIG)} → {ZIEL} · SHA-256 am neuen Ort {sha(ZIEL.read_bytes())} · gleich: {sha(ZIEL.read_bytes()) == h0} '
+      f'· Rechte {oct(st.st_mode & 0o777)} · alter Pfad besteht: {ORIG.exists()}')
+s1, _ = abruf(f'{URL}/ZWISCHENBERICHT.md')
+s2, b2 = abruf(f'{URL}/ZWISCHENBERICHT-GESCHWAERZT-01.md')
+print(f'Abrufprobe alte Adresse: HTTP {s1} ({"404 wie verlangt" if s1 == 404 else "NICHT 404"}) · {m(URL)}/ZWISCHENBERICHT.md')
+print(f'Abrufprobe geschwärzte Kopie: HTTP {s2} · gleich: {s2 == 200 and sha(b2) == sha(b)} · {m(URL)}/ZWISCHENBERICHT-GESCHWAERZT-01.md')
+print('Ordnerinhalt jetzt: ' + ', '.join(sorted(p.name for p in ORD.iterdir())))
+--- Ende /root/biotop-einlagerung/arbeit/p2_umsetzen.py ---
+Ausgabe (vollständig, stdout und stderr):
+vorher: Abruf alte Adresse HTTP 403 (BIOTOP-LAGE-01: 403, Datei 600)
+Original: /var/pruefkanal/oeffentlich/_akte/[AKTE]/laeufe/biotop-lage-01/zwischenbericht-20260925-163807-r114/ZWISCHENBERICHT.md · 11021 B · SHA-256 c96667d256604f8ec0c72a16141f048e66f4b915aa64db49fa7470d015f23df0
+  ersetzt: Wert aus ~/.hermes/.env:TELEGRAM_ALLOWED_USERS · 2 Stellen
+geschwärzte Kopie: 11027 B · SHA-256 9399f194ce417b1f5523283944c7cbe5f26394811bf75405aaa8292c5eb68622 · ersetzte Stellen 2 · Geheimnissuche: Durchsucht: 1 Dateien · Treffer: 0 · rc 0
+verschoben: /var/pruefkanal/oeffentlich/_akte/[AKTE]/laeufe/biotop-lage-01/zwischenbericht-20260925-163807-r114/ZWISCHENBERICHT.md → /root/biotop-einlagerung/entfernt-aus-pruefkanal/laeufe/biotop-lage-01/zwischenbericht-20260925-163807-r114/ZWISCHENBERICHT.md · SHA-256 am neuen Ort c96667d256604f8ec0c72a16141f048e66f4b915aa64db49fa7470d015f23df0 · gleich: True · Rechte 0o600 · alter Pfad besteht: False
+Abrufprobe alte Adresse: HTTP 404 (404 wie verlangt) · https://milieulux-reinigung-muenchen.de/_akte/[AKTE]/laeufe/biotop-lage-01/zwischenbericht-20260925-163807-r114/ZWISCHENBERICHT.md
+Abrufprobe geschwärzte Kopie: HTTP 200 · gleich: True · https://milieulux-reinigung-muenchen.de/_akte/[AKTE]/laeufe/biotop-lage-01/zwischenbericht-20260925-163807-r114/ZWISCHENBERICHT-GESCHWAERZT-01.md
+Ordnerinhalt jetzt: DATEIEN.txt, MANIFEST.sha256, PRUEFSUMME-ORDNER.txt, UEBERGABE-1-UEBERGABE.md, ZWISCHENBERICHT-GESCHWAERZT-01.md
+=== Ende EB30 ===

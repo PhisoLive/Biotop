@@ -1,0 +1,321 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 03 · Teil 205 (Teile 166–239 dieses Stands) · enthält R200 bis R201
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R200 · Auswertung Testlauf R196 (Ursachen je Fehlschlag, je Testdatei mit git-Status) und statischer Gleichheitsnachweis probe/root/biotop gegen VORHER.txt
+Beginn: 2026-09-25 20:09:01 CEST (UTC+0200)
+Ende:   2026-09-25 20:09:03 CEST (UTC+0200)
+Dauer:  1.3 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/s9_auswertung.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/s9_auswertung.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Auswertung des Testlaufs im wiederhergestellten Stand (R196).
+1. junit.xml: Summen; je Fehlschlag/Fehler Datei, Test, Ursache nach Stichwörtern (Abschottung: Docker/Kammer, Netz,
+   schreibgeschützt, Schlüssel; rote Spezifikation S1c test_w_g_*; sonst erste Meldungszeile); je Datei gezählt, und ob
+   die Testdatei laut git-Status zum Stich nicht eingecheckt/geändert ist.
+2. Statischer Gleichheitsnachweis: probe/root/biotop (ohne .git/) gegen pruefsummen/VORHER.txt (SHA-256 je Datei)."""
+import collections
+import hashlib
+import os
+import re
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+W = Path('/root/sicherung/biotop-lage-01')
+J = W / 'testlauf/ausgabe/junit.xml'
+git = {z[3:].strip().rstrip('/'): z[:2] for z in (W / 'tmp/git-status-stich.txt').read_text().splitlines() if z.strip()}
+wurzel = ET.parse(J).getroot()
+s = wurzel if wurzel.tag == 'testsuite' else wurzel.find('testsuite')
+print(f'== 1. junit.xml ({J.stat().st_size} B): tests {s.get("tests")} · failures {s.get("failures")} · errors '
+      f'{s.get("errors")} · skipped {s.get("skipped")} · Zeit {s.get("time")} s')
+REGELN = [
+    ('Abschottung: Docker/Kammer nicht erreichbar', r'docker|kammer|Kammer|container'),
+    ('Abschottung: Netz gesperrt', r'Errno 101|Network is unreachable|name resolution|ConnectionRefused|urlopen error|Errno -3'),
+    ('Abschottung: schreibgeschützt', r'Read-only file system|Errno 30|EROFS'),
+    ('Abschottung: /root/.hermes leer (Schlüssel, Konfiguration)', r'/root/\.hermes|OPENROUTER|api[_ ]key|\.env'),
+]
+fehl = []
+for tc in s.iter('testcase'):
+    for art in ('failure', 'error'):
+        e = tc.find(art)
+        if e is None:
+            continue
+        text = f'{e.get("message", "")}\n{e.text or ""}'
+        name = tc.get('name', '')
+        if name.startswith('test_w_g'):
+            ursache = 'rote Spezifikation S1c (test_w_g_*, erwartet rot)'
+        else:
+            ursache = next((u for u, m in REGELN if re.search(m, text)), None)
+            if not ursache:
+                erste = (e.get('message') or (e.text or '').strip().splitlines()[-1:] or [''])[0]
+                ursache = 'sonst: ' + re.sub(r'0x[0-9a-f]+|/tmp/pytest-of-root/pytest-\d+/[^\s\'"]+', '…', erste)[:150]
+        datei = (tc.get('file') or tc.get('classname', '').replace('.', '/') + '.py')
+        fehl.append((art, datei, name, ursache))
+print(f'Fehlschläge und Fehler: {len(fehl)}')
+print('-- nach Ursache:')
+for u, n in collections.Counter(f[3] for f in fehl).most_common():
+    print(f'  {n:4d} · {u}')
+print('-- nach Testdatei (Anzahl · git-Status der Datei zum Stich):')
+je = collections.Counter(f[1] for f in fehl)
+for d, n in je.most_common():
+    kurz = re.sub(r'^.*?(tests/)', r'\1', d)
+    print(f'  {n:4d} · {kurz} · {git.get(kurz, "eingecheckt, unverändert")}')
+print('-- je Ursache „sonst“ die ersten 3 Tests:')
+for u in [u for u in dict.fromkeys(f[3] for f in fehl) if u.startswith('sonst')][:25]:
+    beispiele = [f'{re.sub(r"^.*?(tests/)", r"\1", f[1])}::{f[2]}' for f in fehl if f[3] == u][:3]
+    print(f'  {u[:110]} → {beispiele}')
+
+print('== 2. probe/root/biotop (ohne .git/) gegen VORHER.txt')
+vorher = {}
+for z in (W / 'pruefsummen/VORHER.txt').read_text().splitlines():
+    m = re.match(r'([0-9a-f]{64})\s+\*?(.+)$', z)
+    if m:
+        vorher[m.group(2).replace('/root/biotop/', '', 1).lstrip('./')] = m.group(1)
+P = W / 'sicherung/probe/root/biotop'
+probe = {}
+for d, dirs, files in os.walk(P):
+    dirs[:] = [x for x in dirs if not (d == str(P) and x == '.git')]
+    for f in files:
+        p = Path(d) / f
+        if p.is_symlink() or not p.is_file():
+            continue
+        probe[str(p.relative_to(P))] = hashlib.sha256(p.read_bytes()).hexdigest()
+gleich = [k for k in vorher if probe.get(k) == vorher[k]]
+anders = sorted(k for k in vorher if k in probe and probe[k] != vorher[k])
+fehlt = sorted(k for k in vorher if k not in probe)
+mehr = sorted(k for k in probe if k not in vorher)
+print(f'VORHER {len(vorher)} Dateien · probe {len(probe)} Dateien · gleich {len(gleich)} · verschieden {len(anders)} · '
+      f'nur VORHER {len(fehlt)} · nur probe {len(mehr)}')
+art = lambda k: ('Datenbank (Sicherung per backup-API)' if re.search(r'\.(db|sqlite3?)$', k) else
+                 'Datenbank-Nebendatei -wal/-shm' if re.search(r'-(wal|shm)$', k) else
+                 'Zwischenspeicher' if re.search(r'__pycache__|\.pytest_cache|node_modules|\.pyc$', k) else 'andere')
+for titel, liste in (('verschieden', anders), ('nur VORHER', fehlt), ('nur probe', mehr)):
+    c = collections.Counter(map(art, liste))
+    print(f'-- {titel}: {dict(c)}')
+    for k in [k for k in liste if art(k) == 'andere'][:15]:
+        print(f'   andere: {k}')
+--- Ende /root/sicherung/biotop-lage-01/arbeit/s9_auswertung.py ---
+Ausgabe (vollständig, stdout und stderr):
+== 1. junit.xml (966212 B): tests 953 · failures 187 · errors 16 · skipped 2 · Zeit 60.901 s
+Fehlschläge und Fehler: 203
+-- nach Ursache:
+   168 · Abschottung: Docker/Kammer nicht erreichbar
+    11 · sonst: f
+    11 · rote Spezifikation S1c (test_w_g_*, erwartet rot)
+     8 · sonst: b
+     2 · sonst: R
+     1 · sonst: a
+     1 · sonst: K
+     1 · sonst: F
+-- nach Testdatei (Anzahl · git-Status der Datei zum Stich):
+    69 · tests/test_vor_t4_06.py · ??
+    20 · tests/test_vor_t4_04.py ·  M
+    20 · tests/test_vor_t4_05.py ·  M
+    19 · tests/test_eichproben.py · eingecheckt, unverändert
+    15 · tests/test_vor_t4_03.py ·  M
+    12 · tests/test_review_vertrag.py · eingecheckt, unverändert
+     8 · tests/test_t3_kaputter_modellcode.py · eingecheckt, unverändert
+     8 · tests/test_t3_verbundausfall.py · eingecheckt, unverändert
+     8 · tests/test_vor_t4_02.py · eingecheckt, unverändert
+     7 · tests/test_vor_t4.py · eingecheckt, unverändert
+     4 · tests/test_junit_zeugen.py · eingecheckt, unverändert
+     4 · tests/test_t3_neutralzaehler.py · eingecheckt, unverändert
+     3 · tests/test_t3_zweigklasse.py · eingecheckt, unverändert
+     2 · tests/test_t3_bindung.py · eingecheckt, unverändert
+     2 · tests/test_t3_zaehlkontext.py · eingecheckt, unverändert
+     1 · tests/test_t3_aenderungsziel.py · eingecheckt, unverändert
+     1 · tests/test_verdrahtung.py ·  M
+-- je Ursache „sonst“ die ersten 3 Tests:
+  sonst: R → ['tests/test_eichproben.py::test_regression_nennt_einzeltest_trotz_ausgefuehrter_gruener_tests[False]', 'tests/test_eichproben.py::test_regression_nennt_einzeltest_trotz_ausgefuehrter_gruener_tests[True]']
+  sonst: a → ['tests/test_eichproben.py::test_norm_aendert_vorhandene_funktion_statt_importfehler']
+  sonst: K → ['tests/test_review_vertrag.py::test_contract_countercase_is_not_allowed_to_fail_inside_cloned_test']
+  sonst: f → ['tests/test_review_vertrag.py::test_normgegenprobe_braucht_ausgefuehrtes_zeugenpaar[skip]', 'tests/test_review_vertrag.py::test_normgegenprobe_braucht_ausgefuehrtes_zeugenpaar[xfail]', 'tests/test_review_vertrag.py::test_normgegenprobe_braucht_ausgefuehrtes_zeugenpaar[fehlend]']
+  sonst: b → ['tests/test_t3_verbundausfall.py::test_http_erfolg_ohne_beitrag_ist_ausfall_und_wird_abgerechnet[-stop-None]', 'tests/test_t3_verbundausfall.py::test_http_erfolg_ohne_beitrag_ist_ausfall_und_wird_abgerechnet[  -stop-None]', 'tests/test_t3_verbundausfall.py::test_http_erfolg_ohne_beitrag_ist_ausfall_und_wird_abgerechnet[-refusal-cyber]']
+  sonst: F → ['tests/test_vor_t4_04.py::test_merkmale_gleich_in_python_und_typescript']
+== 2. probe/root/biotop (ohne .git/) gegen VORHER.txt
+VORHER 3153 Dateien · probe 3028 Dateien · gleich 3026 · verschieden 1 · nur VORHER 126 · nur probe 1
+-- verschieden: {'Datenbank (Sicherung per backup-API)': 1}
+-- nur VORHER: {'Zwischenspeicher': 123, 'Datenbank-Nebendatei -wal/-shm': 2, 'andere': 1}
+   andere: gitignore
+-- nur probe: {'andere': 1}
+   andere: .gitignore
+=== Ende R200 ===
+
+
+R201 · Auswertung Testlauf R196, berichtigt (R200: Meldungstext zeichenweise gekürzt; .gitignore durch lstrip verfälscht) — maßgeblich, ersetzt R200
+Beginn: 2026-09-25 20:09:40 CEST (UTC+0200)
+Ende:   2026-09-25 20:09:41 CEST (UTC+0200)
+Dauer:  0.7 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/s9_auswertung.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/s9_auswertung.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Auswertung des Testlaufs im wiederhergestellten Stand (R196).
+1. junit.xml: Summen; je Fehlschlag/Fehler Datei, Test, Ursache nach Stichwörtern (Abschottung: Docker/Kammer, Netz,
+   schreibgeschützt, Schlüssel; rote Spezifikation S1c test_w_g_*; sonst erste Meldungszeile); je Datei gezählt, und ob
+   die Testdatei laut git-Status zum Stich nicht eingecheckt/geändert ist.
+2. Statischer Gleichheitsnachweis: probe/root/biotop (ohne .git/) gegen pruefsummen/VORHER.txt (SHA-256 je Datei)."""
+import collections
+import hashlib
+import os
+import re
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+W = Path('/root/sicherung/biotop-lage-01')
+J = W / 'testlauf/ausgabe/junit.xml'
+git = {z[3:].strip().rstrip('/'): z[:2] for z in (W / 'tmp/git-status-stich.txt').read_text().splitlines() if z.strip()}
+wurzel = ET.parse(J).getroot()
+s = wurzel if wurzel.tag == 'testsuite' else wurzel.find('testsuite')
+print(f'== 1. junit.xml ({J.stat().st_size} B): tests {s.get("tests")} · failures {s.get("failures")} · errors '
+      f'{s.get("errors")} · skipped {s.get("skipped")} · Zeit {s.get("time")} s')
+REGELN = [
+    ('Abschottung: Docker/Kammer nicht erreichbar', r'docker|kammer|Kammer|container'),
+    ('Abschottung: Netz gesperrt', r'Errno 101|Network is unreachable|name resolution|ConnectionRefused|urlopen error|Errno -3'),
+    ('Abschottung: schreibgeschützt', r'Read-only file system|Errno 30|EROFS'),
+    ('Abschottung: /root/.hermes leer (Schlüssel, Konfiguration)', r'/root/\.hermes|OPENROUTER|api[_ ]key|\.env'),
+]
+fehl = []
+BELEG = {}
+for tc in s.iter('testcase'):
+    for art in ('failure', 'error'):
+        e = tc.find(art)
+        if e is None:
+            continue
+        text = f'{e.get("message", "")}\n{e.text or ""}'
+        name = tc.get('name', '')
+        if name.startswith('test_w_g'):
+            ursache = 'rote Spezifikation S1c (test_w_g_*, erwartet rot)'
+        else:
+            ursache = next((u for u, m in REGELN if re.search(m, text)), None)
+            if not ursache:
+                erste = (e.get('message') or '').strip() or ((e.text or '').strip().splitlines() or [''])[-1]
+                erste = erste.splitlines()[0] if erste else ''
+                ursache = 'sonst: ' + re.sub(r'0x[0-9a-f]+|/tmp/pytest-of-root/pytest-\d+/[^\s\'"]+', '…', erste)[:150]
+            elif ursache.startswith('Abschottung'):
+                treffer = re.search('|'.join(m for u, m in REGELN if u == ursache), text)
+                a = max(0, treffer.start() - 70)
+                BELEG.setdefault(ursache, []).append(text[a:treffer.end() + 50].replace('\n', ' ⏎ '))
+        datei = (tc.get('file') or tc.get('classname', '').replace('.', '/') + '.py')
+        fehl.append((art, datei, name, ursache))
+print(f'Fehlschläge und Fehler: {len(fehl)}')
+print('-- nach Ursache:')
+for u, n in collections.Counter(f[3] for f in fehl).most_common():
+    print(f'  {n:4d} · {u}')
+print('-- nach Testdatei (Anzahl · git-Status der Datei zum Stich):')
+je = collections.Counter(f[1] for f in fehl)
+for d, n in je.most_common():
+    kurz = re.sub(r'^.*?(tests/)', r'\1', d)
+    print(f'  {n:4d} · {kurz} · {git.get(kurz, "eingecheckt, unverändert")}')
+print('-- je Ursache „sonst“ die ersten 3 Tests:')
+for u in [u for u in dict.fromkeys(f[3] for f in fehl) if u.startswith('sonst')][:25]:
+    beispiele = [f'{re.sub(r"^.*?(tests/)", r"\1", f[1])}::{f[2]}' for f in fehl if f[3] == u][:3]
+    print(f'  {u[:110]} → {beispiele}')
+print('-- Stichwort-Stelle je Abschottungs-Ursache (erste 4 Fälle, Auslegung Hermes):')
+for u, belege in BELEG.items():
+    for b in belege[:4]:
+        print(f'  {u[:40]} · …{b[:190]}…')
+print('-- test_w_g_* (rote Spezifikationen S1c):')
+for f in fehl:
+    if f[2].startswith('test_w_g'):
+        print(f'  {f[0]} · {re.sub(r"^.*?(tests/)", r"\1", f[1])}::{f[2]}')
+print('-- nach git-Status der Testdatei:')
+gs = collections.Counter(git.get(re.sub(r'^.*?(tests/)', r'\1', f[1]), 'eingecheckt, unverändert') for f in fehl)
+print(f'  {dict(gs)}')
+
+print('== 2. probe/root/biotop (ohne .git/) gegen VORHER.txt')
+vorher = {}
+for z in (W / 'pruefsummen/VORHER.txt').read_text().splitlines():
+    m = re.match(r'([0-9a-f]{64})\s+\*?(.+)$', z)
+    if m:
+        vorher[m.group(2).replace('/root/biotop/', '', 1).removeprefix('./')] = m.group(1)
+P = W / 'sicherung/probe/root/biotop'
+probe = {}
+for d, dirs, files in os.walk(P):
+    dirs[:] = [x for x in dirs if not (d == str(P) and x == '.git')]
+    for f in files:
+        p = Path(d) / f
+        if p.is_symlink() or not p.is_file():
+            continue
+        probe[str(p.relative_to(P))] = hashlib.sha256(p.read_bytes()).hexdigest()
+gleich = [k for k in vorher if probe.get(k) == vorher[k]]
+anders = sorted(k for k in vorher if k in probe and probe[k] != vorher[k])
+fehlt = sorted(k for k in vorher if k not in probe)
+mehr = sorted(k for k in probe if k not in vorher)
+print(f'VORHER {len(vorher)} Dateien · probe {len(probe)} Dateien · gleich {len(gleich)} · verschieden {len(anders)} · '
+      f'nur VORHER {len(fehlt)} · nur probe {len(mehr)}')
+art = lambda k: ('Datenbank (Sicherung per backup-API)' if re.search(r'\.(db|sqlite3?)$', k) else
+                 'Datenbank-Nebendatei -wal/-shm' if re.search(r'-(wal|shm)$', k) else
+                 'Zwischenspeicher' if re.search(r'__pycache__|\.pytest_cache|node_modules|\.pyc$', k) else 'andere')
+for titel, liste in (('verschieden', anders), ('nur VORHER', fehlt), ('nur probe', mehr)):
+    c = collections.Counter(map(art, liste))
+    print(f'-- {titel}: {dict(c)}')
+    for k in [k for k in liste if art(k) == 'andere'][:15]:
+        print(f'   andere: {k}')
+--- Ende /root/sicherung/biotop-lage-01/arbeit/s9_auswertung.py ---
+Ausgabe (vollständig, stdout und stderr):
+== 1. junit.xml (966212 B): tests 953 · failures 187 · errors 16 · skipped 2 · Zeit 60.901 s
+Fehlschläge und Fehler: 203
+-- nach Ursache:
+   168 · Abschottung: Docker/Kammer nicht erreichbar
+    11 · sonst: failed on setup with "assert False"
+    11 · rote Spezifikation S1c (test_w_g_*, erwartet rot)
+     8 · sonst: biotop.kern.kasse.AuftragsgrenzeFehlt: Auftragsgrenze nicht scharf: BIOTOP_AUFTRAG_LAUF_AB und BIOTOP_AUFTRAG_BUDGET_EUR fehlt oder ist null. Null ist
+     2 · sonst: RuntimeError: Kein bestätigter Einzeltest fällt durch den Eingriff in lieferant
+     1 · sonst: assert 0 == 1
+     1 · sonst: KeyError: 'tests/vertraege/test_vertrag_abnehmer_lieferant.py::test_eichprobe_vertrag_neue_zusicherung'
+     1 · sonst: FileNotFoundError: [Errno 2] No such file or directory: 'node'
+-- nach Testdatei (Anzahl · git-Status der Datei zum Stich):
+    69 · tests/test_vor_t4_06.py · ??
+    20 · tests/test_vor_t4_04.py ·  M
+    20 · tests/test_vor_t4_05.py ·  M
+    19 · tests/test_eichproben.py · eingecheckt, unverändert
+    15 · tests/test_vor_t4_03.py ·  M
+    12 · tests/test_review_vertrag.py · eingecheckt, unverändert
+     8 · tests/test_t3_kaputter_modellcode.py · eingecheckt, unverändert
+     8 · tests/test_t3_verbundausfall.py · eingecheckt, unverändert
+     8 · tests/test_vor_t4_02.py · eingecheckt, unverändert
+     7 · tests/test_vor_t4.py · eingecheckt, unverändert
+     4 · tests/test_junit_zeugen.py · eingecheckt, unverändert
+     4 · tests/test_t3_neutralzaehler.py · eingecheckt, unverändert
+     3 · tests/test_t3_zweigklasse.py · eingecheckt, unverändert
+     2 · tests/test_t3_bindung.py · eingecheckt, unverändert
+     2 · tests/test_t3_zaehlkontext.py · eingecheckt, unverändert
+     1 · tests/test_t3_aenderungsziel.py · eingecheckt, unverändert
+     1 · tests/test_verdrahtung.py ·  M
+-- je Ursache „sonst“ die ersten 3 Tests:
+  sonst: RuntimeError: Kein bestätigter Einzeltest fällt durch den Eingriff in lieferant → ['tests/test_eichproben.py::test_regression_nennt_einzeltest_trotz_ausgefuehrter_gruener_tests[False]', 'tests/test_eichproben.py::test_regression_nennt_einzeltest_trotz_ausgefuehrter_gruener_tests[True]']
+  sonst: assert 0 == 1 → ['tests/test_eichproben.py::test_norm_aendert_vorhandene_funktion_statt_importfehler']
+  sonst: KeyError: 'tests/vertraege/test_vertrag_abnehmer_lieferant.py::test_eichprobe_vertrag_neue_zusicherung' → ['tests/test_review_vertrag.py::test_contract_countercase_is_not_allowed_to_fail_inside_cloned_test']
+  sonst: failed on setup with "assert False" → ['tests/test_review_vertrag.py::test_normgegenprobe_braucht_ausgefuehrtes_zeugenpaar[skip]', 'tests/test_review_vertrag.py::test_normgegenprobe_braucht_ausgefuehrtes_zeugenpaar[xfail]', 'tests/test_review_vertrag.py::test_normgegenprobe_braucht_ausgefuehrtes_zeugenpaar[fehlend]']
+  sonst: biotop.kern.kasse.AuftragsgrenzeFehlt: Auftragsgrenze nicht scharf: BIOTOP_AUFTRAG_LAUF_AB und BIOTOP_A → ['tests/test_t3_verbundausfall.py::test_http_erfolg_ohne_beitrag_ist_ausfall_und_wird_abgerechnet[-stop-None]', 'tests/test_t3_verbundausfall.py::test_http_erfolg_ohne_beitrag_ist_ausfall_und_wird_abgerechnet[  -stop-None]', 'tests/test_t3_verbundausfall.py::test_http_erfolg_ohne_beitrag_ist_ausfall_und_wird_abgerechnet[-refusal-cyber]']
+  sonst: FileNotFoundError: [Errno 2] No such file or directory: 'node' → ['tests/test_vor_t4_04.py::test_merkmale_gleich_in_python_und_typescript']
+-- Stichwort-Stelle je Abschottungs-Ursache (erste 4 Fälle, Auslegung Hermes):
+  Abschottung: Docker/Kammer nicht erreich · …g': False, 'rc': 1, 'stdout': '', 'stderr': 'failed to connect to the docker API at unix:///var/run/docker.soc...th is correct…
+  Abschottung: Docker/Kammer nicht erreich · …g': False, 'rc': 1, 'stdout': '', 'stderr': 'failed to connect to the docker API at unix:///var/run/docker.soc...th is correct…
+  Abschottung: Docker/Kammer nicht erreich · …g': False, 'rc': 1, 'stdout': '', 'stderr': 'failed to connect to the docker API at unix:///var/run/docker.soc...th is correct…
+  Abschottung: Docker/Kammer nicht erreich · …g': False, 'rc': 1, 'stdout': '', 'stderr': 'failed to connect to the docker API at unix:///var/run/docker.soc...th is correct…
+-- test_w_g_* (rote Spezifikationen S1c):
+  failure · tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_python_am_organ[attribut-    k.RATE = 19\n-    k.RATE = 7\n-paket.m.a:<schreibt:k>]
+  failure · tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_python_am_organ[methode-    R.append(x)\n-    R.append(x + 1)\n-paket.m.a:<schreibt:R>]
+  failure · tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_python_am_organ[setattr-    k.RATE = 19\n-    setattr(k, "RATE", 7)\n-paket.m.a:<schreibt:k>]
+  failure · tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_python_am_organ[globals-    return x + 1\n-    globals()["ZUSATZ"] = x\n    return x + 1\n-paket.m.a:<schreibt:globals()>]
+  failure · tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_python_am_organ[ruft_fremd-    k.setze(19)\n-    k.setze(7)\n-paket.m.a:<ruft:paket.m.k:setze>]
+  failure · tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_python_am_organ[ruft_innen-    _merke(x)\n-    _merke(x + 1)\n-paket.m.a:STAND]
+  failure · tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_typescript_am_organ[methode-  REG.push(x);\n-  REG.push(x + 1);\n-m/a:<schreibt:REG>]
+  failure · tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_typescript_am_organ[ruft_fremd-  setze(x);\n-  setze(x + 1);\n-m/a:<ruft:n/k:setze>]
+  failure · tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_durch_aegis[g_schreibt]
+  failure · tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_durch_aegis[g_ruft]
+  failure · tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_durch_aegis[g_gegen]
+-- nach git-Status der Testdatei:
+  {'eingecheckt, unverändert': 78, ' M': 56, '??': 69}
+== 2. probe/root/biotop (ohne .git/) gegen VORHER.txt
+VORHER 3153 Dateien · probe 3028 Dateien · gleich 3027 · verschieden 1 · nur VORHER 125 · nur probe 0
+-- verschieden: {'Datenbank (Sicherung per backup-API)': 1}
+-- nur VORHER: {'Zwischenspeicher': 123, 'Datenbank-Nebendatei -wal/-shm': 2}
+-- nur probe: {}
+=== Ende R201 ===

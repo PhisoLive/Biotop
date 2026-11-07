@@ -1,0 +1,128 @@
+EB82 · Vorschau 6: Grundlagen des Abschlusses (nur lesend)
+Beginn: 2026-09-26 02:40:05 CEST (UTC+0200)
+Ende:   2026-09-26 02:40:37 CEST (UTC+0200)
+Dauer:  31.9 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/biotop-einlagerung/arbeit/v8_blick.sh
+--- Inhalt von /root/biotop-einlagerung/arbeit/v8_blick.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-EINLAGERUNG-01 (nur lesend): Vorschau 6 für den Abschluss — Größen der WIEDEREINSTIEG-Teile 01, Kopf von
+# wa_vergleich.py, Variablennamen (ohne Werte) aus EB24, Inhalt umgebung/, Verhalten von sha256sum -c bei Kommentarzeilen
+# (an einer erfundenen Datei in tmp/), Stand der Regression.
+set -u
+E=/root/biotop-einlagerung
+echo "== $(date '+%Y-%m-%d %H:%M:%S %Z')"
+echo "== 1. WIEDEREINSTIEG Fassung 01 (EB52)"; grep -E "WIEDEREINSTIEG-TEIL[0-9]-01.md ·" $E/rohbelege/EB0052.txt | sed "s#$E/##"
+echo "== 2. wa_vergleich.py (Kopf und Aufruf)"; sed -n 1,25p $E/arbeit/wa_vergleich.py
+echo "== 3. Variablennamen und Arten (EB24, ohne Werte)"; sed -n '/^Ausgabe (vollständig/,$p' $E/rohbelege/EB0024.txt | head -40
+echo "== 4. umgebung/"; ls -la $E/paket/dokumentation/umgebung/ | awk '{print $5, $9}'
+echo "== 5. sha256sum -c mit Kommentarzeile (erfundene Datei)"
+d=$E/tmp/sumtest; mkdir -p $d; printf 'abc\n' > $d/a.txt
+( cd $d && { echo "# Kommentar: Name · Bytes"; sha256sum a.txt; echo "# a.txt: 4 Bytes"; } > SUMS.txt && sha256sum -c SUMS.txt; echo "rc=$?"; sha256sum --strict -c SUMS.txt; echo "rc strict=$?" )
+sha256sum --version | head -1
+echo "== 6. Regression (Kette D)"; tail -3 $E/protokolle/kette-d.log | cut -c1-200
+ls -la $E/probe-belege/lauf-entpackt/ 2>/dev/null
+echo "Container jetzt: $(docker ps -q | wc -l) laufend"
+echo "== 7. Plattenplatz"; df -h / | tail -1; du -sh $E/stufe $E/probe $E/probe-verworfen-01 $E/verworfen $E/archiv 2>/dev/null
+echo "== 8. REGELN-02 und STAND-03 (gebaut EB49): Bytes, SHA-256, Zeilen"
+for f in REGELN-02.md STAND-03.md; do p=$E/paket/dokumentation/gedaechtnis/$f; echo "$f $(stat -c %s $p) B $(sha256sum $p | cut -c1-16) $(wc -l < $p) Zeilen"; done
+echo "== 9. Stillstandsvermerk in MEMORY.md und STAND-03 gleich?"
+python3 - <<'PY'
+import re
+m = open('/root/.hermes/memories/MEMORY.md', encoding='utf-8').read()
+s = open('/root/biotop-einlagerung/paket/dokumentation/gedaechtnis/STAND-03.md', encoding='utf-8').read()
+v = 'Biotop eingelagert am 25.09.2026 (BIOTOP-EINLAGERUNG-01). Keine Arbeit am Biotop, keine Subagenten und keine Wecker dafür, bis Philipp ausdrücklich die Wiederaufnahme beauftragt. Einstieg: WIEDEREINSTIEG im Abschlussordner laeufe/biotop-einlagerung-01/.'
+print('in MEMORY.md:', v in m, '· in STAND-03:', v in s)
+PY
+--- Ende /root/biotop-einlagerung/arbeit/v8_blick.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== 2026-09-26 02:40:05 CEST
+== 1. WIEDEREINSTIEG Fassung 01 (EB52)
+paket/dokumentation/WIEDEREINSTIEG-TEIL1-01.md · 17580 B · SHA-256 6e529c71a8018d17aafb9863bba502dae016b6a110738047a424e1a0d28a6441
+paket/dokumentation/WIEDEREINSTIEG-TEIL2-01.md · 17486 B · SHA-256 2c0befaad296d891b128c60893d959eac866b8c0734d84a1eac019d7da78f988
+paket/dokumentation/WIEDEREINSTIEG-TEIL3-01.md · 7359 B · SHA-256 c69425b46436522794314a054df0db13e6c04b0c43009bc5dffa7612fad78e6c
+== 2. wa_vergleich.py (Kopf und Aufruf)
+#!/usr/bin/env python3
+"""BIOTOP-EINLAGERUNG-01 · Werkzeug für die Wiederaufnahme (Weg A und B, WIEDEREINSTIEG Punkt 6.2/7): vergleicht einen
+Ordner mit dem Einlagerungsmanifest MANIFEST-KOMPLETT.tsv. Liest nur.
+
+Aufruf: wa_vergleich.py <ordner> [<manifest>] [--wurzel <pfad>]
+  <ordner>    z. B. /root/biotop (absoluter Pfad des Originals)
+  <manifest>  Vorgabe: /root/biotop-einlagerung/paket/MANIFEST-KOMPLETT.tsv, sonst /MANIFEST-KOMPLETT.tsv
+  --wurzel    Wurzel, unter der <ordner> liegt (Vorgabe /). Für einen entpackten Stand z. B. --wurzel /pfad/entpackt.
+Regeln: Abhängigkeits- und Zwischenspeicherordner (node_modules, venv, .venv, __pycache__, .pytest_cache, .mypy_cache,
+.ruff_cache) und Geheimnisdateien (.env*, auth.json*, *.pem, *.key, id_*) sind nicht im Manifest und werden hier
+übergangen (gezählt). Datenbankbegleiter (-wal, -shm, -journal) ebenso. SQLite-Datenbanken werden nicht bytegleich
+verglichen (das Paket enthält Backup-Kopien, deren Bytes sich vom Original unterscheiden dürfen), sondern mit
+PRAGMA integrity_check (nur lesend, immutable) am Original geprüft.
+Ausgabe: Anzahl je Seite, nur im Ordner, nur im Manifest, verschieden; ERGEBNIS-Zeile. Exit 0 nur bei leerem Unterschied.
+"""
+import hashlib
+import os
+import sqlite3
+import stat
+import sys
+from pathlib import Path
+
+AUS_ORDNER = {'node_modules', 'venv', '.venv', '__pycache__', '.pytest_cache', '.mypy_cache', '.ruff_cache'}
+
+
+== 3. Variablennamen und Arten (EB24, ohne Werte)
+Ausgabe (vollständig, stdout und stderr):
+ZUGANG     73 Zeichen · ~/.hermes/.env : OPENROUTER_API_KEY
+KENNUNG    10 Zeichen · ~/.hermes/.env : TELEGRAM_ALLOWED_USERS
+ZUGANG     46 Zeichen · ~/.hermes/.env : TELEGRAM_BOT_TOKEN
+SONST      42 Zeichen · ~/.hermes/.env : TERMINAL_MODAL_IMAGE
+ZUGANG     12 Zeichen · ~/.hermes/auth.json : auth.active_provider
+ZUGANG     23 Zeichen · ~/.hermes/auth.json : auth.credential_pool.anthropic[0].secret_fingerprint
+ZUGANG     23 Zeichen · ~/.hermes/auth.json : auth.credential_pool.anthropic[1].secret_fingerprint
+ZUGANG     21 Zeichen · ~/.hermes/auth.json : auth.credential_pool.anthropic[1].source
+ZUGANG     23 Zeichen · ~/.hermes/auth.json : auth.credential_pool.openrouter[0].secret_fingerprint
+ZUGANG     22 Zeichen · ~/.hermes/auth.json : auth.credential_pool.openrouter[0].source
+ZUGANG   1685 Zeichen · ~/.hermes/auth.json : auth.providers.[GESCHWÄRZT: Wert aus /root/.hermes/auth.json].tokens.access_token
+ZUGANG     36 Zeichen · ~/.hermes/auth.json : auth.providers.[GESCHWÄRZT: Wert aus /root/.hermes/auth.json].tokens.account_id
+ZUGANG   1752 Zeichen · ~/.hermes/auth.json : auth.providers.[GESCHWÄRZT: Wert aus /root/.hermes/auth.json].tokens.id_token
+ZUGANG    211 Zeichen · ~/.hermes/auth.json : auth.providers.[GESCHWÄRZT: Wert aus /root/.hermes/auth.json].tokens.refresh_token
+Werte gesamt 14 · je Art {'ZUGANG': 12, 'KENNUNG': 1, 'SONST': 1}
+=== Ende EB24 ===
+== 4. umgebung/
+ 
+4096 .
+4096 ..
+15172 UMGEBUNG.md
+4096 kammer-bauweg
+78 pip-freeze-root-biotop-t3-venv.txt
+78 pip-freeze-root-reparatur-01-venv.txt
+2118 pip-freeze-usr-local-lib-hermes-agent-venv.txt
+4096 sperrdateien
+== 5. sha256sum -c mit Kommentarzeile (erfundene Datei)
+a.txt: OK
+rc=0
+a.txt: OK
+rc strict=0
+sha256sum (GNU coreutils) 9.4
+== 6. Regression (Kette D)
+Container (alle): 0 · davon biotop-*: 0
+Dateien/Ordner der Originale jünger als die Marke: 0
+
+total 176
+drwxr-xr-x 2 root root   4096 Sep 26 02:29 .
+drwxr-xr-x 4 root root   4096 Sep 26 02:29 ..
+-rw-r--r-- 1 root root      0 Sep 26 02:29 MARKE
+-rw-r--r-- 1 root root    517 Sep 26 02:34 REGRESSION.txt
+-rw-r--r-- 1 root root 163787 Sep 26 02:40 docker-aufrufe.log
+Container jetzt: 1 laufend
+== 7. Plattenplatz
+/dev/vda1       116G   55G   61G  48% /
+3.7G	/root/biotop-einlagerung/stufe
+3.9G	/root/biotop-einlagerung/probe
+3.9G	/root/biotop-einlagerung/probe-verworfen-01
+953M	/root/biotop-einlagerung/verworfen
+953M	/root/biotop-einlagerung/archiv
+== 8. REGELN-02 und STAND-03 (gebaut EB49): Bytes, SHA-256, Zeilen
+REGELN-02.md 13192 B e31b60add2b235a2 91 Zeilen
+STAND-03.md 2346 B 90367586683c6035 22 Zeilen
+== 9. Stillstandsvermerk in MEMORY.md und STAND-03 gleich?
+in MEMORY.md: True · in STAND-03: True
+=== Ende EB82 ===

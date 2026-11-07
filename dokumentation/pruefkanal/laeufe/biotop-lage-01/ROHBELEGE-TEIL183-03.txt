@@ -1,0 +1,588 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 03 · Teil 183 (Teile 166–239 dieses Stands) · enthält R196 bis R196
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R196 · Abschnitt 4 Vorgehen 6: lokale Tests ohne Modellaufruf im wiederhergestellten Stand (Kopie aus sicherung/probe; abgeschottet: kein Netz, kein Docker, kein Schlüssel, alle Datenträger außer der Kopie schreibgeschützt); danach Originale auf Änderungen nach der Marke geprüft
+Beginn: 2026-09-25 19:56:22 CEST (UTC+0200)
+Ende:   2026-09-25 19:57:40 CEST (UTC+0200)
+Dauer:  77.3 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/sicherung/biotop-lage-01/arbeit/s9_testlauf.sh
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/s9_testlauf.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-LAGE-01 · Tests im wiederhergestellten Stand (Abschnitt 4 Vorgehen 6):
+# 1. Kopie (cp -a, keine harten Verweise) der vier Baumteile aus sicherung/probe nach testlauf/baum;
+# 2. Marke; 3. abgeschotteter Lauf (ns_test.sh); 4. Originale auf Änderungen nach der Marke prüfen (muss leer sein).
+set -uo pipefail
+W=/root/sicherung/biotop-lage-01
+T=$W/testlauf; B=$T/baum; A=$T/ausgabe
+[ -e "$T" ] && { echo "ABBRUCH: $T besteht schon (exklusiv)"; exit 3; }
+mkdir -p "$B/root" "$A"
+for d in biotop biotop-t3 reparatur-01 versandwerk-t3-02; do
+  cp -a "$W/sicherung/probe/root/$d" "$B/root/$d" || { echo "ABBRUCH: Kopie $d"; exit 3; }
+done
+echo "Kopie aus sicherung/probe: $(find "$B" -type f | wc -l) Dateien, $(du -sb "$B" | cut -f1) B"
+touch "$T/MARKE"; sleep 1
+echo "Marke: $(stat -c %y "$T/MARKE")"
+start=$(date +%s)
+unshare --mount --net --propagation private --fork bash "$W/arbeit/ns_test.sh" "$B" "$A"; rc=$?
+echo "== Testlauf rc=$rc · Dauer $(( $(date +%s) - start )) s"
+[ -f "$A/junit.xml" ] && grep -o '<testsuite [^>]*>' "$A/junit.xml" | head -1
+echo "== Originale nach der Marke geändert (ohne den eigenen Ordner laeufe/biotop-lage-01; muss leer sein)"
+O="/root/biotop /root/biotop-t3 /root/reparatur-01 /root/reparatur-02 /root/versandwerk-t3 /root/versandwerk-t3-02 /root/phase-4-vorbedingung-1 /var/pruefkanal"
+find $O -newer "$T/MARKE" -not -path '*/laeufe/biotop-lage-01/*' 2>/dev/null > "$T/geaendert.txt"
+echo "Anzahl: $(wc -l < "$T/geaendert.txt")"; head -40 "$T/geaendert.txt"
+--- Ende /root/sicherung/biotop-lage-01/arbeit/s9_testlauf.sh ---
+Ausgabe (vollständig, stdout und stderr):
+Kopie aus sicherung/probe: 33175 Dateien, 1580187593 B
+Marke: 2026-09-25 19:56:35.366414839 +0200
+schreibgeschützt eingehängt: /
+schreibgeschützt eingehängt: /boot
+schreibgeschützt eingehängt: /boot/efi
+lo hochgesetzt
+== Prüfung der Abschottung
+  schreibgeschützt oder fehlt: /var/pruefkanal
+  schreibgeschützt oder fehlt: /root/sicherung/biotop-lage-01
+  schreibgeschützt oder fehlt: /root/phase-4-vorbedingung-1
+  schreibgeschützt oder fehlt: /root/reparatur-02
+  schreibgeschützt oder fehlt: /root/versandwerk-t3
+  schreibgeschützt oder fehlt: /etc
+  schreibgeschützt oder fehlt: /usr
+  schreibgeschützt oder fehlt: /root
+  schreibgeschützt oder fehlt: /root/biotop-t3/venv
+  beschreibbar (soll): /root/biotop
+  beschreibbar (soll): /root/biotop-t3
+  beschreibbar (soll): /root/reparatur-01
+  beschreibbar (soll): /root/versandwerk-t3-02
+  beschreibbar (soll): /root/sicherung/biotop-lage-01/testlauf/ausgabe
+  beschreibbar (soll): /tmp
+  Netz-Schnittstellen: docker0 ens6 lo 
+  /root/.hermes/.env sichtbar: nein
+  Docker erreichbar: nein
+  Verbindung nach außen: nicht möglich
+HEAD im Baum: 0c2f058
+.........................................................FFFFFFFFFFF.sFF [  7%]
+FF..FFFFFFFF............................................................ [ 15%]
+.....................FEEEEEEEEEEE.s..................................... [ 22%]
+.....................F....................................FF............ [ 30%]
+.......F.FFFFFF.F....................FFF.......F.................FFFFFFF [ 37%]
+F...........................FFF.FF...................................... [ 45%]
+.....................................F...................FFFF..........F [ 52%]
+......FF..........................FFFF....FFFFFFFFF.F.FFFFFFFFF......... [ 60%]
+............FFFFFFFFFFFFFFFFF..FF.......F.......FFFFFFFFFFF.FFFFFF....FF [ 67%]
+F..FFFFFEEEEEFFF.FFFF...................FFFFFFFFFFF..........FF........F [ 75%]
+FFFFFFFFFFFFFF...................FFFFFFFFFFFFF.......................... [ 83%]
+......................................FFFFFF...FF.FFF................... [ 90%]
+........................................................................ [ 98%]
+.................                                                        [100%]
+==================================== ERRORS ====================================
+_ ERROR at setup of test_normgegenprobe_braucht_ausgefuehrtes_zeugenpaar[skip] _
+
+vertragswerk = PosixPath('/tmp/pytest-of-root/pytest-0/test_normgegenprobe_braucht_au0/werk')
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_normgegenprobe_braucht_au0')
+request = <SubRequest 'vertragspruefung' for <Function test_normgegenprobe_braucht_ausgefuehrtes_zeugenpaar[skip]>>
+
+    @pytest.fixture
+    def vertragspruefung(vertragswerk, tmp_path, request):
+        db = datenbank.verbinden(tmp_path / 'vertrag.db')
+        db.executescript(verfassung.SCHEMA)
+        db.execute("INSERT INTO laeufe(id,werk_id,budget_eur,status,mass) VALUES(1,1,0,'angelegt',NULL)")
+        vertraege.einlegen(db, 1, vertragswerk, {('abnehmer', 'lieferant'): (vertragswerk / VERTRAG).read_text()},
+                          'isoliertes EICH-4-Reviewwerk')
+        bereiche = ['abnehmer', 'lieferant']
+        basis = messgeraet.messen(vertragswerk, bereiche, 'beispiel', None)
+>       assert basis['gueltig']
+E       assert False
+
+tests/test_review_vertrag.py:75: AssertionError
+_ ERROR at setup of test_normgegenprobe_braucht_ausgefuehrtes_zeugenpaar[xfail] _
+
+vertragswerk = PosixPath('/tmp/pytest-of-root/pytest-0/test_normgegenprobe_braucht_au1/werk')
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_normgegenprobe_braucht_au1')
+request = <SubRequest 'vertragspruefung' for <Function test_normgegenprobe_braucht_ausgefuehrtes_zeugenpaar[xfail]>>
+
+    @pytest.fixture
+    def vertragspruefung(vertragswerk, tmp_path, request):
+        db = datenbank.verbinden(tmp_path / 'vertrag.db')
+        db.executescript(verfassung.SCHEMA)
+        db.execute("INSERT INTO laeufe(id,werk_id,budget_eur,status,mass) VALUES(1,1,0,'angelegt',NULL)")
+        vertraege.einlegen(db, 1, vertragswerk, {('abnehmer', 'lieferant'): (vertragswerk / VERTRAG).read_text()},
+                          'isoliertes EICH-4-Reviewwerk')
+        bereiche = ['abnehmer', 'lieferant']
+        basis = messgeraet.messen(vertragswerk, bereiche, 'beispiel', None)
+>       assert basis['gueltig']
+E       assert False
+
+tests/test_review_vertrag.py:75: AssertionError
+_ ERROR at setup of test_normgegenprobe_braucht_ausgefuehrtes_zeugenpaar[fehlend] _
+
+vertragswerk = PosixPath('/tmp/pytest-of-root/pytest-0/test_normgegenprobe_braucht_au2/werk')
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_normgegenprobe_braucht_au2')
+request = <SubRequest 'vertragspruefung' for <Function test_normgegenprobe_braucht_ausgefuehrtes_zeugenpaar[fehlend]>>
+
+    @pytest.fixture
+    def vertragspruefung(vertragswerk, tmp_path, request):
+        db = datenbank.verbinden(tmp_path / 'vertrag.db')
+        db.executescript(verfassung.SCHEMA)
+        db.execute("INSERT INTO laeufe(id,werk_id,budget_eur,status,mass) VALUES(1,1,0,'angelegt',NULL)")
+        vertraege.einlegen(db, 1, vertragswerk, {('abnehmer', 'lieferant'): (vertragswerk / VERTRAG).read_text()},
+                          'isoliertes EICH-4-Reviewwerk')
+        bereiche = ['abnehmer', 'lieferant']
+        basis = messgeraet.messen(vertragswerk, bereiche, 'beispiel', None)
+>       assert basis['gueltig']
+E       assert False
+
+tests/test_review_vertrag.py:75: AssertionError
+_ ERROR at setup of test_normgegenprobe_braucht_ausgefuehrtes_zeugenpaar[pass] _
+
+vertragswerk = PosixPath('/tmp/pytest-of-root/pytest-0/test_normgegenprobe_braucht_au3/werk')
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_normgegenprobe_braucht_au3')
+request = <SubRequest 'vertragspruefung' for <Function test_normgegenprobe_braucht_ausgefuehrtes_zeugenpaar[pass]>>
+
+    @pytest.fixture
+    def vertragspruefung(vertragswerk, tmp_path, request):
+        db = datenbank.verbinden(tmp_path / 'vertrag.db')
+        db.executescript(verfassung.SCHEMA)
+        db.execute("INSERT INTO laeufe(id,werk_id,budget_eur,status,mass) VALUES(1,1,0,'angelegt',NULL)")
+        vertraege.einlegen(db, 1, vertragswerk, {('abnehmer', 'lieferant'): (vertragswerk / VERTRAG).read_text()},
+                          'isoliertes EICH-4-Reviewwerk')
+        bereiche = ['abnehmer', 'lieferant']
+        basis = messgeraet.messen(vertragswerk, bereiche, 'beispiel', None)
+>       assert basis['gueltig']
+E       assert False
+
+tests/test_review_vertrag.py:75: AssertionError
+_ ERROR at setup of test_test_eigener_fehler_ist_keine_pruefbare_vertragsgegenprobe[setup] _
+
+vertragswerk = PosixPath('/tmp/pytest-of-root/pytest-0/test_test_eigener_fehler_ist_k0/werk')
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_test_eigener_fehler_ist_k0')
+request = <SubRequest 'vertragspruefung' for <Function test_test_eigener_fehler_ist_keine_pruefbare_vertragsgegenprobe[setup]>>
+
+    @pytest.fixture
+    def vertragspruefung(vertragswerk, tmp_path, request):
+        db = datenbank.verbinden(tmp_path / 'vertrag.db')
+        db.executescript(verfassung.SCHEMA)
+        db.execute("INSERT INTO laeufe(id,werk_id,budget_eur,status,mass) VALUES(1,1,0,'angelegt',NULL)")
+        vertraege.einlegen(db, 1, vertragswerk, {('abnehmer', 'lieferant'): (vertragswerk / VERTRAG).read_text()},
+                          'isoliertes EICH-4-Reviewwerk')
+        bereiche = ['abnehmer', 'lieferant']
+        basis = messgeraet.messen(vertragswerk, bereiche, 'beispiel', None)
+>       assert basis['gueltig']
+E       assert False
+
+tests/test_review_vertrag.py:75: AssertionError
+_ ERROR at setup of test_test_eigener_fehler_ist_keine_pruefbare_vertragsgegenprobe[aufruf] _
+
+vertragswerk = PosixPath('/tmp/pytest-of-root/pytest-0/test_test_eigener_fehler_ist_k1/werk')
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_test_eigener_fehler_ist_k1')
+request = <SubRequest 'vertragspruefung' for <Function test_test_eigener_fehler_ist_keine_pruefbare_vertragsgegenprobe[aufruf]>>
+
+    @pytest.fixture
+    def vertragspruefung(vertragswerk, tmp_path, request):
+        db = datenbank.verbinden(tmp_path / 'vertrag.db')
+        db.executescript(verfassung.SCHEMA)
+        db.execute("INSERT INTO laeufe(id,werk_id,budget_eur,status,mass) VALUES(1,1,0,'angelegt',NULL)")
+        vertraege.einlegen(db, 1, vertragswerk, {('abnehmer', 'lieferant'): (vertragswerk / VERTRAG).read_text()},
+                          'isoliertes EICH-4-Reviewwerk')
+        bereiche = ['abnehmer', 'lieferant']
+        basis = messgeraet.messen(vertragswerk, bereiche, 'beispiel', None)
+>       assert basis['gueltig']
+E       assert False
+
+tests/test_review_vertrag.py:75: AssertionError
+_ ERROR at setup of test_test_eigener_fehler_ist_keine_pruefbare_vertragsgegenprobe[sammlung] _
+
+vertragswerk = PosixPath('/tmp/pytest-of-root/pytest-0/test_test_eigener_fehler_ist_k2/werk')
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_test_eigener_fehler_ist_k2')
+request = <SubRequest 'vertragspruefung' for <Function test_test_eigener_fehler_ist_keine_pruefbare_vertragsgegenprobe[sammlung]>>
+
+    @pytest.fixture
+    def vertragspruefung(vertragswerk, tmp_path, request):
+        db = datenbank.verbinden(tmp_path / 'vertrag.db')
+        db.executescript(verfassung.SCHEMA)
+        db.execute("INSERT INTO laeufe(id,werk_id,budget_eur,status,mass) VALUES(1,1,0,'angelegt',NULL)")
+        vertraege.einlegen(db, 1, vertragswerk, {('abnehmer', 'lieferant'): (vertragswerk / VERTRAG).read_text()},
+                          'isoliertes EICH-4-Reviewwerk')
+        bereiche = ['abnehmer', 'lieferant']
+        basis = messgeraet.messen(vertragswerk, bereiche, 'beispiel', None)
+>       assert basis['gueltig']
+E       assert False
+
+tests/test_review_vertrag.py:75: AssertionError
+_ ERROR at setup of test_test_eigener_fehler_ist_keine_pruefbare_vertragsgegenprobe[fehlend] _
+
+vertragswerk = PosixPath('/tmp/pytest-of-root/pytest-0/test_test_eigener_fehler_ist_k3/werk')
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_test_eigener_fehler_ist_k3')
+request = <SubRequest 'vertragspruefung' for <Function test_test_eigener_fehler_ist_keine_pruefbare_vertragsgegenprobe[fehlend]>>
+
+    @pytest.fixture
+    def vertragspruefung(vertragswerk, tmp_path, request):
+        db = datenbank.verbinden(tmp_path / 'vertrag.db')
+        db.executescript(verfassung.SCHEMA)
+        db.execute("INSERT INTO laeufe(id,werk_id,budget_eur,status,mass) VALUES(1,1,0,'angelegt',NULL)")
+        vertraege.einlegen(db, 1, vertragswerk, {('abnehmer', 'lieferant'): (vertragswerk / VERTRAG).read_text()},
+                          'isoliertes EICH-4-Reviewwerk')
+        bereiche = ['abnehmer', 'lieferant']
+        basis = messgeraet.messen(vertragswerk, bereiche, 'beispiel', None)
+>       assert basis['gueltig']
+E       assert False
+
+tests/test_review_vertrag.py:75: AssertionError
+_ ERROR at setup of test_test_eigener_fehler_ist_keine_pruefbare_vertragsgegenprobe[skip] _
+
+vertragswerk = PosixPath('/tmp/pytest-of-root/pytest-0/test_test_eigener_fehler_ist_k4/werk')
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_test_eigener_fehler_ist_k4')
+request = <SubRequest 'vertragspruefung' for <Function test_test_eigener_fehler_ist_keine_pruefbare_vertragsgegenprobe[skip]>>
+
+    @pytest.fixture
+    def vertragspruefung(vertragswerk, tmp_path, request):
+        db = datenbank.verbinden(tmp_path / 'vertrag.db')
+        db.executescript(verfassung.SCHEMA)
+        db.execute("INSERT INTO laeufe(id,werk_id,budget_eur,status,mass) VALUES(1,1,0,'angelegt',NULL)")
+        vertraege.einlegen(db, 1, vertragswerk, {('abnehmer', 'lieferant'): (vertragswerk / VERTRAG).read_text()},
+                          'isoliertes EICH-4-Reviewwerk')
+        bereiche = ['abnehmer', 'lieferant']
+        basis = messgeraet.messen(vertragswerk, bereiche, 'beispiel', None)
+>       assert basis['gueltig']
+E       assert False
+
+tests/test_review_vertrag.py:75: AssertionError
+_ ERROR at setup of test_test_eigener_fehler_ist_keine_pruefbare_vertragsgegenprobe[xfail] _
+
+vertragswerk = PosixPath('/tmp/pytest-of-root/pytest-0/test_test_eigener_fehler_ist_k5/werk')
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_test_eigener_fehler_ist_k5')
+request = <SubRequest 'vertragspruefung' for <Function test_test_eigener_fehler_ist_keine_pruefbare_vertragsgegenprobe[xfail]>>
+
+    @pytest.fixture
+    def vertragspruefung(vertragswerk, tmp_path, request):
+        db = datenbank.verbinden(tmp_path / 'vertrag.db')
+        db.executescript(verfassung.SCHEMA)
+        db.execute("INSERT INTO laeufe(id,werk_id,budget_eur,status,mass) VALUES(1,1,0,'angelegt',NULL)")
+        vertraege.einlegen(db, 1, vertragswerk, {('abnehmer', 'lieferant'): (vertragswerk / VERTRAG).read_text()},
+                          'isoliertes EICH-4-Reviewwerk')
+        bereiche = ['abnehmer', 'lieferant']
+        basis = messgeraet.messen(vertragswerk, bereiche, 'beispiel', None)
+>       assert basis['gueltig']
+E       assert False
+
+tests/test_review_vertrag.py:75: AssertionError
+_ ERROR at setup of test_modulhelfer_und_konstanten_bleiben_im_eigenen_namensraum _
+
+vertragswerk = PosixPath('/tmp/pytest-of-root/pytest-0/test_modulhelfer_und_konstante0/werk')
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_modulhelfer_und_konstante0')
+request = <SubRequest 'vertragspruefung' for <Function test_modulhelfer_und_konstanten_bleiben_im_eigenen_namensraum>>
+
+    @pytest.fixture
+    def vertragspruefung(vertragswerk, tmp_path, request):
+        db = datenbank.verbinden(tmp_path / 'vertrag.db')
+        db.executescript(verfassung.SCHEMA)
+        db.execute("INSERT INTO laeufe(id,werk_id,budget_eur,status,mass) VALUES(1,1,0,'angelegt',NULL)")
+        vertraege.einlegen(db, 1, vertragswerk, {('abnehmer', 'lieferant'): (vertragswerk / VERTRAG).read_text()},
+                          'isoliertes EICH-4-Reviewwerk')
+        bereiche = ['abnehmer', 'lieferant']
+        basis = messgeraet.messen(vertragswerk, bereiche, 'beispiel', None)
+>       assert basis['gueltig']
+E       assert False
+
+tests/test_review_vertrag.py:75: AssertionError
+_ ERROR at setup of test_t1_r6_4_festhalten_am_ausnahmetyp_in_der_kammer[zahl-True] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7240c2b9b7d0>, _basetemp=PosixPath('/tmp/pytest-of-root/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def r64(tmp_path_factory):
+        """Aufzeichner der deckenden Tests am Kandidaten (echte Kammer); je Verfälschungsprobe ein Kammerlauf."""
+        alt = kammer.IMAGE
+        kammer.IMAGE = "biotop-kammer:1"
+        try:
+            w = _werk(tmp_path_factory.mktemp("r64"), R64_ALT, R64_TESTS)
+>           yield vv.deckende_aufrufe(w, {"paket/m/a.py": R64_NEU}, R64_TESTS, {f"test_r64.py::test_{n}" for n in R64_FAELLE})
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_06.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/verhaltensvergleich.py:479: in deckende_aufrufe
+    d = _aufzeichnen(werk, dateien, module, pfade, None)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/pytest-of-root/pytest-0/r640/w')
+dateien = {'paket/m/a.py': "def zahl(x: int) -> int:\n    return x + 2\n\n\ndef liste(x: int) -> list:\n    return [x + 2, x + 1...\n\n\ndef test_text():\n    assert text(1) == 'a_b'\n\n\ndef test_werk_ausnahme():\n    assert nummer(kind(1)) == 1\n"}
+module = ['paket.m.a'], pfade = ['tests/test_r64.py'], verfaelschen = None
+
+    def _aufzeichnen(werk: Path, dateien: dict, module: list[str], pfade: list[str], verfaelschen: dict | None) -> dict:
+        from ..kern import sprachprofil
+        if sprachprofil.ist_typescript(Path(werk)):
+            from ..kern import typescript
+            try:
+                d, _ = typescript._aufruf(Path(werk), "deckung", dateien=dateien, zeitlimit_s=240, module=module,
+                                          testdateien=pfade, verfaelschen=verfaelschen)
+            except typescript.TypeScriptFehler as e:
+                raise SondeAusgefallen(f"Deckungsaufzeichner ausgefallen: {str(e)[:300]}") from e
+        else:
+            d = _python_sonde(Path(werk), dateien, {"modus": "deckung", "module": module, "testdateien": pfade,
+                                                    "verfaelschen": verfaelschen, "test_frist": TEST_FRIST_S}, None)
+        if not d.get("gueltig"):
+>           raise SondeAusgefallen(f"Deckungsaufzeichner ausgefallen: {str(d.get('grund') or d.get('rc'))[:300]}")
+E           biotop.organe.verhaltensvergleich.SondeAusgefallen: Deckungsaufzeichner ausgefallen: Python-Sonde ohne Ergebnis (rc=1): failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory
+
+biotop/organe/verhaltensvergleich.py:457: SondeAusgefallen
+_ ERROR at setup of test_t1_r6_4_festhalten_am_ausnahmetyp_in_der_kammer[liste-True] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7240c2b9b7d0>, _basetemp=PosixPath('/tmp/pytest-of-root/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def r64(tmp_path_factory):
+        """Aufzeichner der deckenden Tests am Kandidaten (echte Kammer); je Verfälschungsprobe ein Kammerlauf."""
+        alt = kammer.IMAGE
+        kammer.IMAGE = "biotop-kammer:1"
+        try:
+            w = _werk(tmp_path_factory.mktemp("r64"), R64_ALT, R64_TESTS)
+>           yield vv.deckende_aufrufe(w, {"paket/m/a.py": R64_NEU}, R64_TESTS, {f"test_r64.py::test_{n}" for n in R64_FAELLE})
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_06.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/verhaltensvergleich.py:479: in deckende_aufrufe
+    d = _aufzeichnen(werk, dateien, module, pfade, None)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/pytest-of-root/pytest-0/r640/w')
+dateien = {'paket/m/a.py': "def zahl(x: int) -> int:\n    return x + 2\n\n\ndef liste(x: int) -> list:\n    return [x + 2, x + 1...\n\n\ndef test_text():\n    assert text(1) == 'a_b'\n\n\ndef test_werk_ausnahme():\n    assert nummer(kind(1)) == 1\n"}
+module = ['paket.m.a'], pfade = ['tests/test_r64.py'], verfaelschen = None
+
+    def _aufzeichnen(werk: Path, dateien: dict, module: list[str], pfade: list[str], verfaelschen: dict | None) -> dict:
+        from ..kern import sprachprofil
+        if sprachprofil.ist_typescript(Path(werk)):
+            from ..kern import typescript
+            try:
+                d, _ = typescript._aufruf(Path(werk), "deckung", dateien=dateien, zeitlimit_s=240, module=module,
+                                          testdateien=pfade, verfaelschen=verfaelschen)
+            except typescript.TypeScriptFehler as e:
+                raise SondeAusgefallen(f"Deckungsaufzeichner ausgefallen: {str(e)[:300]}") from e
+        else:
+            d = _python_sonde(Path(werk), dateien, {"modus": "deckung", "module": module, "testdateien": pfade,
+                                                    "verfaelschen": verfaelschen, "test_frist": TEST_FRIST_S}, None)
+        if not d.get("gueltig"):
+>           raise SondeAusgefallen(f"Deckungsaufzeichner ausgefallen: {str(d.get('grund') or d.get('rc'))[:300]}")
+E           biotop.organe.verhaltensvergleich.SondeAusgefallen: Deckungsaufzeichner ausgefallen: Python-Sonde ohne Ergebnis (rc=1): failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory
+
+biotop/organe/verhaltensvergleich.py:457: SondeAusgefallen
+_ ERROR at setup of test_t1_r6_4_festhalten_am_ausnahmetyp_in_der_kammer[wahrheitswert-True] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7240c2b9b7d0>, _basetemp=PosixPath('/tmp/pytest-of-root/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def r64(tmp_path_factory):
+        """Aufzeichner der deckenden Tests am Kandidaten (echte Kammer); je Verfälschungsprobe ein Kammerlauf."""
+        alt = kammer.IMAGE
+        kammer.IMAGE = "biotop-kammer:1"
+        try:
+            w = _werk(tmp_path_factory.mktemp("r64"), R64_ALT, R64_TESTS)
+>           yield vv.deckende_aufrufe(w, {"paket/m/a.py": R64_NEU}, R64_TESTS, {f"test_r64.py::test_{n}" for n in R64_FAELLE})
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_06.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/verhaltensvergleich.py:479: in deckende_aufrufe
+    d = _aufzeichnen(werk, dateien, module, pfade, None)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/pytest-of-root/pytest-0/r640/w')
+dateien = {'paket/m/a.py': "def zahl(x: int) -> int:\n    return x + 2\n\n\ndef liste(x: int) -> list:\n    return [x + 2, x + 1...\n\n\ndef test_text():\n    assert text(1) == 'a_b'\n\n\ndef test_werk_ausnahme():\n    assert nummer(kind(1)) == 1\n"}
+module = ['paket.m.a'], pfade = ['tests/test_r64.py'], verfaelschen = None
+
+    def _aufzeichnen(werk: Path, dateien: dict, module: list[str], pfade: list[str], verfaelschen: dict | None) -> dict:
+        from ..kern import sprachprofil
+        if sprachprofil.ist_typescript(Path(werk)):
+            from ..kern import typescript
+            try:
+                d, _ = typescript._aufruf(Path(werk), "deckung", dateien=dateien, zeitlimit_s=240, module=module,
+                                          testdateien=pfade, verfaelschen=verfaelschen)
+            except typescript.TypeScriptFehler as e:
+                raise SondeAusgefallen(f"Deckungsaufzeichner ausgefallen: {str(e)[:300]}") from e
+        else:
+            d = _python_sonde(Path(werk), dateien, {"modus": "deckung", "module": module, "testdateien": pfade,
+                                                    "verfaelschen": verfaelschen, "test_frist": TEST_FRIST_S}, None)
+        if not d.get("gueltig"):
+>           raise SondeAusgefallen(f"Deckungsaufzeichner ausgefallen: {str(d.get('grund') or d.get('rc'))[:300]}")
+E           biotop.organe.verhaltensvergleich.SondeAusgefallen: Deckungsaufzeichner ausgefallen: Python-Sonde ohne Ergebnis (rc=1): failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory
+
+biotop/organe/verhaltensvergleich.py:457: SondeAusgefallen
+_ ERROR at setup of test_t1_r6_4_festhalten_am_ausnahmetyp_in_der_kammer[text-True] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7240c2b9b7d0>, _basetemp=PosixPath('/tmp/pytest-of-root/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def r64(tmp_path_factory):
+        """Aufzeichner der deckenden Tests am Kandidaten (echte Kammer); je Verfälschungsprobe ein Kammerlauf."""
+        alt = kammer.IMAGE
+        kammer.IMAGE = "biotop-kammer:1"
+        try:
+            w = _werk(tmp_path_factory.mktemp("r64"), R64_ALT, R64_TESTS)
+>           yield vv.deckende_aufrufe(w, {"paket/m/a.py": R64_NEU}, R64_TESTS, {f"test_r64.py::test_{n}" for n in R64_FAELLE})
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_06.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/verhaltensvergleich.py:479: in deckende_aufrufe
+    d = _aufzeichnen(werk, dateien, module, pfade, None)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/pytest-of-root/pytest-0/r640/w')
+dateien = {'paket/m/a.py': "def zahl(x: int) -> int:\n    return x + 2\n\n\ndef liste(x: int) -> list:\n    return [x + 2, x + 1...\n\n\ndef test_text():\n    assert text(1) == 'a_b'\n\n\ndef test_werk_ausnahme():\n    assert nummer(kind(1)) == 1\n"}
+module = ['paket.m.a'], pfade = ['tests/test_r64.py'], verfaelschen = None
+
+    def _aufzeichnen(werk: Path, dateien: dict, module: list[str], pfade: list[str], verfaelschen: dict | None) -> dict:
+        from ..kern import sprachprofil
+        if sprachprofil.ist_typescript(Path(werk)):
+            from ..kern import typescript
+            try:
+                d, _ = typescript._aufruf(Path(werk), "deckung", dateien=dateien, zeitlimit_s=240, module=module,
+                                          testdateien=pfade, verfaelschen=verfaelschen)
+            except typescript.TypeScriptFehler as e:
+                raise SondeAusgefallen(f"Deckungsaufzeichner ausgefallen: {str(e)[:300]}") from e
+        else:
+            d = _python_sonde(Path(werk), dateien, {"modus": "deckung", "module": module, "testdateien": pfade,
+                                                    "verfaelschen": verfaelschen, "test_frist": TEST_FRIST_S}, None)
+        if not d.get("gueltig"):
+>           raise SondeAusgefallen(f"Deckungsaufzeichner ausgefallen: {str(d.get('grund') or d.get('rc'))[:300]}")
+E           biotop.organe.verhaltensvergleich.SondeAusgefallen: Deckungsaufzeichner ausgefallen: Python-Sonde ohne Ergebnis (rc=1): failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory
+
+biotop/organe/verhaltensvergleich.py:457: SondeAusgefallen
+_ ERROR at setup of test_t1_r6_4_festhalten_am_ausnahmetyp_in_der_kammer[werk_ausnahme-False] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7240c2b9b7d0>, _basetemp=PosixPath('/tmp/pytest-of-root/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def r64(tmp_path_factory):
+        """Aufzeichner der deckenden Tests am Kandidaten (echte Kammer); je Verfälschungsprobe ein Kammerlauf."""
+        alt = kammer.IMAGE
+        kammer.IMAGE = "biotop-kammer:1"
+        try:
+            w = _werk(tmp_path_factory.mktemp("r64"), R64_ALT, R64_TESTS)
+>           yield vv.deckende_aufrufe(w, {"paket/m/a.py": R64_NEU}, R64_TESTS, {f"test_r64.py::test_{n}" for n in R64_FAELLE})
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_06.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/verhaltensvergleich.py:479: in deckende_aufrufe
+    d = _aufzeichnen(werk, dateien, module, pfade, None)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/pytest-of-root/pytest-0/r640/w')
+dateien = {'paket/m/a.py': "def zahl(x: int) -> int:\n    return x + 2\n\n\ndef liste(x: int) -> list:\n    return [x + 2, x + 1...\n\n\ndef test_text():\n    assert text(1) == 'a_b'\n\n\ndef test_werk_ausnahme():\n    assert nummer(kind(1)) == 1\n"}
+module = ['paket.m.a'], pfade = ['tests/test_r64.py'], verfaelschen = None
+
+    def _aufzeichnen(werk: Path, dateien: dict, module: list[str], pfade: list[str], verfaelschen: dict | None) -> dict:
+        from ..kern import sprachprofil
+        if sprachprofil.ist_typescript(Path(werk)):
+            from ..kern import typescript
+            try:
+                d, _ = typescript._aufruf(Path(werk), "deckung", dateien=dateien, zeitlimit_s=240, module=module,
+                                          testdateien=pfade, verfaelschen=verfaelschen)
+            except typescript.TypeScriptFehler as e:
+                raise SondeAusgefallen(f"Deckungsaufzeichner ausgefallen: {str(e)[:300]}") from e
+        else:
+            d = _python_sonde(Path(werk), dateien, {"modus": "deckung", "module": module, "testdateien": pfade,
+                                                    "verfaelschen": verfaelschen, "test_frist": TEST_FRIST_S}, None)
+        if not d.get("gueltig"):
+>           raise SondeAusgefallen(f"Deckungsaufzeichner ausgefallen: {str(d.get('grund') or d.get('rc'))[:300]}")
+E           biotop.organe.verhaltensvergleich.SondeAusgefallen: Deckungsaufzeichner ausgefallen: Python-Sonde ohne Ergebnis (rc=1): failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory
+
+biotop/organe/verhaltensvergleich.py:457: SondeAusgefallen
+=================================== FAILURES ===================================
+___________ test_nebenwirkung_braucht_gewinn_a_und_verlust_b[False] ____________
+
+paar = (<sqlite3.Connection object at 0x7240bff21300>, PosixPath('/tmp/pytest-of-root/pytest-0/test_nebenwirkung_braucht_gewi...reich': 'abnehmer', 'nach_bereich': 'lieferant', 'vertrag_pfad': 'tests/vertraege/test_vertrag_abnehmer_lieferant.py'})
+gegenprobe = False
+
+    @pytest.mark.parametrize("gegenprobe", [False, True])
+    def test_nebenwirkung_braucht_gewinn_a_und_verlust_b(paar, gegenprobe):
+        con, werk, bereiche, basis, g = paar
+>       e = eichproben._einzelprobe(con, 1, 1, werk, "beispiel", bereiche, [], basis, basis, REF_PAAR, {}, 0,
+                                   g, "nebenwirkung", gegenprobe)
+
+tests/test_eichproben.py:108: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/eichproben.py:526: in _einzelprobe
+    u = aegis.pruefen(db, lauf_id, werk_id, kid, werk, paket, bereiche, bstrassen, basis, ausgang, ref, tausch,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+con = <sqlite3.Connection object at 0x7240c18784f0>, lauf_id = 1, werk_id = 1
+kandidat_id = 1, werk = PosixPath('/tmp/eichprobe-shs436re/werk')
+paket = 'beispiel', bereiche = ['abnehmer', 'lieferant'], bstrassen = []
+basis = {'gueltig': False, 'rc': 1, 'stdout': '', 'stderr': 'failed to connect to the docker API at unix:///var/run/docker.soc...th is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n', ...}
+ausgang = {'gueltig': False, 'rc': 1, 'stdout': '', 'stderr': 'failed to connect to the docker API at unix:///var/run/docker.soc...th is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n', ...}
+referenzlast = "import sys\nsys.path.insert(0, '/werk')\n\ndef last_abnehmer():\n    from beispiel.abnehmer import bericht\n    s = 0...        wert(float(i))\n\ndef beobachten():\n    from beispiel.lieferant import wert\n    return {'wert': wert(2.0)}\n"
+tausch = {}, extra_code = None, probe_ohne_modell = True, probe_angriff = None
+vv_optionen = None, referenzlast_laufzeit = None
+
+    def pruefen(con: sqlite3.Connection, lauf_id: int, werk_id: int, kandidat_id: int, werk: Path, paket: str,
+                bereiche: list[str], bstrassen: list[tuple[str, str]], basis: dict, ausgang: dict,
+                referenzlast: str | None, tausch: dict | None, extra_code: dict[str, str] | None = None,
+                *, probe_ohne_modell: bool = False, probe_angriff: str | None = None,
+                vv_optionen: dict | None = None, referenzlast_laufzeit: str | None = None) -> dict:
+        """extra_code: zusätzliche Dateien (z. B. Anpassung des Nachbarn bei Verhandlung), die zusammen mit dem
+        Kandidaten gemessen werden. `vv_optionen`: nur für Nachspiele (getrennte Messung K2868, Behebungsrunde 3) —
+        korpus_erweitert / deckungsregel des Verhaltensvergleichs; der Lauf übergibt nichts (Vorgabe)."""
+        """Vollständige Anklage (F2). Rückgabe: Urteil mit Belegen; Status in der DB gesetzt."""
+        k = con.execute("SELECT * FROM kandidaten WHERE id=?", (kandidat_id,)).fetchone()
+        # Nur markierte Eichkandidaten dürfen mechanische Angriffe ohne Modell nutzen.
+        if (probe_ohne_modell or probe_angriff is not None) and not (
+                probe_ohne_modell and "ist_probe" in k.keys() and k["ist_probe"] == 1):
+            raise ValueError("Reine Probeoption verlangt probe_ohne_modell=True und ist_probe=1")
+        bereich = k["bereich"]
+        urteil = {"kandidat": kandidat_id, "bereich": bereich, "status": "abgelehnt", "grund": "", "wirkungskreis": [],
+                  "immun": [], "tests_neu": [], "tests_verworfen": [], "immun_bestanden": [], "befundklassen": [],
+                  "verfassung_verstoesse": [], "angriff": None, "mass": None, "tests_offen": [], "norm": [], "doppelungen": [],
+                  "vertrag_verletzt": [], "vertraege_benannt": (k["vertraege"] if "vertraege" in k.keys() else "") or ""}
+    
+        def fertig(status, grund, masse=None, dateien_final=None, basis_paar=None):
+            urteil["status"], urteil["grund"] = status, grund
+            if masse is not None:
+                masse = {**masse, "_dateien": dateien_final or {}, "_basis_paar": basis_paar, "_urteil_f2": urteil["mass"],
+                         "laufzeit_stufe": urteil.get("laufzeit_stufe")}
+            with transaktion(con):
+                con.execute("UPDATE kandidaten SET status=?, grund=?, masse=?, wirkungskreis=? WHERE id=?",
+                            (status, grund, j(masse) if masse else None, j(urteil["wirkungskreis"]), kandidat_id))
+            protokoll.schreiben(con, "aegis.urteil", lauf_id=lauf_id, kandidat=kandidat_id, bereich=bereich, status=status,
+                                grund=grund[:500], wirkungskreis=urteil["wirkungskreis"], immun=urteil["immun"],
+                                tests_neu=urteil["tests_neu"], tests_verworfen=urteil["tests_verworfen"],
+                                immun_bestanden=urteil["immun_bestanden"], befundklassen=urteil["befundklassen"],
+                                verfassung=urteil["verfassung_verstoesse"], angriff=urteil["angriff"], mass=urteil["mass"], tests_offen=urteil["tests_offen"],
+                                norm=urteil["norm"], doppelungen=urteil["doppelungen"], vertrag_verletzt=urteil["vertrag_verletzt"], nische=k["nische"],
+                                # Tor 2 Zeile 8 braucht die GESCHRIEBENEN Behauptungen je erzeugtem
+                                # Angriffstest. Ohne sie ist der Doppelungsanteil nachtraeglich nicht
+                                # rekonstruierbar — gemessen in Lauf 37: 0 von 210 Urteilen trugen sie,
+                                # obwohl 42 Angriffe liefen.
+                                behauptungen=urteil.get("behauptungen") or {},
+                                behauptungen_treffer=urteil.get("behauptungen_treffer") or [],
+                                aufnahmesperre=urteil.get("aufnahmesperre") or {},
+                                # Verhaltensvergleich und Maßeichung stehen im Protokoll, damit jede Annahme
+                                # zeigt, ob das Verhalten verglichen und welche Regeln nicht gezählt wurden.
+                                verhalten=urteil.get("verhalten"),
+                                laufzeit_nachmessung=urteil.get("laufzeit_nachmessung"),
+                                laufzeit_stufe=urteil.get("laufzeit_stufe"),
+                                gewinn_nachmessung=urteil.get("gewinn_nachmessung"),
+                                masseichung_stillgelegt=((tausch or {}).get("_masseichung") or {}).get("stillgelegt") or [])
+            return urteil
+    
+        if k["status"] != "erzeugt":
+            return fertig(k["status"], k["grund"] or "nicht geprüft")
+    
+        # Schritt 1: Wirkungskreis
+        urteil["wirkungskreis"] = landkarte.wirkungskreis(bereich, bstrassen)
+    
+        dateien = kandidat_dateien(werk, k["diff"])
+        if dateien is None:
+            return fertig("abgelehnt", "Diff nicht anwendbar: " + (diff_grund(werk, k["diff"]) or "kein Inhalt"))
+        code = {p: (i if i is not None else "") for p, i in dateien.items() if not p.startswith("tests/")}
+        code.update(extra_code or {})
+        urteil["wirkungskreis"] = wirkungskreis_dateien(bereich, {**dateien, **(extra_code or {})}, paket, bstrassen)

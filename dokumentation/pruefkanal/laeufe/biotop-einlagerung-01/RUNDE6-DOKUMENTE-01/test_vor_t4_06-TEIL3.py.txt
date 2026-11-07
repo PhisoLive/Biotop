@@ -1,0 +1,512 @@
+              "betroffene_enthaltungen": v.get("betroffene_enthaltungen"), "neu_beobachtet": v.get("neu_beobachtet"),
+              "ungedeckt": v.get("ungedeckt")}
+    assert u["status"] == soll, befund
+    if soll == "zurueckgestellt":
+        assert v.get("enthaltung") is True and v.get("tragfaehig") is False and v.get("geurteilt") is False, befund
+        if schluessel is not None:
+            assert schluessel in {**(v.get("ausserhalb") or {}), **(v.get("enthaltungen") or {})}, befund
+    else:
+        assert v.get("geurteilt") is True and v.get("tragfaehig") is True and not v.get("enthaltung"), befund
+    # E und F: überlebt nicht „irgendwie“ — die neue Funktion ist am Kandidaten beobachtet bzw. der selbstrekursive
+    # Helfer gedeckt (an 0c2f058 überlebten beide, ohne dass die Sonde sie sah)
+    if fall == "e_neu_beobachtet":
+        assert f"{PWW}.kern:antwort" in (v.get("neu_beobachtet") or []), befund
+    if fall == "f_selbst":
+        assert f"{PWW}.kern:_stufen" in (v.get("direkt_gedeckt") or []), (befund, v.get("direkt_gedeckt"))
+
+
+W_A = ('"""Werte und eine beobachtete Funktion."""\nimport os\n\nGRENZE = 10\nDOPPELT = GRENZE * 2\n'
+       'TABELLE = {"a": 1}\n_zaehler = [0]\n_stand = 0\n\n\n'
+       'def f(x: int) -> int:\n    return x + GRENZE\n\n\n'
+       'def setze(x: int) -> None:\n    global _stand\n    _stand = x\n\n\n'
+       'if __name__ == "__main__":\n    print(f(1))\n')
+W_B = {"keiner": "def g(x):\n    return x\n",
+       "liest": "from .a import GRENZE\n\n\ndef g(x):\n    return x + GRENZE\n",
+       "doppelt": "from .a import DOPPELT\n\n\ndef g(x):\n    return x + DOPPELT\n",
+       "tabelle": "from paket.m.a import TABELLE as T\n\n\ndef g(k):\n    return T.get(k)\n",
+       "modul": "from . import a as _a\n\n\ndef g(x):\n    return x + _a._stand\n",
+       "stern": "from .a import *  # noqa: F403\n\n\ndef g(x):\n    return x\n"}
+W_MA = "paket.m.a"
+
+
+@pytest.mark.parametrize("fall,leser,alt,neu,last,soll", [
+    ("konstante_aussen", "liest", "GRENZE = 10\n", "GRENZE = 11\n", None, f"{W_MA}:GRENZE"),
+    ("transitiv", "doppelt", "GRENZE = 10\n", "GRENZE = 11\n", None, f"{W_MA}:DOPPELT"),
+    ("eintrag", "tabelle", "_zaehler = [0]\n", 'TABELLE["b"] = 2\n_zaehler = [0]\n', None, f"{W_MA}:TABELLE"),
+    ("global", "modul", "    _stand = x\n", "    _stand = x + 1\n", None, f"{W_MA}:_stand"),
+    ("stern", "stern", "GRENZE = 10\n", "GRENZE = 11\n", None, f"{W_MA}:GRENZE"),
+    ("referenzlast", "keiner", "GRENZE = 10\n", "GRENZE = 11\n", "from paket.m.a import f, GRENZE\nf(GRENZE)",
+     f"{W_MA}:GRENZE"),
+    ("aufruf", "keiner", "import os\n", 'import os\nos.environ.setdefault("MODUS", "streng")\n', None,
+     f"{W_MA}:<modulebene>"),
+    ("if_block", "keiner", "_stand = 0\n", "_stand = 0\nif os.name:\n    _zaehler.append(1)\n", None,
+     f"{W_MA}:<modulebene>"),
+    ("main_else", "keiner", "    print(f(1))\n", "    print(f(1))\nelse:\n    _zaehler.append(2)\n", None,
+     f"{W_MA}:<modulebene>"),
+    ("main_runpy", "keiner", "    print(f(1))\n", "    print(f(2))\n",
+     "import runpy\nfrom paket.m.a import f\nf(1)\nrunpy.run_module('paket.m.a', run_name='__main__')", f"{W_MA}:<__main__>"),
+    ("docstring", "liest", '"""Werte und', '"""Werte (neu) und', None, "geurteilt"),
+    ("main_block", "liest", "    print(f(1))\n", "    print(f(2))\n", None, "geurteilt"),
+    ("kommentar", "liest", "GRENZE = 10\n", "GRENZE = 10  # Gramm\n", None, "geurteilt"),
+    ("innen", "keiner", "GRENZE = 10\n", "GRENZE = 11\n", None, "geurteilt"),
+    ("unveraendert_gelesen", "liest", "    return x + GRENZE\n", "    return GRENZE + x\n", None, "geurteilt"),
+])
+def test_w_c_modulwerte_python_am_organ(tmp_path, monkeypatch, fall, leser, alt, neu, last, soll):
+    """C, Python (Syntaxbaum echt, Sonde gestellt: `f` und `setze` beobachtet, ohne Abweichung). Proben — Enthaltung,
+    der geänderte Modulwert steht in `ausserhalb`: Konstante außen gelesen (`from .a import GRENZE`), transitiv
+    (DOPPELT = GRENZE * 2, außen DOPPELT), Eintrag in ein Modul-dict (außen mit Alias `as T`), `global` in einer
+    beobachteten Funktion (außen `_a._stand`), Sternimport, die Referenzlast liest; Modulrest ohne zuordenbaren Namen
+    (Aufruf, `if`, `__main__`-Block mit `else`, `__main__`-Block, den die Referenzlast über runpy ausführt).
+    Gegenproben — geurteilt, tragfähig: Docstring, `__main__`-Block,
+    Kommentar, nur innerhalb von M gelesen (von der beobachteten `f`), außen gelesener Wert unverändert."""
+    assert W_A.count(alt) == 1, alt
+    w = _werk(tmp_path, W_A)
+    (w / "paket" / "m" / "b.py").write_text(W_B[leser])
+    beob = ["f", "setze"]
+
+    def seite():
+        return {"gueltig": True, "beobachtungen": {f"{W_MA}:{f}#0": "1" for f in beob},
+                "inhalt": {f"{W_MA}:{f}": 1 for f in beob}, "eingewickelt": {W_MA: beob},
+                "muster": {f"{W_MA}:{f}#0": [] for f in beob}}
+    monkeypatch.setattr(vv, "beobachten", lambda *a, **k: seite())
+    r = vv.pruefen(w, {"paket/m/a.py": W_A.replace(alt, neu)}, _ref(last or "from paket.m.a import f, setze\nf(1)"),
+                   ["m"], {})
+    befund = (r.get("grund_art"), r.get("grund"), r.get("ausserhalb"), r.get("enthaltungen"))
+    if soll == "geurteilt":
+        assert r["geurteilt"] is True and r["tragfaehig"] is True and not r.get("enthaltung"), befund
+    else:
+        assert r.get("enthaltung") is True and r["tragfaehig"] is False and r["geurteilt"] is False, befund
+        assert soll in (r.get("ausserhalb") or {}), befund
+
+
+@pytest.mark.parametrize("wurzelmodul,datei,im", [
+    (False, "paket/m/daten.json", True), (False, "paket/m/unter/tabelle.csv", True), (False, "paket/leer.txt", True),
+    (False, "paket/m/a.pyi", True), (False, "README.md", False), (False, "docs/anleitung.md", False),
+    (False, "tests/daten.json", False), (False, "werkzeuge/liste.txt", False), (False, "pyproject.toml", False),
+    (True, "app.cfg", True), (True, "werkzeuge/liste.txt", True), (True, "README.md", False),
+    (True, "CHANGELOG.rst", False), (True, "docs/anleitung.md", False), (True, ".gitignore", False),
+])
+def test_w_d_quellpaket_python_am_organ(tmp_path, monkeypatch, wurzelmodul, datei, im):
+    """D, Python: das Quellpaket ist jedes Verzeichnis mit einem Quellmodul des Werks samt Unterverzeichnissen (hier
+    paket/, paket/m/; mit dem Wurzelmodul `app.py` auch die Wurzel). Eine geänderte Datei darin, die kein Quellmodul ist
+    → Enthaltung, nicht geurteilt; außerhalb (README, docs/, tests/, Werkzeugdateien an der Wurzel) wie bisher „keine
+    Quelländerung“. Der Kandidat ändert nur diese eine Datei."""
+    w = _werk(tmp_path, "def f(x):\n    return x\n")
+    if wurzelmodul:
+        (w / "app.py").write_text("def start():\n    return 1\n")
+    monkeypatch.setattr(vv, "beobachten", lambda *a, **k: pytest.fail("die Sonde darf hier nicht laufen"))
+    r = vv.pruefen(w, {datei: "neu\n"}, "last", ["m"], {})
+    befund = (r.get("grund_art"), r.get("grund"), r.get("ausserhalb"))
+    if im:
+        assert r.get("enthaltung") is True and r["tragfaehig"] is False and r["geurteilt"] is False, befund
+        assert datei in (r.get("ausserhalb") or {}), befund
+    else:
+        assert r["grund_art"] == "keine_quellaenderung" and r["tragfaehig"] is True and not r.get("enthaltung"), befund
+
+
+@pytest.mark.parametrize("datei,enthaltung", [("paket/m/werte.csv", True), ("docs/notiz.md", False)])
+def test_w_d_datei_neben_beobachteter_aenderung_am_organ(tmp_path, monkeypatch, datei, enthaltung):
+    """D, gemischt: der Kandidat ändert eine beobachtete Funktion verhaltensgleich UND eine Datei. Liegt die Datei im
+    Quellpaket, enthält sich der Vergleich (die Sonde beobachtet die Datei nicht); liegt sie außerhalb → geurteilt."""
+    quelle = "def f(x: int) -> int:\n    return x + 1\n"
+    w = _werk(tmp_path, quelle)
+    (w / datei).parent.mkdir(parents=True, exist_ok=True)
+    (w / datei).write_text("a;1\n")
+
+    def seite():
+        return {"gueltig": True, "beobachtungen": {"paket.m.a:f#0": "2"}, "inhalt": {"paket.m.a:f": 1},
+                "eingewickelt": {"paket.m.a": ["f"]}, "muster": {"paket.m.a:f#0": []}}
+    monkeypatch.setattr(vv, "beobachten", lambda *a, **k: seite())
+    r = vv.pruefen(w, {"paket/m/a.py": quelle.replace("x + 1", "1 + x"), datei: "a;2\n"}, "last", ["m"], {})
+    befund = (r.get("grund_art"), r.get("grund"), r.get("ausserhalb"))
+    if enthaltung:
+        assert r.get("enthaltung") is True and r["tragfaehig"] is False and r["geurteilt"] is False, befund
+        assert datei in (r.get("ausserhalb") or {}), befund
+    else:
+        assert r["geurteilt"] is True and r["tragfaehig"] is True and not r.get("enthaltung"), befund
+
+
+W_TS_A = ("import { satz } from '../n/b.js';\n\n"
+          "export const RATE = 19;\n"
+          "export const DOPPELT = RATE * 2;\n"
+          "const INTERN = 3;\n"
+          "export let zaehler = 0;\n\n"
+          "export function f(x: number): number {\n  return x + INTERN;\n}\n\n"
+          "function hilfe(x: number): number {\n  return x * INTERN;\n}\n\n"
+          "export function g(x: number): number {\n  return hilfe(x) + satz;\n}\n\n"
+          "export function k(x: number): number {\n  return x - INTERN;\n}\n\n"
+          "export function zaehle(): number {\n  zaehler += 1;\n  return zaehler;\n}\n\n"
+          "export class Stapel {\n  groesse = 0;\n}\n")
+W_TS_RUMPF = "export const satz = 1;\nexport function h(x: number): number {{\n  return x{};\n}}\n"
+W_TS_LESER = {"keiner": W_TS_RUMPF.format(""),
+              "rate": "import { RATE } from '../m/a.js';\n" + W_TS_RUMPF.format(" * RATE"),
+              "doppelt": "import { DOPPELT as D } from '../m/a.js';\n" + W_TS_RUMPF.format(" * D"),
+              "typ": "import type { RATE } from '../m/a.js';\n" + W_TS_RUMPF.format(""),
+              "stern": "import * as A from '../m/a.js';\n" + W_TS_RUMPF.format(" + A.f(1)"),
+              "zaehler": "import { zaehler } from '../m/a.js';\n" + W_TS_RUMPF.format(" + zaehler")}
+
+
+@pytest.mark.parametrize("fall,leser,alt,neu,soll", [
+    ("export_aussen", "rate", "export const RATE = 19;\n", "export const RATE = 7;\n", "m/a:RATE"),
+    ("transitiv", "doppelt", "export const RATE = 19;\n", "export const RATE = 7;\n", "m/a:DOPPELT"),
+    ("stern", "stern", "export const RATE = 19;\n", "export const RATE = 7;\n", "m/a:RATE"),
+    ("intern_unbeobachtet", "keiner", "const INTERN = 3;\n", "const INTERN = 4;\n", "m/a:INTERN"),
+    ("let_funktion", "zaehler", "  zaehler += 1;\n", "  zaehler += 2;\n", "m/a:zaehler"),
+    ("ausdruck", "keiner", "const INTERN = 3;\n", "const INTERN = 3;\nconsole.log(INTERN);\n", "m/a:<modulebene>"),
+    ("funktion_unbeobachtet", "keiner", "  return x - INTERN;\n", "  return x - INTERN - 0;\n", "m/a:k"),
+    ("klasse", "keiner", "  groesse = 0;\n", "  groesse = 1;\n", "m/a:Stapel"),
+    ("gegen_typ", "typ", "export const RATE = 19;\n", "export const RATE = 7;\n", "geurteilt"),
+    ("gegen_ungelesen", "keiner", "export const RATE = 19;\n", "export const RATE = 7;\n", "geurteilt"),
+    ("gegen_funktion", "rate", "  return x + INTERN;\n", "  return INTERN + x;\n", "geurteilt"),
+    ("gegen_hilfe", "keiner", "  return x * INTERN;\n", "  return INTERN * x;\n", "geurteilt"),
+    ("gegen_let", "keiner", "  zaehler += 1;\n", "  zaehler += 2;\n", "geurteilt"),
+])
+def test_w_c_modulwerte_typescript_am_organ(tmp_path, monkeypatch, fall, leser, alt, neu, soll):
+    """C, TypeScript am Organ mit gestellter Sonde (wie test_b3_ts_*; ohne Parser). Proben — Enthaltung, der Schlüssel
+    steht in `ausserhalb`: eine geänderte exportierte const-Deklaration, gelesen über `import { N }` in einem anderen
+    Modul (auch mit Alias, transitiv, `import * as`); nicht verlässlich bestimmbar und darum Enthaltung: ein Wert, den
+    die nicht beobachtete exportierte Funktion `k` liest, eine `let`-Bindung, die eine geänderte Funktion schreibt und ein
+    anderes Modul liest, eine Anweisung der Modulebene ohne Namen, die geänderte nicht beobachtete Funktion `k`, die
+    geänderte Klasse `Stapel` (die TS-Sonde wickelt Klassen nicht ein). Gegenproben — geurteilt: nur `import type` liest
+    den Wert; niemand liest ihn; nur die beobachtete `f` geändert; der nicht exportierte Helfer `hilfe`, den nur die
+    beobachtete `g` ruft; die geschriebene `let`-Bindung liest nur die beobachtete `zaehle`. Sonde gestellt: f, g und
+    zaehle beobachtet, ohne Abweichung."""
+    assert W_TS_A.count(alt) == 1, alt
+    w = tmp_path / "ts"
+    (w / "src" / "m").mkdir(parents=True)
+    (w / "src" / "n").mkdir(parents=True)
+    (w / "package.json").write_text('{"type":"module"}')
+    (w / "src" / "m" / "a.ts").write_text(W_TS_A)
+    (w / "src" / "n" / "b.ts").write_text(W_TS_LESER[leser])
+    fs = ["f", "g", "zaehle"]
+
+    def seite():
+        return {"gueltig": True, "beobachtungen": {f"m/a:{f}#0": "1" for f in fs},
+                "inhalt": {f"m/a:{f}": 1 for f in fs}, "eingewickelt": {"m/a": fs + ["k"]},
+                "muster": {f"m/a:{f}#0": [] for f in fs}}
+    monkeypatch.setattr(vv, "beobachten", lambda *a, **k: seite())
+    r = vv.pruefen(w, {"src/m/a.ts": W_TS_A.replace(alt, neu)}, "export function last_m() {}\n", ["m"], {})
+    befund = (r.get("grund_art"), r.get("grund"), r.get("ausserhalb"))
+    if soll == "geurteilt":
+        assert r["geurteilt"] is True and r["tragfaehig"] is True and not r.get("enthaltung"), befund
+    else:
+        assert r.get("enthaltung") is True and r["tragfaehig"] is False and r["geurteilt"] is False, befund
+        assert soll in (r.get("ausserhalb") or {}), befund
+
+
+@pytest.mark.parametrize("fall", ["a_unbeobachtet", "b_vorgeneration", "d_datei", "d_readme"])
+def test_w_abd_typescript_am_organ(tmp_path, monkeypatch, fall):
+    """A, B, D gelten für beide Sprachen — TypeScript am Organ, Sonde gestellt: geändertes Modul, 0 von 2 Funktionen
+    beobachtet → Enthaltung (an 0c2f058 und nach S1b tragfähig, ohne Enthaltung); Vorgeneration mit Inhalt nicht
+    beobachtbar → Enthaltung; Datendatei unter src/ → Enthaltung; Gegenprobe README.md → keine Quelländerung."""
+    w = _ts_werk(tmp_path)
+    code = {"src/m/a.ts": "export function f(x: number): number {\n  return x + 0;\n}\n"}
+    seite = None
+    if fall == "a_unbeobachtet":
+        seite = {"gueltig": True, "beobachtungen": {"korpus:last_m": "1"}, "inhalt": {},
+                 "eingewickelt": {"m/a": ["f"], "n/b": ["g"]}}
+    elif fall == "b_vorgeneration":
+        seite = {"gueltig": False, "art": "inhalt", "grund": "Modul lässt sich nicht einwickeln"}
+    else:
+        code = {"src/m/tarife.json": '{"grund": 1}\n'} if fall == "d_datei" else {"README.md": "# neu\n"}
+    monkeypatch.setattr(vv, "beobachten", (lambda *a, **k: dict(seite)) if seite is not None else
+                        (lambda *a, **k: pytest.fail("die Sonde darf hier nicht laufen")))
+    r = vv.pruefen(w, code, "export function last_m() {}\n", ["m"], {})
+    befund = (r.get("grund_art"), r.get("grund"), r.get("ausserhalb"))
+    if fall == "d_readme":
+        assert r["grund_art"] == "keine_quellaenderung" and r["tragfaehig"] is True and not r.get("enthaltung"), befund
+    else:
+        assert r.get("enthaltung") is True and r["tragfaehig"] is False and r["geurteilt"] is False, befund
+        if fall == "d_datei":
+            assert "src/m/tarife.json" in (r.get("ausserhalb") or {}), befund
+
+
+W_EF = ("def _r(x):\n    return x if x < 1 else _r(x - 1)\n\n\n"
+        "def _p(x):\n    return x if x < 1 else _q(x - 1)\n\n\n"
+        "def _q(x):\n    return x if x < 1 else _p(x - 1)\n\n\n"
+        "def oben(x):\n    return _r(x) + _p(x)\n")
+
+
+@pytest.mark.parametrize("fall,alt,neu,soll", [
+    ("selbst", "    return x if x < 1 else _r(x - 1)\n", "    return x if 1 > x else _r(x - 1)\n", "gedeckt"),
+    ("gegenseitig", "    return x if x < 1 else _q(x - 1)\n", "    return x if 1 > x else _q(x - 1)\n", "paket.m.a:_p"),
+    ("neu_beobachtet", "def oben(x):\n", "def neu(x):\n    return x\n\n\ndef oben(x):\n", "neu"),
+    ("neu_unbeobachtet", "def oben(x):\n", "def neu(x):\n    return x\n\n\ndef oben(x):\n", "paket.m.a:neu"),
+])
+def test_w_ef_regel_am_organ(tmp_path, monkeypatch, fall, alt, neu, soll):
+    """E und F an der Deckungsregel (Syntaxbaum echt, Sonde gestellt). F: `_r` ruft sich selbst und wird nur von der
+    beobachteten `oben` gerufen → gedeckt, geurteilt, tragfähig; gegenseitige Rekursion `_p`/`_q` → nicht gedeckt,
+    Enthaltung. E: die neue öffentliche Funktion `neu` hat am Kandidaten Korpusbeobachtungen mit Inhalt (die Sonde ruft
+    am Kandidaten auch neue Funktionen mit Randfällen) → sie gilt als beobachtet; ihre Randfälle sind kein Verhalten
+    des bestehenden Codes (keine Abweichung, wie die Randfälle entfernter Funktionen) → geurteilt, tragfähig. Ohne
+    Beobachtung am Kandidaten → M2(b) wie bisher (Enthaltung)."""
+    assert W_EF.count(alt) == 1, alt
+    w = _werk(tmp_path, W_EF)
+
+    def seite(kandidat):
+        beob = {"paket.m.a:oben#0": "1"}
+        inhalt = {"paket.m.a:oben": 1}
+        if kandidat and fall == "neu_beobachtet":
+            beob["paket.m.a:neu~rand#0"] = "1"
+            inhalt["paket.m.a:neu"] = 1
+        return {"gueltig": True, "beobachtungen": beob, "inhalt": inhalt,
+                "eingewickelt": {"paket.m.a": sorted(k.split(":")[1].split("#")[0].split("~")[0] for k in beob)},
+                "muster": {k: [] for k in beob}}
+    monkeypatch.setattr(vv, "beobachten", lambda werk, dateien, *a, **k: seite(bool(dateien)))
+    r = vv.pruefen(w, {"paket/m/a.py": W_EF.replace(alt, neu)}, "last", ["m"], {"tests": [], "aufrufe": []})
+    befund = (r.get("grund_art"), r.get("grund"), r.get("enthaltungen"), r.get("neu_beobachtet"),
+              r.get("direkt_gedeckt"), r.get("ungedeckt"))
+    if soll in ("gedeckt", "neu"):
+        assert r["geurteilt"] is True and r["tragfaehig"] is True and not r.get("enthaltung"), befund
+        if soll == "gedeckt":
+            assert "paket.m.a:_r" in (r.get("direkt_gedeckt") or []), befund
+        else:
+            assert "paket.m.a:neu" in (r.get("neu_beobachtet") or []), befund
+    else:
+        assert r.get("enthaltung") is True and r["grund_art"] == "betroffene_funktion_enthaelt_sich", befund
+        assert (r.get("enthaltungen") or {}).get(soll, "").startswith("betroffen, von der Sonde nicht beobachtet"), befund
+
+
+W_A2 = ('"""Werte, Register, Klasse (S1c Nachtrag)."""\nimport functools\nimport os\n\nREG = {}\nGRENZE = 10\n'
+        'os.environ.setdefault("W_S1C", "1")\n\n\n'
+        'def _reg(name):\n    def d(f):\n        REG[name] = f\n        return f\n    return d\n\n\n'
+        'def f(x: int) -> int:\n    return x + GRENZE\n\n\n'
+        'def merke(k: str) -> int:\n    REG[k] = 1\n    return len(REG)\n\n\n'
+        'class Konfig:\n    RATE = 19\n\n    def satz(self) -> int:\n        return self.RATE\n\n\n'
+        'def rate() -> int:\n    return Konfig.RATE\n\n\n'
+        '@_reg("eins")\ndef eins() -> int:\n    return 1\n\n\n'
+        '@functools.lru_cache(maxsize=2)\ndef zwei() -> int:\n    return 2\n')
+W_B2 = {"keiner": "def g(x):\n    return x\n",
+        "reg": "from .a import REG\n\n\ndef g(k):\n    return REG.get(k)\n",
+        "konfig": "from .a import Konfig\n\n\ndef g():\n    return Konfig.RATE\n"}
+W_BEOB2 = ["f", "merke", "rate", "Konfig.satz", "eins", "zwei"]
+
+
+@pytest.mark.parametrize("fall,leser,alt,neu,ohne,soll", [
+    ("mutation", "reg", "    REG[k] = 1\n", "    REG[k] = 2\n", [], f"{W_MA}:REG"),
+    ("klassenwert", "konfig", "    RATE = 19\n", "    RATE = 7\n", [], f"{W_MA}:Konfig.RATE"),
+    ("klassenwert_leser_unbeobachtet", "keiner", "    RATE = 19\n", "    RATE = 7\n", ["rate"], f"{W_MA}:rate"),
+    ("klassenkopf", "konfig", "class Konfig:\n", "class Konfig(dict):\n", [], f"{W_MA}:Konfig"),
+    ("frei_liest", "keiner", "GRENZE = 10\n", "GRENZE = 11\n", [], f"{W_MA}:<modulebene>"),
+    ("dekorator", "keiner", '@_reg("eins")\n', '@_reg("zwei")\n', [], f"{W_MA}:<modulebene>"),
+    ("mutation_innen", "keiner", "    REG[k] = 1\n", "    REG[k] = 2\n", [], "geurteilt"),
+    ("klassenwert_innen", "keiner", "    RATE = 19\n", "    RATE = 7\n", [], "geurteilt"),
+    ("dekorator_harmlos", "keiner", "@functools.lru_cache(maxsize=2)\n", "@functools.lru_cache(maxsize=4)\n", [],
+     "geurteilt"),
+])
+def test_w_c_nachtrag_python_am_organ(tmp_path, monkeypatch, fall, leser, alt, neu, ohne, soll):
+    """C, Python, Nachtrag S1c (Auslegungen S1c, strenger als der Wortlaut — dieselbe Klasse „Wirkung außerhalb der
+    Beobachtung“). Proben — Enthaltung: eine geänderte beobachtete Funktion verändert ein Modulobjekt (`REG[k] = …`), das
+    ein anderes Modul liest; ein geänderter Klassenwert (`Konfig.RATE`), den ein anderes Modul liest; derselbe
+    Klassenwert, gelesen von der nicht beobachteten Modulfunktion `rate` (Leser in M → wie M2(b)); ein geänderter
+    Klassenkopf (Basis), die Klasse außen gelesen; eine Anweisung der Modulebene ohne Namen, die einen geänderten Wert
+    liest (`os.environ.setdefault(…, str(GRENZE))`); ein geänderter Dekorator mit Wirkung beim Import (`@_reg`).
+    Gegenproben — geurteilt: dieselbe Veränderung ohne Leser außerhalb (nur die beobachtete `merke` liest REG, `_reg`
+    schreibt nur); der Klassenwert nur von beobachteten Funktionen gelesen; ein Dekorator ohne Wirkung beim Import
+    (`lru_cache`) geändert. Sonde gestellt: alle Funktionen außer `ohne` beobachtet, ohne Abweichung."""
+    quelle = W_A2
+    if fall == "frei_liest":
+        quelle = quelle.replace('os.environ.setdefault("W_S1C", "1")\n', 'os.environ.setdefault("W_S1C", str(GRENZE))\n')
+    assert quelle.count(alt) == 1, alt
+    w = _werk(tmp_path, quelle)
+    (w / "paket" / "m" / "b.py").write_text(W_B2[leser])
+    beob = [f for f in W_BEOB2 if f not in ohne]
+
+    def seite():
+        return {"gueltig": True, "beobachtungen": {f"{W_MA}:{f}#0": "1" for f in beob},
+                "inhalt": {f"{W_MA}:{f}": 1 for f in beob}, "eingewickelt": {W_MA: W_BEOB2},
+                "muster": {f"{W_MA}:{f}#0": [] for f in beob}}
+    monkeypatch.setattr(vv, "beobachten", lambda *a, **k: seite())
+    r = vv.pruefen(w, {"paket/m/a.py": quelle.replace(alt, neu)}, _ref("from paket.m.a import f\nf(1)"), ["m"], {})
+    befund = (r.get("grund_art"), r.get("grund"), r.get("ausserhalb"), r.get("betroffene_enthaltungen"))
+    if soll == "geurteilt":
+        assert r["geurteilt"] is True and r["tragfaehig"] is True and not r.get("enthaltung"), befund
+    else:
+        assert r.get("enthaltung") is True and r["tragfaehig"] is False and r["geurteilt"] is False, befund
+        assert soll in {**(r.get("ausserhalb") or {}), **(r.get("betroffene_enthaltungen") or {})}, befund
+
+
+@pytest.mark.parametrize("fall", ["vorhanden", "neu"])
+def test_w_b_modul_der_vorgeneration_laedt_nicht_am_organ(tmp_path, monkeypatch, fall):
+    """B, teilweise (Auslegung S1c): der Kandidat ändert zwei Module; `c` lädt an der Vorgeneration nicht (die Sonde meldet
+    es in `nicht_ladbar`), `a` wird beobachtet. vorhanden: `c` gibt es an der Vorgeneration, es lädt an beiden Ständen
+    nicht, der Kandidat ändert dort nur einen Wert, den niemand liest — seine Wirkung ist nicht beobachtbar → Enthaltung
+    `<ladbar>` (an 0c2f058 und nach S1b: geurteilt, tragfähig). neu: `c` ist neu; seine öffentliche Funktion ist am
+    Kandidaten beobachtet (E) → geurteilt, tragfähig. Sonde gestellt, Syntaxbaum echt."""
+    w = _werk(tmp_path, "def f(x: int) -> int:\n    return x + 1\n")
+    code = {"paket/m/a.py": "def f(x: int) -> int:\n    return 1 + x\n"}
+    if fall == "vorhanden":
+        (w / "paket" / "m" / "c.py").write_text("import nicht_da  # noqa: F401\n\nWERT = 1\n")
+        code["paket/m/c.py"] = "import nicht_da  # noqa: F401\n\nWERT = 2\n"
+    else:
+        code["paket/m/c.py"] = "def h(x: int) -> int:\n    return x\n"
+
+    def seite(kandidat):
+        beob = {"paket.m.a:f#0": "2"}
+        inhalt = {"paket.m.a:f": 1}
+        eing = {"paket.m.a": ["f"]}
+        if kandidat and fall == "neu":
+            beob["paket.m.c:h~rand#0"] = "0"
+            inhalt["paket.m.c:h"] = 1
+            eing["paket.m.c"] = ["h"]
+        ladbar = {} if kandidat and fall == "neu" else {"nicht_ladbar": {"paket.m.c": "ModuleNotFoundError: nicht_da"}}
+        return {"gueltig": True, "beobachtungen": beob, "inhalt": inhalt, "eingewickelt": eing,
+                "muster": {k: [] for k in beob}, **ladbar}
+    monkeypatch.setattr(vv, "beobachten", lambda werk, dateien, *a, **k: seite(bool(dateien)))
+    r = vv.pruefen(w, code, "last", ["m"], {"tests": [], "aufrufe": []})
+    befund = (r.get("grund_art"), r.get("grund"), r.get("ausserhalb"), r.get("neu_beobachtet"),
+              r.get("betroffene_enthaltungen"))
+    if fall == "vorhanden":
+        assert r.get("enthaltung") is True and r["tragfaehig"] is False and r["geurteilt"] is False, befund
+        assert "paket.m.c:<ladbar>" in (r.get("ausserhalb") or {}), befund
+    else:
+        assert r["geurteilt"] is True and r["tragfaehig"] is True and not r.get("enthaltung"), befund
+        assert "paket.m.c:h" in (r.get("neu_beobachtet") or []), befund
+
+
+
+# ---------------------------------------------------------------- S1c, Teil G (Nachtrag n7): Schreiben in fremde Module
+# Befund S1c 17:14 (/tmp/r6-s1c/befund-fremdschreiben-*.txt): eine beobachtete, geänderte Funktion schreibt in ein
+# importiertes Modul (`konst.RATE = 7`) oder ruft dort eine schreibende Funktion (`konst.setze_rate(7)`); ein anderes,
+# unverändertes Modul liest den Wert — die Sonde beobachtet Rückgabe und Argumentzustand, nicht den Zustand fremder
+# Module: „9 von 9 beobachtet“, geurteilt, `ueberlebt` (stiller Durchlass der Klasse „Wirkung außerhalb der Beobachtung“).
+W_G_K = ("RATE = 19\nREG = []\n\n\n"
+         "def setze(r: int) -> None:\n    global RATE\n    RATE = r\n\n\n"
+         "def lies() -> int:\n    return RATE\n")
+W_G_A = ('"""G: Funktionen, die in fremde Module schreiben (S1c)."""\nfrom . import k\nfrom .k import REG as R\n\n'
+         "STAND = [0]\n\n\n"
+         "def f(x: int) -> int:\n    k.RATE = 19\n    return x\n\n\n"
+         "def g(x: int) -> int:\n    R.append(x)\n    return x\n\n\n"
+         "def ruft(x: int) -> int:\n    k.setze(19)\n    return x\n\n\n"
+         "def liest(x: int) -> int:\n    return k.lies() + x\n\n\n"
+         "def lokal(k: list) -> int:\n    k.append(1)\n    return len(k)\n\n\n"
+         "def _merke(x: int) -> None:\n    STAND[0] = x\n\n\n"
+         "def stelle(x: int) -> int:\n    _merke(x)\n    return x\n\n\n"
+         "def h(x: int) -> int:\n    return x + 1\n")
+W_G_B = "from .a import STAND\n\n\ndef zeige() -> int:\n    return STAND[0]\n"
+W_G_BEOB = ["f", "g", "ruft", "liest", "lokal", "stelle", "h"]
+
+
+@pytest.mark.parametrize("fall,alt,neu,soll", [
+    ("attribut", "    k.RATE = 19\n", "    k.RATE = 7\n", f"{W_MA}:<schreibt:k>"),
+    ("methode", "    R.append(x)\n", "    R.append(x + 1)\n", f"{W_MA}:<schreibt:R>"),
+    ("setattr", "    k.RATE = 19\n", '    setattr(k, "RATE", 7)\n', f"{W_MA}:<schreibt:k>"),
+    ("globals", "    return x + 1\n", '    globals()["ZUSATZ"] = x\n    return x + 1\n', f"{W_MA}:<schreibt:globals()>"),
+    ("ruft_fremd", "    k.setze(19)\n", "    k.setze(7)\n", f"{W_MA}:<ruft:paket.m.k:setze>"),
+    ("ruft_innen", "    _merke(x)\n", "    _merke(x + 1)\n", f"{W_MA}:STAND"),
+    ("gegen_lokal", "    k.append(1)\n", "    k.append(2)\n", "geurteilt"),
+    ("gegen_liest", "    return k.lies() + x\n", "    return x + k.lies()\n", "geurteilt"),
+    ("gegen_rein", "    return x + 1\n", "    return 1 + x\n", "geurteilt"),
+])
+def test_w_g_schreiben_in_fremde_module_python_am_organ(tmp_path, monkeypatch, fall, alt, neu, soll):
+    """G, Python (Auslegung S1c, dieselbe Klasse; Syntaxbaum echt, Sonde gestellt: alle öffentlichen Funktionen von `a`
+    beobachtet, ohne Abweichung). Proben — Enthaltung, Schlüssel in `ausserhalb`: eine geänderte Funktion schreibt in
+    ein importiertes Modul (`k.RATE = …`, `setattr(k, …)`), verändert ein importiertes Objekt (`R.append`, R = k.REG),
+    schreibt über `globals()`, ruft eine schreibende Funktion eines anderen Moduls (`k.setze`), ruft einen schreibenden
+    Helfer im eigenen Modul (`_merke` schreibt STAND, `b` liest STAND → C). Gegenproben — geurteilt: der Parameter `k`
+    verdeckt das Modul (Argumentzustand beobachtet die Sonde), die gerufene fremde Funktion schreibt nicht (`k.lies`),
+    eine Änderung ohne jedes Schreiben."""
+    assert W_G_A.count(alt) == 1, alt
+    w = _werk(tmp_path, W_G_A)
+    (w / "paket" / "m" / "k.py").write_text(W_G_K)
+    (w / "paket" / "m" / "b.py").write_text(W_G_B)
+
+    def seite():
+        return {"gueltig": True, "beobachtungen": {f"{W_MA}:{f}#0": "1" for f in W_G_BEOB},
+                "inhalt": {f"{W_MA}:{f}": 1 for f in W_G_BEOB}, "eingewickelt": {W_MA: W_G_BEOB},
+                "muster": {f"{W_MA}:{f}#0": [] for f in W_G_BEOB}}
+    monkeypatch.setattr(vv, "beobachten", lambda *a, **k: seite())
+    r = vv.pruefen(w, {"paket/m/a.py": W_G_A.replace(alt, neu)}, _ref("from paket.m.a import f\nf(1)"), ["m"], {})
+    befund = (r.get("grund_art"), r.get("grund"), r.get("ausserhalb"), r.get("betroffene_enthaltungen"))
+    if soll == "geurteilt":
+        assert r["geurteilt"] is True and r["tragfaehig"] is True and not r.get("enthaltung"), befund
+    else:
+        assert r.get("enthaltung") is True and r["tragfaehig"] is False and r["geurteilt"] is False, befund
+        assert soll in {**(r.get("ausserhalb") or {}), **(r.get("betroffene_enthaltungen") or {})}, befund
+
+
+W_TS_GK = ("export const REG: number[] = [];\nexport let RATE = 19;\n\n"
+           "export function setze(r: number): void {\n  RATE = r;\n}\n\n"
+           "export function lies(): number {\n  return RATE;\n}\n")
+W_TS_GA = ("import { REG, setze, lies } from '../n/k.js';\n\n"
+           "export function f(x: number): number {\n  REG.push(x);\n  return x;\n}\n\n"
+           "export function r(x: number): number {\n  setze(x);\n  return x;\n}\n\n"
+           "export function l(x: number): number {\n  return lies() + x;\n}\n")
+
+
+@pytest.mark.parametrize("fall,alt,neu,soll", [
+    ("methode", "  REG.push(x);\n", "  REG.push(x + 1);\n", "m/a:<schreibt:REG>"),
+    ("ruft_fremd", "  setze(x);\n", "  setze(x + 1);\n", "m/a:<ruft:n/k:setze>"),
+    ("gegen_liest", "  return lies() + x;\n", "  return x + lies();\n", "geurteilt"),
+])
+def test_w_g_schreiben_in_fremde_module_typescript_am_organ(tmp_path, monkeypatch, fall, alt, neu, soll):
+    """G, TypeScript am Organ mit gestellter Sonde (ohne Parser): eine geänderte, beobachtete Funktion verändert ein
+    importiertes Objekt (`REG.push`) bzw. ruft eine importierte Funktion, die den Zustand ihres Moduls schreibt
+    (`setze` schreibt `RATE`) → Enthaltung. Gegenprobe: die gerufene importierte Funktion schreibt nicht (`lies`) →
+    geurteilt. Sonde gestellt: f, r, l beobachtet, ohne Abweichung."""
+    assert W_TS_GA.count(alt) == 1, alt
+    w = tmp_path / "ts"
+    (w / "src" / "m").mkdir(parents=True)
+    (w / "src" / "n").mkdir(parents=True)
+    (w / "package.json").write_text('{"type":"module"}')
+    (w / "src" / "m" / "a.ts").write_text(W_TS_GA)
+    (w / "src" / "n" / "k.ts").write_text(W_TS_GK)
+    fs = ["f", "r", "l"]
+
+    def seite():
+        return {"gueltig": True, "beobachtungen": {f"m/a:{f}#0": "1" for f in fs},
+                "inhalt": {f"m/a:{f}": 1 for f in fs}, "eingewickelt": {"m/a": fs},
+                "muster": {f"m/a:{f}#0": [] for f in fs}}
+    monkeypatch.setattr(vv, "beobachten", lambda *a, **k: seite())
+    r = vv.pruefen(w, {"src/m/a.ts": W_TS_GA.replace(alt, neu)}, "export function last_m() {}\n", ["m"], {})
+    befund = (r.get("grund_art"), r.get("grund"), r.get("ausserhalb"))
+    if soll == "geurteilt":
+        assert r["geurteilt"] is True and r["tragfaehig"] is True and not r.get("enthaltung"), befund
+    else:
+        assert r.get("enthaltung") is True and r["tragfaehig"] is False and r["geurteilt"] is False, befund
+        assert soll in (r.get("ausserhalb") or {}), befund
+
+
+W_G_KONST = ("RATE = 19\n\n\ndef setze_rate(r: int) -> None:\n    global RATE\n    RATE = r\n\n\n"
+             "def rate() -> int:\n    return RATE\n")
+W_G_LESER = "from . import konst\n\n\ndef brutto(cent: int) -> int:\n    return cent + cent * konst.RATE // 100\n"
+W_G_SETZE = "\n\nfrom . import konst  # noqa: E402\n\n\ndef setze(x: int) -> int:\n    konst.RATE = 19\n    return x\n"
+W_G_LAST = ("    from probewerk.werk.kern import setze\n    from probewerk.werk.leser import brutto\n"
+            "    from probewerk.werk.konst import rate, setze_rate\n"
+            "    for i in range(6):\n        setze(i)\n        brutto(100 * i)\n        rate()\n    setze_rate(19)\n")
+W_G_FAELLE = {
+    # Befund 17:14, Variante „schreibt“: `setze` (beobachtet) schreibt konst.RATE; leser.brutto liest ihn
+    "g_schreibt": (W_G_SETZE, W_G_SETZE.replace("konst.RATE = 19", "konst.RATE = 7"), "zurueckgestellt",
+                   f"{PWW}.kern:<schreibt:konst>"),
+    # Befund 17:18, Variante „ruft“: `setze` ruft die schreibende konst.setze_rate
+    "g_ruft": (W_G_SETZE.replace("konst.RATE = 19", "konst.setze_rate(19)"),
+               W_G_SETZE.replace("konst.RATE = 19", "konst.setze_rate(7)"), "zurueckgestellt",
+               f"{PWW}.kern:<ruft:{PWW}.konst:setze_rate>"),
+    # Gegenprobe: `setze` ruft nur die lesende konst.rate, verhaltensgleich umgeschrieben → geurteilt, überlebt
+    "g_gegen": (W_G_SETZE.replace("    konst.RATE = 19\n    return x\n", "    return x + 0 * konst.rate()\n"),
+                W_G_SETZE.replace("    konst.RATE = 19\n    return x\n", "    return 0 * konst.rate() + x\n"),
+                "ueberlebt", None),
+}
+
+
+@pytest.mark.parametrize("fall", list(W_G_FAELLE))
+def test_w_g_schreiben_in_fremde_module_durch_aegis(tmp_path, monkeypatch, fall):
+    """G durch aegis.pruefen in der echten Kammer (Prüfwerk probewerk, gestellt nur Modell und Laufzeit): die zwei
+    gemessenen Befunde (schreibt, ruft) → zurückgestellt, `enthaltung` True (am Baum vor G: `ueberlebt`, geurteilt
+    „9 von 9“); Gegenprobe: `setze` ruft nur eine lesende Funktion → überlebt, geurteilt."""
+    alt, neu, soll, schluessel = W_G_FAELLE[fall]
+    kern_alt, kern_neu = R3.QUELLE + alt, R3.QUELLE + neu
+    monkeypatch.setattr(R3, "QUELLE", kern_alt)
+    monkeypatch.setattr(R3, "REFERENZLAST", R3.REFERENZLAST + W_G_LAST)
+    diff = _w_diff(kern_alt, kern_neu, "probewerk/werk/kern.py")
+    u, v = R3._pruefen(tmp_path, monkeypatch, diff, werk_extra={"probewerk/werk/konst.py": W_G_KONST,
+                                                                "probewerk/werk/leser.py": W_G_LESER})
+    befund = {"status": u["status"], "grund": str(u.get("grund"))[:500], "grund_art": v.get("grund_art"),
+              "enthaltung": v.get("enthaltung"), "tragfaehig": v.get("tragfaehig"), "geurteilt": v.get("geurteilt"),
+              "beobachtet": v.get("beobachtete_funktionen"), "ausserhalb": v.get("ausserhalb")}
+    assert u["status"] == soll, befund
+    if soll == "zurueckgestellt":
+        assert v.get("enthaltung") is True and v.get("tragfaehig") is False and v.get("geurteilt") is False, befund
+        assert schluessel in (v.get("ausserhalb") or {}), befund
+    else:
+        assert v.get("geurteilt") is True and v.get("tragfaehig") is True and not v.get("enthaltung"), befund

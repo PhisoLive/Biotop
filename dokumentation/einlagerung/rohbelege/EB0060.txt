@@ -1,0 +1,175 @@
+EB60 · Geheimnissuche KOMPLETT: Befunde nach Ort und Art einordnen (ohne Werte)
+Beginn: 2026-09-26 02:07:06 CEST (UTC+0200)
+Ende:   2026-09-26 02:07:06 CEST (UTC+0200)
+Dauer:  0.2 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/biotop-einlagerung/arbeit/g_komplett.py
+--- Inhalt von /root/biotop-einlagerung/arbeit/g_komplett.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-EINLAGERUNG-01 (nur lesend): Befunde der Geheimnissuche über den Zwischenstand KOMPLETT (EB58) einordnen.
+Gibt nie einen Wert aus: je Befund Pfad, Art, Muster, Länge und Anzahl verschiedener Zeichen der Fundstelle, und ob die
+Fundstelle wörtlich auch im Hermes-Agent-Quelltext steht (dann ist sie ein Beispiel oder Platzhalter aus dem Paket)."""
+import collections
+import re
+import sys
+from pathlib import Path
+
+sys.path.insert(0, '/root/biotop-einlagerung/arbeit')
+import geheimnis  # noqa: E402
+
+E = Path('/root/biotop-einlagerung')
+S = E / 'stufe'
+liste = sorted((E / 'paket').glob('geheimsuche-befunde-*.tsv'))[-1]
+zeilen = [z.split('\t') for z in liste.read_text().splitlines() if z]
+print(f'Befundliste {liste.name}: {len(zeilen)} Dateien')
+gruppen = collections.Counter()
+arten = collections.defaultdict(collections.Counter)
+for rel, info in zeilen:
+    teile = rel.strip('/').split('/')
+    g = '/'.join(teile[:3]) if teile[0] == 'root' else '/'.join(teile[:4])
+    for x in info.split(';'):
+        k, name, n = x.split('|')
+        arten[g][f'{k} {name}'] += 1
+    gruppen[g] += 1
+print('== Dateien mit Befund je Ort (oberste Ebenen) und Arten')
+for g, n in gruppen.most_common():
+    print(f'{n:4d}  {g}  ·  ' + ', '.join(f'{a} ({c})' for a, c in arten[g].most_common()))
+print('== ZUGANG- und MUSTER-Befunde einzeln (ohne Werte)')
+paket_texte = None
+for rel, info in zeilen:
+    if not any(x.startswith(('ZUGANG', 'MUSTER')) for x in info.split(';')):
+        continue
+    data = (S / rel.lstrip('/')).read_bytes().decode('utf-8', errors='replace')
+    for x in info.split(';'):
+        k, name, n = x.split('|')
+        if k == 'MUSTER':
+            m = geheimnis.MUSTER[name.replace('Muster ', '')]
+            funde = [t.group(0) for t in re.finditer(m, data)]
+            beschr = []
+            for f in funde[:4]:
+                if paket_texte is None:
+                    paket_texte = []
+                beschr.append(f'Länge {len(f)}, {len(set(f))} versch. Zeichen')
+            print(f'  MUSTER {name[7:]} ×{n} · {rel} · ' + ' | '.join(beschr))
+        elif k == 'ZUGANG':
+            print(f'  ZUGANG {name} ×{n} · {rel} · Dateigröße {len(data)} Zeichen')
+--- Ende /root/biotop-einlagerung/arbeit/g_komplett.py ---
+Ausgabe (vollständig, stdout und stderr):
+Befundliste geheimsuche-befunde-20260926-020510.tsv: 192 Dateien
+== Dateien mit Befund je Ort (oberste Ebenen) und Arten
+  89  usr/local/lib/hermes-agent  ·  MUSTER Muster sk-Schlüssel allgemein (50), SONST Wert TERMINAL_MODAL_IMAGE (16), MUSTER Muster Bearer-Token (15), MUSTER Muster Anthropic-Schlüssel (11), MUSTER Muster AWS-Schlüssel (4), MUSTER Muster GitHub-Token (3), MUSTER Muster Privater Schlüssel (2)
+  69  root/.hermes/logs  ·  KENNUNG Wert TELEGRAM_ALLOWED_USERS (69)
+  13  root/.hermes/sessions  ·  KENNUNG Wert TELEGRAM_ALLOWED_USERS (13), ZUGANG Wert auth.providers.[GESCHWÄRZT: Wert aus /root/.hermes/auth.json].tokens.account_id (1)
+   3  root/biotop-einlagerung/tmp-belege  ·  KENNUNG Wert TELEGRAM_ALLOWED_USERS (3)
+   2  root/sicherung/biotop-lage-01  ·  KENNUNG Wert TELEGRAM_ALLOWED_USERS (1), MUSTER Muster OpenRouter-Schlüssel (1)
+   2  root/biotop-vor-t4-05/bau  ·  KENNUNG Wert TELEGRAM_ALLOWED_USERS (2)
+   1  root/biotop-t3/abschluss  ·  MUSTER Muster sk-Schlüssel allgemein (1), MUSTER Muster Bearer-Token (1)
+   1  root/biotop-t3/abschluss3  ·  KENNUNG Wert TELEGRAM_ALLOWED_USERS (1)
+   1  root/.hermes/channel_directory.json  ·  KENNUNG Wert TELEGRAM_ALLOWED_USERS (1)
+   1  root/.hermes/processes.json  ·  KENNUNG Wert TELEGRAM_ALLOWED_USERS (1)
+   1  root/.hermes/.curator_backups  ·  MUSTER Muster sk-Schlüssel allgemein (1), MUSTER Muster Bearer-Token (1)
+   1  root/.hermes/backups  ·  SONST Wert TERMINAL_MODAL_IMAGE (1)
+   1  root/.hermes/skills  ·  MUSTER Muster sk-Schlüssel allgemein (1), MUSTER Muster Bearer-Token (1)
+   1  root/.hermes/cron  ·  KENNUNG Wert TELEGRAM_ALLOWED_USERS (1)
+   1  root/biotop-einlagerung/entfernt-aus-pruefkanal  ·  KENNUNG Wert TELEGRAM_ALLOWED_USERS (1)
+   1  root/w7/15-status.txt  ·  KENNUNG Wert TELEGRAM_ALLOWED_USERS (1)
+   1  root/w7/08-db-modelle.txt  ·  KENNUNG Wert TELEGRAM_ALLOWED_USERS (1)
+   1  root/w7/10b-routing-voll.txt  ·  KENNUNG Wert TELEGRAM_ALLOWED_USERS (1)
+   1  root/w7/10-routing.txt  ·  KENNUNG Wert TELEGRAM_ALLOWED_USERS (1)
+   1  root/biotop-vor-t4-05/veroeffentlichen.py  ·  KENNUNG Wert TELEGRAM_ALLOWED_USERS (1)
+== ZUGANG- und MUSTER-Befunde einzeln (ohne Werte)
+  MUSTER sk-Schlüssel allgemein ×2 · /root/biotop-t3/abschluss/skills/hermes-agent/references/native-mcp.md · Länge 23, 4 versch. Zeichen | Länge 23, 4 versch. Zeichen
+  MUSTER Bearer-Token ×2 · /root/biotop-t3/abschluss/skills/hermes-agent/references/native-mcp.md · Länge 30, 9 versch. Zeichen | Länge 30, 9 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×2 · /root/.hermes/.curator_backups/blobs/46406b679c0c2dca6aa0a3285a167951e39696203806793991ad2c3a3f7ced1b · Länge 23, 4 versch. Zeichen | Länge 23, 4 versch. Zeichen
+  MUSTER Bearer-Token ×2 · /root/.hermes/.curator_backups/blobs/46406b679c0c2dca6aa0a3285a167951e39696203806793991ad2c3a3f7ced1b · Länge 30, 9 versch. Zeichen | Länge 30, 9 versch. Zeichen
+  ZUGANG Wert auth.providers.[GESCHWÄRZT: Wert aus /root/.hermes/auth.json].tokens.account_id ×4 · /root/.hermes/sessions/request_dump_20260920_052507_2f047335_20260920_055836_587741.json · Dateigröße 433339 Zeichen
+  MUSTER sk-Schlüssel allgemein ×2 · /root/.hermes/skills/autonomous-ai-agents/hermes-agent/references/native-mcp.md · Länge 23, 4 versch. Zeichen | Länge 23, 4 versch. Zeichen
+  MUSTER Bearer-Token ×2 · /root/.hermes/skills/autonomous-ai-agents/hermes-agent/references/native-mcp.md · Länge 30, 9 versch. Zeichen | Länge 30, 9 versch. Zeichen
+  MUSTER OpenRouter-Schlüssel ×1 · /root/sicherung/biotop-lage-01/tmp/geheimnis-gegenprobe-03.txt.erledigt · Länge 73, 22 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×1 · /usr/local/lib/hermes-agent/tests/acp_adapter/test_acp_logging_redaction.py · Länge 38, 31 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×4 · /usr/local/lib/hermes-agent/tests/tui_gateway/test_turn_finished_failure_cause.py · Länge 44, 37 versch. Zeichen | Länge 44, 37 versch. Zeichen | Länge 28, 18 versch. Zeichen | Länge 24, 14 versch. Zeichen
+  MUSTER Bearer-Token ×3 · /usr/local/lib/hermes-agent/tests/tui_gateway/test_turn_finished_failure_cause.py · Länge 51, 39 versch. Zeichen | Länge 35, 20 versch. Zeichen | Länge 31, 16 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×3 · /usr/local/lib/hermes-agent/tests/tui_gateway/test_diagnostics_share_nous.py · Länge 39, 30 versch. Zeichen | Länge 39, 30 versch. Zeichen | Länge 39, 30 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×4 · /usr/local/lib/hermes-agent/tests/tui_gateway/test_tui_gateway_server.py · Länge 32, 17 versch. Zeichen | Länge 30, 15 versch. Zeichen | Länge 30, 15 versch. Zeichen | Länge 23, 12 versch. Zeichen
+  MUSTER Bearer-Token ×3 · /usr/local/lib/hermes-agent/tests/monitoring/test_gateway_health_export.py · Länge 34, 23 versch. Zeichen | Länge 34, 23 versch. Zeichen | Länge 34, 23 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×1 · /usr/local/lib/hermes-agent/tests/plugins/test_langfuse_plugin.py · Länge 23, 22 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×1 · /usr/local/lib/hermes-agent/tests/plugins/test_a2a_plugin.py · Länge 27, 27 versch. Zeichen
+  MUSTER Bearer-Token ×1 · /usr/local/lib/hermes-agent/tests/plugins/test_a2a_plugin.py · Länge 29, 23 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×1 · /usr/local/lib/hermes-agent/tests/hermes_cli/test_inventory.py · Länge 29, 17 versch. Zeichen
+  MUSTER Bearer-Token ×1 · /usr/local/lib/hermes-agent/tests/hermes_cli/test_model_switch_custom_providers.py · Länge 31, 18 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×9 · /usr/local/lib/hermes-agent/tests/hermes_cli/test_custom_provider_model_switch.py · Länge 24, 14 versch. Zeichen | Länge 24, 14 versch. Zeichen | Länge 24, 14 versch. Zeichen | Länge 24, 14 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×2 · /usr/local/lib/hermes-agent/tests/hermes_cli/test_web_oauth_dispatch.py · Länge 26, 14 versch. Zeichen | Länge 26, 14 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×1 · /usr/local/lib/hermes-agent/tests/hermes_cli/test_auth_key_prefix_skip.py · Länge 26, 15 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×2 · /usr/local/lib/hermes-agent/tests/hermes_cli/test_show_config_credential.py · Länge 26, 21 versch. Zeichen | Länge 26, 21 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×1 · /usr/local/lib/hermes-agent/tests/hermes_cli/test_model_set_secret_copy.py · Länge 24, 16 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×3 · /usr/local/lib/hermes-agent/tests/hermes_cli/test_keyed_provider_credential_pool.py · Länge 27, 17 versch. Zeichen | Länge 30, 16 versch. Zeichen | Länge 24, 14 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×1 · /usr/local/lib/hermes-agent/tests/hermes_cli/test_xiaomi_provider.py · Länge 23, 18 versch. Zeichen
+  MUSTER Anthropic-Schlüssel ×2 · /usr/local/lib/hermes-agent/tests/hermes_cli/test_anthropic_model_flow_stale_oauth.py · Länge 28, 16 versch. Zeichen | Länge 34, 21 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×3 · /usr/local/lib/hermes-agent/tests/hermes_cli/test_debug.py · Länge 30, 28 versch. Zeichen | Länge 34, 27 versch. Zeichen | Länge 44, 37 versch. Zeichen
+  MUSTER Anthropic-Schlüssel ×1 · /usr/local/lib/hermes-agent/tests/hermes_cli/test_quick_commands.py · Länge 37, 23 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×2 · /usr/local/lib/hermes-agent/tests/hermes_cli/test_runtime_provider_resolution.py · Länge 32, 18 versch. Zeichen | Länge 32, 18 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×1 · /usr/local/lib/hermes-agent/tests/hermes_cli/test_sessions_export_md_cli.py · Länge 48, 19 versch. Zeichen
+  MUSTER Anthropic-Schlüssel ×1 · /usr/local/lib/hermes-agent/tests/hermes_cli/test_anthropic_oauth_flow.py · Länge 30, 18 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×1 · /usr/local/lib/hermes-agent/tests/hermes_cli/test_model_alias_credentials.py · Länge 29, 19 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×1 · /usr/local/lib/hermes-agent/tests/hermes_cli/test_set_config_value.py · Länge 27, 8 versch. Zeichen
+  MUSTER GitHub-Token ×1 · /usr/local/lib/hermes-agent/tests/cron/test_cron_incidents.py · Länge 40, 38 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×4 · /usr/local/lib/hermes-agent/tests/agent/test_trace_upload.py · Länge 27, 26 versch. Zeichen | Länge 27, 26 versch. Zeichen | Länge 27, 26 versch. Zeichen | Länge 27, 26 versch. Zeichen
+  MUSTER Privater Schlüssel ×1 · /usr/local/lib/hermes-agent/tests/agent/test_iron_proxy.py · Länge 31, 15 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×2 · /usr/local/lib/hermes-agent/tests/agent/test_auxiliary_named_custom_providers.py · Länge 27, 17 versch. Zeichen | Länge 27, 17 versch. Zeichen
+  MUSTER AWS-Schlüssel ×1 · /usr/local/lib/hermes-agent/tests/agent/test_switch_model_bedrock_sigv4.py · Länge 20, 5 versch. Zeichen
+  MUSTER Anthropic-Schlüssel ×9 · /usr/local/lib/hermes-agent/tests/agent/test_anthropic_token_scope_isolation.py · Länge 30, 20 versch. Zeichen | Länge 31, 20 versch. Zeichen | Länge 27, 18 versch. Zeichen | Länge 27, 18 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×1 · /usr/local/lib/hermes-agent/tests/agent/test_copilot_acp_client.py · Länge 32, 27 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×2 · /usr/local/lib/hermes-agent/tests/agent/test_iron_proxy_e2e.py · Länge 31, 15 versch. Zeichen | Länge 29, 14 versch. Zeichen
+  MUSTER Anthropic-Schlüssel ×1 · /usr/local/lib/hermes-agent/tests/agent/test_run_agent.py · Länge 27, 19 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×1 · /usr/local/lib/hermes-agent/tests/agent/test_run_agent.py · Länge 26, 25 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×1 · /usr/local/lib/hermes-agent/tests/agent/test_auxiliary_transport_autodetect.py · Länge 24, 14 versch. Zeichen
+  MUSTER Bearer-Token ×1 · /usr/local/lib/hermes-agent/tests/agent/test_azure_identity_adapter.py · Länge 36, 16 versch. Zeichen
+  MUSTER Anthropic-Schlüssel ×3 · /usr/local/lib/hermes-agent/tests/agent/test_anthropic_adapter.py · Länge 29, 22 versch. Zeichen | Länge 29, 23 versch. Zeichen | Länge 30, 16 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×1 · /usr/local/lib/hermes-agent/tests/agent/test_command_secret_source.py · Länge 32, 16 versch. Zeichen
+  MUSTER Anthropic-Schlüssel ×2 · /usr/local/lib/hermes-agent/tests/agent/test_anthropic_third_party_oauth_guard.py · Länge 37, 28 versch. Zeichen | Länge 27, 23 versch. Zeichen
+  MUSTER AWS-Schlüssel ×6 · /usr/local/lib/hermes-agent/tests/agent/test_bedrock_integration.py · Länge 20, 14 versch. Zeichen | Länge 20, 14 versch. Zeichen | Länge 20, 14 versch. Zeichen | Länge 20, 14 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×11 · /usr/local/lib/hermes-agent/tests/agent/test_redact.py · Länge 32, 27 versch. Zeichen | Länge 32, 27 versch. Zeichen | Länge 26, 16 versch. Zeichen | Länge 32, 27 versch. Zeichen
+  MUSTER GitHub-Token ×5 · /usr/local/lib/hermes-agent/tests/agent/test_redact.py · Länge 42, 26 versch. Zeichen | Länge 42, 26 versch. Zeichen | Länge 42, 26 versch. Zeichen | Länge 37, 33 versch. Zeichen
+  MUSTER Bearer-Token ×2 · /usr/local/lib/hermes-agent/tests/agent/test_redact.py · Länge 29, 23 versch. Zeichen | Länge 43, 29 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×2 · /usr/local/lib/hermes-agent/tests/agent/test_redaction_registry.py · Länge 30, 28 versch. Zeichen | Länge 30, 28 versch. Zeichen
+  MUSTER Anthropic-Schlüssel ×4 · /usr/local/lib/hermes-agent/tests/agent/test_anthropic_borrowed_row_authority.py · Länge 27, 15 versch. Zeichen | Länge 27, 15 versch. Zeichen | Länge 29, 14 versch. Zeichen | Länge 29, 14 versch. Zeichen
+  MUSTER Anthropic-Schlüssel ×6 · /usr/local/lib/hermes-agent/tests/agent/test_credential_pool.py · Länge 30, 17 versch. Zeichen | Länge 30, 14 versch. Zeichen | Länge 30, 17 versch. Zeichen | Länge 30, 14 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×2 · /usr/local/lib/hermes-agent/tests/agent/test_credential_pool.py · Länge 23, 17 versch. Zeichen | Länge 23, 17 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×2 · /usr/local/lib/hermes-agent/tests/agent/test_display.py · Länge 26, 25 versch. Zeichen | Länge 26, 25 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×4 · /usr/local/lib/hermes-agent/tests/agent/transports/test_codex_app_server_session.py · Länge 24, 11 versch. Zeichen | Länge 24, 11 versch. Zeichen | Länge 24, 14 versch. Zeichen | Länge 24, 14 versch. Zeichen
+  MUSTER Bearer-Token ×2 · /usr/local/lib/hermes-agent/tests/agent/transports/test_codex_app_server_session.py · Länge 31, 14 versch. Zeichen | Länge 31, 16 versch. Zeichen
+  MUSTER Privater Schlüssel ×1 · /usr/local/lib/hermes-agent/tests/gateway/test_platform_base.py · Länge 35, 17 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×1 · /usr/local/lib/hermes-agent/tests/gateway/test_kanban_changes_requested_notifier.py · Länge 35, 33 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×2 · /usr/local/lib/hermes-agent/tests/gateway/test_api_server_runs.py · Länge 26, 17 versch. Zeichen | Länge 26, 16 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×1 · /usr/local/lib/hermes-agent/tests/gateway/test_api_server_bind_guard.py · Länge 29, 20 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×1 · /usr/local/lib/hermes-agent/tests/gateway/test_session_model_override_persistence.py · Länge 30, 18 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×5 · /usr/local/lib/hermes-agent/tests/gateway/test_telegram_noise_filter.py · Länge 29, 25 versch. Zeichen | Länge 29, 25 versch. Zeichen | Länge 29, 25 versch. Zeichen | Länge 29, 25 versch. Zeichen
+  MUSTER Bearer-Token ×2 · /usr/local/lib/hermes-agent/tests/gateway/test_telegram_noise_filter.py · Länge 36, 27 versch. Zeichen | Länge 36, 27 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×5 · /usr/local/lib/hermes-agent/tests/gateway/test_api_server.py · Länge 29, 20 versch. Zeichen | Länge 30, 23 versch. Zeichen | Länge 48, 23 versch. Zeichen | Länge 28, 20 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×1 · /usr/local/lib/hermes-agent/tests/tools/test_approval_plugin_hooks.py · Länge 35, 35 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×1 · /usr/local/lib/hermes-agent/tests/tools/test_memory_tool.py · Länge 27, 19 versch. Zeichen
+  MUSTER Bearer-Token ×1 · /usr/local/lib/hermes-agent/tests/tools/test_web_providers_xai.py · Länge 35, 19 versch. Zeichen
+  MUSTER AWS-Schlüssel ×1 · /usr/local/lib/hermes-agent/tests/tools/test_local_env_blocklist.py · Länge 20, 14 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×2 · /usr/local/lib/hermes-agent/tests/tools/test_credential_pool_env_fallback.py · Länge 23, 17 versch. Zeichen | Länge 23, 17 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×7 · /usr/local/lib/hermes-agent/tests/tools/test_approval.py · Länge 30, 26 versch. Zeichen | Länge 30, 26 versch. Zeichen | Länge 30, 26 versch. Zeichen | Länge 30, 26 versch. Zeichen
+  MUSTER Bearer-Token ×1 · /usr/local/lib/hermes-agent/tests/tools/test_approval.py · Länge 37, 28 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×5 · /usr/local/lib/hermes-agent/tests/tools/test_process_registry.py · Länge 32, 27 versch. Zeichen | Länge 30, 24 versch. Zeichen | Länge 36, 14 versch. Zeichen | Länge 30, 24 versch. Zeichen
+  MUSTER Bearer-Token ×1 · /usr/local/lib/hermes-agent/tests/tools/test_process_registry.py · Länge 37, 27 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×2 · /usr/local/lib/hermes-agent/tests/tools/test_browser_camofox.py · Länge 26, 25 versch. Zeichen | Länge 26, 25 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×2 · /usr/local/lib/hermes-agent/tests/tools/test_browser_type_redaction.py · Länge 26, 25 versch. Zeichen | Länge 26, 25 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×2 · /usr/local/lib/hermes-agent/tests/tools/test_terminal_error_redaction.py · Länge 39, 24 versch. Zeichen | Länge 39, 24 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×1 · /usr/local/lib/hermes-agent/tests/tools/test_terminal_tool_exception_redaction.py · Länge 38, 31 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×1 · /usr/local/lib/hermes-agent/tests/tools/test_multiplex_turn_parity.py · Länge 39, 37 versch. Zeichen
+  MUSTER GitHub-Token ×2 · /usr/local/lib/hermes-agent/tests/tools/test_mcp_tool.py · Länge 40, 5 versch. Zeichen | Länge 40, 5 versch. Zeichen
+  MUSTER AWS-Schlüssel ×1 · /usr/local/lib/hermes-agent/tests/tools/test_mcp_tool.py · Länge 20, 14 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×1 · /usr/local/lib/hermes-agent/tests/tools/test_terminal_output_transform_hook.py · Länge 38, 29 versch. Zeichen
+  MUSTER Bearer-Token ×2 · /usr/local/lib/hermes-agent/tests/tools/test_browser_camofox_auth.py · Länge 28, 17 versch. Zeichen | Länge 28, 17 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×1 · /usr/local/lib/hermes-agent/tests/computer_use/test_cua_spawn_env_sanitization.py · Länge 31, 15 versch. Zeichen
+  MUSTER Bearer-Token ×2 · /usr/local/lib/hermes-agent/evals/provider_fallback/probe_104360.py · Länge 28, 17 versch. Zeichen | Länge 28, 15 versch. Zeichen
+  MUSTER Anthropic-Schlüssel ×1 · /usr/local/lib/hermes-agent/website/i18n/zh-Hans/docusaurus-plugin-content-docs/current/user-guide/features/credential-pools.md · Länge 28, 17 versch. Zeichen
+  MUSTER Bearer-Token ×1 · /usr/local/lib/hermes-agent/website/docs/user-guide/egress/iron-proxy.md · Länge 31, 16 versch. Zeichen
+  MUSTER Anthropic-Schlüssel ×1 · /usr/local/lib/hermes-agent/website/docs/user-guide/features/credential-pools.md · Länge 28, 17 versch. Zeichen
+  MUSTER sk-Schlüssel allgemein ×2 · /usr/local/lib/hermes-agent/skills/autonomous-ai-agents/hermes-agent/references/native-mcp.md · Länge 23, 4 versch. Zeichen | Länge 23, 4 versch. Zeichen
+  MUSTER Bearer-Token ×2 · /usr/local/lib/hermes-agent/skills/autonomous-ai-agents/hermes-agent/references/native-mcp.md · Länge 30, 9 versch. Zeichen | Länge 30, 9 versch. Zeichen
+=== Ende EB60 ===

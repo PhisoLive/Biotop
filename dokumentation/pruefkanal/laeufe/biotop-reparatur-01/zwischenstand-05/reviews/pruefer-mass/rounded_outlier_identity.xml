@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="3" time="0.129" timestamp="2026-09-20T16:41:54.899861+02:00" hostname="ubuntu"><testcase classname="tests.test_rauschmessung" name="test_aussetzer_wird_ungekuerzt_entfernt_und_einmal_ersetzt" time="0.020"><failure message="assert 5 == 6&#10; +  where 5 = len([True, True, True, True, True])">db_lauf = &lt;sqlite3.Connection object at 0x7cc1bb1323e0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x7cc1bb12fa40&gt;
+
+    def test_aussetzer_wird_ungekuerzt_entfernt_und_einmal_ersetzt(db_lauf, monkeypatch):
+        werte = iter([1., 1., 1., 1., 9.8765, 1.])
+        aufrufe = []
+        def messen(*args):
+            aufrufe.append(True)
+            return {"alpha": next(werte)}
+        monkeypatch.setattr(eichung, "_messen_einmal", messen)
+        r = eichung.rauschmessung(db_lauf, 1, 1, Path("."), ["alpha"], "paket", "# Last")
+&gt;       assert len(aufrufe) == 6
+E       assert 5 == 6
+E        +  where 5 = len([True, True, True, True, True])
+
+tests/test_rauschmessung.py:29: AssertionError</failure></testcase><testcase classname="tests.test_rauschmessung" name="test_gescheitertes_nachmessen_sperrt_den_bereich[9.8765]" time="0.020"><failure message="assert 5 == 6&#10; +  where 5 = len([True, True, True, True, True])">db_lauf = &lt;sqlite3.Connection object at 0x7cc1bb1322f0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x7cc1bb157a40&gt;
+ersatz = 9.8765
+
+    @pytest.mark.parametrize("ersatz", [9.8765, None])
+    def test_gescheitertes_nachmessen_sperrt_den_bereich(db_lauf, monkeypatch, ersatz):
+        werte = iter([1., 1., 1., 1., 9.8765, ersatz])
+        aufrufe = []
+        def messen(*args):
+            aufrufe.append(True)
+            return {"alpha": next(werte)}
+        monkeypatch.setattr(eichung, "_messen_einmal", messen)
+        r = eichung.rauschmessung(db_lauf, 1, 1, Path("."), ["alpha"], "paket", "# Last")
+        assert r["lauf_startet"] is False
+        assert r["gesperrt"] == ["alpha"]
+        assert r["toleranz"] == {}
+&gt;       assert len(aufrufe) == 6
+E       assert 5 == 6
+E        +  where 5 = len([True, True, True, True, True])
+
+tests/test_rauschmessung.py:47: AssertionError</failure></testcase><testcase classname="tests.test_rauschmessung" name="test_gescheitertes_nachmessen_sperrt_den_bereich[None]" time="0.016"><failure message="assert 5 == 6&#10; +  where 5 = len([True, True, True, True, True])">db_lauf = &lt;sqlite3.Connection object at 0x7cc1bb132980&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x7cc1bb1570b0&gt;
+ersatz = None
+
+    @pytest.mark.parametrize("ersatz", [9.8765, None])
+    def test_gescheitertes_nachmessen_sperrt_den_bereich(db_lauf, monkeypatch, ersatz):
+        werte = iter([1., 1., 1., 1., 9.8765, ersatz])
+        aufrufe = []
+        def messen(*args):
+            aufrufe.append(True)
+            return {"alpha": next(werte)}
+        monkeypatch.setattr(eichung, "_messen_einmal", messen)
+        r = eichung.rauschmessung(db_lauf, 1, 1, Path("."), ["alpha"], "paket", "# Last")
+        assert r["lauf_startet"] is False
+        assert r["gesperrt"] == ["alpha"]
+        assert r["toleranz"] == {}
+&gt;       assert len(aufrufe) == 6
+E       assert 5 == 6
+E        +  where 5 = len([True, True, True, True, True])
+
+tests/test_rauschmessung.py:47: AssertionError</failure></testcase></testsuite></testsuites>

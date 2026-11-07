@@ -1,0 +1,18 @@
+# Enger Nachtrag zu Vorbedingung 1 — vor Ausführung festgelegt
+
+## Auftrag Philipps
+Vorige Revision nicht abgenommen. Dieser Nachtrag bringt ausschließlich K2689 zur Ausführung und weist anschließend den Doppelungsanteil erneut aus. Ein vollständiger unabhängiger Reviewdurchgang mit großzügigem, VOR Start geprüftem Zeitlimit. Budget 2,00 EUR hart. Neue Revision nach-reparatur-02/abschluss-02; alte versiegelte Bytes bleiben erhalten.
+
+## Abgrenzung und Zählung — eigene Festlegung vor dem Nachtragsversuch
+- Kein natürlicher Neustart oder Fortsetzen von Lauf 26. Er bleibt gesättigt mit dem historischen Sammlungsabbruch. Ein isolierter Wiederholungsnachweis am eingefrorenen Gen0-/Kandidatenstand wird als solcher bezeichnet, nicht als rückwirkend reparierter natürlicher Lauf.
+- Ursache laut Originalcode: Import des nicht vorhandenen FormelFehemer; tatsächlicher Export lautet FormelFehler. Zuerst Original mit der echten Kammer reproduzieren. Dann ausschließlich den Import in einer separaten Nachtragskopie korrigieren; Testkörper, Name, zwei Assertions, Argumente, Kandidatendiff und Behauptungsableitung bleiben unverändert.
+- Population bleibt die vollständige, geordnete Liste aller elf ursprünglich erzeugten Testidentitäten. Für die Reparaturauswertung wird nur die Quellfassung derselben Identität K2689 ersetzt, keine Identität gelöscht oder als zusätzlicher natürlicher Test erfunden. Historischer und nachgebesserter Anteil werden beide berechnet; alle Originale bleiben enthalten. Wiederholte Ausführungsversuche und gestellte Gegenproben sind keine neuen vom Ankläger erzeugten Testfunktionen. Kein Herausnehmen fehlerhafter, normativer oder bestandener Tests.
+- Unveränderter Zähler zaehlen.py mit aegis.behauptung; Schwelle strikt unter 20 Prozent. Ergebnis gilt auch bei Überschreitung. Zusätzlich IDs/Behauptungen vor/nach vergleichen und jede Änderung offenlegen.
+- Gültige Ausführung verlangt äußeres Kammerende, inneren pytest-Exit, vollständige Sammlung/call/teardown, kein Skip, keine Collection-Fehler und JUnit desselben Aufrufs. Je ein Lauf am historischen Basisstand und am originalen Kandidatendiff. Gegenprobe: in einer Wegwerfkopie denselben Gleichheitsoperator gezielt falsch rechnen lassen; dieselbe Testfunktion muss mit ausgeführter Assertion fehlschlagen. Keine Mutation der gespeicherten Werk-/DB-/Quellstände.
+- Keine Biotop-/Anbieteraufrufe erforderlich oder erlaubt: Modellbudget 2 EUR wird durch null neue Modellaufrufe geschont; DB-Kassenstände vor/nach lesen. Träger-/Reviewer- und Hostkosten sind nicht als kostenlos gemessen und bleiben separat als monetär nicht ermittelt ausgewiesen.
+
+## Reviewgrenze vor Start
+Ein vollständiger lesender Review des ursprünglichen Abschlusses samt eng begrenztem Nachtrag. Eigene großzügige Grenze: 1800 Sekunden (30 Minuten), interne Abschlussreserve ab 1500 Sekunden. Vor Start muss eine Vorprüfung die reale Delegationsgrenze und den Plan abgleichen; keine nachträgliche Grenzänderung. Keine zweite Review- oder Fixrunde. Ein negativer vollständiger Review ist ein vollständiges Urteil, keine Erlaubnis zur Kaskade.
+
+## Nicht Teil dieses Auftrags
+9 von 11 Ansage-/Erzeugnisschlüssel weichen ab. Philipps Wertung: Vorab-Ansage als Filter entwertet, fünfte Wiederkehr der Fehlerklasse Ankündigung statt Sache. Eigener Auftrag erst NACH Vorbedingung 2. Keine Reparatur oder neue Gegenmesskampagne dazu. 19 Außenorte, vier Phase-4-Lücken, acht semantische und 45 breite ungeklärte Kandidatenzeilen bleiben offen. Keine neuen Forderungen an natürliche Immunisierung als stiller Zusatz zu Philipps enger Nachtragsabnahme; der fehlende neue Behebungsgegenstand bleibt historisch benannt, wird nicht grün erfunden.

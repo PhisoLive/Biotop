@@ -1,0 +1,29 @@
+Vor T4, Runde 5: Vollständigkeitsprüfung, fallende Zusicherung, Ausfall je Funktion, Register und Tor-4-Skript, Stufe 2 überall
+
+    Behebungsrunde 5 vor T4 — Klassen statt Fälle (Entscheidungen Chat-Claude 24.09.2026 zum Review 04):
+    - Entscheidung 1 (Vollständigkeitsprüfung): kern/py/verhalten.py kan() erfasst alle Datenattribute (__dict__ und Slots
+      der ganzen Hierarchie unter gespeicherten, auch verschleierten Namen) und prüft danach gegen object.__getstate__;
+      fehlt etwas (auch Iterator-Objekt, gekappter Iterator, Objekt nur mit Standarddarstellung) → `unvollstaendig`,
+      verhaltensvergleich enthält sich (grund_art unvollstaendig_erfasst), aegis stellt zurück — nie „0 Abweichungen,
+      tragfähig“. os.PathLike über os.fspath als Wert. TS-Kanon: private Felder, nicht aufzählbare/Symbol-Eigenschaften,
+      eingebaute Objekte ohne Daten → unvollständig; RegExp/URL/Puffer als Werte. ITER_KAPPE 50 → 1000 (Py und TS).
+    - Entscheidung 2: festhalten = fallende Zusicherung im Test (Python: reprcrash AssertionError/Failed in der
+      Testdatei; TS: AssertionError, erste Werkstelle unter tests/); jede andere Ausnahme ist 'fehler'.
+    - Entscheidung 3: Sondenausfall nur der betroffenen Funktion — die Python-Sonde grenzt per os.fork aus dem Zustand vor
+      der Last (Halbierung) die Funktion ein, deren Einwicklung den Lastabbruch auslöst; sie wird durchlässig und enthält
+      sich, der Lauf geht weiter; TS: die Funktionen der abbrechenden Last enthalten sich. Ersetzt werden nur echte
+      Iteratoren (Generatoren, eingebaute ohne Datenattribute; nicht csv.DictReader, nicht groupby).
+    - Entscheidung 4: hängt jede ungedeckte Abweichung an einer ausgelassenen Verfälschungsprobe (Kappe) → Enthaltung mit
+      Grund (grund_art verfaelschungskappe), aegis stellt zurück, gezählt.
+    - Entscheidung 5: kern/register.py (verlangte Aufrufe mit Aufrufer und Phase), Verdrahtungstest verlangt jeden
+      Eintrag; biotop/tor4.py (Tor-4-Skript, `biotop tor4 <lauf> --altlasten`) ruft gegenzeugen.torzeile_schwaechen;
+      Normalvergleich einer Altlast = Verhalten der Vorgeneration über den Verhaltensvergleich, verhaltensändernde
+      Altlast braucht einen unabhängigen Test aus der Liste.
+    - Entscheidung 6: Vorspann verweigert ohne Stufe 2; Stufe-2-Last eingang W 60 → 240 (gemessen: 0 von 8 Sperren).
+    - Entscheidung 7: Lastaufrufe tragen die Formmerkmale ihrer Eingabe (Py und TS).
+    - Entscheidung 8: Eichproben, Ausgangsmaß, Generalprobe und gespeicherte Maße an Stufe 2 (laufzeit_stufe im Maß);
+      Ausschluss eigener Tests nach Testkennung inkl. Parametrisierung (aegis.ist_eigener_test; parametrisierte
+      Kandidatentests werden aufgenommen); Nachspiel als echter Durchlauf im Verdrahtungstest.
+    - tests/test_vor_t4_05.py (neu); tests angepasst: drahtwerk (Stufe 2, Altlasten), test_verdrahtung (Register, tor4,
+      Nachspiel, Stufe).
+    Kein Modellaufruf, kein Lauf.

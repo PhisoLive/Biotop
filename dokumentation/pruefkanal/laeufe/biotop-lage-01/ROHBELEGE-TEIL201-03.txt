@@ -1,0 +1,593 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 03 · Teil 201 (Teile 166–239 dieses Stands) · enthält R196 bis R196
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+[R196 · Fortsetzung, Stück 19 von 22]
+        Kandidat ändert `_Konto.buchen`, die Last ruft `buchen`), dunder (`Geld.__add__`, Last `Geld(i) + Geld(2)`),
+        nicht_erreicht (geänderte öffentliche Funktion `nie`, von Korpus und Last nicht erreicht) — X selbst gezählt
+        „betroffen, von der Sonde nicht beobachtet“; wert_verdeckt (privater Helfer `_schluessel`, von `ordnung` als Wert
+        zurückgegeben, geändert) — die Enthaltungen nennen `_schluessel` (selbst oder als Wert «…» der Lieferantin; am Stand
+        nach dem Nachtrag zu E2/E3 schon zurückgestellt, an 0c2f058 nicht). Gegenproben: verdeckt_gegen und dunder_gegen
+        (nur eine andere öffentliche Funktion verhaltensgleich geändert) — geurteilt, tragfähig; helfer_gedeckt (`_runden`,
+        gerufen von der beobachteten `preis`, verhaltensgleich) — tragfähig; helfer_sichtbar (derselbe Helfer mit
+        Verhaltensänderung) — abgelehnt an der Aufruferin; nicht_erreicht_gegen (`nie` unverändert) — gezählt („nicht
+        erreicht“), tragfähig."""
+        alt, ersatz, soll, name, selbst = M2_FAELLE[fall]
+        assert M2_QUELLE.count(alt) == 1, alt
+        neu = M2_QUELLE.replace(alt, ersatz)
+        monkeypatch.setattr(R3, "QUELLE", M2_QUELLE)
+        monkeypatch.setattr(R3, "REFERENZLAST", M2_LAST)
+>       u, v = R3._pruefen(tmp_path, monkeypatch, R3._diff(M2_QUELLE, neu))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_06.py:927: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_m2_direkt_geaendert_und_u4')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c078f3e0>
+diff = '--- a/probewerk/werk/kern.py\n+++ b/probewerk/werk/kern.py\n@@ -80,7 +80,7 @@\n \n \n def _runden(x: float) -> int:\n-    return int(x + 0.5)\n+    return int(0.5 + x)\n \n \n def preis(netto: float) -> int:\n'
+nische = 'schnell', werk_extra = None
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+__________ test_m2_direkt_geaendert_und_unbeobachtet[helfer_sichtbar] __________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_m2_direkt_geaendert_und_u5')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0cb28a0>
+fall = 'helfer_sichtbar'
+
+    @pytest.mark.parametrize("fall", list(M2_FAELLE))
+    def test_m2_direkt_geaendert_und_unbeobachtet(tmp_path, monkeypatch, fall):
+        """Durch aegis.pruefen in der echten Kammer (Prüfwerk probewerk + M2_QUELLE, Last M2_LAST). Proben (zurückgestellt,
+        grund_art betroffene_funktion_enthaelt_sich): verdeckt (öffentliche Fabrik liefert eine `_Konto`-Instanz, der
+        Kandidat ändert `_Konto.buchen`, die Last ruft `buchen`), dunder (`Geld.__add__`, Last `Geld(i) + Geld(2)`),
+        nicht_erreicht (geänderte öffentliche Funktion `nie`, von Korpus und Last nicht erreicht) — X selbst gezählt
+        „betroffen, von der Sonde nicht beobachtet“; wert_verdeckt (privater Helfer `_schluessel`, von `ordnung` als Wert
+        zurückgegeben, geändert) — die Enthaltungen nennen `_schluessel` (selbst oder als Wert «…» der Lieferantin; am Stand
+        nach dem Nachtrag zu E2/E3 schon zurückgestellt, an 0c2f058 nicht). Gegenproben: verdeckt_gegen und dunder_gegen
+        (nur eine andere öffentliche Funktion verhaltensgleich geändert) — geurteilt, tragfähig; helfer_gedeckt (`_runden`,
+        gerufen von der beobachteten `preis`, verhaltensgleich) — tragfähig; helfer_sichtbar (derselbe Helfer mit
+        Verhaltensänderung) — abgelehnt an der Aufruferin; nicht_erreicht_gegen (`nie` unverändert) — gezählt („nicht
+        erreicht“), tragfähig."""
+        alt, ersatz, soll, name, selbst = M2_FAELLE[fall]
+        assert M2_QUELLE.count(alt) == 1, alt
+        neu = M2_QUELLE.replace(alt, ersatz)
+        monkeypatch.setattr(R3, "QUELLE", M2_QUELLE)
+        monkeypatch.setattr(R3, "REFERENZLAST", M2_LAST)
+>       u, v = R3._pruefen(tmp_path, monkeypatch, R3._diff(M2_QUELLE, neu))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_06.py:927: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_m2_direkt_geaendert_und_u5')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0cb28a0>
+diff = '--- a/probewerk/werk/kern.py\n+++ b/probewerk/werk/kern.py\n@@ -80,7 +80,7 @@\n \n \n def _runden(x: float) -> int:\n-    return int(x + 0.5)\n+    return int(x)\n \n \n def preis(netto: float) -> int:\n'
+nische = 'schnell', werk_extra = None
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+__________ test_m2_direkt_geaendert_und_unbeobachtet[nicht_erreicht] ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_m2_direkt_geaendert_und_u6')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0d1b560>
+fall = 'nicht_erreicht'
+
+    @pytest.mark.parametrize("fall", list(M2_FAELLE))
+    def test_m2_direkt_geaendert_und_unbeobachtet(tmp_path, monkeypatch, fall):
+        """Durch aegis.pruefen in der echten Kammer (Prüfwerk probewerk + M2_QUELLE, Last M2_LAST). Proben (zurückgestellt,
+        grund_art betroffene_funktion_enthaelt_sich): verdeckt (öffentliche Fabrik liefert eine `_Konto`-Instanz, der
+        Kandidat ändert `_Konto.buchen`, die Last ruft `buchen`), dunder (`Geld.__add__`, Last `Geld(i) + Geld(2)`),
+        nicht_erreicht (geänderte öffentliche Funktion `nie`, von Korpus und Last nicht erreicht) — X selbst gezählt
+        „betroffen, von der Sonde nicht beobachtet“; wert_verdeckt (privater Helfer `_schluessel`, von `ordnung` als Wert
+        zurückgegeben, geändert) — die Enthaltungen nennen `_schluessel` (selbst oder als Wert «…» der Lieferantin; am Stand
+        nach dem Nachtrag zu E2/E3 schon zurückgestellt, an 0c2f058 nicht). Gegenproben: verdeckt_gegen und dunder_gegen
+        (nur eine andere öffentliche Funktion verhaltensgleich geändert) — geurteilt, tragfähig; helfer_gedeckt (`_runden`,
+        gerufen von der beobachteten `preis`, verhaltensgleich) — tragfähig; helfer_sichtbar (derselbe Helfer mit
+        Verhaltensänderung) — abgelehnt an der Aufruferin; nicht_erreicht_gegen (`nie` unverändert) — gezählt („nicht
+        erreicht“), tragfähig."""
+        alt, ersatz, soll, name, selbst = M2_FAELLE[fall]
+        assert M2_QUELLE.count(alt) == 1, alt
+        neu = M2_QUELLE.replace(alt, ersatz)
+        monkeypatch.setattr(R3, "QUELLE", M2_QUELLE)
+        monkeypatch.setattr(R3, "REFERENZLAST", M2_LAST)
+>       u, v = R3._pruefen(tmp_path, monkeypatch, R3._diff(M2_QUELLE, neu))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_06.py:927: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_m2_direkt_geaendert_und_u6')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0d1b560>
+diff = '--- a/probewerk/werk/kern.py\n+++ b/probewerk/werk/kern.py\n@@ -90,7 +90,7 @@\n \n def nie(*, n: int) -> int:\n     "...parameter: keine Randfälle)."""\n-    return n + 1\n+    return n + 2\n \n \n def _schluessel(eintrag: dict) -> int:\n'
+nische = 'schnell', werk_extra = None
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+_______ test_m2_direkt_geaendert_und_unbeobachtet[nicht_erreicht_gegen] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_m2_direkt_geaendert_und_u7')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c06ae4e0>
+fall = 'nicht_erreicht_gegen'
+
+    @pytest.mark.parametrize("fall", list(M2_FAELLE))
+    def test_m2_direkt_geaendert_und_unbeobachtet(tmp_path, monkeypatch, fall):
+        """Durch aegis.pruefen in der echten Kammer (Prüfwerk probewerk + M2_QUELLE, Last M2_LAST). Proben (zurückgestellt,
+        grund_art betroffene_funktion_enthaelt_sich): verdeckt (öffentliche Fabrik liefert eine `_Konto`-Instanz, der
+        Kandidat ändert `_Konto.buchen`, die Last ruft `buchen`), dunder (`Geld.__add__`, Last `Geld(i) + Geld(2)`),
+        nicht_erreicht (geänderte öffentliche Funktion `nie`, von Korpus und Last nicht erreicht) — X selbst gezählt
+        „betroffen, von der Sonde nicht beobachtet“; wert_verdeckt (privater Helfer `_schluessel`, von `ordnung` als Wert
+        zurückgegeben, geändert) — die Enthaltungen nennen `_schluessel` (selbst oder als Wert «…» der Lieferantin; am Stand
+        nach dem Nachtrag zu E2/E3 schon zurückgestellt, an 0c2f058 nicht). Gegenproben: verdeckt_gegen und dunder_gegen
+        (nur eine andere öffentliche Funktion verhaltensgleich geändert) — geurteilt, tragfähig; helfer_gedeckt (`_runden`,
+        gerufen von der beobachteten `preis`, verhaltensgleich) — tragfähig; helfer_sichtbar (derselbe Helfer mit
+        Verhaltensänderung) — abgelehnt an der Aufruferin; nicht_erreicht_gegen (`nie` unverändert) — gezählt („nicht
+        erreicht“), tragfähig."""
+        alt, ersatz, soll, name, selbst = M2_FAELLE[fall]
+        assert M2_QUELLE.count(alt) == 1, alt
+        neu = M2_QUELLE.replace(alt, ersatz)
+        monkeypatch.setattr(R3, "QUELLE", M2_QUELLE)
+        monkeypatch.setattr(R3, "REFERENZLAST", M2_LAST)
+>       u, v = R3._pruefen(tmp_path, monkeypatch, R3._diff(M2_QUELLE, neu))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_06.py:927: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_m2_direkt_geaendert_und_u7')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c06ae4e0>
+diff = '--- a/probewerk/werk/kern.py\n+++ b/probewerk/werk/kern.py\n@@ -24,7 +24,7 @@\n \n def quadrat(x: int) -> int:\n     """Quadrat einer ganzen Zahl."""\n-    return x * x\n+    return x ** 2\n \n \n def normieren(text: str) -> str:\n'
+nische = 'schnell', werk_extra = None
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+___________ test_m2_direkt_geaendert_und_unbeobachtet[wert_verdeckt] ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_m2_direkt_geaendert_und_u8')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0cb0c50>
+fall = 'wert_verdeckt'
+
+    @pytest.mark.parametrize("fall", list(M2_FAELLE))
+    def test_m2_direkt_geaendert_und_unbeobachtet(tmp_path, monkeypatch, fall):
+        """Durch aegis.pruefen in der echten Kammer (Prüfwerk probewerk + M2_QUELLE, Last M2_LAST). Proben (zurückgestellt,
+        grund_art betroffene_funktion_enthaelt_sich): verdeckt (öffentliche Fabrik liefert eine `_Konto`-Instanz, der
+        Kandidat ändert `_Konto.buchen`, die Last ruft `buchen`), dunder (`Geld.__add__`, Last `Geld(i) + Geld(2)`),
+        nicht_erreicht (geänderte öffentliche Funktion `nie`, von Korpus und Last nicht erreicht) — X selbst gezählt
+        „betroffen, von der Sonde nicht beobachtet“; wert_verdeckt (privater Helfer `_schluessel`, von `ordnung` als Wert
+        zurückgegeben, geändert) — die Enthaltungen nennen `_schluessel` (selbst oder als Wert «…» der Lieferantin; am Stand
+        nach dem Nachtrag zu E2/E3 schon zurückgestellt, an 0c2f058 nicht). Gegenproben: verdeckt_gegen und dunder_gegen
+        (nur eine andere öffentliche Funktion verhaltensgleich geändert) — geurteilt, tragfähig; helfer_gedeckt (`_runden`,
+        gerufen von der beobachteten `preis`, verhaltensgleich) — tragfähig; helfer_sichtbar (derselbe Helfer mit
+        Verhaltensänderung) — abgelehnt an der Aufruferin; nicht_erreicht_gegen (`nie` unverändert) — gezählt („nicht
+        erreicht“), tragfähig."""
+        alt, ersatz, soll, name, selbst = M2_FAELLE[fall]
+        assert M2_QUELLE.count(alt) == 1, alt
+        neu = M2_QUELLE.replace(alt, ersatz)
+        monkeypatch.setattr(R3, "QUELLE", M2_QUELLE)
+        monkeypatch.setattr(R3, "REFERENZLAST", M2_LAST)
+>       u, v = R3._pruefen(tmp_path, monkeypatch, R3._diff(M2_QUELLE, neu))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_06.py:927: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_m2_direkt_geaendert_und_u8')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0cb0c50>
+diff = '--- a/probewerk/werk/kern.py\n+++ b/probewerk/werk/kern.py\n@@ -94,7 +94,7 @@\n \n \n def _schluessel(eintrag: dict) -> int:\n-    return eintrag["rang"]\n+    return -eintrag["rang"]\n \n \n def ordnung():\n'
+nische = 'schnell', werk_extra = None
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+________ test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis[a_konst] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_w_wirkung_ausserhalb_der_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c070b020>
+fall = 'a_konst'
+
+    @pytest.mark.parametrize("fall", list(W_FAELLE))
+    def test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis(tmp_path, monkeypatch, fall):
+        """Durch aegis.pruefen in der echten Kammer (Prüfwerk probewerk, gestellt nur Modell und Laufzeit). Proben
+        (zurückgestellt, `enthaltung` True, nicht geurteilt): a_konst (Befund S1b: nur `konst.py` geändert, „0 von 0“ — an
+        0c2f058 und nach S1b `ueberlebt`), b_neues_modul (Vorgeneration nicht beobachtbar), c_gemischt (Konstante außerhalb
+        gelesen, dazu eine beobachtete geänderte Funktion), d_daten (Datendatei im Quellpaket), e_neu_unbeobachtet (neue
+        Funktion, nirgends beobachtet: M2(b) wie bisher), f_gegenseitig (gegenseitige Rekursion bleibt nicht gedeckt).
+        Gegenproben (überlebt, geurteilt, tragfähig): a_gegen (ein Test hält die Änderung fest, die beobachtete `satz` liest
+        die Konstante), c_innen (nur in M gelesen und beobachtet), c_docstring, c_main, d_readme, e_neu_beobachtet (neue
+        öffentliche Funktion, am Kandidaten mit Inhalt beobachtet), f_selbst (ein Selbstaufruf ist keine
+        Aufruferin)."""
+        kern, extra, aenderung, last, soll, schluessel = W_FAELLE[fall]
+        monkeypatch.setattr(R3, "QUELLE", kern)
+        monkeypatch.setattr(R3, "REFERENZLAST", R3.REFERENZLAST + last)
+        diff = ""
+        for rel, (alt, neu) in aenderung.items():
+            assert alt != neu, rel
+            diff += _w_diff(alt, neu, rel)
+>       u, v = R3._pruefen(tmp_path, monkeypatch, diff, werk_extra=extra)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_06.py:1240: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_w_wirkung_ausserhalb_der_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c070b020>
+diff = '--- a/probewerk/werk/konst.py\n+++ b/probewerk/werk/konst.py\n@@ -1 +1 @@\n-RATE = 19\n+RATE = 7\n'
+nische = 'schnell', werk_extra = {'probewerk/werk/konst.py': 'RATE = 19\n'}
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+________ test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis[a_gegen] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_w_wirkung_ausserhalb_der_1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c070a8d0>
+fall = 'a_gegen'
+
+    @pytest.mark.parametrize("fall", list(W_FAELLE))
+    def test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis(tmp_path, monkeypatch, fall):
+        """Durch aegis.pruefen in der echten Kammer (Prüfwerk probewerk, gestellt nur Modell und Laufzeit). Proben
+        (zurückgestellt, `enthaltung` True, nicht geurteilt): a_konst (Befund S1b: nur `konst.py` geändert, „0 von 0“ — an
+        0c2f058 und nach S1b `ueberlebt`), b_neues_modul (Vorgeneration nicht beobachtbar), c_gemischt (Konstante außerhalb
+        gelesen, dazu eine beobachtete geänderte Funktion), d_daten (Datendatei im Quellpaket), e_neu_unbeobachtet (neue
+        Funktion, nirgends beobachtet: M2(b) wie bisher), f_gegenseitig (gegenseitige Rekursion bleibt nicht gedeckt).
+        Gegenproben (überlebt, geurteilt, tragfähig): a_gegen (ein Test hält die Änderung fest, die beobachtete `satz` liest
+        die Konstante), c_innen (nur in M gelesen und beobachtet), c_docstring, c_main, d_readme, e_neu_beobachtet (neue
+        öffentliche Funktion, am Kandidaten mit Inhalt beobachtet), f_selbst (ein Selbstaufruf ist keine
+        Aufruferin)."""
+        kern, extra, aenderung, last, soll, schluessel = W_FAELLE[fall]
+        monkeypatch.setattr(R3, "QUELLE", kern)
+        monkeypatch.setattr(R3, "REFERENZLAST", R3.REFERENZLAST + last)
+        diff = ""
+        for rel, (alt, neu) in aenderung.items():
+            assert alt != neu, rel
+            diff += _w_diff(alt, neu, rel)
+>       u, v = R3._pruefen(tmp_path, monkeypatch, diff, werk_extra=extra)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_06.py:1240: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_w_wirkung_ausserhalb_der_1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c070a8d0>
+diff = '--- a/probewerk/werk/konst.py\n+++ b/probewerk/werk/konst.py\n@@ -1,4 +1,4 @@\n-RATE = 19\n+RATE = 7\n \n \n def satz() -> int:\n'
+nische = 'schnell'
+werk_extra = {'probewerk/werk/konst.py': 'RATE = 19\n\n\ndef satz() -> int:\n    return RATE\n', 'tests/test_werk_satz.py': 'from probewerk.werk.konst import satz\n\n\ndef test_satz_sieben():\n    assert satz() == 7, "satz"\n'}
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+_____ test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis[b_neues_modul] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_w_wirkung_ausserhalb_der_2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c070bb00>
+fall = 'b_neues_modul'
+
+    @pytest.mark.parametrize("fall", list(W_FAELLE))
+    def test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis(tmp_path, monkeypatch, fall):
+        """Durch aegis.pruefen in der echten Kammer (Prüfwerk probewerk, gestellt nur Modell und Laufzeit). Proben
+        (zurückgestellt, `enthaltung` True, nicht geurteilt): a_konst (Befund S1b: nur `konst.py` geändert, „0 von 0“ — an
+        0c2f058 und nach S1b `ueberlebt`), b_neues_modul (Vorgeneration nicht beobachtbar), c_gemischt (Konstante außerhalb
+        gelesen, dazu eine beobachtete geänderte Funktion), d_daten (Datendatei im Quellpaket), e_neu_unbeobachtet (neue
+        Funktion, nirgends beobachtet: M2(b) wie bisher), f_gegenseitig (gegenseitige Rekursion bleibt nicht gedeckt).
+        Gegenproben (überlebt, geurteilt, tragfähig): a_gegen (ein Test hält die Änderung fest, die beobachtete `satz` liest
+        die Konstante), c_innen (nur in M gelesen und beobachtet), c_docstring, c_main, d_readme, e_neu_beobachtet (neue
+        öffentliche Funktion, am Kandidaten mit Inhalt beobachtet), f_selbst (ein Selbstaufruf ist keine
+        Aufruferin)."""
+        kern, extra, aenderung, last, soll, schluessel = W_FAELLE[fall]
+        monkeypatch.setattr(R3, "QUELLE", kern)
+        monkeypatch.setattr(R3, "REFERENZLAST", R3.REFERENZLAST + last)
+        diff = ""
+        for rel, (alt, neu) in aenderung.items():
+            assert alt != neu, rel
+            diff += _w_diff(alt, neu, rel)
+>       u, v = R3._pruefen(tmp_path, monkeypatch, diff, werk_extra=extra)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_06.py:1240: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_w_wirkung_ausserhalb_der_2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c070bb00>
+diff = "--- /dev/null\n+++ b/probewerk/werk/zusatz.py\n@@ -0,0 +1 @@\n+ZUSATZ = {'a': 1}\n"
+nische = 'schnell', werk_extra = {}
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+______ test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis[c_gemischt] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_w_wirkung_ausserhalb_der_3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c06fd6d0>
+fall = 'c_gemischt'
+
+    @pytest.mark.parametrize("fall", list(W_FAELLE))
+    def test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis(tmp_path, monkeypatch, fall):
+        """Durch aegis.pruefen in der echten Kammer (Prüfwerk probewerk, gestellt nur Modell und Laufzeit). Proben
+        (zurückgestellt, `enthaltung` True, nicht geurteilt): a_konst (Befund S1b: nur `konst.py` geändert, „0 von 0“ — an
+        0c2f058 und nach S1b `ueberlebt`), b_neues_modul (Vorgeneration nicht beobachtbar), c_gemischt (Konstante außerhalb
+        gelesen, dazu eine beobachtete geänderte Funktion), d_daten (Datendatei im Quellpaket), e_neu_unbeobachtet (neue
+        Funktion, nirgends beobachtet: M2(b) wie bisher), f_gegenseitig (gegenseitige Rekursion bleibt nicht gedeckt).
+        Gegenproben (überlebt, geurteilt, tragfähig): a_gegen (ein Test hält die Änderung fest, die beobachtete `satz` liest
+        die Konstante), c_innen (nur in M gelesen und beobachtet), c_docstring, c_main, d_readme, e_neu_beobachtet (neue
+        öffentliche Funktion, am Kandidaten mit Inhalt beobachtet), f_selbst (ein Selbstaufruf ist keine
+        Aufruferin)."""
+        kern, extra, aenderung, last, soll, schluessel = W_FAELLE[fall]
+        monkeypatch.setattr(R3, "QUELLE", kern)
+        monkeypatch.setattr(R3, "REFERENZLAST", R3.REFERENZLAST + last)
+        diff = ""
+        for rel, (alt, neu) in aenderung.items():
+            assert alt != neu, rel
+            diff += _w_diff(alt, neu, rel)
+>       u, v = R3._pruefen(tmp_path, monkeypatch, diff, werk_extra=extra)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_06.py:1240: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_w_wirkung_ausserhalb_der_3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c06fd6d0>
+diff = '--- a/probewerk/werk/werte.py\n+++ b/probewerk/werk/werte.py\n@@ -1,5 +1,5 @@\n """Werte des Prüfwerks (S1c)."""\n-AU...7 +8,7 @@\n \n \n def stufe(x: int) -> int:\n-    return x * 2\n+    return 2 * x\n \n \n if __name__ == "__main__":\n'
+nische = 'schnell'
+werk_extra = {'probewerk/werk/werte.py': '"""Werte des Prüfwerks (S1c)."""\nAUSSEN = 5\nGRENZE = 10\n\n\ndef grenze() -> int:\n    ...', 'probewerk/werk/leser.py': 'from .werte import AUSSEN\n\n\ndef aussen_mal(n: int) -> int:\n    return AUSSEN * n\n'}
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+________ test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis[c_innen] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_w_wirkung_ausserhalb_der_4')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c06ae3c0>
+fall = 'c_innen'
+
+    @pytest.mark.parametrize("fall", list(W_FAELLE))
+    def test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis(tmp_path, monkeypatch, fall):
+        """Durch aegis.pruefen in der echten Kammer (Prüfwerk probewerk, gestellt nur Modell und Laufzeit). Proben
+        (zurückgestellt, `enthaltung` True, nicht geurteilt): a_konst (Befund S1b: nur `konst.py` geändert, „0 von 0“ — an
+        0c2f058 und nach S1b `ueberlebt`), b_neues_modul (Vorgeneration nicht beobachtbar), c_gemischt (Konstante außerhalb
+        gelesen, dazu eine beobachtete geänderte Funktion), d_daten (Datendatei im Quellpaket), e_neu_unbeobachtet (neue
+        Funktion, nirgends beobachtet: M2(b) wie bisher), f_gegenseitig (gegenseitige Rekursion bleibt nicht gedeckt).
+        Gegenproben (überlebt, geurteilt, tragfähig): a_gegen (ein Test hält die Änderung fest, die beobachtete `satz` liest
+        die Konstante), c_innen (nur in M gelesen und beobachtet), c_docstring, c_main, d_readme, e_neu_beobachtet (neue
+        öffentliche Funktion, am Kandidaten mit Inhalt beobachtet), f_selbst (ein Selbstaufruf ist keine
+        Aufruferin)."""
+        kern, extra, aenderung, last, soll, schluessel = W_FAELLE[fall]
+        monkeypatch.setattr(R3, "QUELLE", kern)
+        monkeypatch.setattr(R3, "REFERENZLAST", R3.REFERENZLAST + last)
+        diff = ""
+        for rel, (alt, neu) in aenderung.items():
+            assert alt != neu, rel
+            diff += _w_diff(alt, neu, rel)
+>       u, v = R3._pruefen(tmp_path, monkeypatch, diff, werk_extra=extra)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_06.py:1240: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_w_wirkung_ausserhalb_der_4')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c06ae3c0>
+diff = '--- a/probewerk/werk/werte.py\n+++ b/probewerk/werk/werte.py\n@@ -1,6 +1,6 @@\n """Werte des Prüfwerks (S1c)."""\n AUSSEN = 5\n-GRENZE = 10\n+GRENZE = 11\n \n \n def grenze() -> int:\n'
+nische = 'schnell'
+werk_extra = {'probewerk/werk/werte.py': '"""Werte des Prüfwerks (S1c)."""\nAUSSEN = 5\nGRENZE = 10\n\n\ndef grenze() -> int:\n    ...enze.py': 'from probewerk.werk.werte import grenze\n\n\ndef test_grenze_elf():\n    assert grenze() == 11, "grenze"\n'}
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+______ test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis[c_docstring] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_w_wirkung_ausserhalb_der_5')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c06ad0d0>
+fall = 'c_docstring'
+
+    @pytest.mark.parametrize("fall", list(W_FAELLE))
+    def test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis(tmp_path, monkeypatch, fall):
+        """Durch aegis.pruefen in der echten Kammer (Prüfwerk probewerk, gestellt nur Modell und Laufzeit). Proben
+        (zurückgestellt, `enthaltung` True, nicht geurteilt): a_konst (Befund S1b: nur `konst.py` geändert, „0 von 0“ — an
+        0c2f058 und nach S1b `ueberlebt`), b_neues_modul (Vorgeneration nicht beobachtbar), c_gemischt (Konstante außerhalb
+        gelesen, dazu eine beobachtete geänderte Funktion), d_daten (Datendatei im Quellpaket), e_neu_unbeobachtet (neue
+        Funktion, nirgends beobachtet: M2(b) wie bisher), f_gegenseitig (gegenseitige Rekursion bleibt nicht gedeckt).
+        Gegenproben (überlebt, geurteilt, tragfähig): a_gegen (ein Test hält die Änderung fest, die beobachtete `satz` liest
+        die Konstante), c_innen (nur in M gelesen und beobachtet), c_docstring, c_main, d_readme, e_neu_beobachtet (neue
+        öffentliche Funktion, am Kandidaten mit Inhalt beobachtet), f_selbst (ein Selbstaufruf ist keine
+        Aufruferin)."""
+        kern, extra, aenderung, last, soll, schluessel = W_FAELLE[fall]
+        monkeypatch.setattr(R3, "QUELLE", kern)
+        monkeypatch.setattr(R3, "REFERENZLAST", R3.REFERENZLAST + last)
+        diff = ""
+        for rel, (alt, neu) in aenderung.items():
+            assert alt != neu, rel
+            diff += _w_diff(alt, neu, rel)
+>       u, v = R3._pruefen(tmp_path, monkeypatch, diff, werk_extra=extra)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_06.py:1240: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_w_wirkung_ausserhalb_der_5')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c06ad0d0>
+diff = '--- a/probewerk/werk/werte.py\n+++ b/probewerk/werk/werte.py\n@@ -1,4 +1,4 @@\n-"""Werte des Prüfwerks (S1c)."""\n+"""Werte, neu (S1c)."""\n AUSSEN = 5\n GRENZE = 10\n \n'
+nische = 'schnell'
+werk_extra = {'probewerk/werk/werte.py': '"""Werte des Prüfwerks (S1c)."""\nAUSSEN = 5\nGRENZE = 10\n\n\ndef grenze() -> int:\n    ...', 'probewerk/werk/leser.py': 'from .werte import AUSSEN\n\n\ndef aussen_mal(n: int) -> int:\n    return AUSSEN * n\n'}
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+________ test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis[c_main] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_w_wirkung_ausserhalb_der_6')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c06bab40>
+fall = 'c_main'
+
+    @pytest.mark.parametrize("fall", list(W_FAELLE))
+    def test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis(tmp_path, monkeypatch, fall):
+        """Durch aegis.pruefen in der echten Kammer (Prüfwerk probewerk, gestellt nur Modell und Laufzeit). Proben
+        (zurückgestellt, `enthaltung` True, nicht geurteilt): a_konst (Befund S1b: nur `konst.py` geändert, „0 von 0“ — an
+        0c2f058 und nach S1b `ueberlebt`), b_neues_modul (Vorgeneration nicht beobachtbar), c_gemischt (Konstante außerhalb
+        gelesen, dazu eine beobachtete geänderte Funktion), d_daten (Datendatei im Quellpaket), e_neu_unbeobachtet (neue
+        Funktion, nirgends beobachtet: M2(b) wie bisher), f_gegenseitig (gegenseitige Rekursion bleibt nicht gedeckt).
+        Gegenproben (überlebt, geurteilt, tragfähig): a_gegen (ein Test hält die Änderung fest, die beobachtete `satz` liest
+        die Konstante), c_innen (nur in M gelesen und beobachtet), c_docstring, c_main, d_readme, e_neu_beobachtet (neue
+        öffentliche Funktion, am Kandidaten mit Inhalt beobachtet), f_selbst (ein Selbstaufruf ist keine
+        Aufruferin)."""
+        kern, extra, aenderung, last, soll, schluessel = W_FAELLE[fall]
+        monkeypatch.setattr(R3, "QUELLE", kern)
+        monkeypatch.setattr(R3, "REFERENZLAST", R3.REFERENZLAST + last)
+        diff = ""
+        for rel, (alt, neu) in aenderung.items():
+            assert alt != neu, rel
+            diff += _w_diff(alt, neu, rel)
+>       u, v = R3._pruefen(tmp_path, monkeypatch, diff, werk_extra=extra)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_06.py:1240: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_w_wirkung_ausserhalb_der_6')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c06bab40>

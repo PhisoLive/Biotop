@@ -1,0 +1,16 @@
+#!/bin/bash
+# Kette Runde 4: TEILLAUF-4 (die in TEILLAUF-3 roten Fälle + ganze test_vor_t4_04) — nur wenn grün: Commit-Job.
+set -u
+A=/root/biotop-vor-t4-04
+PY=/root/biotop-t3/venv/bin/python
+cd /root/biotop
+export BIOTOP_KAMMER_IMAGE=biotop-kammer:ts1 BIOTOP_AUFTRAG_LAUF_AB=26 BIOTOP_AUFTRAG_BUDGET_EUR=10
+echo "=== TEILLAUF-4 start $(date -Is) HEAD=$(git rev-parse --short HEAD)" > $A/bau/TEILLAUF-4.txt
+$PY -m pytest tests/test_vor_t4_03.py -k "test_b_" tests/test_vor_t4_04.py -q -p no:cacheprovider --tb=short -rfE >> $A/bau/TEILLAUF-4.txt 2>&1
+r=$?
+echo "=== TEILLAUF-4 ende $(date -Is) rc=$r" >> $A/bau/TEILLAUF-4.txt
+if [ $r -ne 0 ]; then echo "KETTE: TEILLAUF-4 rot (rc $r) — kein Commit"; exit 3; fi
+echo "KETTE: TEILLAUF-4 grün — Commit-Job startet $(date -Is)"
+bash $A/job_commit_regression.sh > $A/JOB-COMMIT-REGRESSION.txt 2>&1
+echo "KETTE: Job rc=$? $(date -Is)"
+grep -E "rc=|commit-rc|passed|failed" $A/JOB-COMMIT-REGRESSION.txt | tail -14

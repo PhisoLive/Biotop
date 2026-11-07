@@ -1,0 +1,94 @@
+EB90 · Kosten: Kassenstand VORHER (EB48) gegen NACHHER (EB89) — 0 Biotop-Buchungen?
+Beginn: 2026-09-26 03:13:20 CEST (UTC+0200)
+Ende:   2026-09-26 03:13:20 CEST (UTC+0200)
+Dauer:  0.0 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/biotop-einlagerung/arbeit/kasse_vergleich.py 48 89
+--- Inhalt von /root/biotop-einlagerung/arbeit/kasse_vergleich.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-EINLAGERUNG-01 · Kosten: Kassenstand vorher (EB<a>) und nachher (EB<b>) vergleichen (nur lesend).
+Je Datenbank und Tabelle: Zeilenzahl, jüngster Zeitwert und SHA-256 über alle Zeilen. Gleich = 0 neue Biotop-Buchungen.
+Aufruf: kasse_vergleich.py <EB vorher> <EB nachher>"""
+import re
+import sys
+from pathlib import Path
+
+R = Path('/root/biotop-einlagerung/rohbelege')
+
+
+def lade(nr: str) -> dict:
+    t = (R / f'EB{int(nr):04d}.txt').read_text(encoding='utf-8').split('Ausgabe (vollständig, stdout und stderr):', 1)[1]
+    werte, db, tab = {}, None, None
+    for z in t.splitlines():
+        m = re.match(r'^(STAMM|VB1|R02|T3) (/\S+)', z)
+        if m:
+            db = m.group(1)
+            continue
+        m = re.match(r'^  (kasse|eichkosten): (.*)$', z)
+        if m:
+            tab = m.group(1)
+            n = re.match(r'(\d+) Zeilen', m.group(2))
+            werte[(db, tab, 'Zeilen')] = n.group(1) if n else m.group(2)
+            continue
+        m = re.match(r'^    (Summe \S+|jüngster Wert \S+|SHA-256 über alle Zeilen[^:]*) = ?:? ?(.*)$', z)
+        if m and db and tab:
+            werte[(db, tab, m.group(1))] = m.group(2).strip()
+        m = re.match(r'^    SHA-256 über alle Zeilen \(repr, nach rowid\): (\S+)', z)
+        if m and db and tab:
+            werte[(db, tab, 'SHA-256')] = m.group(1)
+    return werte
+
+
+a, b = lade(sys.argv[1]), lade(sys.argv[2])
+gleich = 0
+for k in sorted(set(a) | set(b)):
+    va, vb = a.get(k), b.get(k)
+    ok = va == vb
+    gleich += ok
+    print(f'{"gleich" if ok else "VERSCHIEDEN"} · {k[0]} {k[1]} {k[2]}: vorher {va} · nachher {vb}')
+zeilen = [k for k in a if k[2] == 'Zeilen']
+neu = sum(int(b.get(k, 0)) - int(a[k]) for k in zeilen if str(a[k]).isdigit() and str(b.get(k, '')).isdigit())
+print(f'Werte verglichen: {len(set(a) | set(b))} · gleich: {gleich} · Zeilen nachher minus vorher (Summe aller Tabellen): {neu}')
+print('ERGEBNIS: 0 neue Buchungen, Kassen unverändert' if gleich == len(set(a) | set(b)) else 'ERGEBNIS: Kassen NICHT unverändert')
+--- Ende /root/biotop-einlagerung/arbeit/kasse_vergleich.py ---
+Ausgabe (vollständig, stdout und stderr):
+gleich · R02 eichkosten SHA-256: vorher 58767ac6e341844276f57e1bf810f693a776866e3b24196e47a447377f550ef1 · nachher 58767ac6e341844276f57e1bf810f693a776866e3b24196e47a447377f550ef1
+gleich · R02 eichkosten Summe kosten_eur: vorher 0.01119 · nachher 0.01119
+gleich · R02 eichkosten Zeilen: vorher 22 · nachher 22
+gleich · R02 eichkosten jüngster Wert erstellt_am: vorher 2026-09-20T18:44:07.866+00:00 · nachher 2026-09-20T18:44:07.866+00:00
+gleich · R02 eichkosten jüngster Wert kammerlaeufe: vorher 39 · nachher 39
+gleich · R02 kasse SHA-256: vorher 8e77f57180592f6da1df7ac8429a736800e570a072024d0373f7df90d4fc97a1 · nachher 8e77f57180592f6da1df7ac8429a736800e570a072024d0373f7df90d4fc97a1
+gleich · R02 kasse Summe kosten_eur: vorher 8.639304769 · nachher 8.639304769
+gleich · R02 kasse Zeilen: vorher 4070 · nachher 4070
+gleich · R02 kasse jüngster Wert zeit: vorher 2026-09-20T01:43:33.219+00:00 · nachher 2026-09-20T01:43:33.219+00:00
+gleich · STAMM eichkosten SHA-256: vorher 6c8bcd0cc60dcff44f4790858c6e55a7d22f7132082105cc87c54ad56be94535 · nachher 6c8bcd0cc60dcff44f4790858c6e55a7d22f7132082105cc87c54ad56be94535
+gleich · STAMM eichkosten Summe kosten_eur: vorher 0.01119 · nachher 0.01119
+gleich · STAMM eichkosten Zeilen: vorher 11 · nachher 11
+gleich · STAMM eichkosten jüngster Wert erstellt_am: vorher 2026-09-19T20:59:15.461+00:00 · nachher 2026-09-19T20:59:15.461+00:00
+gleich · STAMM eichkosten jüngster Wert kammerlaeufe: vorher 5 · nachher 5
+gleich · STAMM kasse SHA-256: vorher 8e77f57180592f6da1df7ac8429a736800e570a072024d0373f7df90d4fc97a1 · nachher 8e77f57180592f6da1df7ac8429a736800e570a072024d0373f7df90d4fc97a1
+gleich · STAMM kasse Summe kosten_eur: vorher 8.639304769 · nachher 8.639304769
+gleich · STAMM kasse Zeilen: vorher 4070 · nachher 4070
+gleich · STAMM kasse jüngster Wert zeit: vorher 2026-09-20T01:43:33.219+00:00 · nachher 2026-09-20T01:43:33.219+00:00
+gleich · T3 eichkosten SHA-256: vorher 911a04cca089bdd64beae03ef03ca9bed71aa94221e6fb0dfb0936dc70f0e5fc · nachher 911a04cca089bdd64beae03ef03ca9bed71aa94221e6fb0dfb0936dc70f0e5fc
+gleich · T3 eichkosten Summe kosten_eur: vorher 0.01119 · nachher 0.01119
+gleich · T3 eichkosten Zeilen: vorher 127 · nachher 127
+gleich · T3 eichkosten jüngster Wert erstellt_am: vorher 2026-09-22T13:55:53.067+00:00 · nachher 2026-09-22T13:55:53.067+00:00
+gleich · T3 eichkosten jüngster Wert kammerlaeufe: vorher 27 · nachher 27
+gleich · T3 kasse SHA-256: vorher b4cc2e305f5601a2cc13e025e02f069a6f176a9b6665a167bbd606d4471b9202 · nachher b4cc2e305f5601a2cc13e025e02f069a6f176a9b6665a167bbd606d4471b9202
+gleich · T3 kasse Summe kosten_eur: vorher 18.367942407 · nachher 18.367942407
+gleich · T3 kasse Zeilen: vorher 6673 · nachher 6673
+gleich · T3 kasse jüngster Wert zeit: vorher 2026-09-22T19:26:08.390+00:00 · nachher 2026-09-22T19:26:08.390+00:00
+gleich · VB1 eichkosten SHA-256: vorher 882a903f68b41f2d983d440d261f74d89964f1c616cf2c3d04e5104bf26442c8 · nachher 882a903f68b41f2d983d440d261f74d89964f1c616cf2c3d04e5104bf26442c8
+gleich · VB1 eichkosten Summe kosten_eur: vorher 0.01119 · nachher 0.01119
+gleich · VB1 eichkosten Zeilen: vorher 22 · nachher 22
+gleich · VB1 eichkosten jüngster Wert erstellt_am: vorher 2026-09-20T19:33:46.456+00:00 · nachher 2026-09-20T19:33:46.456+00:00
+gleich · VB1 eichkosten jüngster Wert kammerlaeufe: vorher 8 · nachher 8
+gleich · VB1 kasse SHA-256: vorher 4bbb14cdc63d40b070dad352194bdb6d36d31e9908b6608c11f85c2d9c7465f7 · nachher 4bbb14cdc63d40b070dad352194bdb6d36d31e9908b6608c11f85c2d9c7465f7
+gleich · VB1 kasse Summe kosten_eur: vorher 9.086097176 · nachher 9.086097176
+gleich · VB1 kasse Zeilen: vorher 4316 · nachher 4316
+gleich · VB1 kasse jüngster Wert zeit: vorher 2026-09-20T20:16:10.084+00:00 · nachher 2026-09-20T20:16:10.084+00:00
+Werte verglichen: 36 · gleich: 36 · Zeilen nachher minus vorher (Summe aller Tabellen): 0
+ERGEBNIS: 0 neue Buchungen, Kassen unverändert
+=== Ende EB90 ===

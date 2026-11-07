@@ -1,0 +1,41 @@
+INTENTIONAL_RUNTIME_MUTATION ignore_measured_tolerance
+F.F.                                                                     [100%]
+=================================== FAILURES ===================================
+_ test_urteil_verwendet_gemessene_statt_fester_rauschtoleranz[118.0-1.2-True] __
+
+messung = <function messung.<locals>.bauen at 0x740ec0d11b20>, laufzeit = 118.0
+toleranz = 1.2, erwartet = True
+
+    @pytest.mark.parametrize("laufzeit,toleranz,erwartet", [(118., 1.2, True), (118., 1.15, False),
+                                                         (120., 1.2, True), (120.01, 1.2, False)])
+    def test_urteil_verwendet_gemessene_statt_fester_rauschtoleranz(messung, laufzeit, toleranz, erwartet):
+        basis, kandidat = messung(), messung()
+        kandidat["bereiche"]["alpha"]["laufzeit_ms"] = laufzeit
+        kandidat["bereiche"]["beta"]["laufzeit_ms"] = 80.
+        r = M.urteil_f2(basis, kandidat, basis, ["alpha", "beta"], ["beta"],
+                        {"_rauschtoleranz": {"alpha": toleranz, "beta": 1.15}}, nische="schnell")
+>       assert r["ok"] is erwartet
+E       assert False is True
+
+tests/test_rauschmessung.py:58: AssertionError
+_ test_urteil_verwendet_gemessene_statt_fester_rauschtoleranz[120.0-1.2-True] __
+
+messung = <function messung.<locals>.bauen at 0x740ec0d10b80>, laufzeit = 120.0
+toleranz = 1.2, erwartet = True
+
+    @pytest.mark.parametrize("laufzeit,toleranz,erwartet", [(118., 1.2, True), (118., 1.15, False),
+                                                         (120., 1.2, True), (120.01, 1.2, False)])
+    def test_urteil_verwendet_gemessene_statt_fester_rauschtoleranz(messung, laufzeit, toleranz, erwartet):
+        basis, kandidat = messung(), messung()
+        kandidat["bereiche"]["alpha"]["laufzeit_ms"] = laufzeit
+        kandidat["bereiche"]["beta"]["laufzeit_ms"] = 80.
+        r = M.urteil_f2(basis, kandidat, basis, ["alpha", "beta"], ["beta"],
+                        {"_rauschtoleranz": {"alpha": toleranz, "beta": 1.15}}, nische="schnell")
+>       assert r["ok"] is erwartet
+E       assert False is True
+
+tests/test_rauschmessung.py:58: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_rauschmessung.py::test_urteil_verwendet_gemessene_statt_fester_rauschtoleranz[118.0-1.2-True]
+FAILED tests/test_rauschmessung.py::test_urteil_verwendet_gemessene_statt_fester_rauschtoleranz[120.0-1.2-True]
+2 failed, 2 passed in 0.07s

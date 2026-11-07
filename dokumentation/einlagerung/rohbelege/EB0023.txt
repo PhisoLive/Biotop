@@ -1,0 +1,495 @@
+EB23 · Schritt 2: weitere Repositorys festschreiben (eigener Zweig je Repository)
+Beginn: 2026-09-26 00:02:49 CEST (UTC+0200)
+Ende:   2026-09-26 00:02:53 CEST (UTC+0200)
+Dauer:  4.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/biotop-einlagerung/arbeit/s2_weitere.sh
+--- Inhalt von /root/biotop-einlagerung/arbeit/s2_weitere.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-EINLAGERUNG-01 Schritt 2, letzter Punkt: weitere Repositorys mit nicht eingecheckten Änderungen (EB14/EB15/EB22):
+# dasselbe Verfahren wie bei /root/biotop — je ein eigener Zweig einlagerung/arbeitsstand-20260925 ab dem jetzigen HEAD,
+# Geheimnissuche, Commit genau der Status-Einträge, Markierung eingelagert-20260925; bestehender Zweig unverändert;
+# Arbeitsbaum vorher = nachher (Prüfsummenliste ohne die oberste .git). Ohne Markierung runde-5 (gilt nur /root/biotop).
+# Jedes Repository für sich: ein Abbruch bei einem lässt die anderen weiterlaufen.
+P="python3 /root/biotop-einlagerung/arbeit/s2_git.py"
+N=/root/biotop-einlagerung/arbeit/commit-nachricht-weitere.txt
+i=0
+for zeile in "/root/biotop-t3/repo-sicherung-vor-commits 31" "/root/reparatur-01/teil-eichung/repo 4" \
+             "/tmp/r6-s2/baum 2" "/tmp/r6-s2/baum2 2" "/tmp/r6-s2/baum3 2"; do
+  set -- $zeile; r=$1; n=$2; i=$((i+1))
+  echo "=================== $i: $r (erwartet $n Status-Einträge)"
+  b=$(git --no-optional-locks -C "$r" rev-parse HEAD)
+  $P liste "$r" "weitere-$i-VORHER" | sed -n '1,4p'
+  $P festschreiben "$r" "$b" einlagerung/arbeitsstand-20260925 "$n" "$N"; echo "festschreiben rc=$?"
+  $P liste "$r" "weitere-$i-NACHHER" | sed -n '1,4p'
+  $P vergleich "weitere-$i-VORHER" "weitere-$i-NACHHER"
+done
+--- Ende /root/biotop-einlagerung/arbeit/s2_weitere.sh ---
+Ausgabe (vollständig, stdout und stderr):
+=================== 1: /root/biotop-t3/repo-sicherung-vor-commits (erwartet 31 Status-Einträge)
+Prüfsummenliste weitere-1-VORHER: /root/biotop-t3/repo-sicherung-vor-commits ohne die oberste .git/ (verschachtelte .git-Ordner zählen mit)
+Zeitpunkt: 2026-09-26 00:02:50 CEST (UTC+0200)
+Dateien: 2865 · Verweise: 0 · Sonderdateien: 0 · Einträge gesamt: 2865 · Bytes der Dateien: 35303203
+Liste: /root/biotop-einlagerung/pruefsummen/weitere-1-VORHER.txt · 379127 Bytes · SHA-256 der Liste 81b796dc5198abf00df1c9731c38a1ff93f0470cd006030ddefdfc278c7e6bee
+Beginn 2026-09-26 00:02:50 CEST (UTC+0200) · Repository /root/biotop-t3/repo-sicherung-vor-commits
+HEAD b42dc941e7fcb66632ba6a0e13b8df106a270a31 · Basis b42dc941e7fcb66632ba6a0e13b8df106a270a31 = b42dc941e7fcb66632ba6a0e13b8df106a270a31
+bestehender Zweig: refs/heads/main → b42dc941e7fcb66632ba6a0e13b8df106a270a31
+Haken außer *.sample: keine
+git status: 31 Einträge
+  ' M' .gitignore
+  ' M' biotop/__main__.py
+  ' M' biotop/anbieter/__init__.py
+  ' M' biotop/kern/befundklassen.py
+  ' M' biotop/kern/kasse.py
+  ' M' biotop/kern/messgeraet.py
+  ' M' biotop/lauf.py
+  ' M' biotop/organe/aegis.py
+  ' M' biotop/organe/aufnahme.py
+  ' M' biotop/organe/eichproben.py
+  ' M' biotop/organe/eichung.py
+  ' M' biotop/organe/fundpruefung.py
+  ' M' biotop/organe/gedaechtnis.py
+  ' M' biotop/organe/generation0.py
+  ' M' biotop/organe/genesis.py
+  ' M' biotop/organe/kammer.py
+  ' M' biotop/organe/landkarte.py
+  ' M' biotop/organe/verfassung.py
+  ' M' biotop/organe/vertraege.py
+  ' M' pruefung/vorspann.py
+  '??' README.md
+  '??' biotop/kern/referenzlast/versandwerk-t3-02.mjs
+  '??' biotop/kern/sprachprofil.py
+  '??' biotop/kern/ts/
+  '??' biotop/kern/typescript.py
+  '??' biotop/organe/eichproben_ts.py
+  '??' biotop/organe/vorspann.py
+  '??' kammer/typescript/
+  '??' pytest.ini
+  '??' requirements-test.txt
+  '??' tests/
+Dateien zum Festschreiben: 84 (geändert/vorgemerkt gegen HEAD 20, unverfolgt 64)
+Geheimnissuche über 84 vorhandene Dateien (dazu 0 Verweise, nur Ziel: []; 0 gelöscht): Durchsucht: 84 Dateien · Treffer: 0 · rc 0
+Commit-Nachricht (/root/biotop-einlagerung/arbeit/commit-nachricht-weitere.txt, 251 B, SHA-256 dd9ed6cc9681475154aff8fc1e1771cf8503779b0aa749c12798dfce26cebbd8):
+Einlagerung (BIOTOP-EINLAGERUNG-01): nicht eingecheckter Stand dieses Arbeitsordners unverändert festgeschrieben, damit er mit der Geschichte erhalten bleibt. Kein neuer Inhalt, nicht geprüft, nicht abgenommen. Der bisherige Zweig ist unverändert.
+ausgecheckt: refs/heads/einlagerung/arbeitsstand-20260925 → b42dc941e7fcb66632ba6a0e13b8df106a270a31
+vorgemerkt: 84 Pfade · gleich den nicht eingecheckten Dateien: True
+Commit 2e71c554cf335d2a734a18f04e36aeca270eb10e · Markierung eingelagert-20260925 → 2e71c554cf335d2a734a18f04e36aeca270eb10e
+--- git show --stat --format=fuller HEAD
+commit 2e71c554cf335d2a734a18f04e36aeca270eb10e
+Author:     Hermes (Biotop) <hermes@biotop.local>
+AuthorDate: Sat Sep 26 00:02:50 2026 +0200
+Commit:     Hermes (Biotop) <hermes@biotop.local>
+CommitDate: Sat Sep 26 00:02:50 2026 +0200
+
+    Einlagerung (BIOTOP-EINLAGERUNG-01): nicht eingecheckter Stand dieses Arbeitsordners unverändert festgeschrieben, damit er mit der Geschichte erhalten bleibt. Kein neuer Inhalt, nicht geprüft, nicht abgenommen. Der bisherige Zweig ist unverändert.
+
+ .gitignore                                     |    2 +
+ README.md                                      |   47 ++
+ biotop/__main__.py                             |   15 +-
+ biotop/anbieter/__init__.py                    |   39 +-
+ biotop/kern/befundklassen.py                   |   32 ++
+ biotop/kern/kasse.py                           |   52 +++
+ biotop/kern/messgeraet.py                      |  164 +++++--
+ biotop/kern/referenzlast/versandwerk-t3-02.mjs |  106 +++++
+ biotop/kern/sprachprofil.py                    |   38 ++
+ biotop/kern/ts/ast.mjs                         |   64 +++
+ biotop/kern/ts/bau.mjs                         |   17 +
+ biotop/kern/ts/eslint.config.mjs               |    7 +
+ biotop/kern/ts/main.mjs                        |   31 ++
+ biotop/kern/ts/messen.mjs                      |   54 +++
+ biotop/kern/ts/mutanten.mjs                    |   32 ++
+ biotop/kern/ts/referenz-runner.mjs             |   45 ++
+ biotop/kern/ts/referenz.mjs                    |   13 +
+ biotop/kern/ts/reporter.mjs                    |   18 +
+ biotop/kern/ts/statik.mjs                      |   55 +++
+ biotop/kern/ts/testlauf.mjs                    |   41 ++
+ biotop/kern/ts/tests-ast.mjs                   |   90 ++++
+ biotop/kern/ts/vitest.config.mjs               |   11 +
+ biotop/kern/typescript.py                      |  135 ++++++
+ biotop/lauf.py                                 |  106 ++++-
+ biotop/organe/aegis.py                         |  181 ++++++--
+ biotop/organe/aufnahme.py                      |   24 +-
+ biotop/organe/eichproben.py                    |  617 ++++++++++++++++++++-----
+ biotop/organe/eichproben_ts.py                 |  122 +++++
+ biotop/organe/eichung.py                       |    7 +-
+ biotop/organe/fundpruefung.py                  |   79 +++-
+ biotop/organe/gedaechtnis.py                   |   28 +-
+ biotop/organe/generation0.py                   |  104 ++++-
+ biotop/organe/genesis.py                       |   54 ++-
+ biotop/organe/kammer.py                        |   32 +-
+ biotop/organe/landkarte.py                     |   22 +-
+ biotop/organe/verfassung.py                    |    4 +-
+ biotop/organe/vertraege.py                     |    7 +-
+ biotop/organe/vorspann.py                      |  294 ++++++++++++
+ kammer/typescript/Dockerfile                   |   18 +
+ kammer/typescript/package-lock.json            | 3638 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ kammer/typescript/package.json                 |   15 +
+ pruefung/vorspann.py                           |   72 +--
+ pytest.ini                                     |    6 +
+ requirements-test.txt                          |    1 +
+ tests/conftest.py                              |   52 +++
+ tests/test_ansage_aufnahme.py                  |  165 +++++++
+ tests/test_artvorlage.py                       |   75 +++
+ tests/test_doppelungsschluessel.py             |   24 +
+ tests/test_eichproben.py                       |  411 +++++++++++++++++
+ tests/test_junit_zeugen.py                     |   96 ++++
+ tests/test_kernmass_pareto.py                  |   74 +++
+ tests/test_messnachweise.py                    |  394 ++++++++++++++++
+ tests/test_nachweis_verbraucher.py             |  295 ++++++++++++
+ tests/test_rauschmessung.py                    |  107 +++++
+ tests/test_review_vertrag.py                   |  285 ++++++++++++
+ tests/test_t3_aequivalenz.py                   |   21 +
+ tests/test_t3_anbieter_wiederholung.py         |   81 ++++
+ tests/test_t3_ausfall_klaerung.py              |   89 ++++
+ tests/test_t3_ausfall_schwarm.py               |   25 +
+ tests/test_t3_befundklasse.py                  |   35 ++
+ tests/test_t3_bindung.py                       |   49 ++
+ tests/test_t3_budgetgrenze.py                  |    8 +
+ tests/test_t3_eichpfad.py                      |   49 ++
+ tests/test_t3_fundpruefung.py                  |   30 ++
+ tests/test_t3_gedaechtnis.py                   |   29 ++
+ tests/test_t3_generation0.py                   |   54 +++
+ tests/test_t3_integration_dispatch.py          |   70 +++
+ tests/test_t3_kernsperren.py                   |   35 ++
+ tests/test_t3_modellvorlagen.py                |   14 +
+ tests/test_t3_mutantentyp.py                   |   19 +
+ tests/test_t3_normpraedikat.py                 |   23 +
+ tests/test_t3_rausch_nachmessung.py            |   14 +
+ tests/test_t3_referenzwarmup.py                |   48 ++
+ tests/test_t3_sprachwege.py                    |   37 ++
+ tests/test_t3_statik_luecken.py                |   29 ++
+ tests/test_t3_testoperationen.py               |   34 ++
+ tests/test_t3_transport.py                     |   18 +
+ tests/test_t3_verbundausfall.py                |  100 ++++
+ tests/test_t3_vorfreeze_vertrag.py             |   17 +
+ tests/test_t3_wirkungskreis.py                 |   18 +
+ tests/test_testreihenfolge.py                  |   20 +
+ tests/test_typescript_adapter.py               |  331 ++++++++++++++
+ tests/test_vorspann.py                         |  443 ++++++++++++++++++
+ tests/test_vorspann_cli.py                     |   54 +++
+ 84 files changed, 9997 insertions(+), 314 deletions(-)
+--- git show --name-status --format= HEAD
+M	.gitignore
+A	README.md
+M	biotop/__main__.py
+M	biotop/anbieter/__init__.py
+M	biotop/kern/befundklassen.py
+M	biotop/kern/kasse.py
+M	biotop/kern/messgeraet.py
+A	biotop/kern/referenzlast/versandwerk-t3-02.mjs
+A	biotop/kern/sprachprofil.py
+A	biotop/kern/ts/ast.mjs
+A	biotop/kern/ts/bau.mjs
+A	biotop/kern/ts/eslint.config.mjs
+A	biotop/kern/ts/main.mjs
+A	biotop/kern/ts/messen.mjs
+A	biotop/kern/ts/mutanten.mjs
+A	biotop/kern/ts/referenz-runner.mjs
+A	biotop/kern/ts/referenz.mjs
+A	biotop/kern/ts/reporter.mjs
+A	biotop/kern/ts/statik.mjs
+A	biotop/kern/ts/testlauf.mjs
+A	biotop/kern/ts/tests-ast.mjs
+A	biotop/kern/ts/vitest.config.mjs
+A	biotop/kern/typescript.py
+M	biotop/lauf.py
+M	biotop/organe/aegis.py
+M	biotop/organe/aufnahme.py
+M	biotop/organe/eichproben.py
+A	biotop/organe/eichproben_ts.py
+M	biotop/organe/eichung.py
+M	biotop/organe/fundpruefung.py
+M	biotop/organe/gedaechtnis.py
+M	biotop/organe/generation0.py
+M	biotop/organe/genesis.py
+M	biotop/organe/kammer.py
+M	biotop/organe/landkarte.py
+M	biotop/organe/verfassung.py
+M	biotop/organe/vertraege.py
+A	biotop/organe/vorspann.py
+A	kammer/typescript/Dockerfile
+A	kammer/typescript/package-lock.json
+A	kammer/typescript/package.json
+M	pruefung/vorspann.py
+A	pytest.ini
+A	requirements-test.txt
+A	tests/conftest.py
+A	tests/test_ansage_aufnahme.py
+A	tests/test_artvorlage.py
+A	tests/test_doppelungsschluessel.py
+A	tests/test_eichproben.py
+A	tests/test_junit_zeugen.py
+A	tests/test_kernmass_pareto.py
+A	tests/test_messnachweise.py
+A	tests/test_nachweis_verbraucher.py
+A	tests/test_rauschmessung.py
+A	tests/test_review_vertrag.py
+A	tests/test_t3_aequivalenz.py
+A	tests/test_t3_anbieter_wiederholung.py
+A	tests/test_t3_ausfall_klaerung.py
+A	tests/test_t3_ausfall_schwarm.py
+A	tests/test_t3_befundklasse.py
+A	tests/test_t3_bindung.py
+A	tests/test_t3_budgetgrenze.py
+A	tests/test_t3_eichpfad.py
+A	tests/test_t3_fundpruefung.py
+A	tests/test_t3_gedaechtnis.py
+A	tests/test_t3_generation0.py
+A	tests/test_t3_integration_dispatch.py
+A	tests/test_t3_kernsperren.py
+A	tests/test_t3_modellvorlagen.py
+A	tests/test_t3_mutantentyp.py
+A	tests/test_t3_normpraedikat.py
+A	tests/test_t3_rausch_nachmessung.py
+A	tests/test_t3_referenzwarmup.py
+A	tests/test_t3_sprachwege.py
+A	tests/test_t3_statik_luecken.py
+A	tests/test_t3_testoperationen.py
+A	tests/test_t3_transport.py
+A	tests/test_t3_verbundausfall.py
+A	tests/test_t3_vorfreeze_vertrag.py
+A	tests/test_t3_wirkungskreis.py
+A	tests/test_testreihenfolge.py
+A	tests/test_typescript_adapter.py
+A	tests/test_vorspann.py
+A	tests/test_vorspann_cli.py
+Einträge im Commit: 84
+git status nach dem Commit: 0 Einträge (sauber)
+bestehender Zweig refs/heads/main: vorher b42dc941e7fcb66632ba6a0e13b8df106a270a31 · nachher b42dc941e7fcb66632ba6a0e13b8df106a270a31 · unverändert: True
+--- Zweige und Markierungen
+refs/heads/einlagerung/arbeitsstand-20260925 2e71c554cf335d2a734a18f04e36aeca270eb10e commit
+refs/heads/main b42dc941e7fcb66632ba6a0e13b8df106a270a31 commit
+refs/tags/eingelagert-20260925 2e71c554cf335d2a734a18f04e36aeca270eb10e commit
+Ende 2026-09-26 00:02:50 CEST (UTC+0200)
+festschreiben rc=0
+Prüfsummenliste weitere-1-NACHHER: /root/biotop-t3/repo-sicherung-vor-commits ohne die oberste .git/ (verschachtelte .git-Ordner zählen mit)
+Zeitpunkt: 2026-09-26 00:02:51 CEST (UTC+0200)
+Dateien: 2865 · Verweise: 0 · Sonderdateien: 0 · Einträge gesamt: 2865 · Bytes der Dateien: 35303203
+Liste: /root/biotop-einlagerung/pruefsummen/weitere-1-NACHHER.txt · 379127 Bytes · SHA-256 der Liste 81b796dc5198abf00df1c9731c38a1ff93f0470cd006030ddefdfc278c7e6bee
+A = /root/biotop-einlagerung/pruefsummen/weitere-1-VORHER.txt: 2865 Einträge, SHA-256 der Liste 81b796dc5198abf00df1c9731c38a1ff93f0470cd006030ddefdfc278c7e6bee
+B = /root/biotop-einlagerung/pruefsummen/weitere-1-NACHHER.txt: 2865 Einträge, SHA-256 der Liste 81b796dc5198abf00df1c9731c38a1ff93f0470cd006030ddefdfc278c7e6bee
+nur in A: 0 · nur in B: 0 · Inhalt verschieden: 0
+ERGEBNIS: Unterschied leer
+Gegenprobe (Kopie von A, SHA-256 von „daten/werke/lagerhaus-p3-14/.git/objects/d4/4a7a5ce84ac495013c3a33939b2007afb37048“ um ein Zeichen geändert): gemeldet 1 Abweichung(en) → angeschlagen: genau dieser Pfad
+=================== 2: /root/reparatur-01/teil-eichung/repo (erwartet 4 Status-Einträge)
+Prüfsummenliste weitere-2-VORHER: /root/reparatur-01/teil-eichung/repo ohne die oberste .git/ (verschachtelte .git-Ordner zählen mit)
+Zeitpunkt: 2026-09-26 00:02:51 CEST (UTC+0200)
+Dateien: 136 · Verweise: 0 · Sonderdateien: 0 · Einträge gesamt: 136 · Bytes der Dateien: 1065789
+Liste: /root/biotop-einlagerung/pruefsummen/weitere-2-VORHER.txt · 13405 Bytes · SHA-256 der Liste 232fb62acee18138fa936f4063da5a17ae61d39da94cbdc1a59d51e43ed5bdb8
+Beginn 2026-09-26 00:02:51 CEST (UTC+0200) · Repository /root/reparatur-01/teil-eichung/repo
+HEAD 3bb9325d5d84405d38586645d6410b78a0cb72aa · Basis 3bb9325d5d84405d38586645d6410b78a0cb72aa = 3bb9325d5d84405d38586645d6410b78a0cb72aa
+bestehender Zweig: refs/heads/master → 3bb9325d5d84405d38586645d6410b78a0cb72aa
+Haken außer *.sample: keine
+git status: 4 Einträge
+  ' M' biotop/organe/aegis.py
+  ' M' biotop/organe/eichproben.py
+  ' M' biotop/organe/kammer.py
+  ' A' tests/test_eichproben.py
+Dateien zum Festschreiben: 4 (geändert/vorgemerkt gegen HEAD 4, unverfolgt 0)
+Geheimnissuche über 4 vorhandene Dateien (dazu 0 Verweise, nur Ziel: []; 0 gelöscht): Durchsucht: 4 Dateien · Treffer: 0 · rc 0
+Commit-Nachricht (/root/biotop-einlagerung/arbeit/commit-nachricht-weitere.txt, 251 B, SHA-256 dd9ed6cc9681475154aff8fc1e1771cf8503779b0aa749c12798dfce26cebbd8):
+Einlagerung (BIOTOP-EINLAGERUNG-01): nicht eingecheckter Stand dieses Arbeitsordners unverändert festgeschrieben, damit er mit der Geschichte erhalten bleibt. Kein neuer Inhalt, nicht geprüft, nicht abgenommen. Der bisherige Zweig ist unverändert.
+ausgecheckt: refs/heads/einlagerung/arbeitsstand-20260925 → 3bb9325d5d84405d38586645d6410b78a0cb72aa
+vorgemerkt: 4 Pfade · gleich den nicht eingecheckten Dateien: True
+Commit 6d60a5d9e196c5f701d8e768b894800985124351 · Markierung eingelagert-20260925 → 6d60a5d9e196c5f701d8e768b894800985124351
+--- git show --stat --format=fuller HEAD
+commit 6d60a5d9e196c5f701d8e768b894800985124351
+Author:     Hermes (Biotop) <hermes@biotop.local>
+AuthorDate: Sat Sep 26 00:02:51 2026 +0200
+Commit:     Hermes (Biotop) <hermes@biotop.local>
+CommitDate: Sat Sep 26 00:02:51 2026 +0200
+
+    Einlagerung (BIOTOP-EINLAGERUNG-01): nicht eingecheckter Stand dieses Arbeitsordners unverändert festgeschrieben, damit er mit der Geschichte erhalten bleibt. Kein neuer Inhalt, nicht geprüft, nicht abgenommen. Der bisherige Zweig ist unverändert.
+
+ biotop/organe/aegis.py      |  13 ++++-
+ biotop/organe/eichproben.py | 505 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++-----------------------------------------
+ biotop/organe/kammer.py     |  28 +++++++++-
+ tests/test_eichproben.py    | 396 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 4 files changed, 813 insertions(+), 129 deletions(-)
+--- git show --name-status --format= HEAD
+M	biotop/organe/aegis.py
+M	biotop/organe/eichproben.py
+M	biotop/organe/kammer.py
+A	tests/test_eichproben.py
+Einträge im Commit: 4
+git status nach dem Commit: 0 Einträge (sauber)
+bestehender Zweig refs/heads/master: vorher 3bb9325d5d84405d38586645d6410b78a0cb72aa · nachher 3bb9325d5d84405d38586645d6410b78a0cb72aa · unverändert: True
+--- Zweige und Markierungen
+refs/heads/einlagerung/arbeitsstand-20260925 6d60a5d9e196c5f701d8e768b894800985124351 commit
+refs/heads/master 3bb9325d5d84405d38586645d6410b78a0cb72aa commit
+refs/tags/eingelagert-20260925 6d60a5d9e196c5f701d8e768b894800985124351 commit
+Ende 2026-09-26 00:02:51 CEST (UTC+0200)
+festschreiben rc=0
+Prüfsummenliste weitere-2-NACHHER: /root/reparatur-01/teil-eichung/repo ohne die oberste .git/ (verschachtelte .git-Ordner zählen mit)
+Zeitpunkt: 2026-09-26 00:02:51 CEST (UTC+0200)
+Dateien: 136 · Verweise: 0 · Sonderdateien: 0 · Einträge gesamt: 136 · Bytes der Dateien: 1065789
+Liste: /root/biotop-einlagerung/pruefsummen/weitere-2-NACHHER.txt · 13405 Bytes · SHA-256 der Liste 232fb62acee18138fa936f4063da5a17ae61d39da94cbdc1a59d51e43ed5bdb8
+A = /root/biotop-einlagerung/pruefsummen/weitere-2-VORHER.txt: 136 Einträge, SHA-256 der Liste 232fb62acee18138fa936f4063da5a17ae61d39da94cbdc1a59d51e43ed5bdb8
+B = /root/biotop-einlagerung/pruefsummen/weitere-2-NACHHER.txt: 136 Einträge, SHA-256 der Liste 232fb62acee18138fa936f4063da5a17ae61d39da94cbdc1a59d51e43ed5bdb8
+nur in A: 0 · nur in B: 0 · Inhalt verschieden: 0
+ERGEBNIS: Unterschied leer
+Gegenprobe (Kopie von A, SHA-256 von „pruefung/doppelungen_neu.py“ um ein Zeichen geändert): gemeldet 1 Abweichung(en) → angeschlagen: genau dieser Pfad
+=================== 3: /tmp/r6-s2/baum (erwartet 2 Status-Einträge)
+Prüfsummenliste weitere-3-VORHER: /tmp/r6-s2/baum ohne die oberste .git/ (verschachtelte .git-Ordner zählen mit)
+Zeitpunkt: 2026-09-26 00:02:51 CEST (UTC+0200)
+Dateien: 260 · Verweise: 0 · Sonderdateien: 0 · Einträge gesamt: 260 · Bytes der Dateien: 2949389
+Liste: /root/biotop-einlagerung/pruefsummen/weitere-3-VORHER.txt · 25737 Bytes · SHA-256 der Liste af531fe39a64b135c9668adf19794e714e5b1c1dead65dff0359ce6eb04ff1b4
+Beginn 2026-09-26 00:02:51 CEST (UTC+0200) · Repository /tmp/r6-s2/baum
+HEAD 0c2f058d57f68b8891b535d6e00214172c82fefa · Basis 0c2f058d57f68b8891b535d6e00214172c82fefa = 0c2f058d57f68b8891b535d6e00214172c82fefa
+bestehender Zweig: refs/heads/main → 0c2f058d57f68b8891b535d6e00214172c82fefa
+Haken außer *.sample: keine
+git status: 2 Einträge
+  ' M' biotop/tor4.py
+  '??' tests/test_tor4_zeilen.py
+Dateien zum Festschreiben: 2 (geändert/vorgemerkt gegen HEAD 1, unverfolgt 1)
+Geheimnissuche über 2 vorhandene Dateien (dazu 0 Verweise, nur Ziel: []; 0 gelöscht): Durchsucht: 2 Dateien · Treffer: 0 · rc 0
+Commit-Nachricht (/root/biotop-einlagerung/arbeit/commit-nachricht-weitere.txt, 251 B, SHA-256 dd9ed6cc9681475154aff8fc1e1771cf8503779b0aa749c12798dfce26cebbd8):
+Einlagerung (BIOTOP-EINLAGERUNG-01): nicht eingecheckter Stand dieses Arbeitsordners unverändert festgeschrieben, damit er mit der Geschichte erhalten bleibt. Kein neuer Inhalt, nicht geprüft, nicht abgenommen. Der bisherige Zweig ist unverändert.
+ausgecheckt: refs/heads/einlagerung/arbeitsstand-20260925 → 0c2f058d57f68b8891b535d6e00214172c82fefa
+vorgemerkt: 2 Pfade · gleich den nicht eingecheckten Dateien: True
+Commit b8c2f8252e7e3d67daf0b13b97b71558f7d6a82a · Markierung eingelagert-20260925 → b8c2f8252e7e3d67daf0b13b97b71558f7d6a82a
+--- git show --stat --format=fuller HEAD
+commit b8c2f8252e7e3d67daf0b13b97b71558f7d6a82a
+Author:     Hermes (Biotop) <hermes@biotop.local>
+AuthorDate: Sat Sep 26 00:02:52 2026 +0200
+Commit:     Hermes (Biotop) <hermes@biotop.local>
+CommitDate: Sat Sep 26 00:02:52 2026 +0200
+
+    Einlagerung (BIOTOP-EINLAGERUNG-01): nicht eingecheckter Stand dieses Arbeitsordners unverändert festgeschrieben, damit er mit der Geschichte erhalten bleibt. Kein neuer Inhalt, nicht geprüft, nicht abgenommen. Der bisherige Zweig ist unverändert.
+
+ biotop/tor4.py            | 1384 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++---------
+ tests/test_tor4_zeilen.py |  859 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 2175 insertions(+), 68 deletions(-)
+--- git show --name-status --format= HEAD
+M	biotop/tor4.py
+A	tests/test_tor4_zeilen.py
+Einträge im Commit: 2
+git status nach dem Commit: 0 Einträge (sauber)
+bestehender Zweig refs/heads/main: vorher 0c2f058d57f68b8891b535d6e00214172c82fefa · nachher 0c2f058d57f68b8891b535d6e00214172c82fefa · unverändert: True
+--- Zweige und Markierungen
+refs/heads/einlagerung/arbeitsstand-20260925 b8c2f8252e7e3d67daf0b13b97b71558f7d6a82a commit
+refs/heads/main 0c2f058d57f68b8891b535d6e00214172c82fefa commit
+refs/remotes/origin/HEAD 0c2f058d57f68b8891b535d6e00214172c82fefa commit
+refs/remotes/origin/main 0c2f058d57f68b8891b535d6e00214172c82fefa commit
+refs/tags/eingelagert-20260925 b8c2f8252e7e3d67daf0b13b97b71558f7d6a82a commit
+Ende 2026-09-26 00:02:52 CEST (UTC+0200)
+festschreiben rc=0
+Prüfsummenliste weitere-3-NACHHER: /tmp/r6-s2/baum ohne die oberste .git/ (verschachtelte .git-Ordner zählen mit)
+Zeitpunkt: 2026-09-26 00:02:52 CEST (UTC+0200)
+Dateien: 260 · Verweise: 0 · Sonderdateien: 0 · Einträge gesamt: 260 · Bytes der Dateien: 2949389
+Liste: /root/biotop-einlagerung/pruefsummen/weitere-3-NACHHER.txt · 25737 Bytes · SHA-256 der Liste af531fe39a64b135c9668adf19794e714e5b1c1dead65dff0359ce6eb04ff1b4
+A = /root/biotop-einlagerung/pruefsummen/weitere-3-VORHER.txt: 260 Einträge, SHA-256 der Liste af531fe39a64b135c9668adf19794e714e5b1c1dead65dff0359ce6eb04ff1b4
+B = /root/biotop-einlagerung/pruefsummen/weitere-3-NACHHER.txt: 260 Einträge, SHA-256 der Liste af531fe39a64b135c9668adf19794e714e5b1c1dead65dff0359ce6eb04ff1b4
+nur in A: 0 · nur in B: 0 · Inhalt verschieden: 0
+ERGEBNIS: Unterschied leer
+Gegenprobe (Kopie von A, SHA-256 von „pruefung/jury_mechanik.py“ um ein Zeichen geändert): gemeldet 1 Abweichung(en) → angeschlagen: genau dieser Pfad
+=================== 4: /tmp/r6-s2/baum2 (erwartet 2 Status-Einträge)
+Prüfsummenliste weitere-4-VORHER: /tmp/r6-s2/baum2 ohne die oberste .git/ (verschachtelte .git-Ordner zählen mit)
+Zeitpunkt: 2026-09-26 00:02:52 CEST (UTC+0200)
+Dateien: 265 · Verweise: 0 · Sonderdateien: 0 · Einträge gesamt: 265 · Bytes der Dateien: 3193281
+Liste: /root/biotop-einlagerung/pruefsummen/weitere-4-VORHER.txt · 26348 Bytes · SHA-256 der Liste 93d04cd37a23d0ff3aa64c849b8fdf8dc92e94a3dfa12e5a7d184ebed4ad0838
+Beginn 2026-09-26 00:02:52 CEST (UTC+0200) · Repository /tmp/r6-s2/baum2
+HEAD 0c2f058d57f68b8891b535d6e00214172c82fefa · Basis 0c2f058d57f68b8891b535d6e00214172c82fefa = 0c2f058d57f68b8891b535d6e00214172c82fefa
+bestehender Zweig: refs/heads/main → 0c2f058d57f68b8891b535d6e00214172c82fefa
+Haken außer *.sample: keine
+git status: 2 Einträge
+  ' M' biotop/tor4.py
+  '??' tests/test_tor4_zeilen.py
+Dateien zum Festschreiben: 2 (geändert/vorgemerkt gegen HEAD 1, unverfolgt 1)
+Geheimnissuche über 2 vorhandene Dateien (dazu 0 Verweise, nur Ziel: []; 0 gelöscht): Durchsucht: 2 Dateien · Treffer: 0 · rc 0
+Commit-Nachricht (/root/biotop-einlagerung/arbeit/commit-nachricht-weitere.txt, 251 B, SHA-256 dd9ed6cc9681475154aff8fc1e1771cf8503779b0aa749c12798dfce26cebbd8):
+Einlagerung (BIOTOP-EINLAGERUNG-01): nicht eingecheckter Stand dieses Arbeitsordners unverändert festgeschrieben, damit er mit der Geschichte erhalten bleibt. Kein neuer Inhalt, nicht geprüft, nicht abgenommen. Der bisherige Zweig ist unverändert.
+ausgecheckt: refs/heads/einlagerung/arbeitsstand-20260925 → 0c2f058d57f68b8891b535d6e00214172c82fefa
+vorgemerkt: 2 Pfade · gleich den nicht eingecheckten Dateien: True
+Commit 5d6c4ee94f6f838a4ad0ba50860dd7958b0d33b6 · Markierung eingelagert-20260925 → 5d6c4ee94f6f838a4ad0ba50860dd7958b0d33b6
+--- git show --stat --format=fuller HEAD
+commit 5d6c4ee94f6f838a4ad0ba50860dd7958b0d33b6
+Author:     Hermes (Biotop) <hermes@biotop.local>
+AuthorDate: Sat Sep 26 00:02:52 2026 +0200
+Commit:     Hermes (Biotop) <hermes@biotop.local>
+CommitDate: Sat Sep 26 00:02:52 2026 +0200
+
+    Einlagerung (BIOTOP-EINLAGERUNG-01): nicht eingecheckter Stand dieses Arbeitsordners unverändert festgeschrieben, damit er mit der Geschichte erhalten bleibt. Kein neuer Inhalt, nicht geprüft, nicht abgenommen. Der bisherige Zweig ist unverändert.
+
+ biotop/tor4.py            | 1384 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++---------
+ tests/test_tor4_zeilen.py |  825 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 2141 insertions(+), 68 deletions(-)
+--- git show --name-status --format= HEAD
+M	biotop/tor4.py
+A	tests/test_tor4_zeilen.py
+Einträge im Commit: 2
+git status nach dem Commit: 0 Einträge (sauber)
+bestehender Zweig refs/heads/main: vorher 0c2f058d57f68b8891b535d6e00214172c82fefa · nachher 0c2f058d57f68b8891b535d6e00214172c82fefa · unverändert: True
+--- Zweige und Markierungen
+refs/heads/einlagerung/arbeitsstand-20260925 5d6c4ee94f6f838a4ad0ba50860dd7958b0d33b6 commit
+refs/heads/main 0c2f058d57f68b8891b535d6e00214172c82fefa commit
+refs/remotes/origin/HEAD 0c2f058d57f68b8891b535d6e00214172c82fefa commit
+refs/remotes/origin/main 0c2f058d57f68b8891b535d6e00214172c82fefa commit
+refs/tags/eingelagert-20260925 5d6c4ee94f6f838a4ad0ba50860dd7958b0d33b6 commit
+Ende 2026-09-26 00:02:52 CEST (UTC+0200)
+festschreiben rc=0
+Prüfsummenliste weitere-4-NACHHER: /tmp/r6-s2/baum2 ohne die oberste .git/ (verschachtelte .git-Ordner zählen mit)
+Zeitpunkt: 2026-09-26 00:02:52 CEST (UTC+0200)
+Dateien: 265 · Verweise: 0 · Sonderdateien: 0 · Einträge gesamt: 265 · Bytes der Dateien: 3193281
+Liste: /root/biotop-einlagerung/pruefsummen/weitere-4-NACHHER.txt · 26348 Bytes · SHA-256 der Liste 93d04cd37a23d0ff3aa64c849b8fdf8dc92e94a3dfa12e5a7d184ebed4ad0838
+A = /root/biotop-einlagerung/pruefsummen/weitere-4-VORHER.txt: 265 Einträge, SHA-256 der Liste 93d04cd37a23d0ff3aa64c849b8fdf8dc92e94a3dfa12e5a7d184ebed4ad0838
+B = /root/biotop-einlagerung/pruefsummen/weitere-4-NACHHER.txt: 265 Einträge, SHA-256 der Liste 93d04cd37a23d0ff3aa64c849b8fdf8dc92e94a3dfa12e5a7d184ebed4ad0838
+nur in A: 0 · nur in B: 0 · Inhalt verschieden: 0
+ERGEBNIS: Unterschied leer
+Gegenprobe (Kopie von A, SHA-256 von „pruefung/jury_probe.py“ um ein Zeichen geändert): gemeldet 1 Abweichung(en) → angeschlagen: genau dieser Pfad
+=================== 5: /tmp/r6-s2/baum3 (erwartet 2 Status-Einträge)
+Prüfsummenliste weitere-5-VORHER: /tmp/r6-s2/baum3 ohne die oberste .git/ (verschachtelte .git-Ordner zählen mit)
+Zeitpunkt: 2026-09-26 00:02:53 CEST (UTC+0200)
+Dateien: 262 · Verweise: 0 · Sonderdateien: 0 · Einträge gesamt: 262 · Bytes der Dateien: 2971654
+Liste: /root/biotop-einlagerung/pruefsummen/weitere-5-VORHER.txt · 25963 Bytes · SHA-256 der Liste a1fba2a6408809928c5a21a4a129a9d92d469d523240a091121dc949efd1e559
+Beginn 2026-09-26 00:02:53 CEST (UTC+0200) · Repository /tmp/r6-s2/baum3
+HEAD 0c2f058d57f68b8891b535d6e00214172c82fefa · Basis 0c2f058d57f68b8891b535d6e00214172c82fefa = 0c2f058d57f68b8891b535d6e00214172c82fefa
+bestehender Zweig: refs/heads/main → 0c2f058d57f68b8891b535d6e00214172c82fefa
+Haken außer *.sample: keine
+git status: 2 Einträge
+  ' M' biotop/tor4.py
+  '??' tests/test_tor4_zeilen.py
+Dateien zum Festschreiben: 2 (geändert/vorgemerkt gegen HEAD 1, unverfolgt 1)
+Geheimnissuche über 2 vorhandene Dateien (dazu 0 Verweise, nur Ziel: []; 0 gelöscht): Durchsucht: 2 Dateien · Treffer: 0 · rc 0
+Commit-Nachricht (/root/biotop-einlagerung/arbeit/commit-nachricht-weitere.txt, 251 B, SHA-256 dd9ed6cc9681475154aff8fc1e1771cf8503779b0aa749c12798dfce26cebbd8):
+Einlagerung (BIOTOP-EINLAGERUNG-01): nicht eingecheckter Stand dieses Arbeitsordners unverändert festgeschrieben, damit er mit der Geschichte erhalten bleibt. Kein neuer Inhalt, nicht geprüft, nicht abgenommen. Der bisherige Zweig ist unverändert.
+ausgecheckt: refs/heads/einlagerung/arbeitsstand-20260925 → 0c2f058d57f68b8891b535d6e00214172c82fefa
+vorgemerkt: 2 Pfade · gleich den nicht eingecheckten Dateien: True
+Commit a00e075f37bc6199dc8a8038c805209c13d08251 · Markierung eingelagert-20260925 → a00e075f37bc6199dc8a8038c805209c13d08251
+--- git show --stat --format=fuller HEAD
+commit a00e075f37bc6199dc8a8038c805209c13d08251
+Author:     Hermes (Biotop) <hermes@biotop.local>
+AuthorDate: Sat Sep 26 00:02:53 2026 +0200
+Commit:     Hermes (Biotop) <hermes@biotop.local>
+CommitDate: Sat Sep 26 00:02:53 2026 +0200
+
+    Einlagerung (BIOTOP-EINLAGERUNG-01): nicht eingecheckter Stand dieses Arbeitsordners unverändert festgeschrieben, damit er mit der Geschichte erhalten bleibt. Kein neuer Inhalt, nicht geprüft, nicht abgenommen. Der bisherige Zweig ist unverändert.
+
+ biotop/tor4.py            | 1384 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++---------
+ tests/test_tor4_zeilen.py |  859 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 2175 insertions(+), 68 deletions(-)
+--- git show --name-status --format= HEAD
+M	biotop/tor4.py
+A	tests/test_tor4_zeilen.py
+Einträge im Commit: 2
+git status nach dem Commit: 0 Einträge (sauber)
+bestehender Zweig refs/heads/main: vorher 0c2f058d57f68b8891b535d6e00214172c82fefa · nachher 0c2f058d57f68b8891b535d6e00214172c82fefa · unverändert: True
+--- Zweige und Markierungen
+refs/heads/einlagerung/arbeitsstand-20260925 a00e075f37bc6199dc8a8038c805209c13d08251 commit
+refs/heads/main 0c2f058d57f68b8891b535d6e00214172c82fefa commit
+refs/remotes/origin/HEAD 0c2f058d57f68b8891b535d6e00214172c82fefa commit
+refs/remotes/origin/main 0c2f058d57f68b8891b535d6e00214172c82fefa commit
+refs/tags/eingelagert-20260925 a00e075f37bc6199dc8a8038c805209c13d08251 commit
+Ende 2026-09-26 00:02:53 CEST (UTC+0200)
+festschreiben rc=0
+Prüfsummenliste weitere-5-NACHHER: /tmp/r6-s2/baum3 ohne die oberste .git/ (verschachtelte .git-Ordner zählen mit)
+Zeitpunkt: 2026-09-26 00:02:53 CEST (UTC+0200)
+Dateien: 262 · Verweise: 0 · Sonderdateien: 0 · Einträge gesamt: 262 · Bytes der Dateien: 2971654
+Liste: /root/biotop-einlagerung/pruefsummen/weitere-5-NACHHER.txt · 25963 Bytes · SHA-256 der Liste a1fba2a6408809928c5a21a4a129a9d92d469d523240a091121dc949efd1e559
+A = /root/biotop-einlagerung/pruefsummen/weitere-5-VORHER.txt: 262 Einträge, SHA-256 der Liste a1fba2a6408809928c5a21a4a129a9d92d469d523240a091121dc949efd1e559
+B = /root/biotop-einlagerung/pruefsummen/weitere-5-NACHHER.txt: 262 Einträge, SHA-256 der Liste a1fba2a6408809928c5a21a4a129a9d92d469d523240a091121dc949efd1e559
+nur in A: 0 · nur in B: 0 · Inhalt verschieden: 0
+ERGEBNIS: Unterschied leer
+Gegenprobe (Kopie von A, SHA-256 von „pruefung/generationen.sh“ um ein Zeichen geändert): gemeldet 1 Abweichung(en) → angeschlagen: genau dieser Pfad
+=== Ende EB23 ===

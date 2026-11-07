@@ -1,0 +1,9 @@
+#!/bin/bash
+# Nur lesend: Regression, Verdrahtungsbeleg der Regression, Nachspiele N1/N2 (Zusammenfassungszeilen)
+export TMPDIR=/tmp/review-vor-t4-05
+A=/root/biotop-vor-t4-05
+echo "== REGRESSION: FAILED/ERROR"; grep -c -E "^(FAILED|ERROR)" $A/REGRESSION.txt; grep -E "SKIPPED" $A/REGRESSION.txt | head -3
+echo "== slowest"; grep -A10 "slowest" $A/REGRESSION.txt | head -12
+echo "== JUnit"; /root/biotop-t3/venv/bin/python -B -c "import xml.etree.ElementTree as E;r=E.parse('$A/REGRESSION.junit.xml').getroot();t=list(r.iter('testcase'));print('faelle',len(t),'failure',sum(x.find('failure') is not None for x in t),'error',sum(x.find('error') is not None for x in t),'skipped',sum(x.find('skipped') is not None for x in t));print('vor_t4_05',sum(1 for x in t if 'test_vor_t4_05' in x.get('classname','')),'verdrahtung',sum(1 for x in t if 'test_verdrahtung' in x.get('classname','')))"
+echo "== Verdrahtung Regression"; /root/biotop-t3/venv/bin/python -B /tmp/review-vor-t4-05/verdrahtung_lesen.py $A/VERDRAHTUNG-BELEG-REGRESSION.json | grep -v "^   "
+for d in 1 2; do echo "== NACHSPIEL-N$d"; cut -c1-900 $A/nachspiel/NACHSPIEL-N$d.txt; done

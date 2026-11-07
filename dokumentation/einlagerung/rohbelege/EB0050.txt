@@ -1,0 +1,55 @@
+EB50 · Adresse und SSH-Zugang für die Abholung (nur lesend)
+Beginn: 2026-09-26 01:56:10 CEST (UTC+0200)
+Ende:   2026-09-26 01:56:10 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/biotop-einlagerung/arbeit/v6_adresse.sh
+--- Inhalt von /root/biotop-einlagerung/arbeit/v6_adresse.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-EINLAGERUNG-01 (nur lesend): Serveradresse und SSH-Zugang für die Abholung (Schritt 7) und die Risiken (WIEDEREINSTIEG 9).
+# Gibt nur öffentliche Angaben aus: Adressen, wirksame sshd-Einstellungen, Fingerabdrücke der Host-Schlüssel, Kommentar und Art
+# der berechtigten Schlüssel (nicht die Schlüssel selbst).
+set -u
+echo "== Zeitpunkt $(date '+%Y-%m-%d %H:%M:%S %Z (UTC%z)')"
+echo "== Adressen der Schnittstellen (IPv4)"; ip -4 -o addr show | awk '{print $2, $4}'
+echo "== Standard-Route"; ip -4 route show default
+echo "== Domainname → Adresse (DNS)"; getent ahostsv4 milieulux-reinigung-muenchen.de | awk '{print $1}' | sort -u
+echo "== Hostname"; hostname; hostname -f 2>/dev/null
+echo "== sshd wirksam (sshd -T, Auszug)"; sshd -T 2>/dev/null | grep -E '^(port|permitrootlogin|passwordauthentication|pubkeyauthentication|kbdinteractiveauthentication|listenaddress) '
+echo "== Host-Schlüssel (Fingerabdrücke)"; for k in /etc/ssh/ssh_host_*_key.pub; do ssh-keygen -lf "$k"; done
+echo "== /root/.ssh/authorized_keys: Art und Kommentar je Zeile"; awk '{print NR": "$1, $NF}' /root/.ssh/authorized_keys
+echo "== Archivordner"; ls -la /root/biotop-einlagerung/archiv/
+--- Ende /root/biotop-einlagerung/arbeit/v6_adresse.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== Zeitpunkt 2026-09-26 01:56:10 CEST (UTC+0200)
+== Adressen der Schnittstellen (IPv4)
+lo 127.0.0.1/8
+ens6 212.227.7.117/32
+docker0 172.17.0.1/16
+== Standard-Route
+default via 212.227.7.1 dev ens6 proto dhcp src 212.227.7.117 metric 100 
+== Domainname → Adresse (DNS)
+212.227.7.117
+== Hostname
+ubuntu
+ubuntu
+== sshd wirksam (sshd -T, Auszug)
+port 22
+listenaddress [::]:22
+listenaddress 0.0.0.0:22
+permitrootlogin without-password
+pubkeyauthentication yes
+passwordauthentication yes
+kbdinteractiveauthentication no
+== Host-Schlüssel (Fingerabdrücke)
+256 SHA256:uZ3LBqa7/lsvYtxgfC3dDjY7y5eg65wcWcDJKH5+N/A root@ubuntu (ECDSA)
+256 SHA256:klt2tsfm8QwK81bmxFq+WFpFHt6EdOSLwYRPzV9VOyI root@ubuntu (ED25519)
+3072 SHA256:6DaJLslNmnJx4Mg46ZxHIj9g08r0MuNWLaYF8ypNPTk root@ubuntu (RSA)
+== /root/.ssh/authorized_keys: Art und Kommentar je Zeile
+1: ssh-ed25519 philipp-laptop
+== Archivordner
+total 8
+drwxr-xr-x  2 root root 4096 Sep 25 23:19 .
+drwxr-xr-x 19 root root 4096 Sep 26 01:49 ..
+=== Ende EB50 ===

@@ -1,0 +1,94 @@
+EB5 · Schritt 1: Einordnung Zeitgeber, Warteschlangen, Skripte (nur lesend)
+Beginn: 2026-09-25 23:37:47 CEST (UTC+0200)
+Ende:   2026-09-25 23:37:48 CEST (UTC+0200)
+Dauer:  0.9 s
+Exit-Code: 2
+Befehl (wörtlich):
+bash /root/biotop-einlagerung/arbeit/s1_einordnung.sh
+--- Inhalt von /root/biotop-einlagerung/arbeit/s1_einordnung.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-EINLAGERUNG-01 Schritt 1 (nur lesend): Einordnung der Zeitgeber und Warteschlangen, die EB2 fand.
+# - je systemd-Zeitgeber: Befehl des Dienstes und Anzahl der Zeilen mit „biotop“ in den aufgerufenen Skriptdateien;
+# - /root/.hermes/pending/memory/*.json: Größe, Schlüssel, Treffer „biotop“ (kein Inhalt ausgegeben);
+# - Hermes-Konfiguration: Wiederaufnahme nach Neustart (Schlüssel mit resume/restart), .restart_last_processed.json.
+date '+== Zeitpunkt %Y-%m-%d %H:%M:%S %Z (UTC%z)'
+echo "== systemd-Zeitgeber: Dienst | Befehl | aufgerufene Dateien mit Anzahl Zeilen 'biotop' (Groß/klein egal)"
+for t in $(systemctl list-timers --all --no-legend --no-pager | grep -o '[A-Za-z0-9@_.-]*\.timer' | sort -u); do
+  s=$(systemctl show -p Unit --value "$t")
+  e=$(systemctl show -p ExecStart --value "$s" | grep -o 'argv\[\]=[^;]*' | head -1 | sed 's/argv\[\]=//')
+  z=""
+  for w in $e; do
+    if [ -f "$w" ] && [ "$(stat -c %s "$w")" -lt 5000000 ]; then z="$z $w:$(grep -c -i biotop "$w")"; fi
+  done
+  echo "$t | $s | $e |$z"
+done
+echo "== /root/.hermes/pending/memory/*.json"
+python3 - <<'EOF'
+import json, glob, os
+for p in sorted(glob.glob('/root/.hermes/pending/memory/*.json')):
+    t = open(p, errors='replace').read()
+    try:
+        d = json.loads(t)
+        keys = list(d) if isinstance(d, dict) else type(d).__name__
+    except ValueError:
+        keys = 'kein JSON'
+    print(p, os.path.getsize(p), 'B · geändert', os.path.getmtime(p), '· Schlüssel', keys, '· Treffer biotop:', t.lower().count('biotop'))
+EOF
+echo "== config.yaml: Schlüssel mit resume/restart/auto (nur Schlüsselnamen und Werte ohne Geheimnis)"
+grep -n -i -E 'resume|restart|auto_|autostart|wake' /root/.hermes/config.yaml | cut -c1-160
+echo "== .restart_last_processed.json"
+cat /root/.hermes/.restart_last_processed.json; echo
+echo "== Skripte in /root/.hermes/scripts mit Biotop-Bezug (Anzahl Zeilen 'biotop')"
+grep -c -i biotop /root/.hermes/scripts/* 2>/dev/null
+--- Ende /root/biotop-einlagerung/arbeit/s1_einordnung.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== Zeitpunkt 2026-09-25 23:37:47 CEST (UTC+0200)
+== systemd-Zeitgeber: Dienst | Befehl | aufgerufene Dateien mit Anzahl Zeilen 'biotop' (Groß/klein egal)
+analytics-wache.timer | analytics-wache.service | /opt/node22/bin/node /opt/hermes/projekte/milieulux/_werkzeug/analytics-wache.mjs --modus trocken --melden --aus /opt/hermes/projekte/milieulux/laeufe/seo-1-messung/BELEGE/wache-taeglich  |
+anfragen-melder.timer | anfragen-melder.service | /usr/local/sbin/anfragen-melder  | /usr/local/sbin/anfragen-melder:0
+apport-autoreport.timer | apport-autoreport.service | /usr/share/apport/whoopsie-upload-all --timeout 20  | /usr/share/apport/whoopsie-upload-all:0
+apt-daily-upgrade.timer | apt-daily-upgrade.service | /usr/lib/apt/apt.systemd.daily install  | /usr/lib/apt/apt.systemd.daily:0
+apt-daily.timer | apt-daily.service | /usr/lib/apt/apt.systemd.daily update  | /usr/lib/apt/apt.systemd.daily:0
+bild-wache.timer | bild-wache.service | /usr/local/sbin/bild-wache  |
+dpkg-db-backup.timer | dpkg-db-backup.service | /usr/libexec/dpkg/dpkg-db-backup  | /usr/libexec/dpkg/dpkg-db-backup:0
+e2scrub_all.timer | e2scrub_all.service | /sbin/e2scrub_all  | /sbin/e2scrub_all:0
+formular-wache.timer | formular-wache.service | /usr/local/sbin/formular-wache  | /usr/local/sbin/formular-wache:0
+fstrim.timer | fstrim.service | /sbin/fstrim --listed-in /etc/fstab:/proc/self/mountinfo --verbose --quiet-unsupported  | /sbin/fstrim:0
+fwupd-refresh.timer | fwupd-refresh.service | /usr/bin/fwupdmgr refresh  | /usr/bin/fwupdmgr:0
+kaltstart-ankuendigung.timer | kaltstart-ankuendigung.service | /usr/bin/python3 /opt/hermes/kaltstart.py ankuendigen --minuten 40  | /usr/bin/python3:0
+kaltstart.timer | kaltstart.service | /usr/bin/python3 /opt/hermes/kaltstart.py fahren  | /usr/bin/python3:0
+logrotate.timer | logrotate.service | /usr/sbin/logrotate /etc/logrotate.conf  | /usr/sbin/logrotate:0 /etc/logrotate.conf:0
+man-db.timer | man-db.service | /usr/bin/install -d -o man -g man -m 0755 /var/cache/man  | /usr/bin/install:0
+meldebremse-sammlung.timer | meldebremse-sammlung.service | /usr/bin/python3 /opt/hermes/melden.py --sammelmeldung  | /usr/bin/python3:0
+melder-wache.timer | melder-wache.service | /usr/local/sbin/melder-wache  | /usr/local/sbin/melder-wache:0
+motd-news.timer | motd-news.service | /etc/update-motd.d/50-motd-news --force  | /etc/update-motd.d/50-motd-news:0
+netz-wache.timer | netz-wache.service | /usr/local/sbin/netz-wache  | /usr/local/sbin/netz-wache:0
+seiten-wache.timer | seiten-wache.service | /usr/local/sbin/seiten-wache  | /usr/local/sbin/seiten-wache:0
+snapd.snap-repair.timer | snapd.snap-repair.service | /usr/lib/snapd/snap-repair run  |
+speicher-mitschreiber.timer | speicher-mitschreiber.service | /usr/local/sbin/speicher-mitschreiber  | /usr/local/sbin/speicher-mitschreiber:0
+sysstat-collect.timer | sysstat-collect.service | /usr/lib/sysstat/sa1 1 1  | /usr/lib/sysstat/sa1:0
+sysstat-summary.timer | sysstat-summary.service | /usr/lib/sysstat/sa2 -A  | /usr/lib/sysstat/sa2:0
+systemd-tmpfiles-clean.timer | systemd-tmpfiles-clean.service | systemd-tmpfiles --clean  |
+ua-timer.timer | ua-timer.service | /usr/bin/python3 /usr/lib/ubuntu-advantage/timer.py  | /usr/bin/python3:0 /usr/lib/ubuntu-advantage/timer.py:0
+update-notifier-download.timer | update-notifier-download.service | /usr/lib/update-notifier/package-data-downloader  | /usr/lib/update-notifier/package-data-downloader:0
+update-notifier-motd.timer | update-notifier-motd.service | /usr/lib/ubuntu-release-upgrader/release-upgrade-motd  | /usr/lib/ubuntu-release-upgrader/release-upgrade-motd:0
+zertifikat-wache.timer | zertifikat-wache.service | /usr/local/sbin/zertifikat-wache  | /usr/local/sbin/zertifikat-wache:0
+== /root/.hermes/pending/memory/*.json
+/root/.hermes/pending/memory/2cff9583.json 1449 B · geändert 1790252215.7424097 · Schlüssel ['id', 'subsystem', 'action', 'summary', 'origin', 'created_at', 'payload'] · Treffer biotop: 2
+/root/.hermes/pending/memory/5a509904.json 948 B · geändert 1790324631.3110657 · Schlüssel ['id', 'subsystem', 'action', 'summary', 'origin', 'created_at', 'payload'] · Treffer biotop: 0
+/root/.hermes/pending/memory/a10fa902.json 2244 B · geändert 1790324689.690733 · Schlüssel ['id', 'subsystem', 'action', 'summary', 'origin', 'created_at', 'payload'] · Treffer biotop: 5
+/root/.hermes/pending/memory/e17f5b20.json 2302 B · geändert 1790324631.3060656 · Schlüssel ['id', 'subsystem', 'action', 'summary', 'origin', 'created_at', 'payload'] · Treffer biotop: 2
+== config.yaml: Schlüssel mit resume/restart/auto (nur Schlüsselnamen und Werte ohne Geheimnis)
+11:  fast_auto_seconds: 60
+138:  - docker restart/stop/kill (container lifecycle)
+173:  auto_migrate: true
+177:  restart_loop_guard:
+178:    max_restarts: 3
+== .restart_last_processed.json
+{"platform": "telegram", "requested_at": 1790208836.5983193, "update_id": 832451849}
+== Skripte in /root/.hermes/scripts mit Biotop-Bezug (Anzahl Zeilen 'biotop')
+/root/.hermes/scripts/__pycache__:0
+/root/.hermes/scripts/biotop_endmeldung_r5.py:2
+/root/.hermes/scripts/zwischenbericht_waechter.py:1
+/root/.hermes/scripts/zwischenbericht_waechter.py.vor-kontext-20260923-212241:1
+=== Ende EB5 ===

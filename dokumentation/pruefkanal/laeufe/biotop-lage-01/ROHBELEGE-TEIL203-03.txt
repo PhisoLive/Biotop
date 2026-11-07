@@ -1,0 +1,470 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 03 · Teil 203 (Teile 166–239 dieses Stands) · enthält R196 bis R196
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+[R196 · Fortsetzung, Stück 21 von 22]
+            assert r["geurteilt"] is True and r["tragfaehig"] is True and not r.get("enthaltung"), befund
+        else:
+>           assert r.get("enthaltung") is True and r["tragfaehig"] is False and r["geurteilt"] is False, befund
+E           AssertionError: ('geurteilt', 'keine Verhaltensabweichung (7 von 7 Funktionen beobachtet)', {}, {})
+E           assert (None is True)
+E            +  where None = <built-in method get of dict object at 0x7240c0045180>('enthaltung')
+E            +    where <built-in method get of dict object at 0x7240c0045180> = {'module': ['paket.m.a'], 'bereiche': ['m'], 'kappe': 8, 'sprache': 'python', ...}.get
+
+tests/test_vor_t4_06.py:1667: AssertionError
+_ test_w_g_schreiben_in_fremde_module_python_am_organ[ruft_innen-    _merke(x)\n-    _merke(x + 1)\n-paket.m.a:STAND] _
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_w_g_schreiben_in_fremde_m5')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c01b4950>
+fall = 'ruft_innen', alt = '    _merke(x)\n', neu = '    _merke(x + 1)\n'
+soll = 'paket.m.a:STAND'
+
+    @pytest.mark.parametrize("fall,alt,neu,soll", [
+        ("attribut", "    k.RATE = 19\n", "    k.RATE = 7\n", f"{W_MA}:<schreibt:k>"),
+        ("methode", "    R.append(x)\n", "    R.append(x + 1)\n", f"{W_MA}:<schreibt:R>"),
+        ("setattr", "    k.RATE = 19\n", '    setattr(k, "RATE", 7)\n', f"{W_MA}:<schreibt:k>"),
+        ("globals", "    return x + 1\n", '    globals()["ZUSATZ"] = x\n    return x + 1\n', f"{W_MA}:<schreibt:globals()>"),
+        ("ruft_fremd", "    k.setze(19)\n", "    k.setze(7)\n", f"{W_MA}:<ruft:paket.m.k:setze>"),
+        ("ruft_innen", "    _merke(x)\n", "    _merke(x + 1)\n", f"{W_MA}:STAND"),
+        ("gegen_lokal", "    k.append(1)\n", "    k.append(2)\n", "geurteilt"),
+        ("gegen_liest", "    return k.lies() + x\n", "    return x + k.lies()\n", "geurteilt"),
+        ("gegen_rein", "    return x + 1\n", "    return 1 + x\n", "geurteilt"),
+    ])
+    def test_w_g_schreiben_in_fremde_module_python_am_organ(tmp_path, monkeypatch, fall, alt, neu, soll):
+        """G, Python (Auslegung S1c, dieselbe Klasse; Syntaxbaum echt, Sonde gestellt: alle öffentlichen Funktionen von `a`
+        beobachtet, ohne Abweichung). Proben — Enthaltung, Schlüssel in `ausserhalb`: eine geänderte Funktion schreibt in
+        ein importiertes Modul (`k.RATE = …`, `setattr(k, …)`), verändert ein importiertes Objekt (`R.append`, R = k.REG),
+        schreibt über `globals()`, ruft eine schreibende Funktion eines anderen Moduls (`k.setze`), ruft einen schreibenden
+        Helfer im eigenen Modul (`_merke` schreibt STAND, `b` liest STAND → C). Gegenproben — geurteilt: der Parameter `k`
+        verdeckt das Modul (Argumentzustand beobachtet die Sonde), die gerufene fremde Funktion schreibt nicht (`k.lies`),
+        eine Änderung ohne jedes Schreiben."""
+        assert W_G_A.count(alt) == 1, alt
+        w = _werk(tmp_path, W_G_A)
+        (w / "paket" / "m" / "k.py").write_text(W_G_K)
+        (w / "paket" / "m" / "b.py").write_text(W_G_B)
+    
+        def seite():
+            return {"gueltig": True, "beobachtungen": {f"{W_MA}:{f}#0": "1" for f in W_G_BEOB},
+                    "inhalt": {f"{W_MA}:{f}": 1 for f in W_G_BEOB}, "eingewickelt": {W_MA: W_G_BEOB},
+                    "muster": {f"{W_MA}:{f}#0": [] for f in W_G_BEOB}}
+        monkeypatch.setattr(vv, "beobachten", lambda *a, **k: seite())
+        r = vv.pruefen(w, {"paket/m/a.py": W_G_A.replace(alt, neu)}, _ref("from paket.m.a import f\nf(1)"), ["m"], {})
+        befund = (r.get("grund_art"), r.get("grund"), r.get("ausserhalb"), r.get("betroffene_enthaltungen"))
+        if soll == "geurteilt":
+            assert r["geurteilt"] is True and r["tragfaehig"] is True and not r.get("enthaltung"), befund
+        else:
+>           assert r.get("enthaltung") is True and r["tragfaehig"] is False and r["geurteilt"] is False, befund
+E           AssertionError: ('geurteilt', 'keine Verhaltensabweichung (7 von 7 Funktionen beobachtet)', {}, {})
+E           assert (None is True)
+E            +  where None = <built-in method get of dict object at 0x7240c0371840>('enthaltung')
+E            +    where <built-in method get of dict object at 0x7240c0371840> = {'module': ['paket.m.a'], 'bereiche': ['m'], 'kappe': 8, 'sprache': 'python', ...}.get
+
+tests/test_vor_t4_06.py:1667: AssertionError
+_ test_w_g_schreiben_in_fremde_module_typescript_am_organ[methode-  REG.push(x);\n-  REG.push(x + 1);\n-m/a:<schreibt:REG>] _
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_w_g_schreiben_in_fremde_m9')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0228fb0>
+fall = 'methode', alt = '  REG.push(x);\n', neu = '  REG.push(x + 1);\n'
+soll = 'm/a:<schreibt:REG>'
+
+    @pytest.mark.parametrize("fall,alt,neu,soll", [
+        ("methode", "  REG.push(x);\n", "  REG.push(x + 1);\n", "m/a:<schreibt:REG>"),
+        ("ruft_fremd", "  setze(x);\n", "  setze(x + 1);\n", "m/a:<ruft:n/k:setze>"),
+        ("gegen_liest", "  return lies() + x;\n", "  return x + lies();\n", "geurteilt"),
+    ])
+    def test_w_g_schreiben_in_fremde_module_typescript_am_organ(tmp_path, monkeypatch, fall, alt, neu, soll):
+        """G, TypeScript am Organ mit gestellter Sonde (ohne Parser): eine geänderte, beobachtete Funktion verändert ein
+        importiertes Objekt (`REG.push`) bzw. ruft eine importierte Funktion, die den Zustand ihres Moduls schreibt
+        (`setze` schreibt `RATE`) → Enthaltung. Gegenprobe: die gerufene importierte Funktion schreibt nicht (`lies`) →
+        geurteilt. Sonde gestellt: f, r, l beobachtet, ohne Abweichung."""
+        assert W_TS_GA.count(alt) == 1, alt
+        w = tmp_path / "ts"
+        (w / "src" / "m").mkdir(parents=True)
+        (w / "src" / "n").mkdir(parents=True)
+        (w / "package.json").write_text('{"type":"module"}')
+        (w / "src" / "m" / "a.ts").write_text(W_TS_GA)
+        (w / "src" / "n" / "k.ts").write_text(W_TS_GK)
+        fs = ["f", "r", "l"]
+    
+        def seite():
+            return {"gueltig": True, "beobachtungen": {f"m/a:{f}#0": "1" for f in fs},
+                    "inhalt": {f"m/a:{f}": 1 for f in fs}, "eingewickelt": {"m/a": fs},
+                    "muster": {f"m/a:{f}#0": [] for f in fs}}
+        monkeypatch.setattr(vv, "beobachten", lambda *a, **k: seite())
+        r = vv.pruefen(w, {"src/m/a.ts": W_TS_GA.replace(alt, neu)}, "export function last_m() {}\n", ["m"], {})
+        befund = (r.get("grund_art"), r.get("grund"), r.get("ausserhalb"))
+        if soll == "geurteilt":
+            assert r["geurteilt"] is True and r["tragfaehig"] is True and not r.get("enthaltung"), befund
+        else:
+>           assert r.get("enthaltung") is True and r["tragfaehig"] is False and r["geurteilt"] is False, befund
+E           AssertionError: ('geurteilt', 'keine Verhaltensabweichung (3 von 3 Funktionen beobachtet)', {})
+E           assert (None is True)
+E            +  where None = <built-in method get of dict object at 0x7240c083cd80>('enthaltung')
+E            +    where <built-in method get of dict object at 0x7240c083cd80> = {'module': ['m/a'], 'bereiche': ['m'], 'kappe': 8, 'sprache': 'typescript', ...}.get
+
+tests/test_vor_t4_06.py:1709: AssertionError
+_ test_w_g_schreiben_in_fremde_module_typescript_am_organ[ruft_fremd-  setze(x);\n-  setze(x + 1);\n-m/a:<ruft:n/k:setze>] _
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_w_g_schreiben_in_fremde_m10')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c02288f0>
+fall = 'ruft_fremd', alt = '  setze(x);\n', neu = '  setze(x + 1);\n'
+soll = 'm/a:<ruft:n/k:setze>'
+
+    @pytest.mark.parametrize("fall,alt,neu,soll", [
+        ("methode", "  REG.push(x);\n", "  REG.push(x + 1);\n", "m/a:<schreibt:REG>"),
+        ("ruft_fremd", "  setze(x);\n", "  setze(x + 1);\n", "m/a:<ruft:n/k:setze>"),
+        ("gegen_liest", "  return lies() + x;\n", "  return x + lies();\n", "geurteilt"),
+    ])
+    def test_w_g_schreiben_in_fremde_module_typescript_am_organ(tmp_path, monkeypatch, fall, alt, neu, soll):
+        """G, TypeScript am Organ mit gestellter Sonde (ohne Parser): eine geänderte, beobachtete Funktion verändert ein
+        importiertes Objekt (`REG.push`) bzw. ruft eine importierte Funktion, die den Zustand ihres Moduls schreibt
+        (`setze` schreibt `RATE`) → Enthaltung. Gegenprobe: die gerufene importierte Funktion schreibt nicht (`lies`) →
+        geurteilt. Sonde gestellt: f, r, l beobachtet, ohne Abweichung."""
+        assert W_TS_GA.count(alt) == 1, alt
+        w = tmp_path / "ts"
+        (w / "src" / "m").mkdir(parents=True)
+        (w / "src" / "n").mkdir(parents=True)
+        (w / "package.json").write_text('{"type":"module"}')
+        (w / "src" / "m" / "a.ts").write_text(W_TS_GA)
+        (w / "src" / "n" / "k.ts").write_text(W_TS_GK)
+        fs = ["f", "r", "l"]
+    
+        def seite():
+            return {"gueltig": True, "beobachtungen": {f"m/a:{f}#0": "1" for f in fs},
+                    "inhalt": {f"m/a:{f}": 1 for f in fs}, "eingewickelt": {"m/a": fs},
+                    "muster": {f"m/a:{f}#0": [] for f in fs}}
+        monkeypatch.setattr(vv, "beobachten", lambda *a, **k: seite())
+        r = vv.pruefen(w, {"src/m/a.ts": W_TS_GA.replace(alt, neu)}, "export function last_m() {}\n", ["m"], {})
+        befund = (r.get("grund_art"), r.get("grund"), r.get("ausserhalb"))
+        if soll == "geurteilt":
+            assert r["geurteilt"] is True and r["tragfaehig"] is True and not r.get("enthaltung"), befund
+        else:
+>           assert r.get("enthaltung") is True and r["tragfaehig"] is False and r["geurteilt"] is False, befund
+E           AssertionError: ('geurteilt', 'keine Verhaltensabweichung (3 von 3 Funktionen beobachtet)', {})
+E           assert (None is True)
+E            +  where None = <built-in method get of dict object at 0x7240bfc5f140>('enthaltung')
+E            +    where <built-in method get of dict object at 0x7240bfc5f140> = {'module': ['m/a'], 'bereiche': ['m'], 'kappe': 8, 'sprache': 'typescript', ...}.get
+
+tests/test_vor_t4_06.py:1709: AssertionError
+_________ test_w_g_schreiben_in_fremde_module_durch_aegis[g_schreibt] __________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_w_g_schreiben_in_fremde_m12')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c022ae40>
+fall = 'g_schreibt'
+
+    @pytest.mark.parametrize("fall", list(W_G_FAELLE))
+    def test_w_g_schreiben_in_fremde_module_durch_aegis(tmp_path, monkeypatch, fall):
+        """G durch aegis.pruefen in der echten Kammer (Prüfwerk probewerk, gestellt nur Modell und Laufzeit): die zwei
+        gemessenen Befunde (schreibt, ruft) → zurückgestellt, `enthaltung` True (am Baum vor G: `ueberlebt`, geurteilt
+        „9 von 9“); Gegenprobe: `setze` ruft nur eine lesende Funktion → überlebt, geurteilt."""
+        alt, neu, soll, schluessel = W_G_FAELLE[fall]
+        kern_alt, kern_neu = R3.QUELLE + alt, R3.QUELLE + neu
+        monkeypatch.setattr(R3, "QUELLE", kern_alt)
+        monkeypatch.setattr(R3, "REFERENZLAST", R3.REFERENZLAST + W_G_LAST)
+        diff = _w_diff(kern_alt, kern_neu, "probewerk/werk/kern.py")
+>       u, v = R3._pruefen(tmp_path, monkeypatch, diff, werk_extra={"probewerk/werk/konst.py": W_G_KONST,
+                                                                    "probewerk/werk/leser.py": W_G_LESER})
+
+tests/test_vor_t4_06.py:1745: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_w_g_schreiben_in_fremde_m12')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c022ae40>
+diff = '--- a/probewerk/werk/kern.py\n+++ b/probewerk/werk/kern.py\n@@ -57,5 +57,5 @@\n \n \n def setze(x: int) -> int:\n-    konst.RATE = 19\n+    konst.RATE = 7\n     return x\n'
+nische = 'schnell'
+werk_extra = {'probewerk/werk/konst.py': 'RATE = 19\n\n\ndef setze_rate(r: int) -> None:\n    global RATE\n    RATE = r\n\n\ndef ra...werk/leser.py': 'from . import konst\n\n\ndef brutto(cent: int) -> int:\n    return cent + cent * konst.RATE // 100\n'}
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+___________ test_w_g_schreiben_in_fremde_module_durch_aegis[g_ruft] ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_w_g_schreiben_in_fremde_m13')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c022a8a0>
+fall = 'g_ruft'
+
+    @pytest.mark.parametrize("fall", list(W_G_FAELLE))
+    def test_w_g_schreiben_in_fremde_module_durch_aegis(tmp_path, monkeypatch, fall):
+        """G durch aegis.pruefen in der echten Kammer (Prüfwerk probewerk, gestellt nur Modell und Laufzeit): die zwei
+        gemessenen Befunde (schreibt, ruft) → zurückgestellt, `enthaltung` True (am Baum vor G: `ueberlebt`, geurteilt
+        „9 von 9“); Gegenprobe: `setze` ruft nur eine lesende Funktion → überlebt, geurteilt."""
+        alt, neu, soll, schluessel = W_G_FAELLE[fall]
+        kern_alt, kern_neu = R3.QUELLE + alt, R3.QUELLE + neu
+        monkeypatch.setattr(R3, "QUELLE", kern_alt)
+        monkeypatch.setattr(R3, "REFERENZLAST", R3.REFERENZLAST + W_G_LAST)
+        diff = _w_diff(kern_alt, kern_neu, "probewerk/werk/kern.py")
+>       u, v = R3._pruefen(tmp_path, monkeypatch, diff, werk_extra={"probewerk/werk/konst.py": W_G_KONST,
+                                                                    "probewerk/werk/leser.py": W_G_LESER})
+
+tests/test_vor_t4_06.py:1745: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_w_g_schreiben_in_fremde_m13')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c022a8a0>
+diff = '--- a/probewerk/werk/kern.py\n+++ b/probewerk/werk/kern.py\n@@ -57,5 +57,5 @@\n \n \n def setze(x: int) -> int:\n-    konst.setze_rate(19)\n+    konst.setze_rate(7)\n     return x\n'
+nische = 'schnell'
+werk_extra = {'probewerk/werk/konst.py': 'RATE = 19\n\n\ndef setze_rate(r: int) -> None:\n    global RATE\n    RATE = r\n\n\ndef ra...werk/leser.py': 'from . import konst\n\n\ndef brutto(cent: int) -> int:\n    return cent + cent * konst.RATE // 100\n'}
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+___________ test_w_g_schreiben_in_fremde_module_durch_aegis[g_gegen] ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_w_g_schreiben_in_fremde_m14')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0228d40>
+fall = 'g_gegen'
+
+    @pytest.mark.parametrize("fall", list(W_G_FAELLE))
+    def test_w_g_schreiben_in_fremde_module_durch_aegis(tmp_path, monkeypatch, fall):
+        """G durch aegis.pruefen in der echten Kammer (Prüfwerk probewerk, gestellt nur Modell und Laufzeit): die zwei
+        gemessenen Befunde (schreibt, ruft) → zurückgestellt, `enthaltung` True (am Baum vor G: `ueberlebt`, geurteilt
+        „9 von 9“); Gegenprobe: `setze` ruft nur eine lesende Funktion → überlebt, geurteilt."""
+        alt, neu, soll, schluessel = W_G_FAELLE[fall]
+        kern_alt, kern_neu = R3.QUELLE + alt, R3.QUELLE + neu
+        monkeypatch.setattr(R3, "QUELLE", kern_alt)
+        monkeypatch.setattr(R3, "REFERENZLAST", R3.REFERENZLAST + W_G_LAST)
+        diff = _w_diff(kern_alt, kern_neu, "probewerk/werk/kern.py")
+>       u, v = R3._pruefen(tmp_path, monkeypatch, diff, werk_extra={"probewerk/werk/konst.py": W_G_KONST,
+                                                                    "probewerk/werk/leser.py": W_G_LESER})
+
+tests/test_vor_t4_06.py:1745: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_w_g_schreiben_in_fremde_m14')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0228d40>
+diff = '--- a/probewerk/werk/kern.py\n+++ b/probewerk/werk/kern.py\n@@ -57,4 +57,4 @@\n \n \n def setze(x: int) -> int:\n-    return x + 0 * konst.rate()\n+    return 0 * konst.rate() + x\n'
+nische = 'schnell'
+werk_extra = {'probewerk/werk/konst.py': 'RATE = 19\n\n\ndef setze_rate(r: int) -> None:\n    global RATE\n    RATE = r\n\n\ndef ra...werk/leser.py': 'from . import konst\n\n\ndef brutto(cent: int) -> int:\n    return cent + cent * konst.RATE // 100\n'}
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_eichproben.py::test_nebenwirkung_braucht_gewinn_a_und_verlust_b[False]
+FAILED tests/test_eichproben.py::test_nebenwirkung_braucht_gewinn_a_und_verlust_b[True]
+FAILED tests/test_eichproben.py::test_nebenwirkung_gewinnt_auch_bei_rueckwirkung_von_b_auf_a
+FAILED tests/test_eichproben.py::test_regression_nennt_einzeltest_trotz_ausgefuehrter_gruener_tests[False]
+FAILED tests/test_eichproben.py::test_regression_nennt_einzeltest_trotz_ausgefuehrter_gruener_tests[True]
+FAILED tests/test_eichproben.py::test_vertrag_braucht_konkreten_bruch_und_ausgefuehrten_konsumenten[False]
+FAILED tests/test_eichproben.py::test_vertrag_braucht_konkreten_bruch_und_ausgefuehrten_konsumenten[True]
+FAILED tests/test_eichproben.py::test_vier_paare_ohne_freeze_und_ohne_spuren_im_original
+FAILED tests/test_eichproben.py::test_s10_vertragsprobe_waehlt_die_von_der_last_unerreichte_funktion
+FAILED tests/test_eichproben.py::test_s10_vertragsprobe_ohne_unerreichte_funktion_ist_nicht_baubar
+FAILED tests/test_eichproben.py::test_unbaubare_probe_bleibt_ungeprueft_statt_erwuenscht_falsch
+FAILED tests/test_eichproben.py::test_norm_aendert_vorhandene_funktion_statt_importfehler
+FAILED tests/test_eichproben.py::test_normmechanik_bleibt_getrennt_vom_tatsaechlichen_laufzeitbefund[False]
+FAILED tests/test_eichproben.py::test_normmechanik_bleibt_getrennt_vom_tatsaechlichen_laufzeitbefund[True]
+FAILED tests/test_eichproben.py::test_norm_erreicht_vorhandene_methode_ohne_paarwechsel
+FAILED tests/test_eichproben.py::test_reine_probeoption_ist_markiert_und_erreicht_originale_norm[True]
+FAILED tests/test_eichproben.py::test_kammerzaehlung_misst_auch_verschachtelte_aufrufe
+FAILED tests/test_eichproben.py::test_norm_paar_schliesst_falsch_gruen_ohne_normpfad_aus[False]
+FAILED tests/test_eichproben.py::test_norm_paar_schliesst_falsch_gruen_ohne_normpfad_aus[True]
+FAILED tests/test_junit_zeugen.py::test_rest_junit_nur_aus_abgeschlossener_kammer_ist_erfolgszeuge[sauber]
+FAILED tests/test_junit_zeugen.py::test_rest_junit_nur_aus_abgeschlossener_kammer_ist_erfolgszeuge[abbruch]
+FAILED tests/test_junit_zeugen.py::test_rest_junit_nur_aus_abgeschlossener_kammer_ist_erfolgszeuge[zeitlimit]
+FAILED tests/test_junit_zeugen.py::test_rest_junit_nur_aus_abgeschlossener_kammer_ist_erfolgszeuge[pytest_abbruch]
+FAILED tests/test_review_vertrag.py::test_contract_countercase_is_not_allowed_to_fail_inside_cloned_test
+FAILED tests/test_t3_aenderungsziel.py::test_ts_mit_anwendbarem_diff_nennt_die_funktion
+FAILED tests/test_t3_bindung.py::test_ts_instrumentaenderung_invalidiert_versiegelten_nachweis[biotop/kern/ts/messen.mjs]
+FAILED tests/test_t3_bindung.py::test_ts_instrumentaenderung_invalidiert_versiegelten_nachweis[kammer/typescript/package-lock.json]
+FAILED tests/test_t3_kaputter_modellcode.py::test_gedaechtnis_funktionen_bei_kaputtem_ts_liefert_leer
+FAILED tests/test_t3_kaputter_modellcode.py::test_aegis_nur_funktionen_bei_kaputtem_ts_liefert_none
+FAILED tests/test_t3_kaputter_modellcode.py::test_aegis_fehlende_oder_geaenderte_tests_bei_kaputtem_ts
+FAILED tests/test_t3_kaputter_modellcode.py::test_aegis_nennt_vertrag_bei_kaputtem_ts_ist_falsch
+FAILED tests/test_t3_kaputter_modellcode.py::test_aegis_behauptung_bei_kaputtem_ts_gibt_platzhalter
+FAILED tests/test_t3_kaputter_modellcode.py::test_fundpruefung_testnamen_bei_kaputtem_ts_liefert_leer
+FAILED tests/test_t3_kaputter_modellcode.py::test_generation0_erzeugen_bei_kaputtem_werk_liefert_leer
+FAILED tests/test_t3_kaputter_modellcode.py::test_gegenprobe_gueltiger_ts_code_wird_weiterhin_gelesen
+FAILED tests/test_t3_neutralzaehler.py::test_gegenprobe_behauptung_platzhalter_wird_gezaehlt
+FAILED tests/test_t3_neutralzaehler.py::test_gegenprobe_behauptung_ableitbar_zaehlt_als_geurteilt
+FAILED tests/test_t3_neutralzaehler.py::test_gegenprobe_anhaengen_none_wird_gezaehlt
+FAILED tests/test_t3_neutralzaehler.py::test_gegenprobe_wiederholung_anwendbar_zaehlt_als_geurteilt
+FAILED tests/test_t3_verbundausfall.py::test_http_erfolg_ohne_beitrag_ist_ausfall_und_wird_abgerechnet[-stop-None]
+FAILED tests/test_t3_verbundausfall.py::test_http_erfolg_ohne_beitrag_ist_ausfall_und_wird_abgerechnet[  -stop-None]
+FAILED tests/test_t3_verbundausfall.py::test_http_erfolg_ohne_beitrag_ist_ausfall_und_wird_abgerechnet[-refusal-cyber]
+FAILED tests/test_t3_verbundausfall.py::test_http_erfolg_ohne_beitrag_ist_ausfall_und_wird_abgerechnet[Resttext-content_filter-refused]
+FAILED tests/test_t3_verbundausfall.py::test_nutzbare_antwort_erreicht_konsument_kein_vorschlag_kein_ausfall[KEIN VORSCHLAG \u2014 nichts gefunden]
+FAILED tests/test_t3_verbundausfall.py::test_nutzbare_antwort_erreicht_konsument_kein_vorschlag_kein_ausfall[BEGR\xdcNDUNG: g\xfcltiger Text]
+FAILED tests/test_t3_verbundausfall.py::test_timeout_ist_ausfall_keine_freigabe_unbekannter_kosten
+FAILED tests/test_t3_verbundausfall.py::test_verbund_ausfall_und_gueltiger_nachbar_durch_genesis
+FAILED tests/test_t3_zaehlkontext.py::test_ohne_lauf_bucht_niemand - biotop.k...
+FAILED tests/test_t3_zaehlkontext.py::test_zaehlerfehler_beendet_keinen_lauf
+FAILED tests/test_t3_zweigklasse.py::test_anhaengen_ts_gibt_none_statt_zu_werfen
+FAILED tests/test_t3_zweigklasse.py::test_behauptung_ts_unableitbar_gibt_platzhalter
+FAILED tests/test_t3_zweigklasse.py::test_behauptung_ts_ableitbar_liefert_schluessel
+FAILED tests/test_verdrahtung.py::test_jedes_organ_wird_im_lauf_aufgerufen - ...
+FAILED tests/test_vor_t4.py::test_10_sperre_am_laufweg_projekt_merken_und_wiederholung[Grenzma\xdf gerissen: tarife.laufzeit_ms: 6.414 > Grenze 5.945 (Bestwert 5.169 \xd7 1.150)-False]
+FAILED tests/test_vor_t4.py::test_10_sperre_am_laufweg_projekt_merken_und_wiederholung[Grenzma\xdf gerissen: planung.laufzeit_ms: 12.000 > Grenze 10.000 (Bestwert 8.000 \xd7 1.250)-False]
+FAILED tests/test_vor_t4.py::test_10_sperre_am_laufweg_projekt_merken_und_wiederholung[Grenzma\xdf gerissen: planung.laufzeit_ms: 12.000 > Grenze 10.000 (Vorgeneration gepaart, Median aus 5 8.000 \xd7 1.250)-True]
+FAILED tests/test_vor_t4.py::test_10_sperre_am_laufweg_projekt_merken_und_wiederholung[Kernma\xdf unver\xe4ndert (0 \u2192 0); bestandene Tests z\xe4hlen nicht-True]
+FAILED tests/test_vor_t4.py::test_9_anhaengen_auf_dem_typescript_pfad_haengt_an_und_zaehlt
+FAILED tests/test_vor_t4.py::test_review2_erweiterte_importzeile_ohne_doppelte_bindung
+FAILED tests/test_vor_t4.py::test_review2_gegenprobe_namenskonflikt_wird_nicht_angehaengt
+FAILED tests/test_vor_t4_02.py::test_py_zwischenspeicher_fehler_scheitert_am_laufweg
+FAILED tests/test_vor_t4_02.py::test_py_gegenprobe_speicher_am_inhalt_ueberlebt
+FAILED tests/test_vor_t4_02.py::test_py_weissraum_scheitert_an_formvariante
+FAILED tests/test_vor_t4_02.py::test_py_gegenprobe_nur_toter_code_entfernt_ueberlebt
+FAILED tests/test_vor_t4_02.py::test_deckungsaufzeichner_in_der_kammer_je_abweichung[ts-True]
+FAILED tests/test_vor_t4_02.py::test_deckungsaufzeichner_in_der_kammer_je_abweichung[ts-False]
+FAILED tests/test_vor_t4_02.py::test_deckungsaufzeichner_in_der_kammer_je_abweichung[py-True]
+FAILED tests/test_vor_t4_02.py::test_deckungsaufzeichner_in_der_kammer_je_abweichung[py-False]
+FAILED tests/test_vor_t4_03.py::test_a1_generator_ausgabe_geaendert_wird_abgelehnt
+FAILED tests/test_vor_t4_03.py::test_a1_gegenprobe_generator_gleiche_ausgabe_ueberlebt
+FAILED tests/test_vor_t4_03.py::test_a2_inplace_sortierung_umgedreht_wird_abgelehnt
+FAILED tests/test_vor_t4_03.py::test_a2_gegenprobe_gleiche_sortierung_anders_geschrieben_ueberlebt
+FAILED tests/test_vor_t4_03.py::test_a3_funktion_ohne_annotation_wird_mit_tastendem_korpus_gesehen
+FAILED tests/test_vor_t4_03.py::test_a4_mengenreihenfolge_ist_kein_fehlalarm
+FAILED tests/test_vor_t4_03.py::test_a5_lru_cache_auf_reiner_funktion_ist_kein_fehlalarm
+FAILED tests/test_vor_t4_03.py::test_a5_gegenprobe_falscher_cache_wird_abgelehnt
+FAILED tests/test_vor_t4_03.py::test_d_geaenderte_methode_wird_abgelehnt - As...
+FAILED tests/test_vor_t4_03.py::test_d_gegenprobe_methode_umgeschrieben_ueberlebt
+FAILED tests/test_vor_t4_03.py::test_d_zustand_von_self_nach_dem_aufruf_wird_verglichen
+FAILED tests/test_vor_t4_03.py::test_b_richtige_behebung_mit_test_je_muster_kommt_durch
+FAILED tests/test_vor_t4_03.py::test_b_gegenprobe_ohne_test_fuer_das_weissraum_muster_bleibt_abgelehnt
+FAILED tests/test_vor_t4_03.py::test_b_test_der_nur_nebenbei_ruft_deckt_nicht[False]
+FAILED tests/test_vor_t4_03.py::test_b_test_der_nur_nebenbei_ruft_deckt_nicht[True]
+FAILED tests/test_vor_t4_04.py::test_h1_doppeltes_leerzeichen_deckt_keinen_tab_rueckschritt[x1_doppelt-faelle0-abgelehnt]
+FAILED tests/test_vor_t4_04.py::test_h1_doppeltes_leerzeichen_deckt_keinen_tab_rueckschritt[x1k_ohne_doppelt-faelle1-abgelehnt]
+FAILED tests/test_vor_t4_04.py::test_h1_gegenprobe_tests_je_formvariante_decken_den_rueckschritt_nicht_und_die_behebung_schon
+FAILED tests/test_vor_t4_04.py::test_h2_tab_aufruf_ohne_zusicherung_haelt_nichts_fest[False-abgelehnt]
+FAILED tests/test_vor_t4_04.py::test_h2_tab_aufruf_ohne_zusicherung_haelt_nichts_fest[True-abgelehnt]
+FAILED tests/test_vor_t4_04.py::test_h2_fixture_fehler_zaehlt_nicht_als_festhalten
+FAILED tests/test_vor_t4_04.py::test_h3_iterator_objekt_bleibt_erhalten[True]
+FAILED tests/test_vor_t4_04.py::test_h3_iterator_objekt_bleibt_erhalten[False]
+FAILED tests/test_vor_t4_04.py::test_h4_zustand_von_self_auch_mit_slots[slots]
+FAILED tests/test_vor_t4_04.py::test_h4_zustand_von_self_auch_mit_slots[dataclass_slots]
+FAILED tests/test_vor_t4_04.py::test_h4_zustand_von_self_auch_mit_slots[ohne_slots]
+FAILED tests/test_vor_t4_04.py::test_h4_gegenprobe_slots_umgeschrieben_ohne_abweichung
+FAILED tests/test_vor_t4_04.py::test_r45_instanz_aus_der_signatur_wird_erprobt[]
+FAILED tests/test_vor_t4_04.py::test_r45_instanz_aus_der_signatur_wird_erprobt[: int]
+FAILED tests/test_vor_t4_04.py::test_r46_koroutine_wird_beobachtet[2-False]
+FAILED tests/test_vor_t4_04.py::test_r46_koroutine_wird_beobachtet[1-True] - ...
+FAILED tests/test_vor_t4_04.py::test_r413_iterator_kappe_ist_gezaehlt - bioto...
+FAILED tests/test_vor_t4_04.py::test_e4_kandidat_mit_rueckschritt_und_eigenem_test_wird_abgelehnt
+FAILED tests/test_vor_t4_04.py::test_e4_gegenprobe_derselbe_test_in_der_vorgeneration_deckt
+FAILED tests/test_vor_t4_04.py::test_merkmale_gleich_in_python_und_typescript
+FAILED tests/test_vor_t4_05.py::test_v1_zustand_aller_slots_verglichen[p22_basis_slot-class Basis:\n    __slots__ = ('stand',)\n\n    def __init__(self, stand: int):\n        self.stand = stand\n\n\nclass Konto(Basis):\n    __slots__ = ('name',)\n\n    def __init__(self, stand: int):\n        super().__init__(stand)\n        self.name = 'k'\n\n    def buchen(self, b: int) -> None:\n        self.stand += b\n-class Basis:\n    __slots__ = ('stand',)\n\n    def __init__(self, stand: int):\n        self.stand = stand\n\n\nclass Konto(Basis):\n    __slots__ = ('name',)\n\n    def __init__(self, stand: int):\n        super().__init__(stand)\n        self.name = 'k'\n\n    def buchen(self, b: int) -> None:\n        self.stand += 2 * b\n]
+FAILED tests/test_vor_t4_05.py::test_v1_zustand_aller_slots_verglichen[p21_verschleiert-class Konto:\n    __slots__ = ('__stand',)\n\n    def __init__(self, stand: int):\n        self.__stand = stand\n\n    def buchen(self, b: int) -> None:\n        self.__stand += b\n-class Konto:\n    __slots__ = ('__stand',)\n\n    def __init__(self, stand: int):\n        self.__stand = stand\n\n    def buchen(self, b: int) -> None:\n        self.__stand += 2 * b\n]
+FAILED tests/test_vor_t4_05.py::test_v1_zustand_aller_slots_verglichen[p22k_eigener_slot-class Basis:\n    __slots__ = ('stand',)\n\n    def __init__(self, stand: int):\n        self.stand = stand\n\n\nclass Konto(Basis):\n    __slots__ = ('name',)\n\n    def __init__(self, stand: int):\n        super().__init__(stand)\n        self.name = 'k'\n\n    def buchen(self, b: int) -> None:\n        self.name += str(b)\n-class Basis:\n    __slots__ = ('stand',)\n\n    def __init__(self, stand: int):\n        self.stand = stand\n\n\nclass Konto(Basis):\n    __slots__ = ('name',)\n\n    def __init__(self, stand: int):\n        super().__init__(stand)\n        self.name = 'k'\n\n    def buchen(self, b: int) -> None:\n        self.name += str(2 * b)\n]
+FAILED tests/test_vor_t4_05.py::test_v1_gegenprobe_slots_umgeschrieben_bleibt_tragfaehig
+FAILED tests/test_vor_t4_05.py::test_v1_iterator_objekt_elemente_nie_tragfaehig
+FAILED tests/test_vor_t4_05.py::test_v1_gegenprobe_generator_wird_geurteilt
+FAILED tests/test_vor_t4_05.py::test_v1_iterator_kappe_nie_tragfaehig - bioto...
+FAILED tests/test_vor_t4_05.py::test_v1_pfad_ist_ein_wert[b-False] - biotop.o...
+FAILED tests/test_vor_t4_05.py::test_v1_pfad_ist_ein_wert[a-True] - biotop.or...
+FAILED tests/test_vor_t4_05.py::test_f2_idempotenz_haelt_tab_nicht_fest[True]
+FAILED tests/test_vor_t4_05.py::test_f2_idempotenz_haelt_tab_nicht_fest[False]
+FAILED tests/test_vor_t4_05.py::test_a3_sondenausfall_trifft_nur_die_betroffene_funktion
+FAILED tests/test_vor_t4_05.py::test_a3_gegenprobe_abbruch_auch_ohne_sonde_ist_verhalten_des_werks
+FAILED tests/test_vor_t4_05.py::test_a3_dictreader_bleibt_objekt_und_die_last_laeuft
+FAILED tests/test_vor_t4_05.py::test_k4_kappe_stellt_zurueck_mit_grund[2-zurueckgestellt]
+FAILED tests/test_vor_t4_05.py::test_k4_kappe_stellt_zurueck_mit_grund[24-ueberlebt]
+FAILED tests/test_vor_t4_05.py::test_k4_gegenprobe_ungedeckt_ohne_kappe_lehnt_ab
+FAILED tests/test_vor_t4_05.py::test_l7_lastaufruf_traegt_formmerkmal_seiner_eingabe
+FAILED tests/test_vor_t4_05.py::test_e8_parametrisierter_eigener_test_deckt_nicht[kennung-abgelehnt]
+FAILED tests/test_vor_t4_05.py::test_e8_parametrisierter_eigener_test_deckt_nicht[exakt-ueberlebt]
+FAILED tests/test_vor_t4_06.py::test_t1_typpruefung_tautologie_idempotenz_halten_tab_nicht_fest[x5]
+FAILED tests/test_vor_t4_06.py::test_t1_typpruefung_tautologie_idempotenz_halten_tab_nicht_fest[x5b]
+FAILED tests/test_vor_t4_06.py::test_t1_typpruefung_tautologie_idempotenz_halten_tab_nicht_fest[x3]
+FAILED tests/test_vor_t4_06.py::test_t1_typpruefung_tautologie_idempotenz_halten_tab_nicht_fest[x3k]
+FAILED tests/test_vor_t4_06.py::test_t1_richtige_behebung_mit_tab_test_haelt_fest_und_ueberlebt
+FAILED tests/test_vor_t4_06.py::test_t1_nicht_verfaelschbar_ist_unentschieden_nie_deckung[none]
+FAILED tests/test_vor_t4_06.py::test_t1_nicht_verfaelschbar_ist_unentschieden_nie_deckung[text]
+FAILED tests/test_vor_t4_06.py::test_t1_haengender_test_unter_verfaelschung_ist_fehler
+FAILED tests/test_vor_t4_06.py::test_u2_zustand_aus_c_typen_wird_gesehen[p24b]
+FAILED tests/test_vor_t4_06.py::test_u2_zustand_aus_c_typen_wird_gesehen[p25]
+FAILED tests/test_vor_t4_06.py::test_u2_gegenprobe_gleicher_c_zustand_bleibt_tragfaehig[stringio]
+FAILED tests/test_vor_t4_06.py::test_u2_gegenprobe_gleicher_c_zustand_bleibt_tragfaehig[decimal]
+FAILED tests/test_vor_t4_06.py::test_b3_a3x_geaenderte_funktion_im_sondenausfall_stellt_zurueck
+FAILED tests/test_vor_t4_06.py::test_b3_f1_f2_unveraenderte_schwer_erfassbare_funktion_urteil_am_rest[f1]
+FAILED tests/test_vor_t4_06.py::test_b3_f1_f2_unveraenderte_schwer_erfassbare_funktion_urteil_am_rest[f2]
+FAILED tests/test_vor_t4_06.py::test_b3_r6_1_unveraenderte_stringio_funktion_stellt_nicht_zurueck
+FAILED tests/test_vor_t4_06.py::test_b3_p24_geaenderte_stringio_rueckgabe_mit_sichtbarer_abweichung_lehnt_ab
+FAILED tests/test_vor_t4_06.py::test_b3_p24z_geaenderte_stringio_funktion_ohne_sichtbare_abweichung_stellt_zurueck
+FAILED tests/test_vor_t4_06.py::test_b3_privater_helfer_geaendert_aufruferin_unvollstaendig[helfer-zurueckgestellt]
+FAILED tests/test_vor_t4_06.py::test_b3_privater_helfer_geaendert_aufruferin_unvollstaendig[quadrat-ueberlebt]
+FAILED tests/test_vor_t4_06.py::test_b3_d1_haengender_aufruf_trifft_nur_die_funktion[d1]
+FAILED tests/test_vor_t4_06.py::test_b3_d1_haengender_aufruf_trifft_nur_die_funktion[d1b]
+FAILED tests/test_vor_t4_06.py::test_b3_haengende_bereichslast_wird_wie_ein_abbruch_eingegrenzt
+FAILED tests/test_vor_t4_06.py::test_x7_p26_geworfene_ausnahme_nach_typ_und_inhalt[Ort-False]
+FAILED tests/test_vor_t4_06.py::test_x7_p26_geworfene_ausnahme_nach_typ_und_inhalt[PLZ-True]
+FAILED tests/test_vor_t4_06.py::test_u2n_wert_ohne_beobachtung_am_organ[lambda-enthaltung]
+FAILED tests/test_vor_t4_06.py::test_u2n_wert_ohne_beobachtung_am_organ[zelle-abgelehnt]
+FAILED tests/test_vor_t4_06.py::test_u2n_wert_ohne_beobachtung_am_organ[doppel-tragfaehig]
+FAILED tests/test_vor_t4_06.py::test_u2n_wert_ohne_beobachtung_am_organ[doppel-gezaehlt]
+FAILED tests/test_vor_t4_06.py::test_u2n_wert_ohne_beobachtung_am_organ[register-enthaltung]
+FAILED tests/test_vor_t4_06.py::test_u2n_wert_ohne_beobachtung_am_organ[register_lieferantin-gezaehlt]
+FAILED tests/test_vor_t4_06.py::test_m2_direkt_geaendert_und_unbeobachtet[verdeckt]
+FAILED tests/test_vor_t4_06.py::test_m2_direkt_geaendert_und_unbeobachtet[verdeckt_gegen]
+FAILED tests/test_vor_t4_06.py::test_m2_direkt_geaendert_und_unbeobachtet[dunder]
+FAILED tests/test_vor_t4_06.py::test_m2_direkt_geaendert_und_unbeobachtet[dunder_gegen]
+FAILED tests/test_vor_t4_06.py::test_m2_direkt_geaendert_und_unbeobachtet[helfer_gedeckt]
+FAILED tests/test_vor_t4_06.py::test_m2_direkt_geaendert_und_unbeobachtet[helfer_sichtbar]
+FAILED tests/test_vor_t4_06.py::test_m2_direkt_geaendert_und_unbeobachtet[nicht_erreicht]
+FAILED tests/test_vor_t4_06.py::test_m2_direkt_geaendert_und_unbeobachtet[nicht_erreicht_gegen]
+FAILED tests/test_vor_t4_06.py::test_m2_direkt_geaendert_und_unbeobachtet[wert_verdeckt]
+FAILED tests/test_vor_t4_06.py::test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis[a_konst]
+FAILED tests/test_vor_t4_06.py::test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis[a_gegen]
+FAILED tests/test_vor_t4_06.py::test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis[b_neues_modul]
+FAILED tests/test_vor_t4_06.py::test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis[c_gemischt]
+FAILED tests/test_vor_t4_06.py::test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis[c_innen]
+FAILED tests/test_vor_t4_06.py::test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis[c_docstring]
+FAILED tests/test_vor_t4_06.py::test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis[c_main]
+FAILED tests/test_vor_t4_06.py::test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis[d_daten]
+FAILED tests/test_vor_t4_06.py::test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis[d_readme]
+FAILED tests/test_vor_t4_06.py::test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis[e_neu_beobachtet]
+FAILED tests/test_vor_t4_06.py::test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis[e_neu_unbeobachtet]
+FAILED tests/test_vor_t4_06.py::test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis[f_selbst]
+FAILED tests/test_vor_t4_06.py::test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis[f_gegenseitig]
+FAILED tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_python_am_organ[attribut-    k.RATE = 19\n-    k.RATE = 7\n-paket.m.a:<schreibt:k>]
+FAILED tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_python_am_organ[methode-    R.append(x)\n-    R.append(x + 1)\n-paket.m.a:<schreibt:R>]
+FAILED tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_python_am_organ[setattr-    k.RATE = 19\n-    setattr(k, "RATE", 7)\n-paket.m.a:<schreibt:k>]
+FAILED tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_python_am_organ[globals-    return x + 1\n-    globals()["ZUSATZ"] = x\n    return x + 1\n-paket.m.a:<schreibt:globals()>]
+FAILED tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_python_am_organ[ruft_fremd-    k.setze(19)\n-    k.setze(7)\n-paket.m.a:<ruft:paket.m.k:setze>]
+FAILED tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_python_am_organ[ruft_innen-    _merke(x)\n-    _merke(x + 1)\n-paket.m.a:STAND]
+FAILED tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_typescript_am_organ[methode-  REG.push(x);\n-  REG.push(x + 1);\n-m/a:<schreibt:REG>]
+FAILED tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_typescript_am_organ[ruft_fremd-  setze(x);\n-  setze(x + 1);\n-m/a:<ruft:n/k:setze>]
+FAILED tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_durch_aegis[g_schreibt]
+FAILED tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_durch_aegis[g_ruft]
+FAILED tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_durch_aegis[g_gegen]
+ERROR tests/test_review_vertrag.py::test_normgegenprobe_braucht_ausgefuehrtes_zeugenpaar[skip]

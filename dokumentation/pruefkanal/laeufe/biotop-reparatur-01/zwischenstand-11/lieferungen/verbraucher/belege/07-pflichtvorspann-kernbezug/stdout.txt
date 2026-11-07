@@ -1,0 +1,247 @@
+.ECHTE_KAMMERLAEUFE tests/test_nachweis_verbraucher.py::test_pflichtvorspann_fundskip_stoppt_vor_proben_und_freigabe 1
+FECHTE_KAMMERLAEUFE tests/test_nachweis_verbraucher.py::test_pflichtvorspann_ausgefuehrter_fund_erreicht_proben 1
+FECHTE_KAMMERLAEUFE tests/test_nachweis_verbraucher.py::test_pflichtvorspann_leerer_fundbestand_ist_keine_fehlende_pruefung 0
+
+=================================== FAILURES ===================================
+___________ test_pflichtvorspann_ausgefuehrter_fund_erreicht_proben ____________
+
+con = <sqlite3.Connection object at 0x79eb60521c60>, lauf_id = 1, phase = 'gen0'
+
+    def _verlangen(con, lauf_id, phase):
+        from .. import lauf as L
+        _tabelle(con)
+        z = con.execute('SELECT * FROM vorspann_nachweise WHERE lauf_id=?', (lauf_id,)).fetchone()
+        if z is None or z['status'] != 'bestanden' or not z['nachweis_sha256']:
+            raise _fehler(lauf_id, f'Nachweis fehlt oder unbrauchbar — {phase} startet nicht')
+        lauf = L._lauf(con, lauf_id)
+        if phase not in ('gen0', 'mass', 'generation'):
+            raise _fehler(lauf_id, f'unbekannte Phase {phase}')
+        if phase in ('gen0', 'mass'):
+            if lauf['mass'] is not None or z['mass_sha256'] or con.execute(
+                    'SELECT 1 FROM generationen WHERE lauf_id=?', (lauf_id,)).fetchone():
+                raise _fehler(lauf_id, f'{phase} nach eingefrorenem Maß/Generation verboten')
+            if phase == 'mass' and not any(lj(e['inhalt']).get('lauf_id') == lauf_id for e in con.execute(
+                    "SELECT inhalt FROM protokoll WHERE art='generation0.ergebnis' AND nr>?", (z['protokoll_nr'],))):
+                raise _fehler(lauf_id, 'Generation 0 vor dem Maß nicht abgeschlossen')
+        if phase == 'generation' and lauf['mass'] is None:
+            raise _fehler(lauf_id, 'eingefrorenes Maß fehlt')
+        try:
+            r = lj(z['ergebnis'])
+            if _sha(r) != z['nachweis_sha256'] or r['lauf_id'] != lauf_id:
+                raise ValueError('Nachweis-Prüfsumme oder Laufzuordnung verändert')
+            e = con.execute('SELECT * FROM protokoll WHERE nr=?', (z['protokoll_nr'],)).fetchone()
+            if (not e or e['art'] != 'vorspann.bestanden' or not protokoll.pruefen(con)[0]
+                    or lj(e['inhalt']).get('ergebnis') != r
+                    or lj(e['inhalt']).get('nachweis_sha256') != z['nachweis_sha256']):
+                raise ValueError('Protokollquelle des Nachweises fehlt oder verändert')
+            if _quellen(con, lauf_id) != r['quellen']:
+                raise ValueError('Messgerät/Quellen verändert; alter Nachweis ungültig')
+            if _qualitaet(r['eichproben']) != r['qualitaet']:
+                raise ValueError('Qualitätsbeleg verändert')
+>           _rauschwerte(r['rauschen'], r['quellen']['bereiche'])
+                                        ^^^^^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'bereiche'
+
+biotop/organe/vorspann.py:245: KeyError
+
+The above exception was the direct cause of the following exception:
+
+fund_vorspann = (<sqlite3.Connection object at 0x79eb60521c60>, <module 'biotop.organe.vorspann' from '/root/reparatur-01/nachbesserung-02/verbraucher/repo/biotop/organe/vorspann.py'>, [True])
+
+    @pytest.mark.integration
+    def test_pflichtvorspann_ausgefuehrter_fund_erreicht_proben(fund_vorspann):
+        con, V, calls = fund_vorspann
+        con.execute("INSERT INTO immunsystem(werk_id,name,bereich,code,status,ursprung) VALUES(1,'probe','alpha',?,'offen','Eigenfixture')", (ZWEI,))
+        r = V.ausfuehren(con, 1)
+        assert calls == [True]
+        assert r["funde"]["kammerlaeufe"] == 1
+        assert r["funde"]["ergebnisse"][0]["besteht_am_ausgang"] is True
+        assert con.execute("SELECT status FROM immunsystem").fetchone()[0] == "offen_norm"
+>       assert V.verlangen(con, 1, "gen0")["nachweis_sha256"] == r["nachweis_sha256"]
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_nachweis_verbraucher.py:261: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/vorspann.py:208: in verlangen
+    return _verlangen(con, lauf_id, phase)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+con = <sqlite3.Connection object at 0x79eb60521c60>, lauf_id = 1, phase = 'gen0'
+
+    def _verlangen(con, lauf_id, phase):
+        from .. import lauf as L
+        _tabelle(con)
+        z = con.execute('SELECT * FROM vorspann_nachweise WHERE lauf_id=?', (lauf_id,)).fetchone()
+        if z is None or z['status'] != 'bestanden' or not z['nachweis_sha256']:
+            raise _fehler(lauf_id, f'Nachweis fehlt oder unbrauchbar — {phase} startet nicht')
+        lauf = L._lauf(con, lauf_id)
+        if phase not in ('gen0', 'mass', 'generation'):
+            raise _fehler(lauf_id, f'unbekannte Phase {phase}')
+        if phase in ('gen0', 'mass'):
+            if lauf['mass'] is not None or z['mass_sha256'] or con.execute(
+                    'SELECT 1 FROM generationen WHERE lauf_id=?', (lauf_id,)).fetchone():
+                raise _fehler(lauf_id, f'{phase} nach eingefrorenem Maß/Generation verboten')
+            if phase == 'mass' and not any(lj(e['inhalt']).get('lauf_id') == lauf_id for e in con.execute(
+                    "SELECT inhalt FROM protokoll WHERE art='generation0.ergebnis' AND nr>?", (z['protokoll_nr'],))):
+                raise _fehler(lauf_id, 'Generation 0 vor dem Maß nicht abgeschlossen')
+        if phase == 'generation' and lauf['mass'] is None:
+            raise _fehler(lauf_id, 'eingefrorenes Maß fehlt')
+        try:
+            r = lj(z['ergebnis'])
+            if _sha(r) != z['nachweis_sha256'] or r['lauf_id'] != lauf_id:
+                raise ValueError('Nachweis-Prüfsumme oder Laufzuordnung verändert')
+            e = con.execute('SELECT * FROM protokoll WHERE nr=?', (z['protokoll_nr'],)).fetchone()
+            if (not e or e['art'] != 'vorspann.bestanden' or not protokoll.pruefen(con)[0]
+                    or lj(e['inhalt']).get('ergebnis') != r
+                    or lj(e['inhalt']).get('nachweis_sha256') != z['nachweis_sha256']):
+                raise ValueError('Protokollquelle des Nachweises fehlt oder verändert')
+            if _quellen(con, lauf_id) != r['quellen']:
+                raise ValueError('Messgerät/Quellen verändert; alter Nachweis ungültig')
+            if _qualitaet(r['eichproben']) != r['qualitaet']:
+                raise ValueError('Qualitätsbeleg verändert')
+            _rauschwerte(r['rauschen'], r['quellen']['bereiche'])
+            if phase == 'generation':
+                mass = lj(lauf['mass'])
+                if (not z['mass_sha256'] or _sha(mass) != z['mass_sha256']
+                        or mass.get('vorspann_sha256') != z['nachweis_sha256']):
+                    raise ValueError('eingefrorenes Maß fehlt, wurde ersetzt oder verändert')
+                gebunden = any(lj(e['inhalt']).get('lauf_id') == lauf_id
+                               and lj(e['inhalt']).get('mass_sha256') == z['mass_sha256']
+                               and lj(e['inhalt']).get('vorspann_sha256') == z['nachweis_sha256']
+                               for e in con.execute("SELECT inhalt FROM protokoll WHERE art='mass.eingefroren' AND nr>?",
+                                                    (z['protokoll_nr'],)))
+                if not gebunden:
+                    raise ValueError('Quellbeleg der Maßbindung fehlt')
+        except Exception as e:
+            with transaktion(con):
+                con.execute("UPDATE vorspann_nachweise SET status='ungueltig' WHERE lauf_id=?", (lauf_id,))
+            protokoll.schreiben(con, 'vorspann.ungueltig', lauf_id=lauf_id, phase=phase, grund=str(e),
+                                nachweis_sha256=z['nachweis_sha256'], regel='Satz 2: neuer Lauf, keine Nachkorrektur')
+>           raise _fehler(lauf_id, str(e)) from e
+E           biotop.organe.vorspann.VorspannFehler: Vorspann Lauf 1: 'bereiche' — neuer Lauf erforderlich (Satz 2), keine Nacheichung
+
+biotop/organe/vorspann.py:263: VorspannFehler
+_____ test_pflichtvorspann_leerer_fundbestand_ist_keine_fehlende_pruefung ______
+
+con = <sqlite3.Connection object at 0x79eb5fd9dc60>, lauf_id = 1, phase = 'gen0'
+
+    def _verlangen(con, lauf_id, phase):
+        from .. import lauf as L
+        _tabelle(con)
+        z = con.execute('SELECT * FROM vorspann_nachweise WHERE lauf_id=?', (lauf_id,)).fetchone()
+        if z is None or z['status'] != 'bestanden' or not z['nachweis_sha256']:
+            raise _fehler(lauf_id, f'Nachweis fehlt oder unbrauchbar — {phase} startet nicht')
+        lauf = L._lauf(con, lauf_id)
+        if phase not in ('gen0', 'mass', 'generation'):
+            raise _fehler(lauf_id, f'unbekannte Phase {phase}')
+        if phase in ('gen0', 'mass'):
+            if lauf['mass'] is not None or z['mass_sha256'] or con.execute(
+                    'SELECT 1 FROM generationen WHERE lauf_id=?', (lauf_id,)).fetchone():
+                raise _fehler(lauf_id, f'{phase} nach eingefrorenem Maß/Generation verboten')
+            if phase == 'mass' and not any(lj(e['inhalt']).get('lauf_id') == lauf_id for e in con.execute(
+                    "SELECT inhalt FROM protokoll WHERE art='generation0.ergebnis' AND nr>?", (z['protokoll_nr'],))):
+                raise _fehler(lauf_id, 'Generation 0 vor dem Maß nicht abgeschlossen')
+        if phase == 'generation' and lauf['mass'] is None:
+            raise _fehler(lauf_id, 'eingefrorenes Maß fehlt')
+        try:
+            r = lj(z['ergebnis'])
+            if _sha(r) != z['nachweis_sha256'] or r['lauf_id'] != lauf_id:
+                raise ValueError('Nachweis-Prüfsumme oder Laufzuordnung verändert')
+            e = con.execute('SELECT * FROM protokoll WHERE nr=?', (z['protokoll_nr'],)).fetchone()
+            if (not e or e['art'] != 'vorspann.bestanden' or not protokoll.pruefen(con)[0]
+                    or lj(e['inhalt']).get('ergebnis') != r
+                    or lj(e['inhalt']).get('nachweis_sha256') != z['nachweis_sha256']):
+                raise ValueError('Protokollquelle des Nachweises fehlt oder verändert')
+            if _quellen(con, lauf_id) != r['quellen']:
+                raise ValueError('Messgerät/Quellen verändert; alter Nachweis ungültig')
+            if _qualitaet(r['eichproben']) != r['qualitaet']:
+                raise ValueError('Qualitätsbeleg verändert')
+>           _rauschwerte(r['rauschen'], r['quellen']['bereiche'])
+                                        ^^^^^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'bereiche'
+
+biotop/organe/vorspann.py:245: KeyError
+
+The above exception was the direct cause of the following exception:
+
+fund_vorspann = (<sqlite3.Connection object at 0x79eb5fd9dc60>, <module 'biotop.organe.vorspann' from '/root/reparatur-01/nachbesserung-02/verbraucher/repo/biotop/organe/vorspann.py'>, [True])
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x79eb6060d910>
+
+    def test_pflichtvorspann_leerer_fundbestand_ist_keine_fehlende_pruefung(fund_vorspann, monkeypatch):
+        con, V, calls = fund_vorspann
+        def kein_gegenstand(*a, **kw):
+            pytest.fail("Kein Fundbestand: keine künstliche Kammer-Testpflicht")
+        monkeypatch.setattr(kammer, "ausfuehren", kein_gegenstand)
+        r = V.ausfuehren(con, 1)
+        assert r["funde"]["geprueft"] == 0 and r["funde"]["kammerlaeufe"] == 0
+        assert calls == [True]
+>       assert V.verlangen(con, 1, "gen0")["nachweis_sha256"] == r["nachweis_sha256"]
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_nachweis_verbraucher.py:272: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/vorspann.py:208: in verlangen
+    return _verlangen(con, lauf_id, phase)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+con = <sqlite3.Connection object at 0x79eb5fd9dc60>, lauf_id = 1, phase = 'gen0'
+
+    def _verlangen(con, lauf_id, phase):
+        from .. import lauf as L
+        _tabelle(con)
+        z = con.execute('SELECT * FROM vorspann_nachweise WHERE lauf_id=?', (lauf_id,)).fetchone()
+        if z is None or z['status'] != 'bestanden' or not z['nachweis_sha256']:
+            raise _fehler(lauf_id, f'Nachweis fehlt oder unbrauchbar — {phase} startet nicht')
+        lauf = L._lauf(con, lauf_id)
+        if phase not in ('gen0', 'mass', 'generation'):
+            raise _fehler(lauf_id, f'unbekannte Phase {phase}')
+        if phase in ('gen0', 'mass'):
+            if lauf['mass'] is not None or z['mass_sha256'] or con.execute(
+                    'SELECT 1 FROM generationen WHERE lauf_id=?', (lauf_id,)).fetchone():
+                raise _fehler(lauf_id, f'{phase} nach eingefrorenem Maß/Generation verboten')
+            if phase == 'mass' and not any(lj(e['inhalt']).get('lauf_id') == lauf_id for e in con.execute(
+                    "SELECT inhalt FROM protokoll WHERE art='generation0.ergebnis' AND nr>?", (z['protokoll_nr'],))):
+                raise _fehler(lauf_id, 'Generation 0 vor dem Maß nicht abgeschlossen')
+        if phase == 'generation' and lauf['mass'] is None:
+            raise _fehler(lauf_id, 'eingefrorenes Maß fehlt')
+        try:
+            r = lj(z['ergebnis'])
+            if _sha(r) != z['nachweis_sha256'] or r['lauf_id'] != lauf_id:
+                raise ValueError('Nachweis-Prüfsumme oder Laufzuordnung verändert')
+            e = con.execute('SELECT * FROM protokoll WHERE nr=?', (z['protokoll_nr'],)).fetchone()
+            if (not e or e['art'] != 'vorspann.bestanden' or not protokoll.pruefen(con)[0]
+                    or lj(e['inhalt']).get('ergebnis') != r
+                    or lj(e['inhalt']).get('nachweis_sha256') != z['nachweis_sha256']):
+                raise ValueError('Protokollquelle des Nachweises fehlt oder verändert')
+            if _quellen(con, lauf_id) != r['quellen']:
+                raise ValueError('Messgerät/Quellen verändert; alter Nachweis ungültig')
+            if _qualitaet(r['eichproben']) != r['qualitaet']:
+                raise ValueError('Qualitätsbeleg verändert')
+            _rauschwerte(r['rauschen'], r['quellen']['bereiche'])
+            if phase == 'generation':
+                mass = lj(lauf['mass'])
+                if (not z['mass_sha256'] or _sha(mass) != z['mass_sha256']
+                        or mass.get('vorspann_sha256') != z['nachweis_sha256']):
+                    raise ValueError('eingefrorenes Maß fehlt, wurde ersetzt oder verändert')
+                gebunden = any(lj(e['inhalt']).get('lauf_id') == lauf_id
+                               and lj(e['inhalt']).get('mass_sha256') == z['mass_sha256']
+                               and lj(e['inhalt']).get('vorspann_sha256') == z['nachweis_sha256']
+                               for e in con.execute("SELECT inhalt FROM protokoll WHERE art='mass.eingefroren' AND nr>?",
+                                                    (z['protokoll_nr'],)))
+                if not gebunden:
+                    raise ValueError('Quellbeleg der Maßbindung fehlt')
+        except Exception as e:
+            with transaktion(con):
+                con.execute("UPDATE vorspann_nachweise SET status='ungueltig' WHERE lauf_id=?", (lauf_id,))
+            protokoll.schreiben(con, 'vorspann.ungueltig', lauf_id=lauf_id, phase=phase, grund=str(e),
+                                nachweis_sha256=z['nachweis_sha256'], regel='Satz 2: neuer Lauf, keine Nachkorrektur')
+>           raise _fehler(lauf_id, str(e)) from e
+E           biotop.organe.vorspann.VorspannFehler: Vorspann Lauf 1: 'bereiche' — neuer Lauf erforderlich (Satz 2), keine Nacheichung
+
+biotop/organe/vorspann.py:263: VorspannFehler
+=========================== short test summary info ============================
+FAILED tests/test_nachweis_verbraucher.py::test_pflichtvorspann_ausgefuehrter_fund_erreicht_proben
+FAILED tests/test_nachweis_verbraucher.py::test_pflichtvorspann_leerer_fundbestand_ist_keine_fehlende_pruefung
+2 failed, 1 passed, 34 deselected in 1.58s

@@ -1,0 +1,439 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 15 (Teile 4–165 dieses Stands) · enthält R15 bis R18
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R15 · Dokumente, die Philipp als Datei geschickt hat (state.db, ohne Inhalt; Inhalte in arbeit/dokumente/)
+Beginn: 2026-09-25 15:18:34 CEST (UTC+0200)
+Ende:   2026-09-25 15:18:34 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/f5_dokumente.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/f5_dokumente.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Alle Dokumente, die Philipp seit 14.09. als Datei geschickt hat, aus state.db.
+Je Dokument: Zeitpunkt (erste Zeile), Sitzung, Name, ob der Inhalt eingefügt ist, Länge und SHA-256 des Inhalts.
+Doppelte Zeilen (dieselbe Nachricht in mehreren Generationen) werden zusammengefasst (gezählt).
+Der Inhalt jedes Dokuments wird nach /root/sicherung/biotop-lage-01/arbeit/dokumente/<zeit>_<name> exklusiv
+gespeichert (für Wortlaut-Abgleich und Sicherung; der Ordner liegt außerhalb des Prüfkanals)."""
+import datetime as dt
+import hashlib
+import os
+import re
+import sqlite3
+from pathlib import Path
+
+ZIEL = Path('/root/sicherung/biotop-lage-01/arbeit/dokumente')
+ZIEL.mkdir(parents=True, exist_ok=True)
+con = sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+q = """SELECT id, session_id, timestamp, content FROM messages
+       WHERE role='user' AND content LIKE '%[The user sent a%document:%' ORDER BY timestamp, id"""
+kopf = re.compile(r"\[The user sent a (?:text )?document: '([^']+)'\. (Its content has been included below|It is saved at)")
+inhalt_re = re.compile(r"\[Content of ([^\]]+)\]:\n", re.S)
+gesehen = {}
+for mid, sid, ts, c in con.execute(q):
+    for m in kopf.finditer(c):
+        name = m.group(1)
+        eingefuegt = m.group(2).startswith('Its content')
+        text = ''
+        mi = inhalt_re.search(c, m.end())
+        if eingefuegt and mi:
+            # Inhalt bis zum nächsten Dokumentkopf oder bis zum Ende der Nachricht
+            ende = kopf.search(c, mi.end())
+            text = c[mi.end(): ende.start() if ende else len(c)]
+            text = text.rstrip('\n')
+        h = hashlib.sha256(text.encode('utf-8')).hexdigest() if text else '-'
+        schluessel = (name, h)
+        z = dt.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+        if schluessel in gesehen:
+            gesehen[schluessel]['zeilen'] += 1
+            continue
+        gesehen[schluessel] = {'zeit': z, 'sitzung': sid, 'id': mid, 'name': name, 'eingefuegt': eingefuegt,
+                               'laenge': len(text.encode('utf-8')), 'sha': h, 'zeilen': 1}
+        if text:
+            p = ZIEL / f"{z.replace(' ', '_').replace(':', '')}_{name}"
+            if not p.exists():
+                fd = os.open(p, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                    f.write(text)
+print(f'Dokumente (verschieden nach Name und Inhalt): {len(gesehen)}')
+print('Zeit (CEST) | Sitzung | Nachricht-id | Name | Inhalt eingefügt | Bytes | SHA-256 | Zeilen in state.db')
+for d in sorted(gesehen.values(), key=lambda x: x['zeit']):
+    print(f"{d['zeit']} | {d['sitzung']} | {d['id']} | {d['name']} | {'ja' if d['eingefuegt'] else 'nein'} | "
+          f"{d['laenge']} | {d['sha']} | {d['zeilen']}")
+--- Ende /root/sicherung/biotop-lage-01/arbeit/f5_dokumente.py ---
+Ausgabe (vollständig, stdout und stderr):
+Dokumente (verschieden nach Name und Inhalt): 28
+Zeit (CEST) | Sitzung | Nachricht-id | Name | Inhalt eingefügt | Bytes | SHA-256 | Zeilen in state.db
+2026-09-14 01:34:14 | 20260914_010536_c66573af | 12 | MASTERPROMPT_HERMES_3SERVER_BENCHMARK.md | ja | 20480 | 5e1ee54c1389282f05fdfc588f253ecba9eae2e32bc4101bc3f2e8719569d869 | 2
+2026-09-16 20:38:42 | 20260914_010536_c66573af | 488 | MilieuLux_Hermes_Verbindliche_Baugrundlage.md | ja | 0 | - | 1
+2026-09-16 20:38:42 | 20260914_010536_c66573af | 488 | MilieuLux_Hermes_Promptplan.md | ja | 0 | - | 1
+2026-09-16 22:12:22 | 20260914_010536_c66573af | 521 | MilieuLux_Hermes_Verbindliche_Baugrundlage_2_.md | ja | 0 | - | 2
+2026-09-16 22:12:22 | 20260914_010536_c66573af | 521 | MilieuLux_Hermes_Promptplan_2_.md | ja | 0 | - | 2
+2026-09-16 22:28:51 | 20260914_010536_c66573af | 533 | MilieuLux_Hermes_Verbindliche_Baugrundlage.md | ja | 4519 | bb4cbe6c6a16473862f8286f65c5b699df685eae4a1271a3f1ef0ab16f28fdb7 | 2
+2026-09-16 22:28:51 | 20260914_010536_c66573af | 533 | MilieuLux_Hermes_Promptplan.md | ja | 4519 | bb4cbe6c6a16473862f8286f65c5b699df685eae4a1271a3f1ef0ab16f28fdb7 | 2
+2026-09-16 22:28:51 | 20260914_010536_c66573af | 533 | MASTERPROMPT_HERMES_3SERVER_BENCHMARK.md | ja | 4519 | bb4cbe6c6a16473862f8286f65c5b699df685eae4a1271a3f1ef0ab16f28fdb7 | 1
+2026-09-18 20:59:08 | 20260918_205818_3767d1c9 | 629 | INFINITE-EVOLUTION-BIOTOP-Masterprompt-v1.md | ja | 28754 | 93d358cdda6473f91fda795392e509212f75f1f9678bef31593cad9104fe1ea8 | 3
+2026-09-19 00:36:30 | 20260918_225920_3e614670 | 831 | INFINITE-EVOLUTION-BIOTOP-Masterprompt-v2.md | ja | 37835 | acc42ad73f6111a3922993aaadb94ebb12aaeeb995f445f3fe7e8abaab1b4b9d | 1
+2026-09-19 02:23:42 | 20260918_225920_3e614670 | 997 | INFINITE-EVOLUTION-BIOTOP-Masterprompt-v3.md | ja | 43497 | ca74ed53c33fd68f1ce1a5b172262197a173c118b1099a991a7dac0f350373a2 | 1
+2026-09-19 12:39:25 | 20260918_225920_3e614670 | 1393 | INFINITE-EVOLUTION-BIOTOP-Masterprompt-v4.md | ja | 53416 | ff1cda438d09c1b440d32700d1723b8e8df0daf6f45a7e2251372e035042e886 | 1
+2026-09-19 14:01:46 | 20260918_225920_3e614670 | 1892 | INFINITE-EVOLUTION-BIOTOP-Masterprompt-v4.md | ja | 1500 | 31ebecd20f1776ff8cdf321ea996c0f6c57ab3e26c126b57fa155aed886153ed | 1
+2026-09-19 14:01:46 | 20260918_225920_3e614670 | 1892 | INFINITE-EVOLUTION-BIOTOP-Masterprompt-v1.md | ja | 4672 | 9f931fca28205438d9e2557a6be48b708a4af7d3c0747c04b4ae3cfeacfc84f9 | 1
+2026-09-19 19:35:53 | 20260918_225920_3e614670 | 2232 | INFINITE-EVOLUTION-BIOTOP-Masterprompt-v5.md | ja | 64873 | a34d7e1ad4532fc1ea11fb805b3ef56d2ec09b0b1febad3dc3af1854f9f5035e | 1
+2026-09-20 00:18:44 | 20260918_225920_3e614670 | 2718 | INFINITE-EVOLUTION-BIOTOP-Masterprompt-v6.md | ja | 78968 | 3f63dec2a7d6f82e932699907dab42d71148fe84ba907a13c505fa2c010bd483 | 1
+2026-09-20 01:47:55 | 20260918_225920_3e614670 | 2844 | PRUEFUNG_Vorbedingung-1_2026-09-20.md | ja | 9352 | 842383d1c08e1ab260058aa9769351f1512311a11f0395c9da00970fb03ae0e2 | 1
+2026-09-20 02:01:47 | 20260918_225920_3e614670 | 2902 | PRUEFUNG2_Vorbedingung-1_2026-09-20.md | ja | 8103 | ad26f5ff6b2761019809e7679ac5a535a096a49af3b9b9884a699c50962a06a0 | 1
+2026-09-20 02:25:43 | 20260918_225920_3e614670 | 2935 | PRUEFUNG3_Vorbedingung-1_2026-09-20.md | ja | 8407 | a7ac16861fc2982b81d3c2075e28c44ffaa639ad45cf0ec4bf360401d9db0b5f | 1
+2026-09-20 02:46:30 | 20260918_225920_3e614670 | 2967 | PRUEFUNG4_Vorbedingung-1_2026-09-20.md | ja | 10377 | d899daffa7a9fef20fd4b0b46739d752b22961056098c1dd1cb584e8c2a28cb1 | 1
+2026-09-20 03:12:33 | 20260918_225920_3e614670 | 3005 | MASTERPROMPT_Lauf-25_Aufnahmesperre-C.md | ja | 8700 | 07f3f5191b8bef1abc8b3dd64fdcfec651bda48a9bc4c174621fb546478f0a8c | 1
+2026-09-20 04:00:48 | 20260918_225920_3e614670 | 3057 | PRUEFUNG6_Lauf-25_2026-09-20.md | ja | 8435 | 060090b0631b0903c4cbec6811098591366e396540d6b6a089acea935ad3856f | 1
+2026-09-20 04:50:16 | 20260918_225920_3e614670 | 3102 | ABNAHME_Vorbedingung-1_2026-09-20.md | ja | 10992 | 8a5a470f5a5ddac5704a5892d72fbc1be25e9e18c732697a7e1824869371f7d9 | 1
+2026-09-20 04:54:01 | 20260920_045023_5299d50d | 3105 | WIEDEREINSTIEG_Hermes_2026-09-20.md | ja | 8211 | a70abb8b962cb93984502e0fda77aec14e605f1b824a20df18f331f970f3de90 | 1
+2026-09-20 05:25:16 | 20260920_052507_2f047335 | 3217 | PRUEFUNG_Wiedereinstieg_2026-09-20.md | ja | 8449 | 55b23bc0c9a191e11a6f61c248f1bc063bcd140c6b306dd7a817736d85311408 | 2
+2026-09-21 02:14:34 | 20260921_015554_e79a4a0f | 9105 | INFINITE-EVOLUTION-BIOTOP-Masterprompt-v7.md | ja | 85728 | 0d3a07327b05da232adc49d56cf98e1369f04693c9e857b9e8199d558d38c6c1 | 1
+2026-09-23 15:53:53 | 20260921_015554_e79a4a0f | 13998 | INFINITE-EVOLUTION-BIOTOP-Masterprompt-v8.md | ja | 94876 | 4168a35ede38c31fe4fad21844105a148da5b5aa0d69d2672f29b774b7a67cc9 | 1
+2026-09-25 14:44:20 | 20260924_203120_e6c401 | 20987 | BIOTOP-LAGE-01-Auftrag-v2.md | ja | 41238 | 7d55e3e2143ab87daee706b558579dbb3dade49c4fb1f8456e2062ee74c529df | 2
+=== Ende R15 ===
+
+
+R16 · Auftrag in den Arbeitsordner kopieren; Zustellbeleg Meldung 1; Cron-Ausgaben
+Beginn: 2026-09-25 15:18:35 CEST (UTC+0200)
+Ende:   2026-09-25 15:18:35 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/sicherung/biotop-lage-01/arbeit/f6_auftrag_cron.sh
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/f6_auftrag_cron.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-LAGE-01 (nur lesend): Kopie des Auftrags in den Arbeitsordner; Zustellbeleg Meldung 1; Hermes-Cron-Ausgaben
+# (zugestellte Meldungen ohne Agent) seit 18.09.
+set -u
+mkdir -p /root/sicherung/biotop-lage-01/auftrag
+Q=/root/.hermes/cache/documents/doc_5bf902863a6d_BIOTOP-LAGE-01-Auftrag-v2.md
+Z=/root/sicherung/biotop-lage-01/auftrag/BIOTOP-LAGE-01-Auftrag-v2.md
+[ -e "$Z" ] || cp -p "$Q" "$Z"
+sha256sum "$Q" "$Z"
+echo "== Zustellung Meldung 1 (Cron b11464763130): Ausgabeordner und Zustellbuch"
+ls -la --time-style='+%Y-%m-%d %H:%M:%S %z' /root/.hermes/cron/output/b11464763130/ 2>&1
+python3 - <<'EOF'
+import sqlite3
+con = sqlite3.connect('file:/root/.hermes/cron/deliveries.db?mode=ro', uri=True)
+tabs = [r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")]
+print('Tabellen deliveries.db:', tabs)
+for t in tabs:
+    cols = [r[1] for r in con.execute(f'PRAGMA table_info({t})')]
+    print(t, cols)
+    jc = 'job_id' if 'job_id' in cols else None
+    if jc:
+        for r in con.execute(f"SELECT * FROM {t} WHERE job_id IN ('b11464763130','5825fd644daa')"):
+            print('  ', [str(x)[:120] for x in r])
+EOF
+echo "== Cron-Ausgabeordner (je Job: Anzahl Dateien, erste/letzte)"
+for d in /root/.hermes/cron/output/*/; do
+  n=$(ls "$d" | wc -l); a=$(ls "$d" | head -1); b=$(ls "$d" | tail -1)
+  echo "$(basename "$d") | $n Dateien | $a … $b"
+done
+--- Ende /root/sicherung/biotop-lage-01/arbeit/f6_auftrag_cron.sh ---
+Ausgabe (vollständig, stdout und stderr):
+58ba8834b8c3ec08f8da2e18d3db056150c91c2841ed9aac349bcf2eba216b98  /root/.hermes/cache/documents/doc_5bf902863a6d_BIOTOP-LAGE-01-Auftrag-v2.md
+58ba8834b8c3ec08f8da2e18d3db056150c91c2841ed9aac349bcf2eba216b98  /root/sicherung/biotop-lage-01/auftrag/BIOTOP-LAGE-01-Auftrag-v2.md
+== Zustellung Meldung 1 (Cron b11464763130): Ausgabeordner und Zustellbuch
+total 12
+drwx------ 2 root root 4096 2026-09-25 15:12:05 +0200 .
+drwx------ 5 root root 4096 2026-09-25 15:12:05 +0200 ..
+-rw------- 1 root root  748 2026-09-25 15:12:05 +0200 2026-09-25_15-12-05.md
+Tabellen deliveries.db: ['deliveries', 'delivery_tombstones']
+deliveries ['execution_id', 'job_json', 'content', 'for_failure', 'status', 'owner_process_id', 'owner_pid', 'owner_started_at', 'created_at', 'finished_at', 'error']
+delivery_tombstones ['execution_id', 'terminal_status', 'finished_at']
+== Cron-Ausgabeordner (je Job: Anzahl Dateien, erste/letzte)
+26fbb1513a1a | 50 Dateien | 2026-09-25_13-39-37.md … 2026-09-25_15-18-05.md
+5825fd644daa | 1 Dateien | 2026-09-24_23-53-23.md … 2026-09-24_23-53-23.md
+b11464763130 | 1 Dateien | 2026-09-25_15-12-05.md … 2026-09-25_15-12-05.md
+=== Ende R16 ===
+
+
+R17 · Masterprompt-Fassungen v1–v8: Wortlaut aus state.db gegen Plattenkopien, SHA-256, Überschriften
+Beginn: 2026-09-25 15:20:18 CEST (UTC+0200)
+Ende:   2026-09-25 15:20:18 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/f7_fassungen.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/f7_fassungen.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Masterprompt-Fassungen v1–v8 — Abgleich der Wortlaute aus der Sitzungsdatenbank
+(arbeit/dokumente/, Inhalt ohne abschließenden Zeilenumbruch) gegen die Dateien auf der Platte; Größe, Zeilen,
+SHA-256 (mit und ohne abschließenden Zeilenumbruch); Überschriften erster und zweiter Ebene je Fassung."""
+import hashlib
+import re
+from pathlib import Path
+
+D = Path('/root/sicherung/biotop-lage-01/arbeit/dokumente')
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+L = Path(f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe')
+PLATTE = {
+    'v6': [L / 'biotop-wiedereinstieg-2026-09-20-01/INFINITE-EVOLUTION-BIOTOP-Masterprompt-v6-01.md',
+           L / 'biotop-gesamtstand/quellen/MASTERPROMPT-FASSUNG-6.md',
+           Path('/root/phase-4-vorbedingung-1/uebergabe-quellen/MASTERPROMPT-FASSUNG-6.md'),
+           Path('/tmp/biotop-phase4-lektuere-mm6_llag/Masterprompt-v6.md')],
+    'v7': [L / 'biotop-t3-typescript/MASTERPROMPT-v7.md'],
+    'auftrag': [Path('/root/sicherung/biotop-lage-01/auftrag/BIOTOP-LAGE-01-Auftrag-v2.md')],
+}
+
+
+def sha(b: bytes) -> str:
+    return hashlib.sha256(b).hexdigest()
+
+
+docs = sorted(D.glob('*'))
+print('Extrahierte Dokumente:', len(docs))
+for p in docs:
+    b = p.read_bytes()
+    m = re.search(r'Masterprompt-(v\d)', p.name)
+    art = m.group(1) if m else ('auftrag' if 'BIOTOP-LAGE' in p.name else None)
+    print(f'\n{p.name}: {len(b)} Bytes, {b.count(b"\n")+1} Zeilen, sha256 ohne NL {sha(b)}, mit NL {sha(b + b"\n")}')
+    for q in PLATTE.get(art, []):
+        if q.exists():
+            qb = q.read_bytes()
+            gleich = 'GLEICH (mit NL)' if qb == b + b'\n' else ('GLEICH (ohne NL)' if qb == b else 'VERSCHIEDEN')
+            print(f'   Platte {q}: {len(qb)} Bytes, sha256 {sha(qb)} -> {gleich}')
+    if art and art.startswith('v') and len(b) > 5000:
+        for i, z in enumerate(b.decode('utf-8').splitlines(), 1):
+            if re.match(r'#{1,2} ', z):
+                print(f'   {i}: {z[:110]}')
+--- Ende /root/sicherung/biotop-lage-01/arbeit/f7_fassungen.py ---
+Ausgabe (vollständig, stdout und stderr):
+Extrahierte Dokumente: 24
+
+2026-09-14_013414_MASTERPROMPT_HERMES_3SERVER_BENCHMARK.md: 20480 Bytes, 756 Zeilen, sha256 ohne NL 5e1ee54c1389282f05fdfc588f253ecba9eae2e32bc4101bc3f2e8719569d869, mit NL 2a242f1d70e64844dbfc858d00ba4b2011ce886b0c9bfa5e5d2ff95c05ed3f0c
+
+2026-09-16_222851_MASTERPROMPT_HERMES_3SERVER_BENCHMARK.md: 4519 Bytes, 80 Zeilen, sha256 ohne NL bb4cbe6c6a16473862f8286f65c5b699df685eae4a1271a3f1ef0ab16f28fdb7, mit NL 2c198a0b74586b74da87185cb6f152d1a985454f64f078b7858fde462cf3932b
+
+2026-09-16_222851_MilieuLux_Hermes_Promptplan.md: 4519 Bytes, 80 Zeilen, sha256 ohne NL bb4cbe6c6a16473862f8286f65c5b699df685eae4a1271a3f1ef0ab16f28fdb7, mit NL 2c198a0b74586b74da87185cb6f152d1a985454f64f078b7858fde462cf3932b
+
+2026-09-16_222851_MilieuLux_Hermes_Verbindliche_Baugrundlage.md: 4519 Bytes, 80 Zeilen, sha256 ohne NL bb4cbe6c6a16473862f8286f65c5b699df685eae4a1271a3f1ef0ab16f28fdb7, mit NL 2c198a0b74586b74da87185cb6f152d1a985454f64f078b7858fde462cf3932b
+
+2026-09-18_205908_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v1.md: 28754 Bytes, 289 Zeilen, sha256 ohne NL 93d358cdda6473f91fda795392e509212f75f1f9678bef31593cad9104fe1ea8, mit NL a7a949d24dab5c5b42c7a7d93f244a898eb88bd3007ec8cee19481cb46193959
+   1: # INFINITE EVOLUTION — Das Biotop
+   8: ## 0. Auftrag in drei Sätzen
+   14: ## 1. Das Bild
+   22: ## 2. Die Verfassung des Biotops — unverhandelbar
+   42: ## 3. Die Organe
+   146: ## 4. Ablauf eines Laufs
+   163: ## 5. Der unantastbare Kern
+   178: ## 6. Modelle und Kosten
+   193: ## 7. Was aus dem Vorgängerprojekt bleibt
+   214: ## 8. Bauphasen mit Abnahmetoren
+   264: ## 9. Abschlussordner und Berichtspflicht
+   277: ## 10. Was Philipp entscheidet (Konfiguration, nicht Architektur)
+
+2026-09-19_003630_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v2.md: 37835 Bytes, 331 Zeilen, sha256 ohne NL acc42ad73f6111a3922993aaadb94ebb12aaeeb995f445f3fe7e8abaab1b4b9d, mit NL 5e5a3e5766b4eafbc02e51411fb236f772f97729dee6915275ecb5d70029a588
+   1: # INFINITE EVOLUTION — Das Biotop
+   17: ## 0. Auftrag in drei Sätzen
+   23: ## 1. Das Bild
+   31: ## 2. Die Verfassung des Biotops — unverhandelbar
+   51: ## 3. Die Organe
+   164: ## 4. Ablauf eines Laufs
+   182: ## 5. Der unantastbare Kern
+   197: ## 6. Modelle und Kosten
+   213: ## 7. Was aus dem Vorgängerprojekt bleibt
+   234: ## 8. Bauphasen mit Abnahmetoren
+   293: ## 9. Abschlussordner und Berichtspflicht
+   306: ## 10. Was Philipp entscheidet (Konfiguration, nicht Architektur)
+   315: ## Anhang A — Verfassung des Übungswerks `lagerhaus`
+
+2026-09-19_022342_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v3.md: 43497 Bytes, 347 Zeilen, sha256 ohne NL ca74ed53c33fd68f1ce1a5b172262197a173c118b1099a991a7dac0f350373a2, mit NL e8657bca0ac35ecd3ac1b74e811757a5292a772410d519f412846b8cd0989863
+   1: # INFINITE EVOLUTION — Das Biotop
+   27: ## 0. Auftrag in drei Sätzen
+   33: ## 1. Das Bild
+   41: ## 2. Die Verfassung des Biotops — unverhandelbar
+   61: ## 3. Die Organe
+   178: ## 4. Ablauf eines Laufs
+   196: ## 5. Der unantastbare Kern
+   211: ## 6. Modelle und Kosten
+   228: ## 7. Was aus dem Vorgängerprojekt bleibt
+   249: ## 8. Bauphasen mit Abnahmetoren
+   309: ## 9. Abschlussordner und Berichtspflicht
+   322: ## 10. Was Philipp entscheidet (Konfiguration, nicht Architektur)
+   331: ## Anhang A — Verfassung des Übungswerks `lagerhaus`
+
+2026-09-19_123925_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v4.md: 53416 Bytes, 374 Zeilen, sha256 ohne NL ff1cda438d09c1b440d32700d1723b8e8df0daf6f45a7e2251372e035042e886, mit NL 612f5e53969a3f6efd030555185385756eb82bf9e30f60b1d430777334d230ed
+   1: # INFINITE EVOLUTION — Das Biotop
+   39: ## 0. Auftrag in drei Sätzen
+   45: ## 1. Das Bild
+   53: ## 2. Die Verfassung des Biotops — unverhandelbar
+   73: ## 3. Die Organe
+   192: ## 4. Ablauf eines Laufs
+   210: ## 5. Der unantastbare Kern
+   225: ## 6. Modelle und Kosten
+   243: ## 7. Was aus dem Vorgängerprojekt bleibt
+   264: ## 8. Bauphasen mit Abnahmetoren
+   335: ## 9. Abschlussordner und Berichtspflicht
+   349: ## 10. Was Philipp entscheidet (Konfiguration, nicht Architektur)
+   358: ## Anhang A — Verfassung des Übungswerks `lagerhaus`
+
+2026-09-19_140146_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v1.md: 4672 Bytes, 52 Zeilen, sha256 ohne NL 9f931fca28205438d9e2557a6be48b708a4af7d3c0747c04b4ae3cfeacfc84f9, mit NL 98b61d826f770a383b7c6d5a8b6efe3f34de7c3c3bb3d2774de468d2a024a764
+
+2026-09-19_140146_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v4.md: 1500 Bytes, 12 Zeilen, sha256 ohne NL 31ebecd20f1776ff8cdf321ea996c0f6c57ab3e26c126b57fa155aed886153ed, mit NL fe2bc422c2c0d06a8cb56331b0c03e17e7482af3b719f8b6e345f46ed7d625f8
+
+2026-09-19_193553_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v5.md: 64873 Bytes, 406 Zeilen, sha256 ohne NL a34d7e1ad4532fc1ea11fb805b3ef56d2ec09b0b1febad3dc3af1854f9f5035e, mit NL df4709b0d2d6f3808e71f2ca284c16682eb18bfb061803aa77cfd2c87eef6422
+   1: # INFINITE EVOLUTION — Das Biotop
+   54: ## 0. Auftrag in drei Sätzen
+   60: ## 1. Das Bild
+   68: ## 2. Die Verfassung des Biotops — unverhandelbar
+   88: ## 3. Die Organe
+   210: ## 4. Ablauf eines Laufs
+   228: ## 5. Der unantastbare Kern
+   245: ## 6. Modelle und Kosten
+   264: ## 7. Was aus dem Vorgängerprojekt bleibt
+   285: ## 8. Bauphasen mit Abnahmetoren
+   367: ## 9. Abschlussordner und Berichtspflicht
+   381: ## 10. Was Philipp entscheidet (Konfiguration, nicht Architektur)
+   390: ## Anhang A — Verfassung des Übungswerks `lagerhaus`
+
+2026-09-20_001844_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v6.md: 78968 Bytes, 470 Zeilen, sha256 ohne NL 3f63dec2a7d6f82e932699907dab42d71148fe84ba907a13c505fa2c010bd483, mit NL effefeec0fe2ea0621d4fdca0f27bdd3dae981fd289f1e0b5d56da5aca81aefd
+   Platte /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-wiedereinstieg-2026-09-20-01/INFINITE-EVOLUTION-BIOTOP-Masterprompt-v6-01.md: 78969 Bytes, sha256 effefeec0fe2ea0621d4fdca0f27bdd3dae981fd289f1e0b5d56da5aca81aefd -> GLEICH (mit NL)
+   Platte /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-gesamtstand/quellen/MASTERPROMPT-FASSUNG-6.md: 78969 Bytes, sha256 effefeec0fe2ea0621d4fdca0f27bdd3dae981fd289f1e0b5d56da5aca81aefd -> GLEICH (mit NL)
+   Platte /root/phase-4-vorbedingung-1/uebergabe-quellen/MASTERPROMPT-FASSUNG-6.md: 78969 Bytes, sha256 effefeec0fe2ea0621d4fdca0f27bdd3dae981fd289f1e0b5d56da5aca81aefd -> GLEICH (mit NL)
+   Platte /tmp/biotop-phase4-lektuere-mm6_llag/Masterprompt-v6.md: 78969 Bytes, sha256 effefeec0fe2ea0621d4fdca0f27bdd3dae981fd289f1e0b5d56da5aca81aefd -> GLEICH (mit NL)
+   1: # INFINITE EVOLUTION — Das Biotop
+   67: ## 0. Auftrag in drei Sätzen
+   73: ## 1. Das Bild
+   81: ## 2. Die Verfassung des Biotops — unverhandelbar
+   99: ## 2a. Sechs Grundsätze (Fassung 6)
+   114: ## 3. Die Organe
+   250: ## 4. Ablauf eines Laufs
+   268: ## 5. Der unantastbare Kern
+   285: ## 6. Modelle und Kosten
+   305: ## 7. Was aus dem Vorgängerprojekt bleibt
+   326: ## 8. Bauphasen mit Abnahmetoren
+   416: ## 9. Abschlussordner und Berichtspflicht
+   430: ## 10. Was Philipp entscheidet (Konfiguration, nicht Architektur)
+   439: ## Anhang A — Verfassung des Übungswerks `lagerhaus`
+   455: ## Anhang B — Verfassung des Übungswerks `logmuehle`
+
+2026-09-20_014755_PRUEFUNG_Vorbedingung-1_2026-09-20.md: 9352 Bytes, 160 Zeilen, sha256 ohne NL 842383d1c08e1ab260058aa9769351f1512311a11f0395c9da00970fb03ae0e2, mit NL 2c8a16be79bdf7b635a69910234e0ac789b101b6ca0169f702b66041c161b42a
+
+2026-09-20_020147_PRUEFUNG2_Vorbedingung-1_2026-09-20.md: 8103 Bytes, 123 Zeilen, sha256 ohne NL ad26f5ff6b2761019809e7679ac5a535a096a49af3b9b9884a699c50962a06a0, mit NL e6e53e76aef5df3a58e0c470207f515283b05d8aba73607646947c5df7e306e9
+
+2026-09-20_022543_PRUEFUNG3_Vorbedingung-1_2026-09-20.md: 8407 Bytes, 119 Zeilen, sha256 ohne NL a7ac16861fc2982b81d3c2075e28c44ffaa639ad45cf0ec4bf360401d9db0b5f, mit NL f40b81eb47ad370ac4b7c50fdc901989c136a031184decef9df9b1746ff590f4
+
+2026-09-20_024630_PRUEFUNG4_Vorbedingung-1_2026-09-20.md: 10377 Bytes, 148 Zeilen, sha256 ohne NL d899daffa7a9fef20fd4b0b46739d752b22961056098c1dd1cb584e8c2a28cb1, mit NL 4e0e1f6c56eb968f7f9d2a1b0b962ac071a35cef79b301536dd80979180b0def
+
+2026-09-20_031233_MASTERPROMPT_Lauf-25_Aufnahmesperre-C.md: 8700 Bytes, 145 Zeilen, sha256 ohne NL 07f3f5191b8bef1abc8b3dd64fdcfec651bda48a9bc4c174621fb546478f0a8c, mit NL 37c2bc4246b47965cbec542f96d348329daf27e84e7fd8a8f356b73318c5783b
+
+2026-09-20_040048_PRUEFUNG6_Lauf-25_2026-09-20.md: 8435 Bytes, 118 Zeilen, sha256 ohne NL 060090b0631b0903c4cbec6811098591366e396540d6b6a089acea935ad3856f, mit NL 0735e9fd10513b833b870fc896201f191fabfc36e6315ad0ff0bbbbe573047e1
+
+2026-09-20_045016_ABNAHME_Vorbedingung-1_2026-09-20.md: 10992 Bytes, 168 Zeilen, sha256 ohne NL 8a5a470f5a5ddac5704a5892d72fbc1be25e9e18c732697a7e1824869371f7d9, mit NL 26412d2923debfbed8d776d1b40e44fb18384354a7852fd25f8823ca1d2d4816
+
+2026-09-20_045401_WIEDEREINSTIEG_Hermes_2026-09-20.md: 8211 Bytes, 123 Zeilen, sha256 ohne NL a70abb8b962cb93984502e0fda77aec14e605f1b824a20df18f331f970f3de90, mit NL 4920ade0d64feb24286aeffb277a80dd2dd2bc6f74b2cb1fcff0bce7a17c17f5
+
+2026-09-20_052516_PRUEFUNG_Wiedereinstieg_2026-09-20.md: 8449 Bytes, 106 Zeilen, sha256 ohne NL 55b23bc0c9a191e11a6f61c248f1bc063bcd140c6b306dd7a817736d85311408, mit NL 6e83eac55511ec509a789e8bef19a3fd5942b4fb60df46671c9977fd8e319222
+
+2026-09-21_021434_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v7.md: 85728 Bytes, 512 Zeilen, sha256 ohne NL 0d3a07327b05da232adc49d56cf98e1369f04693c9e857b9e8199d558d38c6c1, mit NL a3b3ac0c17371306b027591110f528018f62d5c2feb4ad82dc21823f14bd76ed
+   Platte /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-t3-typescript/MASTERPROMPT-v7.md: 85729 Bytes, sha256 a3b3ac0c17371306b027591110f528018f62d5c2feb4ad82dc21823f14bd76ed -> GLEICH (mit NL)
+   1: # INFINITE EVOLUTION — Das Biotop
+   75: ## 0. Auftrag in drei Sätzen
+   81: ## 1. Das Bild
+   89: ## 2. Die Verfassung des Biotops — unverhandelbar
+   107: ## 2a. Neun Grundsätze (Fassung 6, erweitert in Fassung 7)
+   125: ## 3. Die Organe
+   262: ## 4. Ablauf eines Laufs
+   280: ## 5. Der unantastbare Kern
+   297: ## 6. Modelle und Kosten
+   318: ## 7. Was aus dem Vorgängerprojekt bleibt
+   339: ## 8. Bauphasen mit Abnahmetoren
+   458: ## 9. Abschlussordner und Berichtspflicht
+   472: ## 10. Was Philipp entscheidet (Konfiguration, nicht Architektur)
+   481: ## Anhang A — Verfassung des Übungswerks `lagerhaus`
+   497: ## Anhang B — Verfassung des Übungswerks `logmuehle`
+
+2026-09-23_155353_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v8.md: 94876 Bytes, 551 Zeilen, sha256 ohne NL 4168a35ede38c31fe4fad21844105a148da5b5aa0d69d2672f29b774b7a67cc9, mit NL 0c7961e1d2b7eeeb7a6982e419905c54e93a9b12bfa5bea7e6326c0ef58a5d94
+   1: # INFINITE EVOLUTION — Das Biotop
+   82: ## 0. Auftrag in drei Sätzen
+   88: ## 1. Das Bild
+   96: ## 2. Die Verfassung des Biotops — unverhandelbar
+   114: ## 2a. Vierzehn Grundsätze (Fassung 6, erweitert in Fassung 7 und 8)
+   137: ## 3. Die Organe
+   274: ## 4. Ablauf eines Laufs
+   292: ## 5. Der unantastbare Kern
+   309: ## 6. Modelle und Kosten
+   331: ## 7. Was aus dem Vorgängerprojekt bleibt
+   352: ## 8. Bauphasen mit Abnahmetoren
+   497: ## 9. Abschlussordner und Berichtspflicht
+   511: ## 10. Was Philipp entscheidet (Konfiguration, nicht Architektur)
+   520: ## Anhang A — Verfassung des Übungswerks `lagerhaus`
+   536: ## Anhang B — Verfassung des Übungswerks `logmuehle`
+
+2026-09-25_144420_BIOTOP-LAGE-01-Auftrag-v2.md: 41238 Bytes, 429 Zeilen, sha256 ohne NL 7d55e3e2143ab87daee706b558579dbb3dade49c4fb1f8456e2062ee74c529df, mit NL 58ba8834b8c3ec08f8da2e18d3db056150c91c2841ed9aac349bcf2eba216b98
+   Platte /root/sicherung/biotop-lage-01/auftrag/BIOTOP-LAGE-01-Auftrag-v2.md: 41239 Bytes, sha256 58ba8834b8c3ec08f8da2e18d3db056150c91c2841ed9aac349bcf2eba216b98 -> GLEICH (mit NL)
+=== Ende R17 ===
+
+
+R18 · Kassen des Biotops: Tabellen, Zeilenzahlen, Läufe (nur lesend)
+Beginn: 2026-09-25 15:20:18 CEST (UTC+0200)
+Ende:   2026-09-25 15:20:20 CEST (UTC+0200)
+Dauer:  1.9 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/f8_kassen.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/f8_kassen.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Kassen des Biotops — Tabellen, Zeilenzahlen, Läufe (Kennung, Zeiten, Werk, Budget,
+Kosten, Aufrufe) aus jeder gefundenen Biotop-Datenbank. Öffnet mit mode=ro."""
+import sqlite3
+from pathlib import Path
+
+DBS = ['/root/biotop/daten/biotop.db', '/root/biotop-t3/t3.db', '/root/biotop-t3/schnappschuss-abschluss3/t3.db',
+       '/root/biotop-t3/repo-sicherung-vor-commits/daten/biotop.db', '/root/gesamtstand-01/bestand.db',
+       '/root/reparatur-02/privat-cli/privat.db', '/root/phase-4-vorbedingung-1/privat/biotop.db']
+for db in DBS:
+    p = Path(db)
+    if not p.exists():
+        print('FEHLT', db)
+        continue
+    con = sqlite3.connect(f'file:{db}?mode=ro', uri=True)
+    tabs = [r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")]
+    print(f'\n=== {db} ({p.stat().st_size} Bytes) — {len(tabs)} Tabellen')
+    print('   ' + ', '.join(f'{t}:{con.execute(f"SELECT count(*) FROM [{t}]").fetchone()[0]}' for t in tabs))
+    if 'lauf' in tabs:
+        cols = [r[1] for r in con.execute('PRAGMA table_info(lauf)')]
+        print('   lauf-Spalten:', cols)
+        if db.endswith(('biotop/daten/biotop.db', 'biotop-t3/t3.db')):
+            for r in con.execute('SELECT * FROM lauf ORDER BY id'):
+                print('   ', [str(x)[:60] for x in r])
+    if 'kasse' in tabs:
+        cols = [r[1] for r in con.execute('PRAGMA table_info(kasse)')]
+        print('   kasse-Spalten:', cols)
+--- Ende /root/sicherung/biotop-lage-01/arbeit/f8_kassen.py ---
+Ausgabe (vollständig, stdout und stderr):
+
+=== /root/biotop/daten/biotop.db (29659136 Bytes) — 27 Tabellen
+   artgedaechtnis:699, bandit:158, benutzer:1, eichgegenstand:2, eichkosten:11, eichung:25, eliten:34, entropie:43, generationen:144, geschmack:35, immunsystem:379, jury:7, kandidaten:2679, kasse:4070, laeufe:25, landkarte:567, lazarus:70, mentor:13, mutanten:162, projektgedaechtnis:686, protokoll:16030, strassen:279, tokens:4, verfassung_werk:18, vertraege:1222, vertraege_explizit:37, werke:22
+   kasse-Spalten: ['id', 'lauf_id', 'zeit', 'anbieter', 'modell', 'tokens_ein', 'tokens_aus', 'kosten_eur', 'zweck', 'kontingent', 'protokoll_nr']
+
+=== /root/biotop-t3/t3.db (276733952 Bytes) — 29 Tabellen
+   artgedaechtnis:1194, bandit:223, benutzer:1, eichgegenstand:3, eichkosten:127, eichung:85, eliten:67, entropie:75, generationen:184, geschmack:65, immunsystem:411, jury:11, kandidaten:3342, kasse:6673, laeufe:38, landkarte:621, lazarus:93, mentor:13, mutanten:962, neutralzaehler:2613, projektgedaechtnis:1109, protokoll:26448, strassen:355, tokens:4, verfassung_werk:19, vertraege:1365, vertraege_explizit:41, vorspann_nachweise:13, werke:23
+   kasse-Spalten: ['id', 'lauf_id', 'zeit', 'anbieter', 'modell', 'tokens_ein', 'tokens_aus', 'kosten_eur', 'zweck', 'kontingent', 'protokoll_nr']
+
+=== /root/biotop-t3/schnappschuss-abschluss3/t3.db (278564864 Bytes) — 29 Tabellen
+   artgedaechtnis:1194, bandit:223, benutzer:1, eichgegenstand:3, eichkosten:127, eichung:85, eliten:67, entropie:75, generationen:184, geschmack:65, immunsystem:411, jury:11, kandidaten:3342, kasse:6673, laeufe:38, landkarte:621, lazarus:93, mentor:13, mutanten:962, neutralzaehler:2613, projektgedaechtnis:1109, protokoll:26448, strassen:355, tokens:4, verfassung_werk:19, vertraege:1365, vertraege_explizit:41, vorspann_nachweise:13, werke:23
+   kasse-Spalten: ['id', 'lauf_id', 'zeit', 'anbieter', 'modell', 'tokens_ein', 'tokens_aus', 'kosten_eur', 'zweck', 'kontingent', 'protokoll_nr']
+
+=== /root/biotop-t3/repo-sicherung-vor-commits/daten/biotop.db (29659136 Bytes) — 27 Tabellen
+   artgedaechtnis:699, bandit:158, benutzer:1, eichgegenstand:2, eichkosten:11, eichung:25, eliten:34, entropie:43, generationen:144, geschmack:35, immunsystem:379, jury:7, kandidaten:2679, kasse:4070, laeufe:25, landkarte:567, lazarus:70, mentor:13, mutanten:162, projektgedaechtnis:686, protokoll:16030, strassen:279, tokens:4, verfassung_werk:18, vertraege:1222, vertraege_explizit:37, werke:22
+   kasse-Spalten: ['id', 'lauf_id', 'zeit', 'anbieter', 'modell', 'tokens_ein', 'tokens_aus', 'kosten_eur', 'zweck', 'kontingent', 'protokoll_nr']
+
+=== /root/gesamtstand-01/bestand.db (29659136 Bytes) — 27 Tabellen
+   artgedaechtnis:699, bandit:158, benutzer:1, eichgegenstand:2, eichkosten:11, eichung:25, eliten:34, entropie:43, generationen:144, geschmack:35, immunsystem:379, jury:7, kandidaten:2679, kasse:4070, laeufe:25, landkarte:567, lazarus:70, mentor:13, mutanten:162, projektgedaechtnis:686, protokoll:16030, strassen:279, tokens:4, verfassung_werk:18, vertraege:1222, vertraege_explizit:37, werke:22
+   kasse-Spalten: ['id', 'lauf_id', 'zeit', 'anbieter', 'modell', 'tokens_ein', 'tokens_aus', 'kosten_eur', 'zweck', 'kontingent', 'protokoll_nr']
+
+=== /root/reparatur-02/privat-cli/privat.db (30511104 Bytes) — 28 Tabellen
+   artgedaechtnis:699, bandit:158, benutzer:1, eichgegenstand:3, eichkosten:22, eichung:29, eliten:34, entropie:43, generationen:144, geschmack:35, immunsystem:379, jury:7, kandidaten:2679, kasse:4070, laeufe:26, landkarte:567, lazarus:70, mentor:13, mutanten:162, projektgedaechtnis:686, protokoll:16034, strassen:279, tokens:4, verfassung_werk:18, vertraege:1222, vertraege_explizit:37, vorspann_nachweise:1, werke:22
+   kasse-Spalten: ['id', 'lauf_id', 'zeit', 'anbieter', 'modell', 'tokens_ein', 'tokens_aus', 'kosten_eur', 'zweck', 'kontingent', 'protokoll_nr']
+
+=== /root/phase-4-vorbedingung-1/privat/biotop.db (31748096 Bytes) — 28 Tabellen
+   artgedaechtnis:769, bandit:170, benutzer:1, eichgegenstand:3, eichkosten:22, eichung:29, eliten:36, entropie:48, generationen:150, geschmack:38, immunsystem:382, jury:8, kandidaten:2847, kasse:4316, laeufe:26, landkarte:594, lazarus:73, mentor:14, mutanten:204, projektgedaechtnis:749, protokoll:17051, strassen:292, tokens:4, verfassung_werk:19, vertraege:1287, vertraege_explizit:40, vorspann_nachweise:1, werke:23
+   kasse-Spalten: ['id', 'lauf_id', 'zeit', 'anbieter', 'modell', 'tokens_ein', 'tokens_aus', 'kosten_eur', 'zweck', 'kontingent', 'protokoll_nr']
+=== Ende R18 ===

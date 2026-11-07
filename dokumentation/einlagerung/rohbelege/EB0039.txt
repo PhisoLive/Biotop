@@ -1,0 +1,42 @@
+EB39 · Wortlaut: Startregel (id 16901), Nachsteuerung, S1c-Schlussbericht (id 25141) für WIEDEREINSTIEG
+Beginn: 2026-09-26 01:15:41 CEST (UTC+0200)
+Ende:   2026-09-26 01:15:41 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/biotop-einlagerung/arbeit/v5_wortlaut.py 16901 25141
+--- Inhalt von /root/biotop-einlagerung/arbeit/v5_wortlaut.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-EINLAGERUNG-01 (nur lesend): Wortlaut einzelner Nachrichten (nach id) aus dem geschwärzten Verlaufsauszug
+paket/dokumentation/verlauf/verlauf.jsonl bzw. aus BIOTOP-LAGE-01 arbeit/verlauf/v3/wortlaut.jsonl (für
+Subagenten-Nachrichten) in Dateien unter tmp/wortlaut/<id>.txt schreiben (exklusiv). Aufruf: v5_wortlaut.py <id> …"""
+import json
+import sys
+from pathlib import Path
+
+ZIEL = Path('/root/biotop-einlagerung/tmp/wortlaut')
+ZIEL.mkdir(parents=True, exist_ok=True)
+QUELLEN = [Path('/root/biotop-einlagerung/paket/dokumentation/verlauf/verlauf.jsonl'),
+           Path('/root/sicherung/biotop-lage-01/arbeit/verlauf/v3/wortlaut.jsonl')]
+gesucht = {int(x) for x in sys.argv[1:]}
+gefunden = {}
+for q in QUELLEN:
+    for z in q.read_text(encoding='utf-8').splitlines():
+        e = json.loads(z)
+        if e.get('id') in gesucht and e['id'] not in gefunden:
+            gefunden[e['id']] = (q.name, e)
+for i in sorted(gesucht):
+    if i not in gefunden:
+        print(f'id {i}: NICHT GEFUNDEN')
+        continue
+    q, e = gefunden[i]
+    p = ZIEL / f'{i}.txt'
+    if not p.exists():
+        with open(p, 'x', encoding='utf-8') as f:
+            f.write(e['text'])
+    print(f"id {i}: {q} · {e.get('zeit')} · {e.get('absender')} · {len(e['text'])} Zeichen → {p}")
+--- Ende /root/biotop-einlagerung/arbeit/v5_wortlaut.py ---
+Ausgabe (vollständig, stdout und stderr):
+id 16901: verlauf.jsonl · 2026-09-24 23:15:27 · Philipp · 2395 Zeichen → /root/biotop-einlagerung/tmp/wortlaut/16901.txt
+id 25141: wortlaut.jsonl · 2026-09-25 17:29:59 · Subagent · 11047 Zeichen → /root/biotop-einlagerung/tmp/wortlaut/25141.txt
+=== Ende EB39 ===

@@ -1,0 +1,598 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 03 · Teil 189 (Teile 166–239 dieses Stands) · enthält R196 bis R196
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+[R196 · Fortsetzung, Stück 7 von 22]
+        unverändert gilt und geprüft wird: null Beitrag, Verbrauch nicht als bekannt
+        ausgegeben, und die Buchung ist nicht kleiner als die Reservierung.
+        """
+        antwort(monkeypatch,'ungenutzt')
+        def timeout(*a,**kw): raise TimeoutError('gestellter Timeout')
+        monkeypatch.setattr(anbieter.urllib.request,'urlopen',timeout)
+>       with pytest.raises(anbieter.AnbieterFehler): aufrufen(db)
+                                                     ^^^^^^^^^^^^
+
+tests/test_t3_verbundausfall.py:65: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_t3_verbundausfall.py:26: in aufrufen
+    return anbieter.aufrufen(db,1,'openrouter','openai/gpt-5.6-luna','Prüfung','gestellte Antwort',
+biotop/anbieter/__init__.py:198: in aufrufen
+    schaetzung = kasse.vorpruefung(con, lauf_id, modell, geschaetzt, max_tokens, zweck)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/kern/kasse.py:123: in vorpruefung
+    auftragsgrenze_verlangen()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def auftragsgrenze_verlangen() -> tuple[int, float]:
+        """Gibt (lauf_ab, budget_eur) zurück oder verweigert den Start.
+    
+        Beide Werte müssen gesetzt und größer null sein. Das Setzen der
+        Umgebungsvariablen behebt nur den Einzelfall; diese Sperre behebt die Klasse.
+        """
+        fehlend = []
+        if not AUFTRAG_LAUF_AB:
+            fehlend.append("BIOTOP_AUFTRAG_LAUF_AB")
+        if not AUFTRAG_BUDGET_EUR:
+            fehlend.append("BIOTOP_AUFTRAG_BUDGET_EUR")
+        if fehlend:
+>           raise AuftragsgrenzeFehlt(
+                "Auftragsgrenze nicht scharf: " + " und ".join(fehlend) + " fehlt oder ist null. "
+                "Null ist keine Grenze, sondern eine fehlende Grenze — ohne sie startet kein Lauf "
+                "(Verfassungssatz 8, hartes Auftragsbudget).")
+E           biotop.kern.kasse.AuftragsgrenzeFehlt: Auftragsgrenze nicht scharf: BIOTOP_AUFTRAG_LAUF_AB und BIOTOP_AUFTRAG_BUDGET_EUR fehlt oder ist null. Null ist keine Grenze, sondern eine fehlende Grenze — ohne sie startet kein Lauf (Verfassungssatz 8, hartes Auftragsbudget).
+
+biotop/kern/kasse.py:82: AuftragsgrenzeFehlt
+___________ test_verbund_ausfall_und_gueltiger_nachbar_durch_genesis ___________
+
+db = <sqlite3.Connection object at 0x7240c0b9cb80>
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_verbund_ausfall_und_guelt0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240bff3b980>
+
+    def test_verbund_ausfall_und_gueltiger_nachbar_durch_genesis(db,tmp_path,monkeypatch):
+        from biotop.organe import genesis, landkarte, nischen, gedaechtnis, mentor
+        monkeypatch.setattr(landkarte,'sicht',lambda *a:'gestelltes Werk')
+        monkeypatch.setattr(gedaechtnis,'gescheiterte_wege_text',lambda *a:'keine')
+        monkeypatch.setattr(mentor,'richtung_text',lambda *a:'Prüfung')
+        monkeypatch.setattr(nischen,'elite',lambda *a:None)
+        monkeypatch.setattr(nischen,'waehlen',lambda *a:[('openai','openai/gpt-5.6-luna'),('qwen','qwen/qwen3.8-flash')])
+        valid='BEGRÜNDUNG: gestellter Kontrollbeitrag\nVERTRÄGE: keine\nDIFF:\n```diff\n--- a/paket/alpha/a.py\n+++ b/paket/alpha/a.py\n@@ -1 +1 @@\n-x = 1\n+x = 2\n```'
+        antwort(monkeypatch,'')
+        kontrolle=[('', 'refusal', 'cyber'),(valid, 'stop', None)]
+        def senden(*a,**kw):
+            text,ende,refusal=kontrolle.pop(0)
+            d={'choices':[{'finish_reason':ende,'message':{'content':text,'refusal':refusal}}],
+               'usage':{'prompt_tokens':120,'completion_tokens':4}}
+            return io.BytesIO(json.dumps(d).encode())
+        monkeypatch.setattr(anbieter.urllib.request,'urlopen',senden)
+>       ids=genesis.erzeugen(db,1,1,1,tmp_path,'paket','alpha',{'tests_fehlgeschlagen':0})
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_t3_verbundausfall.py:98: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/genesis.py:153: in erzeugen
+    a = aufrufen(con, lauf_id, anbieter, modell, vorlage, nutzer, zweck=f"schwarm.{nische}.{bereich}.gen{generation}",
+biotop/anbieter/__init__.py:198: in aufrufen
+    schaetzung = kasse.vorpruefung(con, lauf_id, modell, geschaetzt, max_tokens, zweck)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/kern/kasse.py:123: in vorpruefung
+    auftragsgrenze_verlangen()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def auftragsgrenze_verlangen() -> tuple[int, float]:
+        """Gibt (lauf_ab, budget_eur) zurück oder verweigert den Start.
+    
+        Beide Werte müssen gesetzt und größer null sein. Das Setzen der
+        Umgebungsvariablen behebt nur den Einzelfall; diese Sperre behebt die Klasse.
+        """
+        fehlend = []
+        if not AUFTRAG_LAUF_AB:
+            fehlend.append("BIOTOP_AUFTRAG_LAUF_AB")
+        if not AUFTRAG_BUDGET_EUR:
+            fehlend.append("BIOTOP_AUFTRAG_BUDGET_EUR")
+        if fehlend:
+>           raise AuftragsgrenzeFehlt(
+                "Auftragsgrenze nicht scharf: " + " und ".join(fehlend) + " fehlt oder ist null. "
+                "Null ist keine Grenze, sondern eine fehlende Grenze — ohne sie startet kein Lauf "
+                "(Verfassungssatz 8, hartes Auftragsbudget).")
+E           biotop.kern.kasse.AuftragsgrenzeFehlt: Auftragsgrenze nicht scharf: BIOTOP_AUFTRAG_LAUF_AB und BIOTOP_AUFTRAG_BUDGET_EUR fehlt oder ist null. Null ist keine Grenze, sondern eine fehlende Grenze — ohne sie startet kein Lauf (Verfassungssatz 8, hartes Auftragsbudget).
+
+biotop/kern/kasse.py:82: AuftragsgrenzeFehlt
+_________________________ test_ohne_lauf_bucht_niemand _________________________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_ohne_lauf_bucht_niemand0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c08adf70>
+
+    def test_ohne_lauf_bucht_niemand(tmp_path, monkeypatch):
+        """Gegenprobe: Ohne Kontext läuft alles, aber nichts wird gezählt."""
+        monkeypatch.setattr(datenbank, 'DB_PFAD', tmp_path / 'q.db')
+        con = datenbank.verbinden()
+        aegis.zaehlkontext_setzen(None, None)
+        alt = "import {test, expect} from 'vitest';\ntest('a', () => expect(1).toBe(1));\n"
+>       assert aegis._anhaengen(alt, alt, {'a'}) is None      # läuft durch
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_t3_zaehlkontext.py:49: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/aegis.py:204: in _anhaengen
+    return _anhaengen_ts(con, lauf_id, alt, neu, behalten)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/organe/aegis.py:296: in _anhaengen_ts
+    alt_namen = {t["name"] for t in typescript.testfunktionen(alt)}
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/kern/typescript.py:144: in testfunktionen
+    d, _ = _aufruf(Path(tmp), "testfunktionen", code=code)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/ts-parser-25fc9nih'), aktion = 'testfunktionen'
+dateien = None, zeitlimit_s = 150
+daten = {'code': "import {test, expect} from 'vitest';\ntest('a', () => expect(1).toBe(1));\n"}
+
+    def _aufruf(werk, aktion, dateien=None, zeitlimit_s=150, **daten):
+        extra = dict(dateien or {})
+        for rel in extra:
+            p = Path(rel)
+            if p.is_absolute() or ".." in p.parts or p.parts[0] in ("_messgeraet", "node_modules"):
+                raise TypeScriptFehler("Unzulässiger Ersatzpfad: " + rel)
+        extra.update({"_messgeraet/ts/" + p.name: p.read_text() for p in SKRIPTE.iterdir() if p.is_file()})
+        extra["_messgeraet/ts/anfrage.json"] = json.dumps({"aktion": aktion, **daten})
+        e = kammer.ausfuehren(Path(werk), ["node", "_messgeraet/ts/main.mjs"],
+                              zeitlimit_s=zeitlimit_s, dateien=extra)
+        roh = asdict(e)
+        if e.zeitlimit or e.rc != 0:
+>           raise TypeScriptFehler("Kammerabbruch: " + json.dumps(roh, ensure_ascii=False))
+E           biotop.kern.typescript.TypeScriptFehler: Kammerabbruch: {"rc": 1, "stdout": "", "stderr": "failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n", "dauer_s": 0.01945488015189767, "zeitlimit": false, "container": "biotop-73835725d7f4"}
+
+biotop/kern/typescript.py:43: TypeScriptFehler
+____________________ test_zaehlerfehler_beendet_keinen_lauf ____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_zaehlerfehler_beendet_kei0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0cd71a0>
+
+    def test_zaehlerfehler_beendet_keinen_lauf(tmp_path, monkeypatch):
+        """Ein Messinstrument darf das Gemessene nicht anhalten."""
+        class KaputteDB:
+            def execute(self, *a, **kw):
+                raise sqlite3.OperationalError('Datenbank weg')
+    
+        aegis.zaehlkontext_setzen(KaputteDB(), 99)
+        alt = "import {test, expect} from 'vitest';\ntest('a', () => expect(1).toBe(1));\n"
+>       assert aegis._anhaengen(alt, alt, {'a'}) is None      # kein Absturz
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_t3_zaehlkontext.py:62: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/aegis.py:204: in _anhaengen
+    return _anhaengen_ts(con, lauf_id, alt, neu, behalten)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/organe/aegis.py:296: in _anhaengen_ts
+    alt_namen = {t["name"] for t in typescript.testfunktionen(alt)}
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/kern/typescript.py:144: in testfunktionen
+    d, _ = _aufruf(Path(tmp), "testfunktionen", code=code)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/ts-parser-um2n6kai'), aktion = 'testfunktionen'
+dateien = None, zeitlimit_s = 150
+daten = {'code': "import {test, expect} from 'vitest';\ntest('a', () => expect(1).toBe(1));\n"}
+
+    def _aufruf(werk, aktion, dateien=None, zeitlimit_s=150, **daten):
+        extra = dict(dateien or {})
+        for rel in extra:
+            p = Path(rel)
+            if p.is_absolute() or ".." in p.parts or p.parts[0] in ("_messgeraet", "node_modules"):
+                raise TypeScriptFehler("Unzulässiger Ersatzpfad: " + rel)
+        extra.update({"_messgeraet/ts/" + p.name: p.read_text() for p in SKRIPTE.iterdir() if p.is_file()})
+        extra["_messgeraet/ts/anfrage.json"] = json.dumps({"aktion": aktion, **daten})
+        e = kammer.ausfuehren(Path(werk), ["node", "_messgeraet/ts/main.mjs"],
+                              zeitlimit_s=zeitlimit_s, dateien=extra)
+        roh = asdict(e)
+        if e.zeitlimit or e.rc != 0:
+>           raise TypeScriptFehler("Kammerabbruch: " + json.dumps(roh, ensure_ascii=False))
+E           biotop.kern.typescript.TypeScriptFehler: Kammerabbruch: {"rc": 1, "stdout": "", "stderr": "failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n", "dauer_s": 0.022732994984835386, "zeitlimit": false, "container": "biotop-03adc2da4cfa"}
+
+biotop/kern/typescript.py:43: TypeScriptFehler
+_________________ test_anhaengen_ts_gibt_none_statt_zu_werfen __________________
+
+    def test_anhaengen_ts_gibt_none_statt_zu_werfen():
+        """Unbrauchbare TS-Eingabe ist ein 'nein', kein Absturz — wie im Python-Zweig.
+    
+        Geändert mit Vorbedingung 9 (T4): gültige TS-Tests werden jetzt angehängt; None bleibt die Antwort auf
+        kaputten Code oder fehlende neue Tests, und nichts davon wirft.
+        """
+        alt = "import {test, expect} from 'vitest';\ntest('a', () => expect(1).toBe(1));\n"
+        kaputt = "import {test, expect} from 'vitest';\ntest('b', () => { expect(2).toBe(2);\n"
+>       assert aegis._anhaengen(alt, kaputt, {'b'}) is None
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_t3_zweigklasse.py:36: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/aegis.py:204: in _anhaengen
+    return _anhaengen_ts(con, lauf_id, alt, neu, behalten)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/organe/aegis.py:296: in _anhaengen_ts
+    alt_namen = {t["name"] for t in typescript.testfunktionen(alt)}
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/kern/typescript.py:144: in testfunktionen
+    d, _ = _aufruf(Path(tmp), "testfunktionen", code=code)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/ts-parser-yqhw505c'), aktion = 'testfunktionen'
+dateien = None, zeitlimit_s = 150
+daten = {'code': "import {test, expect} from 'vitest';\ntest('a', () => expect(1).toBe(1));\n"}
+
+    def _aufruf(werk, aktion, dateien=None, zeitlimit_s=150, **daten):
+        extra = dict(dateien or {})
+        for rel in extra:
+            p = Path(rel)
+            if p.is_absolute() or ".." in p.parts or p.parts[0] in ("_messgeraet", "node_modules"):
+                raise TypeScriptFehler("Unzulässiger Ersatzpfad: " + rel)
+        extra.update({"_messgeraet/ts/" + p.name: p.read_text() for p in SKRIPTE.iterdir() if p.is_file()})
+        extra["_messgeraet/ts/anfrage.json"] = json.dumps({"aktion": aktion, **daten})
+        e = kammer.ausfuehren(Path(werk), ["node", "_messgeraet/ts/main.mjs"],
+                              zeitlimit_s=zeitlimit_s, dateien=extra)
+        roh = asdict(e)
+        if e.zeitlimit or e.rc != 0:
+>           raise TypeScriptFehler("Kammerabbruch: " + json.dumps(roh, ensure_ascii=False))
+E           biotop.kern.typescript.TypeScriptFehler: Kammerabbruch: {"rc": 1, "stdout": "", "stderr": "failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n", "dauer_s": 0.02238275413401425, "zeitlimit": false, "container": "biotop-179079a1d264"}
+
+biotop/kern/typescript.py:43: TypeScriptFehler
+_______________ test_behauptung_ts_unableitbar_gibt_platzhalter ________________
+
+    def test_behauptung_ts_unableitbar_gibt_platzhalter():
+        """Nicht ableitbare Behauptung ist ein Platzhalter, kein Abbruch.
+    
+        Der Python-Zweig liefert '?|name' bei SyntaxError oder fehlender Funktion.
+        Die Aufrufer (aegis.py:365, 541, 728, 741, 752) bauen daraus Doppelungs-
+        schlüssel — ein Platzhalter ist dort vorgesehen, eine Ausnahme nicht.
+        """
+        code = "import {test} from 'vitest';\ntest('vorhanden', () => {});\n"
+>       assert aegis.behauptung(code, 'nicht_vorhanden', 'src') == '?|nicht_vorhanden'
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_t3_zweigklasse.py:58: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/aegis.py:525: in behauptung
+    tests = typescript.testfunktionen(code)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/kern/typescript.py:144: in testfunktionen
+    d, _ = _aufruf(Path(tmp), "testfunktionen", code=code)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/ts-parser-pgthnl1_'), aktion = 'testfunktionen'
+dateien = None, zeitlimit_s = 150
+daten = {'code': "import {test} from 'vitest';\ntest('vorhanden', () => {});\n"}
+
+    def _aufruf(werk, aktion, dateien=None, zeitlimit_s=150, **daten):
+        extra = dict(dateien or {})
+        for rel in extra:
+            p = Path(rel)
+            if p.is_absolute() or ".." in p.parts or p.parts[0] in ("_messgeraet", "node_modules"):
+                raise TypeScriptFehler("Unzulässiger Ersatzpfad: " + rel)
+        extra.update({"_messgeraet/ts/" + p.name: p.read_text() for p in SKRIPTE.iterdir() if p.is_file()})
+        extra["_messgeraet/ts/anfrage.json"] = json.dumps({"aktion": aktion, **daten})
+        e = kammer.ausfuehren(Path(werk), ["node", "_messgeraet/ts/main.mjs"],
+                              zeitlimit_s=zeitlimit_s, dateien=extra)
+        roh = asdict(e)
+        if e.zeitlimit or e.rc != 0:
+>           raise TypeScriptFehler("Kammerabbruch: " + json.dumps(roh, ensure_ascii=False))
+E           biotop.kern.typescript.TypeScriptFehler: Kammerabbruch: {"rc": 1, "stdout": "", "stderr": "failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n", "dauer_s": 0.02162139001302421, "zeitlimit": false, "container": "biotop-efd2b0944389"}
+
+biotop/kern/typescript.py:43: TypeScriptFehler
+_______________ test_behauptung_ts_ableitbar_liefert_schluessel ________________
+
+    def test_behauptung_ts_ableitbar_liefert_schluessel():
+        """Gegenprobe: eine ableitbare Behauptung liefert weiterhin ihren Schlüssel."""
+        code = ("import {test, expect} from 'vitest';\n"
+                "import {skalar} from '../src/tarife/preise.js';\n"
+                "test('test_skalar_zahl', () => { expect(skalar(100)).toBe(100); });\n")
+>       schl = aegis.behauptung(code, 'test_skalar_zahl', 'src')
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_t3_zweigklasse.py:66: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/aegis.py:525: in behauptung
+    tests = typescript.testfunktionen(code)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/kern/typescript.py:144: in testfunktionen
+    d, _ = _aufruf(Path(tmp), "testfunktionen", code=code)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/ts-parser-xss7r4ws'), aktion = 'testfunktionen'
+dateien = None, zeitlimit_s = 150
+daten = {'code': "import {test, expect} from 'vitest';\nimport {skalar} from '../src/tarife/preise.js';\ntest('test_skalar_zahl', () => { expect(skalar(100)).toBe(100); });\n"}
+
+    def _aufruf(werk, aktion, dateien=None, zeitlimit_s=150, **daten):
+        extra = dict(dateien or {})
+        for rel in extra:
+            p = Path(rel)
+            if p.is_absolute() or ".." in p.parts or p.parts[0] in ("_messgeraet", "node_modules"):
+                raise TypeScriptFehler("Unzulässiger Ersatzpfad: " + rel)
+        extra.update({"_messgeraet/ts/" + p.name: p.read_text() for p in SKRIPTE.iterdir() if p.is_file()})
+        extra["_messgeraet/ts/anfrage.json"] = json.dumps({"aktion": aktion, **daten})
+        e = kammer.ausfuehren(Path(werk), ["node", "_messgeraet/ts/main.mjs"],
+                              zeitlimit_s=zeitlimit_s, dateien=extra)
+        roh = asdict(e)
+        if e.zeitlimit or e.rc != 0:
+>           raise TypeScriptFehler("Kammerabbruch: " + json.dumps(roh, ensure_ascii=False))
+E           biotop.kern.typescript.TypeScriptFehler: Kammerabbruch: {"rc": 1, "stdout": "", "stderr": "failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n", "dauer_s": 0.020481574116274714, "zeitlimit": false, "container": "biotop-2e066b8d0265"}
+
+biotop/kern/typescript.py:43: TypeScriptFehler
+___________________ test_jedes_organ_wird_im_lauf_aufgerufen ___________________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_jedes_organ_wird_im_lauf_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0ca4710>
+capsys = <_pytest.capture.CaptureFixture object at 0x7240c0ca7920>
+
+    def test_jedes_organ_wird_im_lauf_aufgerufen(tmp_path, monkeypatch, capsys):
+        from biotop import __main__ as cli
+        from biotop import anbieter
+        from biotop import lauf as L
+        from biotop.kern import kasse
+        from biotop.organe import aufnahme, kammer, lazarus
+    
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:ts1")
+        ok, meldung = kammer.bereit()
+        if not ok:
+>           pytest.fail("Kammer nicht bereit — der Verdrahtungsnachweis braucht die echte Kammer: " + meldung)
+E           Failed: Kammer nicht bereit — der Verdrahtungsnachweis braucht die echte Kammer: Kammer-Image biotop-kammer:ts1 fehlt
+
+tests/test_verdrahtung.py:341: Failed
+_ test_10_sperre_am_laufweg_projekt_merken_und_wiederholung[Grenzma\xdf gerissen: tarife.laufzeit_ms: 6.414 > Grenze 5.945 (Bestwert 5.169 \xd7 1.150)-False] _
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_10_sperre_am_laufweg_proj0')
+grund = 'Grenzmaß gerissen: tarife.laufzeit_ms: 6.414 > Grenze 5.945 (Bestwert 5.169 × 1.150)'
+sperrt = False, ts_kammer = 'biotop-kammer:ts1'
+
+    @pytest.mark.parametrize("grund,sperrt", [
+        # T3 K3242: Riss in `tarife`, Diff ändert nur `planung` — darf später gleiche Kandidaten nicht sperren
+        ("Grenzmaß gerissen: tarife.laufzeit_ms: 6.414 > Grenze 5.945 (Bestwert 5.169 × 1.150)", False),
+        ("Grenzmaß gerissen: planung.laufzeit_ms: 12.000 > Grenze 10.000 (Bestwert 8.000 × 1.250)", False),
+        # Gegenprobe: berührt UND gepaart bestätigt — sperrt (derselbe Diff, derselbe Laufweg)
+        ("Grenzmaß gerissen: planung.laufzeit_ms: 12.000 > Grenze 10.000 (Vorgeneration gepaart, Median aus 5 8.000 × 1.250)", True),
+        # Gegenprobe: eine andere Ablehnungsart sperrt wie bisher
+        ("Kernmaß unverändert (0 → 0); bestandene Tests zählen nicht", True),
+    ])
+    def test_10_sperre_am_laufweg_projekt_merken_und_wiederholung(tmp_path, grund, sperrt, ts_kammer):
+        """Durch projekt_merken + wiederholung, die Funktionen, die der Lauf ruft (lauf._generation_koerper)."""
+        con = _gedaechtnis_werk(tmp_path)
+        neu = {"src/planung/pruefen.ts": PRUEFEN_NEU}
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,diff,status,grund) VALUES(1,1,1,'planung','schnell',?,'abgelehnt',?)",
+                    (DIFF_PLANUNG, grund))
+>       gedaechtnis.projekt_merken(con, 1, 1, 1, tmp_path, neu)
+
+tests/test_vor_t4.py:174: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/gedaechtnis.py:242: in projekt_merken
+    dateien, funktionen, ansatz = aenderungsziel(werk_pfad, k["diff"], dateien_neu)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/organe/gedaechtnis.py:108: in aenderungsziel
+    alt_f = _funktionen(alt.read_text(), d) if alt.exists() else {}
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/organe/gedaechtnis.py:59: in _funktionen
+    return {f["name"]:code[f["start"]:f["end"]] for f in typescript.quellfunktionen(code)}
+                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/kern/typescript.py:132: in quellfunktionen
+    d, _ = _aufruf(Path(tmp), "quellfunktionen", code=code)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/ts-quellparser-aidcxt2q'), aktion = 'quellfunktionen'
+dateien = None, zeitlimit_s = 150
+daten = {'code': 'export function pruefe(liste: string[]): number {\n  let doppelt = 0;\n  for (let i = 0; i < liste.length; i...{\n    for (let j = 0; j < i; j++) {\n      if (liste[i] === liste[j]) doppelt++;\n    }\n  }\n  return doppelt;\n}\n'}
+
+    def _aufruf(werk, aktion, dateien=None, zeitlimit_s=150, **daten):
+        extra = dict(dateien or {})
+        for rel in extra:
+            p = Path(rel)
+            if p.is_absolute() or ".." in p.parts or p.parts[0] in ("_messgeraet", "node_modules"):
+                raise TypeScriptFehler("Unzulässiger Ersatzpfad: " + rel)
+        extra.update({"_messgeraet/ts/" + p.name: p.read_text() for p in SKRIPTE.iterdir() if p.is_file()})
+        extra["_messgeraet/ts/anfrage.json"] = json.dumps({"aktion": aktion, **daten})
+        e = kammer.ausfuehren(Path(werk), ["node", "_messgeraet/ts/main.mjs"],
+                              zeitlimit_s=zeitlimit_s, dateien=extra)
+        roh = asdict(e)
+        if e.zeitlimit or e.rc != 0:
+>           raise TypeScriptFehler("Kammerabbruch: " + json.dumps(roh, ensure_ascii=False))
+E           biotop.kern.typescript.TypeScriptFehler: Kammerabbruch: {"rc": 1, "stdout": "", "stderr": "failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n", "dauer_s": 0.020748441806063056, "zeitlimit": false, "container": "biotop-58dbbbc0e1c5"}
+
+biotop/kern/typescript.py:43: TypeScriptFehler
+_ test_10_sperre_am_laufweg_projekt_merken_und_wiederholung[Grenzma\xdf gerissen: planung.laufzeit_ms: 12.000 > Grenze 10.000 (Bestwert 8.000 \xd7 1.250)-False] _
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_10_sperre_am_laufweg_proj1')
+grund = 'Grenzmaß gerissen: planung.laufzeit_ms: 12.000 > Grenze 10.000 (Bestwert 8.000 × 1.250)'
+sperrt = False, ts_kammer = 'biotop-kammer:ts1'
+
+    @pytest.mark.parametrize("grund,sperrt", [
+        # T3 K3242: Riss in `tarife`, Diff ändert nur `planung` — darf später gleiche Kandidaten nicht sperren
+        ("Grenzmaß gerissen: tarife.laufzeit_ms: 6.414 > Grenze 5.945 (Bestwert 5.169 × 1.150)", False),
+        ("Grenzmaß gerissen: planung.laufzeit_ms: 12.000 > Grenze 10.000 (Bestwert 8.000 × 1.250)", False),
+        # Gegenprobe: berührt UND gepaart bestätigt — sperrt (derselbe Diff, derselbe Laufweg)
+        ("Grenzmaß gerissen: planung.laufzeit_ms: 12.000 > Grenze 10.000 (Vorgeneration gepaart, Median aus 5 8.000 × 1.250)", True),
+        # Gegenprobe: eine andere Ablehnungsart sperrt wie bisher
+        ("Kernmaß unverändert (0 → 0); bestandene Tests zählen nicht", True),
+    ])
+    def test_10_sperre_am_laufweg_projekt_merken_und_wiederholung(tmp_path, grund, sperrt, ts_kammer):
+        """Durch projekt_merken + wiederholung, die Funktionen, die der Lauf ruft (lauf._generation_koerper)."""
+        con = _gedaechtnis_werk(tmp_path)
+        neu = {"src/planung/pruefen.ts": PRUEFEN_NEU}
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,diff,status,grund) VALUES(1,1,1,'planung','schnell',?,'abgelehnt',?)",
+                    (DIFF_PLANUNG, grund))
+>       gedaechtnis.projekt_merken(con, 1, 1, 1, tmp_path, neu)
+
+tests/test_vor_t4.py:174: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/gedaechtnis.py:242: in projekt_merken
+    dateien, funktionen, ansatz = aenderungsziel(werk_pfad, k["diff"], dateien_neu)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/organe/gedaechtnis.py:108: in aenderungsziel
+    alt_f = _funktionen(alt.read_text(), d) if alt.exists() else {}
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/organe/gedaechtnis.py:59: in _funktionen
+    return {f["name"]:code[f["start"]:f["end"]] for f in typescript.quellfunktionen(code)}
+                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/kern/typescript.py:132: in quellfunktionen
+    d, _ = _aufruf(Path(tmp), "quellfunktionen", code=code)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/ts-quellparser-4_g97p2m'), aktion = 'quellfunktionen'
+dateien = None, zeitlimit_s = 150
+daten = {'code': 'export function pruefe(liste: string[]): number {\n  let doppelt = 0;\n  for (let i = 0; i < liste.length; i...{\n    for (let j = 0; j < i; j++) {\n      if (liste[i] === liste[j]) doppelt++;\n    }\n  }\n  return doppelt;\n}\n'}
+
+    def _aufruf(werk, aktion, dateien=None, zeitlimit_s=150, **daten):
+        extra = dict(dateien or {})
+        for rel in extra:
+            p = Path(rel)
+            if p.is_absolute() or ".." in p.parts or p.parts[0] in ("_messgeraet", "node_modules"):
+                raise TypeScriptFehler("Unzulässiger Ersatzpfad: " + rel)
+        extra.update({"_messgeraet/ts/" + p.name: p.read_text() for p in SKRIPTE.iterdir() if p.is_file()})
+        extra["_messgeraet/ts/anfrage.json"] = json.dumps({"aktion": aktion, **daten})
+        e = kammer.ausfuehren(Path(werk), ["node", "_messgeraet/ts/main.mjs"],
+                              zeitlimit_s=zeitlimit_s, dateien=extra)
+        roh = asdict(e)
+        if e.zeitlimit or e.rc != 0:
+>           raise TypeScriptFehler("Kammerabbruch: " + json.dumps(roh, ensure_ascii=False))
+E           biotop.kern.typescript.TypeScriptFehler: Kammerabbruch: {"rc": 1, "stdout": "", "stderr": "failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n", "dauer_s": 0.021056680008769035, "zeitlimit": false, "container": "biotop-11064ecbbcdd"}
+
+biotop/kern/typescript.py:43: TypeScriptFehler
+_ test_10_sperre_am_laufweg_projekt_merken_und_wiederholung[Grenzma\xdf gerissen: planung.laufzeit_ms: 12.000 > Grenze 10.000 (Vorgeneration gepaart, Median aus 5 8.000 \xd7 1.250)-True] _
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_10_sperre_am_laufweg_proj2')
+grund = 'Grenzmaß gerissen: planung.laufzeit_ms: 12.000 > Grenze 10.000 (Vorgeneration gepaart, Median aus 5 8.000 × 1.250)'
+sperrt = True, ts_kammer = 'biotop-kammer:ts1'
+
+    @pytest.mark.parametrize("grund,sperrt", [
+        # T3 K3242: Riss in `tarife`, Diff ändert nur `planung` — darf später gleiche Kandidaten nicht sperren
+        ("Grenzmaß gerissen: tarife.laufzeit_ms: 6.414 > Grenze 5.945 (Bestwert 5.169 × 1.150)", False),
+        ("Grenzmaß gerissen: planung.laufzeit_ms: 12.000 > Grenze 10.000 (Bestwert 8.000 × 1.250)", False),
+        # Gegenprobe: berührt UND gepaart bestätigt — sperrt (derselbe Diff, derselbe Laufweg)
+        ("Grenzmaß gerissen: planung.laufzeit_ms: 12.000 > Grenze 10.000 (Vorgeneration gepaart, Median aus 5 8.000 × 1.250)", True),
+        # Gegenprobe: eine andere Ablehnungsart sperrt wie bisher
+        ("Kernmaß unverändert (0 → 0); bestandene Tests zählen nicht", True),
+    ])
+    def test_10_sperre_am_laufweg_projekt_merken_und_wiederholung(tmp_path, grund, sperrt, ts_kammer):
+        """Durch projekt_merken + wiederholung, die Funktionen, die der Lauf ruft (lauf._generation_koerper)."""
+        con = _gedaechtnis_werk(tmp_path)
+        neu = {"src/planung/pruefen.ts": PRUEFEN_NEU}
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,diff,status,grund) VALUES(1,1,1,'planung','schnell',?,'abgelehnt',?)",
+                    (DIFF_PLANUNG, grund))
+>       gedaechtnis.projekt_merken(con, 1, 1, 1, tmp_path, neu)
+
+tests/test_vor_t4.py:174: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/gedaechtnis.py:242: in projekt_merken
+    dateien, funktionen, ansatz = aenderungsziel(werk_pfad, k["diff"], dateien_neu)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/organe/gedaechtnis.py:108: in aenderungsziel
+    alt_f = _funktionen(alt.read_text(), d) if alt.exists() else {}
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/organe/gedaechtnis.py:59: in _funktionen
+    return {f["name"]:code[f["start"]:f["end"]] for f in typescript.quellfunktionen(code)}
+                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/kern/typescript.py:132: in quellfunktionen
+    d, _ = _aufruf(Path(tmp), "quellfunktionen", code=code)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/ts-quellparser-y977r3fn'), aktion = 'quellfunktionen'
+dateien = None, zeitlimit_s = 150
+daten = {'code': 'export function pruefe(liste: string[]): number {\n  let doppelt = 0;\n  for (let i = 0; i < liste.length; i...{\n    for (let j = 0; j < i; j++) {\n      if (liste[i] === liste[j]) doppelt++;\n    }\n  }\n  return doppelt;\n}\n'}
+
+    def _aufruf(werk, aktion, dateien=None, zeitlimit_s=150, **daten):
+        extra = dict(dateien or {})
+        for rel in extra:
+            p = Path(rel)
+            if p.is_absolute() or ".." in p.parts or p.parts[0] in ("_messgeraet", "node_modules"):
+                raise TypeScriptFehler("Unzulässiger Ersatzpfad: " + rel)
+        extra.update({"_messgeraet/ts/" + p.name: p.read_text() for p in SKRIPTE.iterdir() if p.is_file()})
+        extra["_messgeraet/ts/anfrage.json"] = json.dumps({"aktion": aktion, **daten})
+        e = kammer.ausfuehren(Path(werk), ["node", "_messgeraet/ts/main.mjs"],
+                              zeitlimit_s=zeitlimit_s, dateien=extra)
+        roh = asdict(e)
+        if e.zeitlimit or e.rc != 0:
+>           raise TypeScriptFehler("Kammerabbruch: " + json.dumps(roh, ensure_ascii=False))
+E           biotop.kern.typescript.TypeScriptFehler: Kammerabbruch: {"rc": 1, "stdout": "", "stderr": "failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n", "dauer_s": 0.025402768049389124, "zeitlimit": false, "container": "biotop-89ccb1d4f0c6"}
+
+biotop/kern/typescript.py:43: TypeScriptFehler
+_ test_10_sperre_am_laufweg_projekt_merken_und_wiederholung[Kernma\xdf unver\xe4ndert (0 \u2192 0); bestandene Tests z\xe4hlen nicht-True] _
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_10_sperre_am_laufweg_proj3')
+grund = 'Kernmaß unverändert (0 → 0); bestandene Tests zählen nicht'
+sperrt = True, ts_kammer = 'biotop-kammer:ts1'
+
+    @pytest.mark.parametrize("grund,sperrt", [
+        # T3 K3242: Riss in `tarife`, Diff ändert nur `planung` — darf später gleiche Kandidaten nicht sperren
+        ("Grenzmaß gerissen: tarife.laufzeit_ms: 6.414 > Grenze 5.945 (Bestwert 5.169 × 1.150)", False),
+        ("Grenzmaß gerissen: planung.laufzeit_ms: 12.000 > Grenze 10.000 (Bestwert 8.000 × 1.250)", False),
+        # Gegenprobe: berührt UND gepaart bestätigt — sperrt (derselbe Diff, derselbe Laufweg)
+        ("Grenzmaß gerissen: planung.laufzeit_ms: 12.000 > Grenze 10.000 (Vorgeneration gepaart, Median aus 5 8.000 × 1.250)", True),
+        # Gegenprobe: eine andere Ablehnungsart sperrt wie bisher
+        ("Kernmaß unverändert (0 → 0); bestandene Tests zählen nicht", True),
+    ])
+    def test_10_sperre_am_laufweg_projekt_merken_und_wiederholung(tmp_path, grund, sperrt, ts_kammer):
+        """Durch projekt_merken + wiederholung, die Funktionen, die der Lauf ruft (lauf._generation_koerper)."""
+        con = _gedaechtnis_werk(tmp_path)
+        neu = {"src/planung/pruefen.ts": PRUEFEN_NEU}
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,diff,status,grund) VALUES(1,1,1,'planung','schnell',?,'abgelehnt',?)",
+                    (DIFF_PLANUNG, grund))
+>       gedaechtnis.projekt_merken(con, 1, 1, 1, tmp_path, neu)
+
+tests/test_vor_t4.py:174: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/gedaechtnis.py:242: in projekt_merken
+    dateien, funktionen, ansatz = aenderungsziel(werk_pfad, k["diff"], dateien_neu)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/organe/gedaechtnis.py:108: in aenderungsziel
+    alt_f = _funktionen(alt.read_text(), d) if alt.exists() else {}
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/organe/gedaechtnis.py:59: in _funktionen
+    return {f["name"]:code[f["start"]:f["end"]] for f in typescript.quellfunktionen(code)}
+                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/kern/typescript.py:132: in quellfunktionen
+    d, _ = _aufruf(Path(tmp), "quellfunktionen", code=code)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/ts-quellparser-gvm5rqmr'), aktion = 'quellfunktionen'
+dateien = None, zeitlimit_s = 150
+daten = {'code': 'export function pruefe(liste: string[]): number {\n  let doppelt = 0;\n  for (let i = 0; i < liste.length; i...{\n    for (let j = 0; j < i; j++) {\n      if (liste[i] === liste[j]) doppelt++;\n    }\n  }\n  return doppelt;\n}\n'}
+
+    def _aufruf(werk, aktion, dateien=None, zeitlimit_s=150, **daten):
+        extra = dict(dateien or {})
+        for rel in extra:
+            p = Path(rel)
+            if p.is_absolute() or ".." in p.parts or p.parts[0] in ("_messgeraet", "node_modules"):
+                raise TypeScriptFehler("Unzulässiger Ersatzpfad: " + rel)
+        extra.update({"_messgeraet/ts/" + p.name: p.read_text() for p in SKRIPTE.iterdir() if p.is_file()})
+        extra["_messgeraet/ts/anfrage.json"] = json.dumps({"aktion": aktion, **daten})
+        e = kammer.ausfuehren(Path(werk), ["node", "_messgeraet/ts/main.mjs"],
+                              zeitlimit_s=zeitlimit_s, dateien=extra)
+        roh = asdict(e)
+        if e.zeitlimit or e.rc != 0:
+>           raise TypeScriptFehler("Kammerabbruch: " + json.dumps(roh, ensure_ascii=False))
+E           biotop.kern.typescript.TypeScriptFehler: Kammerabbruch: {"rc": 1, "stdout": "", "stderr": "failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n", "dauer_s": 0.017774368170648813, "zeitlimit": false, "container": "biotop-76c59ab6cdf5"}
+
+biotop/kern/typescript.py:43: TypeScriptFehler
+________ test_9_anhaengen_auf_dem_typescript_pfad_haengt_an_und_zaehlt _________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_9_anhaengen_auf_dem_types0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0cb66f0>
+ts_kammer = 'biotop-kammer:ts1'
+
+    def test_9_anhaengen_auf_dem_typescript_pfad_haengt_an_und_zaehlt(tmp_path, monkeypatch, ts_kammer):
+        """T3: 0 von 0 Fällen, jeder TS-Aufruf endete neutral 'typescript_eigene_datei'. Jetzt echt angehängt (Kammer)."""
+        from biotop.kern import typescript
+        from biotop.organe import neutralzaehler
+        con = datenbank.verbinden(tmp_path / "a.db")
+        monkeypatch.setattr(aegis, "_zaehlkontext", lambda: (con, 9))
+>       g = aegis._anhaengen(ALT_TS, NEU_TS, {"test_neu"})
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4.py:302: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 

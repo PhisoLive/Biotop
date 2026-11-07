@@ -1,0 +1,53 @@
+{
+ "test_datei": "import { test, expect } from 'vitest';\nimport { ausdruck } from '../src/tarife/ausdruck.js';\n\n// Deckende Tests je Abweichung des Randfall-Korpus (K2868 Durchgang 1: ~rand#2, #4, #5, je 4 Aufrufmuster).\nfunction nichtAusgefuehrt(text: string, name: string): void {\n  let zugriffe = 0;\n  Object.defineProperty(globalThis, name, { configurable: true, get() { zugriffe++; return 7; } });\n  let abgewiesen = false;\n  try { ausdruck(text, { gewicht: 1, grund: 2 }); } catch { abgewiesen = true; }\n  finally { Reflect.deleteProperty(globalThis, name); }\n  expect(zugriffe, 'Eingabe als Programm ausgeführt').toBe(0);\n  expect(abgewiesen, 'Eingabe ausdrücklich abgewiesen').toBe(true);\n}\ntest('test_s1_deckung_rand2_bezeichner_a', () => { nichtAusgefuehrt('a', 'a'); });\ntest('test_s1_deckung_rand4_Ae_minus_1', () => { nichtAusgefuehrt('Ä-1', 'Ä'); });\ntest('test_s1_deckung_rand5_x40', () => { nichtAusgefuehrt('x'.repeat(40), 'x'.repeat(40)); });\n// Deckend für die 86 Abweichungen im Vertragskorpus: Division durch null in einem Teilausdruck (Vertrag: abweisen)\ntest('test_s1_deckung_division_durch_null_im_teilausdruck', () => {\n  expect(() => ausdruck('gewicht/ (5074  /gewicht  -  gewicht )', { gewicht: 0, grund: 0 })).toThrow(RangeError);\n});\n// Spezifikation der UNGEDECKTEN Abweichung: Weißraum außer dem Leerzeichen (Vertrag schweigt, Referenz nimmt an)\ntest('test_s1_spez_weissraum_tab_und_zeilenumbruch', () => {\n  expect(ausdruck('grund +\\tgewicht * 2', { gewicht: 30, grund: 250 })).toBe(310);\n  expect(ausdruck('(grund + gewicht)\\n* 2', { gewicht: 30, grund: 250 })).toBe(560);\n});\n",
+ "staende": {
+  "vorgeneration": {
+   "gueltig": true,
+   "faelle": {
+    "test_s1_deckung_division_durch_null_im_teilausdruck": false,
+    "test_s1_deckung_rand2_bezeichner_a": false,
+    "test_s1_deckung_rand4_Ae_minus_1": false,
+    "test_s1_deckung_rand5_x40": false,
+    "test_s1_spez_weissraum_tab_und_zeilenumbruch": true
+   }
+  },
+  "kandidat": {
+   "gueltig": true,
+   "faelle": {
+    "test_s1_deckung_division_durch_null_im_teilausdruck": true,
+    "test_s1_deckung_rand2_bezeichner_a": true,
+    "test_s1_deckung_rand4_Ae_minus_1": true,
+    "test_s1_deckung_rand5_x40": true,
+    "test_s1_spez_weissraum_tab_und_zeilenumbruch": false
+   }
+  },
+  "referenz": {
+   "gueltig": true,
+   "faelle": {
+    "test_s1_deckung_division_durch_null_im_teilausdruck": true,
+    "test_s1_deckung_rand2_bezeichner_a": true,
+    "test_s1_deckung_rand4_Ae_minus_1": true,
+    "test_s1_deckung_rand5_x40": true,
+    "test_s1_spez_weissraum_tab_und_zeilenumbruch": true
+   }
+  }
+ },
+ "deckend": {
+  "test_s1_deckung_division_durch_null_im_teilausdruck": true,
+  "test_s1_deckung_rand2_bezeichner_a": true,
+  "test_s1_deckung_rand4_Ae_minus_1": true,
+  "test_s1_deckung_rand5_x40": true,
+  "test_s1_spez_weissraum_tab_und_zeilenumbruch": false
+ },
+ "funktionsebene_konstruiert": {
+  "abweichung": [
+   "tarife/ausdruck:ausdruck~rand#9"
+  ],
+  "gedeckt_durch": [
+   "test_tarife_immun_befundklasse_no_new_func.test.ts::test_umgehung_0 verfassung Satz 2",
+   "test_tarife_immun_befundklasse_no_new_func.test.ts::test_umgehung_1 verfassung Satz 2",
+   "test_tarife_immun_befundklasse_no_new_func.test.ts::test_umgehung_2 verfassung Satz 2"
+  ],
+  "kennzeichnung": "gestellt: Abweichungsschlüssel konstruiert, Tests echt erzeugt"
+ }
+}

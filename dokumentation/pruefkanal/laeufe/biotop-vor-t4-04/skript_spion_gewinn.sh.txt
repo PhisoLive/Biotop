@@ -1,0 +1,14 @@
+#!/bin/bash
+# Probe R4-11: erreicht ein vorhandener Test die Gewinn-Nachmessung der Generalprobe (lauf._generation_koerper)?
+# Ohne Kammer (Messung und Laufzeit gestellt), ohne Modell; schreibt nur in den Arbeitsordner.
+set -u
+A=/root/biotop-vor-t4-04/proben
+rm -f $A/SPION-GEWINN.jsonl
+cd /root/biotop
+PYTHONPATH=$A:/root/biotop SPION_AUS=$A/SPION-GEWINN.jsonl BIOTOP_AUFTRAG_LAUF_AB=26 BIOTOP_AUFTRAG_BUDGET_EUR=10 \
+  /root/biotop-t3/venv/bin/python -m pytest tests/test_vorspann.py -k "generalprobe" -q -p no:cacheprovider -p spion_gewinn \
+  > $A/SPION-GEWINN-PYTEST.txt 2>&1
+echo "pytest rc=$?"
+tail -2 $A/SPION-GEWINN-PYTEST.txt
+echo "Aufrufe von gewinn_bestaetigen: $(wc -l < $A/SPION-GEWINN.jsonl 2>/dev/null || echo 0)"
+cat $A/SPION-GEWINN.jsonl 2>/dev/null

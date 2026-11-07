@@ -1,0 +1,40 @@
+        nicht mehr („sprache_ohne_sonde“ entfällt) — Grundsatz 11 gilt für jede Sprache.
+        Korpus erweitert um Formvarianten (~form#j, TS und Python): Weißraum (Tab, Zeilenumbruch, doppelt, CRLF, NBSP, am
+        Rand), Groß/Klein, Zahlform im Text, Schlüsselfolge; Python zusätzlich Zahltyp und Behälter. Befund: Die
+        Weißraumlücke von K2868 lag in keinem Randwert.
+    (3) Jeder Laufzeitriss wird vor der Ablehnung einmal gepaart nachgemessen; nur ein bestätigter lehnt ab
+        (messgeraet.laufzeit_bestaetigen), im Annahmepfad und in der Generalprobe. Eine ungültige Nachmessung stellt zurück.
+        Eine gepaarte Messung mit fehlendem Wert ist ungültig (vorher still übergangen). Gesperrte Bereiche werden nicht
+        angefordert.
+    (4) Deckung je Abweichung: ein Test deckt eine Abweichung nur, wenn er (an der Vorgeneration fallend, am Kandidaten
+        bestehend) die Funktion am Kandidaten mit derselben Eingabe ruft und dasselbe Ergebnis bekommt, das die Sonde sah.
+        Beleg ist der aufgezeichnete Aufruf (TS: Vite-Plugin + deck-setup.mjs; Python: Einwickler + pytest-Plugin), nicht
+        der Quelltext. Ein deckender Test, der im Aufzeichnerlauf nicht besteht, ist ein Messgerätausfall.
+    Tests: tests/test_vor_t4_02.py (Python-Prüfwerk speicherwerk durch aegis.pruefen in der Kammer: Zwischenspeicher-Fehler
+    abgelehnt, Speicher am Inhalt überlebt, Weißraum an Formvariante abgelehnt, toter Code allein überlebt; Deckung je
+    Abweichung am Organ und in der Kammer für TS und Python; Nachmessung bestätigt/nicht bestätigt/ungültig/kein Riss;
+    Teilausfall ungültig). tests/conftest.py: TS-Kammertests ohne Image rot statt übersprungen.
+    Geänderte ältere Tests (Spezifikation geändert): test_t3_verhaltensvergleich (Python urteilt; Deckung per Aufruf),
+    test_eichproben (Referenzlast für die Python-Eichproben), test_vorspann (gepaarte Laufzeit gestellt),
+    test_t3_python_annahmen (Ausnahmen für die Kammersonde mit Zeilennachweis der Weiche). Kein Modellaufruf.
+
+ biotop/kern/messgeraet.py             |  75 +++-
+ biotop/kern/py/verhalten.py           | 701 ++++++++++++++++++++++++++++++++++
+ biotop/kern/ts/deck-setup.mjs         |  31 ++
+ biotop/kern/ts/deckung.mjs            |  25 ++
+ biotop/kern/ts/kanon.mjs              |  44 +++
+ biotop/kern/ts/main.mjs               |   2 +
+ biotop/kern/ts/verhalten-runner.mjs   |  90 +++--
+ biotop/kern/ts/verhalten.mjs          |   2 +-
+ biotop/kern/ts/vitest.deck.config.mjs |  30 ++
+ biotop/lauf.py                        |  23 +-
+ biotop/organe/aegis.py                |  19 +-
+ biotop/organe/verhaltensvergleich.py  | 226 +++++++----
+ tests/conftest.py                     |   9 +-
+ tests/speicherwerk.py                 | 187 +++++++++
+ tests/test_eichproben.py              |  22 +-
+ tests/test_t3_python_annahmen.py      |   9 +
+ tests/test_t3_verhaltensvergleich.py  |  39 +-
+ tests/test_vor_t4_02.py               | 268 +++++++++++++
+ tests/test_vorspann.py                |  10 +
+ 19 files changed, 1656 insertions(+), 156 deletions(-)

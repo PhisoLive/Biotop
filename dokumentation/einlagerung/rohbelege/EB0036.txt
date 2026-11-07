@@ -1,0 +1,243 @@
+EB36 · Vorschau 4: Gedächtnisordner, venv-Pakete, Testmarker, Wächter, hermes send, Größen (nur lesend)
+Beginn: 2026-09-26 00:51:17 CEST (UTC+0200)
+Ende:   2026-09-26 00:51:34 CEST (UTC+0200)
+Dauer:  16.8 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/biotop-einlagerung/arbeit/v4_vorschau.sh
+--- Inhalt von /root/biotop-einlagerung/arbeit/v4_vorschau.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-EINLAGERUNG-01 (nur lesend): Vorschau 4 — Grundlagen für Probe, Gedächtnis und Meldung 2.
+set -u
+echo "== Zeitpunkt $(date '+%Y-%m-%d %H:%M:%S %Z (UTC%z)')"
+echo "== 1. Prüfkanal laeufe/gedaechtnis/: Dateien (Name, Bytes, Zeit)"
+K=$(cat /etc/pruefkanal/schluessel)
+G=/var/pruefkanal/oeffentlich/_akte/$K/laeufe/gedaechtnis
+find "$G" -type f -printf '%P\t%s\t%TY-%Tm-%Td %TH:%TM\n' | sort
+echo "== 1b. Kopfzeilen der Manifeste (je bis 6 Zeilen)"
+for f in $(find "$G" -maxdepth 1 -type f -iname '*MANIFEST*' | sort); do echo "-- $(basename $f)"; head -6 "$f"; done
+echo "== 2. venv-Pakete (uv pip freeze, nur lesend)"
+for v in /root/biotop-t3/venv /root/reparatur-01/venv; do echo "-- $v"; /root/.hermes/bin/uv pip freeze --python $v/bin/python 2>&1; done
+echo "== 2b. uv-Zwischenspeicher vorhanden?"; /root/.hermes/bin/uv cache dir 2>&1; du -sm "$(/root/.hermes/bin/uv cache dir 2>/dev/null)" 2>/dev/null
+echo "== 3. Tests: Marker 'integration' und test_w_g_* (Datei:Zeile)"
+grep -n -E "^def test_w_g_|^async def test_w_g_|pytest.mark.integration|pytestmark" /root/biotop/tests/test_vor_t4_06.py | head -40
+grep -c -E "^def test_w_g_" /root/biotop/tests/*.py | grep -v ':0$'
+echo "== 3b. Tests/Code: Aufrufe von node/npx/tsc auf dem Wirt (nicht in der Kammer)"
+grep -n -E "\[\"(node|npx|npm|tsc)\"|\['(node|npx|npm|tsc)'|shutil.which\(['\"](node|npx|npm|tsc)" -r /root/biotop/biotop /root/biotop/tests | head -20
+echo "== 3c. Aufrufe von schwaechen_pruefen / pruefung/*.py aus Tests"
+grep -n -E "schwaechen_pruefen|pruefung/tor1|pruefung\." -r /root/biotop/tests | head -10
+echo "== 3d. Tests, die HOME, TMPDIR oder /tmp fest nennen"
+grep -n -E "'/tmp/|\"/tmp/|expanduser|Path.home\(\)" -r /root/biotop/tests /root/biotop/biotop | head -20
+echo "== 4. Wächter-Umstellskript: Fassungen"
+grep -n -E "fassung|sys.argv|FASSUNGEN|def |'auftrag'|\"auftrag\"" /root/biotop-einlagerung/arbeit/waechter_setzen.py | head -30
+echo "== 5. hermes send --help"
+hermes send --help 2>&1 | head -40
+echo "== 6. Kassen-DBs: -wal-Größen (für den späteren Buchungsnachweis)"
+for d in /root/biotop/daten/biotop.db /root/phase-4-vorbedingung-1/privat/biotop.db /root/reparatur-02/privat-cli/privat.db /root/biotop-t3/t3.db; do
+  printf '%s  %s B  wal=%s\n' "$d" "$(stat -c %s $d 2>/dev/null)" "$(stat -c %s $d-wal 2>/dev/null || echo keine)"; done
+echo "== 7. Größen der Umfangsorte (MB, ohne venv/node_modules)"
+for w in /root/biotop /root/biotop-t3 /root/biotop-vor-t4 /root/biotop-vor-t4-0[2-6] /root/phase-4-vorbedingung-1 /root/reparatur-01 /root/reparatur-02 \
+  /root/uebungswerk* /root/versandwerk-t3 /root/versandwerk-t3-02 /root/gesamtstand-01 /root/wiedereinstieg-01 /root/biotop-einstieg-20260921-0122 \
+  /root/traeger-umstellung-2026-09-20_22-32-03Z /root/versiegelt /root/w7 /root/sicherung/biotop-lage-01; do
+  [ -e "$w" ] && printf '%6s MB  %s\n' "$(du -sm --exclude=venv --exclude=node_modules --exclude=.venv "$w" 2>/dev/null | cut -f1)" "$w" || echo "FEHLT $w"; done
+echo "== 8. /root: oberste Einträge mit biotop/uebung/versand/reparatur/phase/sicherung im Namen oder jünger als 18.09."
+find /root -mindepth 1 -maxdepth 1 -newermt '2026-09-18' -printf '%TY-%Tm-%Td %TH:%TM  %y  %f\n' | sort | head -60
+--- Ende /root/biotop-einlagerung/arbeit/v4_vorschau.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== Zeitpunkt 2026-09-26 00:51:17 CEST (UTC+0200)
+== 1. Prüfkanal laeufe/gedaechtnis/: Dateien (Name, Bytes, Zeit)
+DATEIEN-01.txt	238	2026-09-20 05:17
+DATEIEN-02.txt	315	2026-09-25 21:09
+PRUEFSUMME-ORDNER-01.txt	341	2026-09-20 05:17
+PRUEFSUMME-ORDNER-02.txt	382	2026-09-25 21:09
+REGELN-01.md	4504	2026-09-20 05:17
+STAND-01.md	4386	2026-09-20 05:17
+STAND-02.md	2606	2026-09-25 21:09
+UNTERBAU-01.md	4965	2026-09-20 05:17
+== 1b. Kopfzeilen der Manifeste (je bis 6 Zeilen)
+== 2. venv-Pakete (uv pip freeze, nur lesend)
+-- /root/biotop-t3/venv
+Using Python 3.12.3 environment at: /root/biotop-t3/venv
+iniconfig==2.3.0
+packaging==26.3
+pluggy==1.6.0
+pygments==2.21.0
+pytest==9.1.1
+-- /root/reparatur-01/venv
+Using Python 3.12.3 environment at: /root/reparatur-01/venv
+iniconfig==2.3.0
+packaging==26.3
+pluggy==1.6.0
+pygments==2.21.0
+pytest==9.1.1
+== 2b. uv-Zwischenspeicher vorhanden?
+/root/.cache/uv
+719	/root/.cache/uv
+== 3. Tests: Marker 'integration' und test_w_g_* (Datei:Zeile)
+1644:def test_w_g_schreiben_in_fremde_module_python_am_organ(tmp_path, monkeypatch, fall, alt, neu, soll):
+1685:def test_w_g_schreiben_in_fremde_module_typescript_am_organ(tmp_path, monkeypatch, fall, alt, neu, soll):
+1736:def test_w_g_schreiben_in_fremde_module_durch_aegis(tmp_path, monkeypatch, fall):
+/root/biotop/tests/test_vor_t4_06.py:3
+== 3b. Tests/Code: Aufrufe von node/npx/tsc auf dem Wirt (nicht in der Kammer)
+/root/biotop/biotop/kern/typescript.py:39:    e = kammer.ausfuehren(Path(werk), ["node", "_messgeraet/ts/main.mjs"],
+/root/biotop/biotop/kern/ts/bau.mjs:7:  fs.writeFileSync('/tmp/ts-ausgabe.json',JSON.stringify({compilerOptions:{target:'ES2022',module:'ESNext',moduleResolution:'Bundler',strict:true,noEmitOnError:true,skipLibCheck:true,esModuleInterop:true,rootDir:'/werk/src',outDir:'/werk/dist',types:['node'],typeRoots:['/opt/biotop-ts/node_modules/@types']},files:files.map(f=>'/werk/'+f)}));
+/root/biotop/biotop/kern/ts/bau.mjs:13:  fs.writeFileSync('/tmp/ts-bau.json',JSON.stringify({compilerOptions:{target:'ES2022',module:'ESNext',moduleResolution:'Bundler',strict:true,noEmit:true,skipLibCheck:true,esModuleInterop:true,allowImportingTsExtensions:true,types:['node','vitest/globals'],typeRoots:['/opt/biotop-ts/node_modules/@types','/opt/biotop-ts/node_modules']},files:files.map(f=>'/werk/'+f)}));
+/root/biotop/tests/test_vor_t4_04.py:413:    r = subprocess.run(["node", "--input-type=module", "-e", skript, json.dumps(MERKMAL_PROBEN)],
+/root/biotop/tests/test_typescript_adapter.py:34:    assert d["node"].startswith("v22.") and d["uid"] == 10001
+/root/biotop/tests/test_typescript_adapter.py:216:    for tool in ['tsc','vitest','eslint','knip']:
+/root/biotop/tests/test_t3_transport.py:10:    e=kammer.ausfuehren(tmp_path,['node','probe'])
+/root/biotop/tests/test_t3_transport.py:17:    e=kammer.ausfuehren(tmp_path,['node','probe'])
+== 3c. Aufrufe von schwaechen_pruefen / pruefung/*.py aus Tests
+grep: /root/biotop/tests/__pycache__/conftest.cpython-312-pytest-9.1.1.pyc: binary file matches
+grep: /root/biotop/tests/__pycache__/test_review_vertrag.cpython-312-pytest-9.1.1.pyc: binary file matches
+grep: /root/biotop/tests/__pycache__/conftest.cpython-312.pyc: binary file matches
+grep: /root/biotop/tests/__pycache__/test_nachweis_verbraucher.cpython-312-pytest-9.1.1.pyc: binary file matches
+grep: /root/biotop/tests/__pycache__/test_t3_fundpruefung.cpython-312-pytest-9.1.1.pyc: binary file matches
+/root/biotop/tests/test_t3_kaputter_modellcode.py:69:    assert fundpruefung._testnamen(KAPUTTER_TEST) == []
+/root/biotop/tests/test_t3_kaputter_modellcode.py:96:    assert fundpruefung._testnamen(guter_test) == ['test_a']
+/root/biotop/tests/conftest.py:57:    con = datenbank.verbinden(tmp_path / "pruefung.db")
+== 3d. Tests, die HOME, TMPDIR oder /tmp fest nennen
+grep: /root/biotop/tests/__pycache__/test_messnachweise.cpython-312-pytest-9.1.1.pyc: binary file matches
+grep: /root/biotop/tests/__pycache__/drahtwerk.cpython-312.pyc: binary file matches
+grep: /root/biotop/tests/__pycache__/test_t3_referenzwarmup.cpython-312-pytest-9.1.1.pyc: binary file matches
+/root/biotop/tests/test_t3_referenzwarmup.py:21:  const p = '/tmp/ts-ref-zaehler.json';
+/root/biotop/tests/test_t3_referenzwarmup.py:38:    extra = {'_zaehler_leeren.mjs': "import fs from 'node:fs';fs.rmSync('/tmp/ts-ref-zaehler.json',{force:true});"}
+/root/biotop/tests/drahtwerk.py:67:                         "  cacheDir: '/tmp/vitest-cache',\n  test: { include: ['tests/**/*.test.ts'], pool: 'forks' },\n});\n"),
+/root/biotop/tests/test_messnachweise.py:22:    Path('/tmp/ausgefuehrt').write_text('test_wert')
+/root/biotop/tests/test_messnachweise.py:42:                  "    for p in ['/tmp/junit.xml', '/tmp/pytest-nachweis.json', '/tmp/junit-vor-eingriff.xml', '/tmp/ausgefuehrt', '/tmp/scanner-aufrufe', '/tmp/referenz-aufrufe']:\n"
+/root/biotop/tests/test_messnachweise.py:103:            "    p = Path('/tmp/junit.xml')\n"
+/root/biotop/tests/test_messnachweise.py:104:            "    Path('/tmp/junit-vor-eingriff.xml').write_text(p.read_text())\n"
+/root/biotop/tests/test_messnachweise.py:153:            f"with Path('/tmp/scanner-aufrufe').open('a') as f: f.write({modul!r} + ':' + repr(sys.argv) + '\\n')\n"
+/root/biotop/tests/test_messnachweise.py:291:    ref = "from pathlib import Path\nimport time\ndef last_alpha():\n    with Path('/tmp/referenz-aufrufe').open('a') as f: f.write('x')\n    time.sleep(.001)\n" if bestellt else None
+/root/biotop/biotop/kern/messgeraet.py:102:with open('/tmp/pytest-nachweis.json', 'w') as f:
+/root/biotop/biotop/kern/messgeraet.py:114:testfaelle = list(ET.parse("/tmp/junit.xml").getroot().iter("testcase"))
+/root/biotop/biotop/kern/messgeraet.py:117:with open('/tmp/pytest-nachweis.json') as f:
+/root/biotop/biotop/kern/ts/verhalten.mjs:59:  fs.writeFileSync('/tmp/ts-vv-anfrage.json', JSON.stringify({bereiche: req.bereiche, kappe: req.kappe ?? 8, form_kappe: req.form_kappe ?? 16,
+/root/biotop/biotop/kern/ts/verhalten.mjs:63:  fs.rmSync('/tmp/ts-vv-ergebnis.json', {force: true});
+/root/biotop/biotop/kern/ts/verhalten.mjs:66:  if (p.rc === 0 && !p.signal && !p.fehler && fs.existsSync('/tmp/ts-vv-ergebnis.json')) {
+/root/biotop/biotop/kern/ts/verhalten.mjs:67:    out = JSON.parse(fs.readFileSync('/tmp/ts-vv-ergebnis.json', 'utf8'));
+/root/biotop/biotop/kern/ts/vitest.config.mjs:5:  root:'/werk',cacheDir:'/tmp/ts-vite',
+/root/biotop/biotop/kern/ts/vitest.config.mjs:9:    reporters:[new Nachweis(),['junit',{outputFile:'/tmp/ts-junit.xml',includeConsoleOutput:false,addFileAttribute:true}]],
+/root/biotop/biotop/kern/ts/testlauf.mjs:20:    const n=JSON.parse(fs.readFileSync('/tmp/ts-nachweis.json','utf8'));
+/root/biotop/biotop/kern/ts/testlauf.mjs:22:    const xml=fs.readFileSync('/tmp/ts-junit.xml','utf8');
+== 4. Wächter-Umstellskript: Fassungen
+2:"""BIOTOP-EINLAGERUNG-01 · Zwischenbericht-Wächter umstellen: auftrag.json auf <fassung> setzen.
+11:/root/biotop-einlagerung/vorher/auftrag.json.vor-<fassung> exklusiv gesichert."""
+18:FASSUNGEN = {
+19:    'einlagerung': {"auftrag": "biotop-einlagerung-01", "uebergabe": ["/root/biotop-einlagerung/UEBERGABE.md"],
+22:    'geloest': {"auftrag": "zwischenberichte", "uebergabe": [], "repos": [], "arbeitsordner": [], "ausschluss": []},
+24:f = sys.argv[1]
+31:neu = (json.dumps(FASSUNGEN[f], ensure_ascii=False, indent=1) + '\n').encode()
+== 5. hermes send --help
+usage: hermes send [-h] [-t TARGET] [-f PATH] [-s LINE] [-l] [-q] [--json]
+                   [message]
+
+Pipe text from any shell script to any messaging platform Hermes is already configured for. Reuses the gateway's platform credentials (~/.hermes/.env + ~/.hermes/config.yaml) — no LLM, no agent loop, no running gateway required for bot-token platforms like Telegram/Discord/Slack/Signal.
+
+positional arguments:
+  message               Message text. If omitted, read from --file or stdin.
+
+options:
+  -h, --help            show this help message and exit
+  -t TARGET, --to TARGET
+                        Delivery target. Format: 'platform' (home channel),
+                        'platform:chat_id', 'platform:chat_id:thread_id', or
+                        'platform:#channel-name'. Examples: telegram,
+                        telegram:-1001234567890:17585, discord:#ops,
+                        slack:C0123ABCD, signal:+15551234567.
+  -f PATH, --file PATH  Read message body from PATH (text only). Use '-' to
+                        force stdin. To send an image/document as an
+                        attachment, use MEDIA:<path> in the message text
+                        instead.
+  -s LINE, --subject LINE
+                        Prepend a subject/header line before the message body.
+  -l, --list            List available targets. Optional positional filter:
+                        `hermes send --list telegram`.
+  -q, --quiet           Suppress stdout on success (exit code only).
+  --json                Emit raw JSON result instead of human-readable output.
+
+Examples:
+  hermes send --to telegram "deploy finished"
+  echo "RAM 92%" | hermes send --to telegram:-1001234567890
+  hermes send --to discord:#ops --file /tmp/report.md
+  hermes send --to slack:#eng --subject "[CI]" --file build.log
+  hermes send --to telegram "MEDIA:/tmp/chart.png"   # send a media attachment
+  hermes send --list                  # all platforms
+  hermes send --list telegram         # filter by platform
+
+Exit codes: 0 ok, 1 delivery/backend error, 2 usage error.
+== 6. Kassen-DBs: -wal-Größen (für den späteren Buchungsnachweis)
+/root/biotop/daten/biotop.db  29659136 B  wal=0
+/root/phase-4-vorbedingung-1/privat/biotop.db  31748096 B  wal=4140632
+/root/reparatur-02/privat-cli/privat.db  30511104 B  wal=0
+/root/biotop-t3/t3.db  276733952 B  wal=13221112
+== 7. Größen der Umfangsorte (MB, ohne venv/node_modules)
+    61 MB  /root/biotop
+   675 MB  /root/biotop-t3
+     2 MB  /root/biotop-vor-t4
+     1 MB  /root/biotop-vor-t4-02
+     2 MB  /root/biotop-vor-t4-03
+     2 MB  /root/biotop-vor-t4-04
+     2 MB  /root/biotop-vor-t4-05
+     4 MB  /root/biotop-vor-t4-06
+    50 MB  /root/phase-4-vorbedingung-1
+  1015 MB  /root/reparatur-01
+   124 MB  /root/reparatur-02
+     1 MB  /root/uebungswerk
+     1 MB  /root/uebungswerk-nachlauf
+     1 MB  /root/uebungswerk-p2
+     1 MB  /root/uebungswerk-p3
+     1 MB  /root/uebungswerk-p3b
+     1 MB  /root/uebungswerk-p3c
+     1 MB  /root/uebungswerk-p3d
+     1 MB  /root/uebungswerk2
+     1 MB  /root/versandwerk-t3
+     1 MB  /root/versandwerk-t3-02
+    31 MB  /root/gesamtstand-01
+     1 MB  /root/wiedereinstieg-01
+     1 MB  /root/biotop-einstieg-20260921-0122
+     4 MB  /root/traeger-umstellung-2026-09-20_22-32-03Z
+     1 MB  /root/versiegelt
+     1 MB  /root/w7
+ 11292 MB  /root/sicherung/biotop-lage-01
+== 8. /root: oberste Einträge mit biotop/uebung/versand/reparatur/phase/sicherung im Namen oder jünger als 18.09.
+2026-09-18 21:46  d  .cache
+2026-09-18 21:46  f  .claude.json.bak.2026-09-18-2146
+2026-09-18 22:42  f  .bashrc
+2026-09-18 22:42  f  .profile
+2026-09-18 22:57  f  beleg-fable.json#
+2026-09-18 22:58  f  beleg-fable.json
+2026-09-18 23:26  d  uebungswerk
+2026-09-19 02:40  d  uebungswerk-p2
+2026-09-19 13:01  d  uebungswerk-p3
+2026-09-19 13:41  d  uebungswerk2
+2026-09-19 16:40  d  uebungswerk-p3b
+2026-09-19 17:05  d  uebungswerk-p3c
+2026-09-19 17:40  d  uebungswerk-p3d
+2026-09-19 22:57  d  uebungswerk-nachlauf
+2026-09-20 05:17  d  wiedereinstieg-01
+2026-09-20 06:09  d  w7
+2026-09-20 07:51  d  gesamtstand-01
+2026-09-20 20:01  d  reparatur-01
+2026-09-20 20:55  d  reparatur-02
+2026-09-21 00:09  d  phase-4-vorbedingung-1
+2026-09-21 01:13  d  traeger-umstellung-2026-09-20_22-32-03Z
+2026-09-21 01:51  d  biotop-einstieg-20260921-0122
+2026-09-21 02:38  d  versiegelt
+2026-09-21 02:47  d  versandwerk-t3
+2026-09-21 02:47  d  versandwerk-t3-02
+2026-09-21 12:08  d  biotop
+2026-09-23 12:26  d  biotop-t3
+2026-09-23 22:27  d  biotop-vor-t4
+2026-09-24 02:10  d  biotop-vor-t4-02
+2026-09-24 11:44  d  biotop-vor-t4-03
+2026-09-24 17:19  d  biotop-vor-t4-04
+2026-09-24 23:45  d  biotop-vor-t4-05
+2026-09-25 12:52  d  biotop-vor-t4-06
+2026-09-25 14:48  d  sicherung
+2026-09-25 23:06  d  .claude
+2026-09-25 23:06  f  .claude.json
+2026-09-25 23:09  f  .bash_history
+2026-09-26 00:31  d  biotop-einlagerung
+2026-09-26 00:51  d  .hermes
+=== Ende EB36 ===

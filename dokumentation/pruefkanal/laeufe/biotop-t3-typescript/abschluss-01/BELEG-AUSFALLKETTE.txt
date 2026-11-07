@@ -1,0 +1,41 @@
+A) DIE KETTE IN LAUF 35
+  17525 18:04:43 bandit.wahl                {}
+  17526 18:04:43 modell.aufruf              {"modell": "deepseek/deepseek-v4.1-flash", "zweck": "generation0.testbau.bericht"}
+  17527 18:05:13 modell.antwort             {"modell": "deepseek/deepseek-v4.1-flash"}
+  17528 18:05:18 generation0.testkandidat   {"modell": "deepseek/deepseek-v4.1-flash"}
+  17529 18:05:18 modell.aufruf              {"modell": "qwen/qwen3.8-flash", "zweck": "generation0.testbau.bericht"}
+  17530 18:05:24 modell.wiederholung        {"ausfallart": "infrastruktur", "fehler": "qwen/qwen3.8-flash: HTTP 429 b'{\"error\":{\"message\":\"Provider returned ", "modell": "qwen/qwen3.8-flash
+  17531 18:05:26 modell.wiederholung        {"ausfallart": "infrastruktur", "fehler": "qwen/qwen3.8-flash: HTTP 429 b'{\"error\":{\"message\":\"Provider returned ", "modell": "qwen/qwen3.8-flash
+  17532 18:05:35 modell.ausfall             {"ausfallart": "infrastruktur", "fehler": "qwen/qwen3.8-flash: HTTP 429 b'{\"error\":{\"message\":\"Provider returned ", "modell": "qwen/qwen3.8-flash
+  17533 18:05:35 generation0.fehler         {"fehler": "qwen/qwen3.8-flash: HTTP 429 b'{\"error\":{\"message\":\"Provider returned ", "modell": "qwen/qwen3.8-flash"}
+  17534 18:05:35 bandit.wahl                {}
+  17535 18:07:39 kasse.ausfall_geklaert     {"modell": "qwen/qwen3.8-flash"}
+
+B) WIRKSAMKEIT DER WIEDERHOLUNG
+  Wiederholungen ausgeführt : 2
+  Ausfälle nach Wiederholung: 1
+  Ausfälle ohne Wiederholung: 2 (Läufe 29/30, vor Commit 18f78f1)
+  Erfolge nach Wiederholung : 0
+
+C) IST QWEN DAUERHAFT AUS?
+  Lauf 31 sicher   0 von 10 Erfolgen
+  Lauf 32 elegant  2 von 6 Erfolgen
+  Lauf 32 schnell  2 von 5 Erfolgen
+  Lauf 32 sicher   4 von 24 Erfolgen
+  Lauf 32 wild     1 von 3 Erfolgen
+  → qwen hat in Lauf 32 gearbeitet. Der 429 ist zeitweise, nicht dauerhaft.
+
+D) WO STARB DER LAUF?
+  NICHT am Ausfall: generation0 fängt AnbieterFehler ab und wechselt den Anbieter
+  (biotop/organe/generation0.py:365, danach `continue`).
+  Sondern am NÄCHSTEN Aufruf: kasse.vorpruefung verweigert jeden weiteren
+  Modellaufruf, solange ein Ausfall mit verbrauch_bekannt=False offen ist.
+  Diese Sperre ist gewollt (Zweifel zu Lasten des Budgets) und hat einen
+  Auflösungsweg — kasse.ausfall_klaeren, Höchstfall. Der Weg wird aber nur
+  VON HAND gerufen; im Lauf ruft ihn niemand. Deshalb stirbt der Lauf.
+
+E) NICHT GEBUCHTER FEHLVERSUCH DES BANDITEN
+  generation0.py:365 `continue` überspringt nischen.buchen(). Ein ausgefallener
+  Anbieter wird damit nicht als Fehlversuch gebucht — der Bandit wählt ihn
+  unverändert weiter. Gemessen: qwen 64× gewählt, 2 Ausfälle protokolliert,
+  0 davon als Bandit-Fehlversuch gebucht.

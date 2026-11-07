@@ -1,0 +1,327 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 34 (Teile 4–165 dieses Stands) · enthält R38 bis R38
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+[R38 · Fortsetzung, Stück 2 von 2]
+  | Warum versiegelt: Jede Eichprobe braucht einen Gegenstand — ein Bereichspaar mit Vertrag, an dem sie ansetzt.
+  | Wählt jeder Lauf seinen Gegenstand neu, misst jede Eichung etwas anderes und ist mit der vorigen nicht
+  | vergleichbar; die Zahlen aus Lauf n und Lauf n+1 stehen dann nebeneinander, ohne dasselbe zu bedeuten.
+  | Genau daran scheiterten die Proben in Phase 2/3 mehrfach: Sie hingen an Textankern im Quelltext, die eine
+  | angenommene Generation verschob — dann zielten sie stillschweigend woanders hin.
+  | 
+  | Fällt der versiegelte Gegenstand durch eine Änderung des Werks weg (Bereich entfernt, Vertragsdatei gelöscht,
+  | Vertrag umgeschrieben), ist das ein BEFUND: Er wird protokolliert, gemeldet, und es wird ein neuer Gegenstand
+  | versiegelt — nie stillschweigend ein anderer genommen.
+  öffentlich: def lesen(con, werk_id: int) -> dict | None: ; def sichern(con: sqlite3.Connection, werk_id: int, lauf_id: int, pfad: Path) -> dict: ; def text(ergebnis: dict) -> list[str]:
+
+--- biotop/organe/eichproben.py (634 Zeilen)
+  | Organ „Generation minus eins", Teil 2 — die vier Eichproben als Vorspann jedes Laufs (Fassung 5, 3.5).
+  | 
+  | Die Proben setzen am VERSIEGELTEN EICHGEGENSTAND an (organe/eichgegenstand.py): einem Bereichspaar mit Vertrag,
+  | das je Werk einmal gewählt und danach unverändert bleibt. Ihre Eingriffe werden mechanisch aus dem Syntaxbaum
+  | gebaut, nicht aus Textankern — in Phase 2/3 zielten die Proben nach jeder angenommenen Generation stillschweigend
+  | woanders hin, weil die Anker verschoben waren.
+  | 
+  | Die vier Proben (Tor 2, jetzt Vorspann):
+  |   nebenwirkung  — hebt Bereich A messbar, senkt Bereich B messbar  → muss abgelehnt werden, Bericht nennt B
+  |   regression    — macht eine Behebung rückgängig und bringt grüne Tests mit → muss abgelehnt werden,
+  |                   der gefallene EINZELTEST muss benannt sein
+  |   norm          — bringt einen Test mit, der an der Vorgeneration fällt, am Kandidaten besteht, ohne Absturz und
+  |                   ohne Vertragsverweis → bleibt „offen", 0 Punkte, nicht im Werk
+  |   vertrag       — ändert den Vertrag ohne Anpassung des Nachbarn → muss abgelehnt werden
+  | 
+  | Besteht eine Probe nicht, beginnt kein Lauf (Satz 6). Jede Probe wird einzeln abgerechnet: Kammerläufe,
+  | Modellaufrufe und Kosten je Probe (Festlegung Chat-Claude, Fassung 6).
+  | Alle Probenkandidaten tragen `ist_probe=1` und kommen damit in kein Gedächtnis.
+  öffentlich: def proben(con: sqlite3.Connection, lauf_id: int, werk_id: int, pfad: Path, paket: str, bereiche: list[str], ; def text(e: dict) -> list[str]:
+
+--- biotop/organe/eichproben_ts.py (122 Zeilen)
+  | TypeScript-Eingriffe aus gelieferten AST-Spans; Urteile bleiben bei Aegis.
+  öffentlich: def normtest(werk, bereich): ; def vertrag(werk, paket, a, b, vertrag_pfad, gegenprobe): ; def lahmlegen(werk, bereich): ; def nebenwirkung(werk, a, b, gegenprobe):
+
+--- biotop/organe/eichung.py (267 Zeilen)
+  | Organ „Generation minus eins" — das Messgerät eichen, BEVOR ein Lauf beginnt (Fassung 5 Abschnitt 3.5,
+  | Rauschregeln nach Fassung 6, Festlegung Chat-Claude 19.09.2026).
+  | 
+  | Teil 1 (hier): Rauschmessung je Bereich mit bereichsweiser Sperre.
+  |   - fünf Werte je Bereich; ein Einzelwert über dem Fünffachen des Medians ist ein Maschinenaussetzer, wird
+  |     verworfen und EINMAL nachgemessen (protokolliert);
+  |   - Toleranz = getrimmte Spannweite (höchster und niedrigster gestrichen) + 10 Prozentpunkte, mindestens 1,15,
+  |     höchstens 2,0;
+  |   - Toleranz über 1,5 = Messproblem: DIESER Bereich wird gesperrt, seine Kandidaten werden nicht erzeugt, die
+  |     Sperre steht mit Zahl im Bericht. Melden ALLE Bereiche ein Problem, startet der Lauf nicht.
+  |   - Ein gesperrter Bereich wird vor jedem weiteren Lauf neu gemessen. Meldet derselbe Bereich dreimal
+  |     hintereinander, ist das ein Befund über seine REFERENZLAST, nicht über die Maschine — er wird als solcher
+  |     ausgewiesen (`befund_referenzlast`).
+  | 
+  | Teil 2 (eichproben): die vier Proben aus Tor 2 als Vorspann jedes Laufs — siehe `proben()`.
+  öffentlich: def kosten_buchen(con, lauf_id: int, werk_id: int, teil: str, kammerlaeufe: int, dauer_s: float, ; def kosten(con, lauf_id: int) -> dict: ; def kosten_text(k: dict, bereiche: int) -> list[str]: ; def laufzeit_einmal(pfad: Path, bereiche: list[str], paket: str, ref: str) -> dict: ; def rauschmessung(con: sqlite3.Connection, lauf_id: int, werk_id: int, pfad: Path, bereiche: list[str], ; def text(ergebnis: dict) -> list[str]:
+
+--- biotop/organe/entropie.py (103 Zeilen)
+  | Organ 3.11 — Entropie: Sättigungsmeldung.
+  | 
+  | Je Generation zwei Zahlen: (1) Verbesserung des Kernmaßes gegenüber der Vorgeneration in Prozent des möglichen Abstands
+  | zum Höchstwert 0 (Kernmaß F2 ist ≤ 0; „Verbesserung %" = (k_neu − k_alt) / |k_alt| · 100, bei k_alt = 0 und k_neu = 0: 0 %);
+  | (2) Verschiedenheit der Schwarmvorschläge: Anteil der Kandidaten einer Generation, die sich in weniger als 10 % der
+  | geänderten Zeilen von einem anderen Kandidaten derselben Generation unterscheiden (Doppelgänger-Anteil).
+  | Regel: Bringen fünf aufeinanderfolgende Generationen zusammen < 0,5 % Verbesserung des Kernmaßes, meldet das Biotop die
+  | Sättigung mit Bezugsgröße und beendet den Lauf (Status 'gesaettigt'); Weg zurück zum Mentor wird genannt. Nie „perfekt".
+  | Am Höchstwert 0 ist jede Generation 0 % — die Meldung erscheint dann spätestens nach der fünften Generation.
+  öffentlich: def verschiedenheit(con, lauf_id: int, nummer: int) -> dict: ; def verbesserung_prozent(k_alt: int, k_neu: int) -> float: ; def messen(con, lauf_id: int, nummer: int) -> dict: ; def verlauf(con, lauf_id: int) -> list[dict]: ; def saettigung(con, lauf_id: int) -> dict | None: ; def pruefen_und_beenden(con, lauf_id: int) -> dict | None:
+
+--- biotop/organe/fundpruefung.py (193 Zeilen)
+  | Organ „Fund-Neubewertung" (Fassung 5, 3.10) — offene Funde beim Übergang in einen neuen Lauf mechanisch
+  | neu bewerten, statt ihren alten Status zu übernehmen.
+  | 
+  | Regel: Ein Fund-Test, der am NEUEN AUSGANG besteht (also das dortige Verhalten festschreibt) und dabei weder eine
+  | Ausnahme im Werk auslöst noch einen Vertrag oder Verfassungssatz durch explizite Kennung nennt, ist **Norm**, kein
+  | Fund. Er darf nicht in den gemessenen Testbestand, sonst tötet er jede spätere Behebung per Pareto je Test.
+  | 
+  | Grund (gemessen in Phase 3, Lauf 19): Beim Übertragen der Funde aus einem verworfenen Lauf hatte Hermes die alten
+  | Stati blind übernommen. Sechs Ankläger-Tests, die denselben Fehler als Norm festschrieben, standen dadurch als
+  | Funde im Testbestand und töteten jede Behebung — bis sie einzeln in der Kammer nachgemessen wurden.
+  | 
+  | Das Organ benutzt die **Ankläger-Logik selbst** (`aegis._nennt_vertrag`), nicht einen eigenen Verweis-Regex:
+  | Zwei Wahrheitsbegriffe für dieselbe Frage sind genau die Fehlerklasse, die diese Regel behebt.
+  öffentlich: def bewerten(con: sqlite3.Connection, werk_id: int, lauf_id: int, pfad: Path, bereiche: list[str] | None = Non ; def uebernehmen(con: sqlite3.Connection, von_werk_id: int, nach_werk_id: int, lauf_id: int, pfad: Path) -> dic ; def text(e: dict) -> list[str]:
+
+--- biotop/organe/gedaechtnis.py (595 Zeilen)
+  | Organ 3.12 — Die drei Gedächtnisse (Phase 3). Alle dauerhaft in der Datenbank, alle vor jeder Generation gelesen.
+  | 
+  | Projektgedächtnis (je Werk): jeder gescheiterte Weg (Kandidat abgelehnt) mit Bereich, Änderungsziel (berührte Funktionen
+  |     je Datei), Ansatz (Token der hinzugefügten Zeilen), Grund. Werkidentität = Paketname (lagerhaus, logmuehle), damit ein
+  |     zweiter Lauf am selben Werk (neue werk_id) dieselben Wege sieht. Der Schwarm bekommt die Liste vor jeder Generation;
+  |     zusätzlich prüft das Biotop jeden neuen Kandidaten mechanisch: gleicher Bereich, überlappende Funktionen und
+  |     Ansatz-Ähnlichkeit (Jaccard der Token der hinzugefügten Zeilen) ≥ SCHWELLE gegen einen gescheiterten Weg → Wiederholung,
+  |     wird ohne Kammerlauf verworfen und protokolliert (immun.wiederholung).
+  | Artgedächtnis (über alle Werke): je angenommenem Kandidaten (und je Generation) ein Eintrag: Werkklasse (Sprache/Größe/Bauart),
+  |     Art der Änderung (Nische, Kategorie), Bereichsrolle, Ertrag (Kernmaß-Zuwachs, Laufzeit-%). Mentor und Schwarm lesen es.
+  | Geschmacksgedächtnis (Philipp): jede Freigabe/Ablehnung mit Begründung und den Merkmalen der Vorlage; ab 20 Entscheidungen
+  |     ein Vorhersagemodell (Naive Bayes über diskretisierte Merkmale, stdlib), das der Vorlage beigelegt wird.
+  öffentlich: def tabellen(con: sqlite3.Connection) -> None: ; def zaehlkontext_setzen(con, lauf_id) -> None: ; def aenderungsziel(werk_pfad, diff: str, dateien_neu: dict | None) -> tuple[list[str], list[str], list[str]]: ; def grundklasse(grund: str) -> str: ; def ist_probe(k) -> bool: ; def werkname(con, werk_id: int) -> str: ; def laufzeit_sperrt(grund: str, diff: str | None = None, beruehrt: set[str] | None = None) -> bool: ; def projekt_merken(con, werk_id: int, lauf_id: int, kandidat_id: int, werk_pfad, dateien_neu: dict | None = No ; def gescheiterte_wege(con, werk_id: int, bereich: str, limit: int = 15) -> list[dict]: ; def gescheiterte_wege_text(con, werk_id: int, bereich: str) -> str: ; def wiederholung(con, werk_id: int, bereich: str, werk_pfad, diff: str, dateien_neu: dict | None, lauf_id: int ; def projekt_import(con, lauf_id: int, werk_pfad) -> int: ; def werkklasse(con, werk_id: int) -> str: ; def kategorie(nische: str, urteil: dict | None, begruendung: str) -> str: ; def muster_bilden(con, kandidat_id: int, bereich: str, kategorie: str, begruendung: str, diff: str, ; def art_merken(con, werk_id: int, lauf_id: int, kandidat_id: int, ergebnis: str, bereichsrolle: str = "") -> N ; def art_lesen(con, werkklasse_filter: str | None = None, limit: int | None = 40, werk: str | None = None, ; def art_zusammenfassung(con) -> list[dict]: ; def art_text(con, werk_id: int) -> str: ; def art_import(con, lauf_id: int) -> int: ; def merkmale_kandidat(con, kandidat_id: int) -> dict: ; def geschmack_merken(con, werk_id: int, lauf_id: int, generation: int, kandidat_id: int | None, entscheidung:  ; class Vorhersage: ; def geschmack_modell(con, werk: str | None = None, quelle: str | None = None, hoechstens: int | None = None) - ; def geschmack_vorhersage(con, kandidat_id: int, quelle: str | None = None) -> dict | None:
+
+--- biotop/organe/generation0.py (469 Zeilen)
+  | Generation 0 (3.5): Mutanten — prüft, ob die Tests Fehler überhaupt bemerken.
+  | 
+  | Mutanten (Kern, deterministisch, aus dem Syntaxbaum): Vergleich umgedreht
+  | (< ↔ >=, == ↔ !=, …), Grenze um eins verschoben (Konstante n → n±1),
+  | Rückgabewert vertauscht (return x → return None / not x), Bedingung negiert,
+  | arithmetischer Operator getauscht (+ ↔ -, * ↔ /).
+  | Ein Mutant gilt als gefangen, wenn mindestens ein Test fällt (in der Kammer,
+  | mit dem aktuellen Testbestand). Ungefangene Mutanten sind blinde Flecken; der
+  | Schwarm (Nische „sicher“, Auftrag Testbau) erzeugt dann Tests, die den Mutanten
+  | fangen und am unmutierten Werk bestehen. Ziel: ≥ 80 von 100 (Tor 2: ≥ 16 von 20
+  | für die 20 von Hermes gesetzten Mutanten).
+  öffentlich: def erzeugen(werk: Path, paket: str, bereiche: list[str], max_je_datei: int = 6) -> list[dict]: ; def zaehlkontext_setzen(con, lauf_id) -> None: ; class NichtGemessen(RuntimeError): ; def rundenpruefung(werk: Path) -> dict: ; def aequivalenz_pruefen(con: sqlite3.Connection, lauf_id: int, werk: Path, referenzlast: str | None, mutanten: ; def messen(con: sqlite3.Connection, lauf_id: int, werk_id: int, werk: Path, mutanten: list[dict], phase: str)  ; def test_...(): ; def tests_evolutionieren(con: sqlite3.Connection, lauf_id: int, werk_id: int, werk: Path, paket: str, blind: l ; def pruefsumme(code: str) -> str:
+
+--- biotop/organe/genesis.py (185 Zeilen)
+  | Organ 3.6: Genesis — der Schwarm. Phase 1: eine Nische („Der Sichere“),
+  | zwei Anbieter (Hersteller) über OpenRouter.
+  | 
+  | Ausgang: Kandidaten als Änderungssätze (unified diff), nie ganze Dateien;
+  | jeder mit Begründung und der Angabe, welche Verträge er berührt.
+  | Der Schwarm sieht nur die Landkarten-Sicht + die Quelldateien seines
+  | Bereichs + die Liste der gescheiterten Wege (Projektgedächtnis).
+  öffentlich: def antwortstatus(text: str) -> str: ; def dateien_im_diff(diff: str) -> list[str]: ; def gescheiterte_wege(con: sqlite3.Connection, lauf_id: int, bereich: str) -> list[str]: ; def erzeugen(con: sqlite3.Connection, lauf_id: int, werk_id: int, generation: int, werk: Path, paket: str,
+
+--- biotop/organe/jury.py (62 Zeilen)
+  | Organ 3.5 — Jury für weiche Maße (Lesbarkeit, Eleganz).
+  | 
+  | Nur zwischen Kandidaten desselben Bereichs, die ALLE harten Maße bestehen und gleiches Kernmaß (und gleichen
+  | Laufzeit-Befund) haben. Mindestens drei Modelle verschiedener Hersteller urteilen unabhängig mit Begründung; nur bei
+  | Einstimmigkeit entscheidet die Jury den Gleichstand; sonst kein Urteil (protokolliert) und die bisherige mechanische
+  | Reihung (kleinster Diff) bleibt. Weiche Maße beweisen nichts; sie brechen Gleichstände.
+  öffentlich: def gleichstand(u_a: dict, u_b: dict) -> bool: ; def entscheiden(con: sqlite3.Connection, lauf_id: int, generation: int, bereich: str, kid_a: int, kid_b: int) 
+
+--- biotop/organe/kammer.py (124 Zeilen)
+  | Organ 3.13: Ausführungskammer.
+  | 
+  | Jeder Bau, Testlauf, jede Messung läuft in einem Docker-Container:
+  | - kein Netz (--network none),
+  | - eigenes Dateisystem je Kandidat (Kopie des Werks, danach verworfen),
+  | - Zeit- und Speicherlimit,
+  | - unprivilegierter Benutzer, read-only Wurzel, PID-Limit.
+  | 
+  | Fremdcode wird nie auf dem Wirt ausgeführt. Ein Lauf, der das Limit reißt,
+  | gilt als gescheitert (Rückgabe `zeitlimit=True`, rc=124).
+  öffentlich: class Ergebnis: ; def zaehlung(): ; def ausfuehren(werk: Path, befehl: list[str], zeitlimit_s: int | None = None, ; def bereit() -> tuple[bool, str]:
+
+--- biotop/organe/landkarte.py (273 Zeilen)
+  | Organ 3.2: Landkarte — Zoomstufen, Straßen, abgeleitete Verträge.
+  | 
+  | Struktur und Aufrufe aus Syntaxbäumen (Python `ast`; tree-sitter steht auf der
+  | Liste für danach, weil Phase 1 nur Python-Werke hat — Entscheidung Hermes).
+  | Zusammenfassungen je Stufe durch ein Modell, in der Datenbank mit Prüfsumme
+  | der Quelldatei; veraltete Zusammenfassungen werden neu erzeugt.
+  | 
+  | Stufen: 0 Werk (ein Absatz) · 1 Bereich (ein Absatz) · 2 Datei (ein Satz)
+  | · 3 Funktion (Signatur + Zweck, aus dem Code ohne Modell).
+  | Straßen: gerichtete Kanten von Modul zu Modul (Import) und von Funktion zu
+  | Funktion (Aufruf, soweit statisch auflösbar).
+  öffentlich: def pruefsumme(text: str) -> str: ; def bereiche_finden(werk: Path, paket: str) -> list[str]: ; def dateien_je_bereich(werk: Path, paket: str, bereich: str) -> list[Path]: ; def funktionen(datei: Path) -> list[dict]: ; def strassen(werk: Path, paket: str, bereiche: list[str]) -> list[tuple[str, str, str]]: ; def bereich_von(modul: str, paket: str) -> str | None: ; def bereichs_strassen(kanten: list[tuple[str, str, str]], paket: str) -> list[tuple[str, str]]: ; def wirkungskreis(bereich: str, bstrassen: list[tuple[str, str]]) -> list[str]: ; def vertraege_ableiten(werk: Path, paket: str, bereich: str) -> list[dict]: ; def bauen(con: sqlite3.Connection, werk_id: int, lauf_id: int, werk: Path, paket: str) -> dict: ; def sicht(con: sqlite3.Connection, werk_id: int, paket: str, bereich: str) -> str:
+
+--- biotop/organe/lazarus.py (110 Zeilen)
+  | Organ 3.9: Lazarus — jede angenommene Generation ist ein vollständiger,
+  | rückholbarer Zustand.
+  | 
+  | Technik: Git-Tag je Generation im Werk-Repository plus Archiv (tar.gz) des
+  | vollständigen Werks mit Prüfsumme über alle Dateien (sortierte Liste
+  | Pfad:SHA256, davon SHA256) und dem Maßstand.
+  | Rückkehr zu Generation n stellt Werk, Landkarte (Prüfsummen erzwingen Neuaufbau)
+  | und Maß-Verlauf (Generationen > n werden als „verworfen_durch_rueckkehr“ markiert,
+  | nicht gelöscht) zurück. Nichts wird gelöscht.
+  öffentlich: def pruefsumme_werk(werk: Path) -> tuple[str, int]: ; def sicherstellen_repo(werk: Path) -> None: ; def schnappschuss(con: sqlite3.Connection, lauf_id: int, generation: int, werk: Path, masse: dict) -> dict: ; def liste(con: sqlite3.Connection, lauf_id: int) -> list[dict]: ; def rueckkehr(con: sqlite3.Connection, lauf_id: int, generation: int, werk: Path, ziel: Path | None = None) ->
+
+--- biotop/organe/masseichung.py (186 Zeilen)
+  | Maßeichung: Prüferregeln am sauberen Vergleichsbereich messen, bevor sie zählen.
+  | 
+  | Befund aus Lauf 37 (T3, TypeScript): Der Bereich `zahlen` ist laut Verfassung der
+  | saubere Vergleichsbereich — die versiegelte Bauakte nennt dort keine Schwäche. Die
+  | ESLint-Regel `security/detect-object-injection` meldete dort trotzdem acht Punkte,
+  | weil sie jeden Array-Zugriff mit variablem Index meldet, unabhängig von dessen
+  | Herkunft. Der Schwarm „behob" sie mit `arr[i]` → `arr.at(i)`: in der Kammer gemessen
+  | identisches Verhalten, Tests unverändert 29/29 — und gewann dafür 7 Kernmaßpunkte.
+  | 
+  | Das ist keine Verbesserung des Werks, sondern eine Optimierung der Messung. Genau das
+  | soll die Halluzinationsprobe fangen, und sie hat es gefangen.
+  | 
+  | Die Abhilfe ist dieselbe Figur wie die Rauschmessung, eine Ebene höher angewandt: Die
+  | Rauschmessung misst das Messgerät am unveränderten Werk, bevor sie Laufzeiten bewertet.
+  | Die Maßeichung misst jede Prüferregel am sauberen Bereich, bevor sie Punkte bewertet.
+  | Schlägt eine Regel dort an, wo laut Verfassung nichts ist, ist sie für dieses Werk kein
+  | Maß — sie wird stillgelegt und zählt nicht zum Kernmaß.
+  | 
+  | […3 Kopfzeilen mehr]
+  öffentlich: class MasseichungFehler(RuntimeError): ; def sauberer_bereich(verf: dict | None) -> str | None: ; def eichen(messung: dict, sauberer_bereich: str | None) -> dict: ; def sicherheit_bereinigt(bereich_messung: dict, eichung: dict) -> int: ; def anwenden(messung: dict, eichung: dict | None) -> dict: ; def kernmass_bereinigt(messung: dict, eichung: dict) -> int: ; def bericht(eichung: dict) -> list[str]:
+
+--- biotop/organe/mentor.py (136 Zeilen)
+  | Organ 3.4 — Mentor: Richtungen setzen, bevor gearbeitet wird (schwerer Aufruf).
+  | 
+  | Ausgang: 3–5 Entwicklungsrichtungen, je mit Ertrag (welches Maß würde steigen), Risiko (welche Verträge und Bereiche
+  | berührt), Aufwand in Generationen, berührte Bereiche, und — wo vorhanden — dem Verweis auf einen Eintrag des
+  | Artgedächtnisses ([A<id>]). Philipp wählt; das Biotop empfiehlt nur. Für Übungswerke wählt Hermes unter Vollmacht
+  | (protokolliert). Die gewählte Richtung wird dem Schwarm jeder Generation als Auftrag mitgegeben (laeufe.richtung).
+  | 
+  | Das Modell erhält: Landkarte Stufe 0/1, Verfassung, Maßstand je Bereich, explizite Verträge (Namen), das Archiv offener
+  | Funde, das Artgedächtnis (mit Kennungen) und die Entropie des Werks (falls ein Vorlauf gesättigt war).
+  | Mechanisch geprüft wird: JSON-Form, 3–5 Richtungen, Pflichtfelder, Artgedächtnis-Kennungen existieren wirklich.
+  öffentlich: def richtungen(con: sqlite3.Connection, lauf_id: int) -> dict: ; def waehlen(con: sqlite3.Connection, lauf_id: int, name: str, von: str) -> dict: ; def richtung_text(con, lauf_id: int) -> str:
+
+--- biotop/organe/neutralzaehler.py (99 Zeilen)
+  | Zähler für neutrale Rückgaben: Schweigen eines Organs messbar machen.
+  | 
+  | Die Reparatur der Fehlerklasse „TS wirft, wo Python ein Ergebnis liefert" ersetzte an
+  | vier Stellen einen Abbruch durch eine neutrale Rückgabe. Das ist richtig — ein Befund
+  | über den Inhalt darf keinen Lauf töten. Es verschiebt aber das Risiko: Ein Organ, das
+  | für TypeScript dauerhaft schweigt (immer Platzhalter, immer None, immer „kein Fang"),
+  | sieht von außen aus wie ein Organ, das arbeitet. Gemessen an den Läufen 31/32/34 war
+  | genau das nicht unterscheidbar.
+  | 
+  | Deshalb zählt jede der vier Stellen ihre Ausgänge mit:
+  |   neutral(...)    — das Organ konnte keine Aussage treffen, mit Grund
+  |   geurteilt(...)  — das Organ hat entschieden
+  | 
+  | Maßstab (Chat-Claude, vor der Messung gesetzt): Eine Torzeile, die an einem Organ hängt,
+  | gilt für TypeScript nur als belegt, wenn das Organ in MEHR ALS DER HÄLFTE seiner Fälle
+  | geurteilt hat. `traegt_torzeile()` setzt das durch; null Fälle sind keine Mehrheit.
+  | 
+  | Der Zähler ist absichtlich zahnlos gegenüber dem Lauf: Fehlt der Kontext (Unittest,
+  | […2 Kopfzeilen mehr]
+  öffentlich: def neutral(con, lauf_id: int | None, organ: str, grund: str, einzelheit: str | None = None) -> None: ; def geurteilt(con, lauf_id: int | None, organ: str, einzelheit: str | None = None) -> None: ; def stand(con: sqlite3.Connection, lauf_id: int) -> dict: ; def traegt_torzeile(con: sqlite3.Connection, lauf_id: int, organ: str) -> bool: ; def bericht(con: sqlite3.Connection, lauf_id: int) -> list[str]:
+
+--- biotop/organe/nischen.py (161 Zeilen)
+  | Organ 3.6 (Phase 2): Nischen, Bandit-Gewichtung, Eliten (MAP-Elites).
+  | 
+  | Nischen: sicher, schnell, elegant, wild — je mindestens zwei Hersteller.
+  | Bandit: je (Lauf, Nische, Hersteller) werden Versuche und Erfolge (= Kandidat
+  | überlebt den Ankläger) geführt; die Wahl der zwei Hersteller je Nische und
+  | Generation erfolgt per Thompson-Stichprobe aus Beta(erfolge+1, misserfolge+1),
+  | Hersteller paarweise verschieden. Gewichte = Erwartungswert der Beta-Verteilung.
+  | Eliten: je (Nische, Bereich) bleibt der beste überlebende Kandidat am Leben und
+  | wird dem Schwarm der Nische in der nächsten Generation als Ausgangspunkt gezeigt.
+  | 
+  | Modelle (Katalogprüfung 19.09.2026, ausgaben/00-openrouter-katalog-schnellmodelle.txt):
+  |   openai/gpt-5.6-luna 0.20/1.20 · google/gemini-3.5-flash-lite 0.30/2.50 ·
+  |   deepseek/deepseek-v4.1-flash 0.15/0.60 · qwen/qwen3.8-flash 0.15/0.47  (USD/Mio)
+  öffentlich: def ausgesetzt(con: sqlite3.Connection, lauf_id: int, jetzt: str | None = None) -> dict[str, str]: ; def waehlen(con: sqlite3.Connection, lauf_id: int, nische: str, anzahl: int = 2, rng: random.Random | None = N ; def buchen(con: sqlite3.Connection, lauf_id: int, nische: str, hersteller: str, erfolg: bool) -> None: ; def gewichte(con: sqlite3.Connection, lauf_id: int) -> dict: ; def elite_setzen(con: sqlite3.Connection, lauf_id: int, nische: str, bereich: str, kandidat_id: int, generatio ; def elite(con: sqlite3.Connection, lauf_id: int, nische: str, bereich: str) -> dict | None: ; def eliten_liste(con: sqlite3.Connection, lauf_id: int) -> list[dict]:
+
+--- biotop/organe/verfassung.py (69 Zeilen)
+  | Organ 3.3: Verfassung des Werks — Sätze, Tauschregeln, Einstiege für
+  | Befundklassen-Immuntests, Betriebszweck (für die Vollmacht nach Abschnitt 4).
+  | 
+  | Phase 1 Nachlauf: Die Verfassung wird eingelegt (Text + maschinenlesbarer Teil),
+  | nicht vom Biotop entworfen (Entwurf durch Modell = Phase 2/3). Der Ankläger prüft
+  | die mechanisch prüfbaren Sätze (Anhang A Satz 6: keine Tests entfernen/abschwächen,
+  | kein `# nosec`/Prüfwerkzeug-Konfiguration).
+  öffentlich: def einlegen(con: sqlite3.Connection, werk_id: int, text: str, regeln: dict, quelle: str, von: str) -> None: ; def lesen(con: sqlite3.Connection, werk_id: int) -> dict | None: ; def mechanisch_pruefen(verf: dict | None, diff: str, dateien: dict[str, str | None], paket: str, bereich: str)
+
+--- biotop/organe/verhaltensvergleich.py (754 Zeilen)
+  | Verhaltensvergleich Vorgeneration gegen Kandidat — Abwehr gegen „schneller, aber falsch".
+  | 
+  | Befund aus Lauf 37 (T3): Kandidat K2934 führte einen WeakMap-Cache in
+  | `zahlen/statistik.ts::geordnet()` ein, der sortierte Kopien an der Array-REFERENZ
+  | festmacht und nur die LÄNGE gegenprüft. Wird derselbe Array in place geändert, liefert
+  | die Funktion das veraltete Ergebnis. Am echten Werk gemessen: `quantil` gibt 3 statt 300,
+  | `spannweite` 8 statt 80. Der Kandidat wurde angenommen — der Annahmegrund lautete
+  | „zahlen.laufzeit_ms 2,73 → 1,39 ms (−49 %)", und kein Test im Werk prüfte das Verhalten.
+  | Lauf 38 baute denselben Fehlertyp erneut ein (K3121, Modulvariablen-Cache, −66 %), weil
+  | dieses Organ zwar gebaut und getestet, aber nirgends in den Annahmepfad eingehängt war.
+  | 
+  | Ein Einzelaufruf hätte den Fehler nie gesehen: Beim ersten Aufruf ist der Cache leer und
+  | die Antwort richtig. Sichtbar wird er erst in der FOLGE — aufrufen, Eingabe an Ort und
+  | Stelle ändern, erneut aufrufen — und beim ALIAS, wenn dieselbe Referenz zweimal auftritt.
+  | 
+  | Wie die Sonde beobachtet (kern/ts/verhalten.mjs + verhalten-runner.mjs, kern/py/verhalten.py): Die öffentlichen
+  | Funktionen (Python auch Methoden und Eigenschaften von Klassen) der vom Kandidaten geänderten Module werden
+  | eingewickelt; dann läuft die Referenzlast — `beobachten()` und `last_<bereich>()`, also genau die Codepfade, deren
+  | […66 Kopfzeilen mehr]
+  öffentlich: class SondeAusgefallen(RuntimeError): ; def vergleichen(alt: dict, neu: dict, gedeckt: set[str]) -> dict: ; def geaenderte_module(code: dict[str, str], python: bool = False) -> list[str]: ; def werkzeugdateien(code: dict[str, str]) -> list[str]: ; def zerlegen(beobachtung: str) -> dict | None: ; def funktion_von(beobachtung: str) -> str | None: ; def zustandsabhaengig(abweichungen: list[str], kopien_alt: dict, kopien_neu: dict) -> set[str]: ; def verfaelschungsbedarf(abweichungen: list[str], aufrufe: list[dict], muster: dict, ; def deckung(abweichungen: list[str], aufrufe: list[dict], muster: dict | None = None, ; def deckende_aufrufe(werk: Path, code: dict[str, str], testbestand: dict[str, str], behoben: set[str], ; def beobachten(werk: Path, dateien: dict[str, str], referenzlast: str, module: list[str], ; def erreicht(werk: Path, referenzlast: str, module: list[str], bereiche: list[str]) -> dict[str, int]: ; def pruefen(werk: Path, code: dict[str, str], referenzlast: str | None, bereiche: list[str], ; def kurz(e: dict) -> dict:
+
+--- biotop/organe/vertraege.py (85 Zeilen)
+  | Explizite Verträge (Phase 2, 3.2/3.7 Schritt 2/3.8 Verhandlung).
+  | 
+  | Ein expliziter Vertrag ist eine ausführbare Zusicherung an einer Grenze zwischen
+  | zwei Bereichen: ein pytest-Test in `tests/vertraege/test_vertrag_<A>_<B>.py`,
+  | der vom Konsumenten A aus die Schnittstelle des Lieferanten B prüft (Signatur,
+  | Rückgabetyp, Randverhalten). Er wird aus den Docstring-Verträgen und den
+  | öffentlichen Signaturen der Landkarte abgeleitet und von Philipp/Chat-Claude
+  | bestätigt (hier: aus Anhang A Satz 3–5 plus Signaturen, eingelegt durch Hermes).
+  | 
+  | Prüfung (Schritt 2): Die Vertragstests laufen paarweise mit. Fällt ein
+  | Vertragstest am Kandidaten, der an der Vorgeneration bestand, ist das eine
+  | Vertragsverletzung — der Kandidat ist tot, AUSSER er hat den Vertrag unter
+  | VERTRÄGE benannt; dann wird der Nachbar gefragt (Verhandlung, 3.8 Schritt 2):
+  | Der Schwarm des Nachbarn bekommt den Diff und erzeugt seine Anpassung;
+  | Kandidat + Anpassung werden zusammen gemessen. Besteht das Paar (kein
+  | Vertragstest fällt, der zuvor bestand — oder der Vertragstest wird vom Paar
+  | gemeinsam angepasst und die Vertragsdatei ist Teil des Paares), ist die
+  | Vertragsänderung angenommen; sonst nicht.
+  öffentlich: def einlegen(con: sqlite3.Connection, werk_id: int, werk: Path, vertraege: dict[tuple[str, str], str], quelle: ; def fuer_bereich(con: sqlite3.Connection, werk_id: int, bereich: str) -> list[dict]: ; def alle(con: sqlite3.Connection, werk_id: int) -> list[dict]: ; def text_fuer_bereich(con, werk_id, bereich) -> str: ; def nachbar_von(con, werk_id, bereich, pfad) -> str | None: ; def verletzt(fehl_basis: set[str], fehl_kand: set[str]) -> list[str]:
+
+--- biotop/organe/vorspann.py (318 Zeilen)
+  | Verbindliche Generation minus eins; ein Kernpfad für CLI und Prüfskript.
+  öffentlich: class VorspannFehler(RuntimeError): ; def ausfuehren(con, lauf_id): ; def mass_binden(con, lauf_id, mass): ; def verlangen(con, lauf_id, phase):
+
+--- biotop/tor4.py (145 Zeilen)
+  | Tor-4-Skript (Behebungsrunde 5 vor T4, Entscheidung Chat-Claude 5, 24.09.2026).
+  | 
+  | Anlass: zum dritten Mal war etwas gebaut und nie gerufen (Review 04 Nr. 7: `gegenzeugen.torzeile_schwaechen` hatte
+  | keinen Aufrufer). Deshalb steht dieses Skript im Register der verlangten Aufrufe (`kern/register.py`), und der
+  | Verdrahtungstest verlangt den Aufruf im echten Lauf (`biotop tor4 <lauf> --altlasten <liste.json>`).
+  | 
+  | Torzeile „Schwächen“ für T4 (Fassung 8, Tor 4): statt versiegelter Schwächen eine unabhängig erhobene Altlastenliste.
+  | Je Altlast die doppelte Prüfung (kern/gegenzeugen.torzeile_schwaechen, verbindlich in der Torzeile, nicht im
+  | Annahmepfad):
+  |   (a) Schwäche weg — der Gegenzeuge der Altlast (ein Test aus der Liste) läuft am Endstand (letzte angenommene
+  |       Generation, aus Lazarus in einen Wegwerfordner) in der Kammer; besteht er, ist die Altlast weg.
+  |   (b) Normalvergleich — für T4 das Verhalten der Vorgeneration über den Verhaltensvergleich (Entscheidung 5): die
+  |       aufgezeichneten Urteile der angenommenen Kandidaten, deren Wirkungskreis den Bereich der Altlast enthält. Jede
+  |       Abweichung zählt, außer sie ist durch einen unabhängigen Test aus der Altlastenliste gedeckt; eine
+  |       verhaltensändernde Altlast braucht einen solchen Test (fehlt er: nicht beurteilbar, nie behoben).
+  | 
+  | Die übrigen Torzeilen von Tor 4 berechnet dieses Skript (noch) nicht; es nennt sie als „nicht berechnet“ — nie als
+  | erfüllt.
+  | […4 Kopfzeilen mehr]
+  öffentlich: class Tor4Fehler(L.LaufFehler): ; def liste_lesen(pfad: str | Path) -> dict: ; def gegenzeuge_am_endstand(ziel: Path, paket: str, a: dict) -> dict | None: ; def normalvergleich(con, lauf_id: int, a: dict, liste: dict) -> tuple[dict | None, str]: ; def ausfuehren(con, lauf_id: int, altlasten_pfad: str | Path) -> dict:
+=== Ende R38 ===

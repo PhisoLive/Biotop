@@ -1,0 +1,271 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 165 (Teile 4–165 dieses Stands) · enthält R169 bis R171
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R169 · Letzte Prüfungen vor START-02: Öffnungsart der Datenbanken in den eigenen Skripten, andere OpenRouter-Hilfsaufrufe im Auftragszeitraum, Skill biotop-phase-bauen nach Auftragsbeginn (nur lesend)
+Beginn: 2026-09-25 18:58:07 CEST (UTC+0200)
+Ende:   2026-09-25 18:58:07 CEST (UTC+0200)
+Dauer:  0.2 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/sicherung/biotop-lage-01/arbeit/n16_pruefungen.sh
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/n16_pruefungen.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-LAGE-01 (nur lesend): Letzte Prüfungen vor START-02.
+# (a) Wie öffneten die eigenen Skripte die Datenbanken? (mode=ro ohne immutable schreibt -shm; Befund R164: 15:55:06
+#     /root/biotop/daten/biotop.db-shm zeitgleich mit R31)
+# (b) Andere Hilfsmodell-Aufrufe über OpenRouter im Auftragszeitraum außer Verdichtung (Kosten)?
+# (c) Hat ein Aufruf nach Auftragsbeginn den Skill biotop-phase-bauen geändert? (R164 zeigt skill_manage 14:49:16 id 21111)
+set -u
+A=/root/sicherung/biotop-lage-01/arbeit
+date '+== Zeitpunkt %Y-%m-%d %H:%M:%S %Z (UTC%z)'
+echo '== (a) sqlite3.connect-Aufrufe in arbeit/*.py (Datei:Zeile, Öffnungsart)'
+grep -n -o -E "sqlite3\.connect\([^)]*\)" "$A"/*.py | sed "s|$A/||" | sort
+echo '-- R31 (15:55): Befehl und aufgerufenes Skript'
+sed -n '1,8p' /root/sicherung/biotop-lage-01/rohbelege/R0031.txt | cut -c1-200
+echo '== (b) agent.log.1 + agent.log seit 2026-09-25 14:44: Zeilen „Auxiliary“ ohne „compression“'
+cat /root/.hermes/logs/agent.log.1 /root/.hermes/logs/agent.log | awk '$1" "$2 >= "2026-09-25 14:44"' | grep -i 'auxiliary' | grep -v -i 'compression' | sed -E 's/[0-9]{8,}/<ZIFFERN>/g' | cut -c1-220 | head -20
+echo "Anzahl: $(cat /root/.hermes/logs/agent.log.1 /root/.hermes/logs/agent.log | awk '$1" "$2 >= "2026-09-25 14:44"' | grep -i 'auxiliary' | grep -v -i -c 'compression')"
+echo '-- Zeilen mit „openrouter“ ohne „compression“ seit 14:44'
+cat /root/.hermes/logs/agent.log.1 /root/.hermes/logs/agent.log | awk '$1" "$2 >= "2026-09-25 14:44"' | grep -i 'openrouter' | grep -v -i 'compression' | sed -E 's/[0-9]{8,}/<ZIFFERN>/g' | cut -c1-220 | head -10
+echo '== (c) Skill biotop-phase-bauen: Dateien, Änderungszeit (nach 14:44:20 geändert?)'
+find /root/.hermes/skills -path '*biotop-phase-bauen*' -type f -printf '%TY-%Tm-%Td %TH:%TM:%.2TS  %s B  %p\n' | sort
+echo "geändert nach Auftragsbeginn: $(find /root/.hermes/skills -path '*biotop-phase-bauen*' -type f -newermt '2026-09-25 14:44:20' | wc -l)"
+python3 - <<'EOF'
+import sqlite3, datetime as dt
+c = sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+f = lambda t: dt.datetime.fromtimestamp(t).strftime('%Y-%m-%d %H:%M:%S')
+r = c.execute("SELECT id, session_id, timestamp, length(tool_calls) FROM messages WHERE id=21111").fetchone()
+print(f'id 21111: Sitzung {r[1]} · Zeit {f(r[2])} · Länge tool_calls {r[3]}')
+tc = c.execute("SELECT tool_calls FROM messages WHERE id=21111").fetchone()[0]
+gleich = c.execute("SELECT id, timestamp FROM messages WHERE tool_calls=? AND id<>21111 ORDER BY id", (tc,)).fetchall()
+print(f'Zeilen mit gleichen Werkzeugaufrufen wie id 21111: {len(gleich)} · ' + ', '.join(f'id {i} {f(t)}' for i, t in gleich[:5]))
+v = c.execute("SELECT count(*) FROM messages WHERE session_id=? AND timestamp=?", (r[1], r[2])).fetchone()[0]
+print(f'Zeilen derselben Sitzung mit exakt demselben Zeitstempel wie id 21111 (Verdichtung schreibt Kopien mit einem Zeitstempel): {v}')
+EOF
+--- Ende /root/sicherung/biotop-lage-01/arbeit/n16_pruefungen.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== Zeitpunkt 2026-09-25 18:58:07 CEST (UTC+0200)
+== (a) sqlite3.connect-Aufrufe in arbeit/*.py (Datei:Zeile, Öffnungsart)
+f10_oob_env.py:33:sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+f14_auftraege.py:11:sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+f16_fakten.py:55:sqlite3.connect(f'file:{db}?mode=ro', uri=True)
+f17_kette.py:12:sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+f18_bindung.py:14:sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+f21_cron.py:9:sqlite3.connect('file:/root/.hermes/cron/executions.db?mode=ro', uri=True)
+f2_sitzungen.py:8:sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+f4_dubletten.py:6:sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+f5_dokumente.py:16:sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+f8_kassen.py:15:sqlite3.connect(f'file:{db}?mode=ro', uri=True)
+f9_quellen.py:34:sqlite3.connect('file:/root/.hermes/cron/deliveries.db?mode=ro', uri=True)
+f9_quellen.py:59:sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+i1_kasse.py:21:sqlite3.connect(f'file:{v}?mode=ro', uri=True)
+m1_zustellung.py:9:sqlite3.connect('file:/root/.hermes/cron/deliveries.db?mode=ro', uri=True)
+m1_zustellung2.py:7:sqlite3.connect('file:/root/.hermes/cron/deliveries.db?mode=ro', uri=True)
+mp_gueltig.py:24:sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+n11_kosten_herkunft.py:16:sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+n13_details.py:37:sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+n14_nachweise.py:45:sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+n15_zuordnung.py:74:sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+n3_nachrichten.py:21:sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+n3b_nachrichten.py:26:sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+n4_versehentlich.py:59:sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+n5b_herkunft.py:10:sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+n6_abgleich.py:19:sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+n8_pruefungen.py:36:sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+sich.py:236:sqlite3.connect(f'file:{src}?mode=ro', uri=True)
+sich.py:245:sqlite3.connect(k)
+sich.py:248:sqlite3.connect(f'file:{src}?mode=ro&immutable=1', uri=True)
+sich.py:249:sqlite3.connect(dst)
+sich.py:339:sqlite3.connect(f'file:{k}?mode=ro&immutable=1', uri=True)
+sich_selbsttest.py:31:sqlite3.connect(d1)
+sich_selbsttest.py:39:sqlite3.connect(d2)
+sich_selbsttest.py:58:sqlite3.connect(f'file:{sich.STUFE}/{str(d1)
+verlauf_extrakt.py:36:sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+-- R31 (15:55): Befehl und aufgerufenes Skript
+R31 · Fakten: Gedächtnis REGELN/STAND im Wortlaut, Tor-Abschnitte der Berichte, Werke, Freigaben, Modelle, Kostengrenze im Code
+Beginn: 2026-09-25 15:55:06 CEST (UTC+0200)
+Ende:   2026-09-25 15:55:06 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/f16_fakten.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/f16_fakten.py (wörtlich) ---
+== (b) agent.log.1 + agent.log seit 2026-09-25 14:44: Zeilen „Auxiliary“ ohne „compression“
+2026-09-25 18:46:59,177 INFO agent.auxiliary_client: Auxiliary approval: using anthropic (claude-opus-5-5) at https://api.anthropic.com
+2026-09-25 18:46:59,379 INFO agent.auxiliary_client: Auxiliary approval: auth error on auto (Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error', 'message': 'OAuth access token has been revoked.'
+2026-09-25 18:46:59,379 WARNING agent.auxiliary_client: Auxiliary approval: main provider anthropic is unavailable and no fallback_chain / fallback_providers is configured — refusing to guess another logged-in provider
+2026-09-25 18:46:59,380 WARNING agent.auxiliary_client: Auxiliary approval: auth error on auto and all fallbacks exhausted (fallback_chain + main agent model). Raising original error.
+Anzahl: 4
+-- Zeilen mit „openrouter“ ohne „compression“ seit 14:44
+== (c) Skill biotop-phase-bauen: Dateien, Änderungszeit (nach 14:44:20 geändert?)
+2026-09-20 16:00:29  2573 B  /root/.hermes/skills/software-development/biotop-phase-bauen/references/frozen-organ-replay.md
+2026-09-25 12:52:04  14307 B  /root/.hermes/skills/software-development/biotop-phase-bauen/SKILL.md
+geändert nach Auftragsbeginn: 0
+id 21111: Sitzung 20260924_203120_e6c401 · Zeit 2026-09-25 14:49:16 · Länge tool_calls 5400
+Zeilen mit gleichen Werkzeugaufrufen wie id 21111: 1 · id 20810 2026-09-25 12:52:04
+Zeilen derselben Sitzung mit exakt demselben Zeitstempel wie id 21111 (Verdichtung schreibt Kopien mit einem Zeitstempel): 1
+=== Ende R169 ===
+
+
+R170 · Stand vor START-02: Ende des Baus S1c (Status, Endgrund), Caddy-Abrufe des Wächter-Ordners r114 seit 16:38 (ohne IP), Herzschlag, offene Delegationen (nur lesend)
+Beginn: 2026-09-25 19:04:45 CEST (UTC+0200)
+Ende:   2026-09-25 19:04:45 CEST (UTC+0200)
+Dauer:  0.2 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/n17_stand.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/n17_stand.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Stand vor START-02.
+(1) Ende des Baus S1c laut Delegationsprotokoll (Status, Endgrund, Ende, Anfang des Schlussberichts).
+(2) Caddy (journald): alle Abrufe des Wächter-Ordners zwischenbericht-20260925-163807-r114 seit 16:38 — Zeit, Status,
+    Datei, Programmkennung (keine IP).
+(3) Herzschlag des Wächters (Runden des laufenden Turns aus seiner Sicht), Delegationen im Zustellbuch, die noch laufen."""
+import datetime as dt
+import json
+import re
+import sqlite3
+import subprocess
+
+f = lambda t: dt.datetime.fromtimestamp(t).strftime('%Y-%m-%d %H:%M:%S')
+print('== (1) Bau S1c (deleg_c88798ee)')
+m = json.load(open('/root/.hermes/cache/delegation/live/deleg_c88798ee/manifest.json'))
+t = m['tasks'][0]
+print(f"   begonnen {m.get('started')} · beendet {m.get('completed')} · Status {t.get('status')} · Endgrund {t.get('exit_reason')}")
+for z in open('/root/.hermes/cache/delegation/live/deleg_c88798ee/task-0.log', errors='replace'):
+    if ' final ' in z and 'summary' in z:
+        print('   Schlussbericht (Anfang): ' + z.strip()[:400])
+print('== (2) Caddy: Abrufe von …/zwischenbericht-20260925-163807-r114/ seit 2026-09-25 16:38:00')
+r = subprocess.run(['journalctl', '-u', 'caddy', '--since', '2026-09-25 16:38:00', '--no-pager', '-o', 'cat'],
+                   capture_output=True, text=True)
+n = 0
+for z in r.stdout.splitlines():
+    if 'zwischenbericht-20260925-163807-r114' not in z:
+        continue
+    try:
+        d = json.loads(z)
+    except ValueError:
+        continue
+    q = d.get('request', {})
+    ua = (q.get('headers', {}).get('User-Agent') or ['?'])[0]
+    n += 1
+    print(f"   {f(d.get('ts', 0))} · {d.get('status')} · {q.get('method')} …{q.get('uri', '')[-48:]} · {ua[:40]}")
+print(f'   Abrufe gesamt: {n}')
+print('== (3) Herzschlag des Wächters')
+h = json.load(open('/root/.hermes/zwischenbericht/herzschlag.json'))
+for s in h.get('sitzungen', []):
+    print(f"   {h['zeit']} · Sitzung …{s['sitzung'][-13:]} · Turn ab Nachricht {s['turn_ab']} · Runden {s['runden']} · "
+          f"Grenze {h['grenze']} · Schwellen {h['schwellen']} · Kontextanteil {s['kontext']['anteil']}")
+c = sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+print('== Delegationen, die noch laufen oder nicht zugestellt sind')
+for d_id, st, ds, t0 in c.execute("SELECT delegation_id, state, delivery_state, dispatched_at FROM async_delegations "
+                                   "WHERE state='running' OR delivery_state NOT IN ('delivered','dropped')"):
+    print(f'   {d_id} · {st} · Zustellung {ds} · gestartet {f(t0)}')
+--- Ende /root/sicherung/biotop-lage-01/arbeit/n17_stand.py ---
+Ausgabe (vollständig, stdout und stderr):
+== (1) Bau S1c (deleg_c88798ee)
+   begonnen 2026-09-25 12:51:42 · beendet 2026-09-25 17:29:59 · Status completed · Endgrund max_iterations
+   Schlussbericht (Anfang): 17:29:59 final    | status=completed duration=16697.0s summary: # S1c: Schlussbericht (Stand 17:26, abgebrochen an der Iterationsgrenze) A bis F sind gebaut. Beim Aufzählen der Wege mit `tragfaehig: True` habe ich aber einen weiteren stillen Durchlass derselben Klasse gefunden (G). Dafür steht nur die rote Spezifikation, der Code fehlt. **Deshalb sind im Baum seit 17:25 zehn `test_w_g_*` rot, und 
+== (2) Caddy: Abrufe von …/zwischenbericht-20260925-163807-r114/ seit 2026-09-25 16:38:00
+   2026-09-25 16:38:07 · 200 · GET …zwischenbericht-20260925-163807-r114/DATEIEN.txt · Python-urllib/3.12
+   2026-09-25 16:38:07 · 200 · GET …ht-20260925-163807-r114/UEBERGABE-1-UEBERGABE.md · Python-urllib/3.12
+   2026-09-25 16:38:07 · 200 · GET …nbericht-20260925-163807-r114/ZWISCHENBERICHT.md · Python-urllib/3.12
+   2026-09-25 16:38:07 · 200 · GET …chenbericht-20260925-163807-r114/MANIFEST.sha256 · Python-urllib/3.12
+   2026-09-25 16:38:07 · 200 · GET …richt-20260925-163807-r114/PRUEFSUMME-ORDNER.txt · Python-urllib/3.12
+   2026-09-25 18:03:20 · 200 · GET …nbericht-20260925-163807-r114/ZWISCHENBERICHT.md · curl/8.5.0
+   2026-09-25 18:03:20 · 403 · GET …nbericht-20260925-163807-r114/ZWISCHENBERICHT.md · curl/8.5.0
+   2026-09-25 18:03:20 · 200 · GET …zwischenbericht-20260925-163807-r114/DATEIEN.txt · curl/8.5.0
+   2026-09-25 18:03:20 · 200 · GET …chenbericht-20260925-163807-r114/MANIFEST.sha256 · curl/8.5.0
+   2026-09-25 18:03:20 · 200 · GET …richt-20260925-163807-r114/PRUEFSUMME-ORDNER.txt · curl/8.5.0
+   2026-09-25 18:03:21 · 200 · GET …ht-20260925-163807-r114/UEBERGABE-1-UEBERGABE.md · curl/8.5.0
+   Abrufe gesamt: 11
+== (3) Herzschlag des Wächters
+   2026-09-25T19:04:25+02:00 · Sitzung …203120_e6c401 · Turn ab Nachricht 25759 · Runden 54 · Grenze 150 · Schwellen [110, 140] · Kontextanteil 0.3393
+== Delegationen, die noch laufen oder nicht zugestellt sind
+=== Ende R170 ===
+
+
+R171 · Letzte Belege für START-02: Auftragsdatei (SHA-256), Shell-Chronik ohne Hermes-Befehle, stufe2.py/test_tor4_zeilen.py gegen die Bauordner der Runde 6, Titel R157/R165–R168, Entwurfsteile, Delegationen, Namen der .env-Dateien (nur lesend)
+Beginn: 2026-09-25 19:16:32 CEST (UTC+0200)
+Ende:   2026-09-25 19:16:32 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/sicherung/biotop-lage-01/arbeit/n18_belege.sh
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/n18_belege.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-LAGE-01 (nur lesend): letzte Belege für START-02.
+set -u
+date '+== Zeitpunkt %Y-%m-%d %H:%M:%S %Z (UTC%z)'
+echo '== Auftragsdatei: Bytes und SHA-256 (Arbeitskopie und Original im Dokumentenspeicher)'
+for f in /root/sicherung/biotop-lage-01/auftrag/BIOTOP-LAGE-01-Auftrag-v2.md /root/.hermes/cache/documents/doc_5bf902863a6d_BIOTOP-LAGE-01-Auftrag-v2.md; do
+  printf '%s B  %s  %s\n' "$(stat -c %s "$f")" "$(sha256sum < "$f" | cut -c1-64)" "$f"
+done
+echo '== /root/.bash_history: stehen Hermes-Befehle darin? (Wörter, die Hermes seit 18.09. tausendfach ausführte)'
+H=/root/.bash_history
+N=$(wc -l < "$H")
+echo "Zeilen: $N · Änderungszeit: $(stat -c %y "$H")"
+for w in biotop pytest sqlite3 rb.py; do echo "  Zeilen mit „$w“: $(grep -c -- "$w" "$H") von $N"; done
+echo '== stufe2.py und test_tor4_zeilen.py: SHA-256 im Biotop und in den Bauordnern der Runde 6; Zeiten der Bauordner-Fassungen'
+sha256sum /root/biotop/biotop/organe/stufe2.py /root/biotop-vor-t4-06/bau/r6_s3_neu/biotop/organe/stufe2.py \
+  /root/biotop/tests/test_tor4_zeilen.py /root/biotop-vor-t4-06/bau/r6_s2_neu/tests/test_tor4_zeilen.py
+stat -c 'Geburt %w | Änderung %y | %n' /root/biotop-vor-t4-06/bau/r6_s3_neu/biotop/organe/stufe2.py \
+  /root/biotop-vor-t4-06/bau/r6_s2_neu/tests/test_tor4_zeilen.py
+echo '== Titel der Rohbelege R157 und R165–R168'
+for n in 0157 0165 0166 0167 0168; do head -3 /root/sicherung/biotop-lage-01/rohbelege/R$n.txt | tr '\n' ' ' | cut -c1-230; echo; done
+echo '== Entwurfsteile: Markdown-Dateien je Teil mit Bytes'
+for d in /root/sicherung/biotop-lage-01/entwurf/*/; do printf '%s: ' "$(basename "$d")"; find "$d" -maxdepth 1 -name '*.md' -printf '%f %s B; '; echo; done
+echo '== Delegationen dieses Auftrags: Status und Endgrund je Teilaufgabe'
+grep -o -E '"(status|exit_reason|completed)": [^,}]*' /root/.hermes/cache/delegation/live/deleg_bbbc3cef/manifest.json | tr '\n' ' '; echo
+grep -o -E '"(status|exit_reason|completed)": [^,}]*' /root/.hermes/cache/delegation/live/deleg_69c683dc/manifest.json | tr '\n' ' '; echo
+echo '== Geheimnisdateien unter /root/.hermes (nur Namen und Bytes, für die Auslassung in der Sicherung)'
+find /root/.hermes -maxdepth 1 -name '.env*' -printf '%f %s B\n'
+--- Ende /root/sicherung/biotop-lage-01/arbeit/n18_belege.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== Zeitpunkt 2026-09-25 19:16:32 CEST (UTC+0200)
+== Auftragsdatei: Bytes und SHA-256 (Arbeitskopie und Original im Dokumentenspeicher)
+41239 B  58ba8834b8c3ec08f8da2e18d3db056150c91c2841ed9aac349bcf2eba216b98  /root/sicherung/biotop-lage-01/auftrag/BIOTOP-LAGE-01-Auftrag-v2.md
+41239 B  58ba8834b8c3ec08f8da2e18d3db056150c91c2841ed9aac349bcf2eba216b98  /root/.hermes/cache/documents/doc_5bf902863a6d_BIOTOP-LAGE-01-Auftrag-v2.md
+== /root/.bash_history: stehen Hermes-Befehle darin? (Wörter, die Hermes seit 18.09. tausendfach ausführte)
+Zeilen: 1543 · Änderungszeit: 2026-09-19 01:25:15.259502323 +0200
+  Zeilen mit „biotop“: 0 von 1543
+  Zeilen mit „pytest“: 0 von 1543
+  Zeilen mit „sqlite3“: 10 von 1543
+  Zeilen mit „rb.py“: 0 von 1543
+== stufe2.py und test_tor4_zeilen.py: SHA-256 im Biotop und in den Bauordnern der Runde 6; Zeiten der Bauordner-Fassungen
+e42f974af546b8ff14858a23dcfdc9ceac6db5e283a6e347a1da200bc3e64464  /root/biotop/biotop/organe/stufe2.py
+e42f974af546b8ff14858a23dcfdc9ceac6db5e283a6e347a1da200bc3e64464  /root/biotop-vor-t4-06/bau/r6_s3_neu/biotop/organe/stufe2.py
+9f512c55fea5d8d9d4ab57513cde9e832873dd25e74c3b602997eaffdcf56df0  /root/biotop/tests/test_tor4_zeilen.py
+9f512c55fea5d8d9d4ab57513cde9e832873dd25e74c3b602997eaffdcf56df0  /root/biotop-vor-t4-06/bau/r6_s2_neu/tests/test_tor4_zeilen.py
+Geburt 2026-09-25 03:14:57.708312798 +0200 | Änderung 2026-09-25 03:14:57.715312877 +0200 | /root/biotop-vor-t4-06/bau/r6_s3_neu/biotop/organe/stufe2.py
+Geburt 2026-09-25 04:14:52.165034729 +0200 | Änderung 2026-09-25 04:40:32.389400120 +0200 | /root/biotop-vor-t4-06/bau/r6_s2_neu/tests/test_tor4_zeilen.py
+== Titel der Rohbelege R157 und R165–R168
+R157 · Teil E: Mentor- und Jury-Aufrufe je Laufgruppe, Protokollarten mentor/jury (STAMM immutable, T3 ro) Beginn: 2026-09-25 18:14:31 CEST (UTC+0200) Ende:   2026-09-25 18:14:32 CEST (UTC+0200) 
+
+R165 · Teil E: Prüfung der Entwurfsdateien SOLL-IST (Wortlaut gegen v8, Status, Verweise, Bytes) Beginn: 2026-09-25 18:49:06 CEST (UTC+0200) Ende:   2026-09-25 18:49:06 CEST (UTC+0200) 
+
+R166 · Teil E: Prüfung der Entwurfsdateien SOLL-IST, zweiter Lauf mit Zählzeilen Teil 1 (Wortlaut gegen v8, Status, Verweise, Bytes) Beginn: 2026-09-25 18:50:44 CEST (UTC+0200) Ende:   2026-09-25 18:50:44 CEST (UTC+0200) 
+
+R167 · Teil E: Prüfung der Entwurfsdateien SOLL-IST auf dem Endstand (Wortlaut gegen v8, Status, Verweise, Zählzeilen, Bytes) Beginn: 2026-09-25 18:52:25 CEST (UTC+0200) Ende:   2026-09-25 18:52:25 CEST (UTC+0200) 
+
+R168 · Teil E: Bytes und SHA-256 aller Dateien in entwurf/soll-ist (Endstand) Beginn: 2026-09-25 18:52:50 CEST (UTC+0200) Ende:   2026-09-25 18:52:50 CEST (UTC+0200) 
+
+== Entwurfsteile: Markdown-Dateien je Teil mit Bytes
+aufbau: AUFBAU-TEIL3.md 23848 B; AUFBAU-TEIL2.md 20841 B; STAND.md 4148 B; AUFBAU-TEIL1.md 28298 B; GLOSSAR.md 27451 B; 
+chronik: CHRONIK-TEIL3.md 16622 B; CHRONIK-TEIL2.md 24880 B; CHRONIK-TEIL1.md 25396 B; STAND.md 2555 B; 
+entscheidungen: ENTSCHEIDUNGEN-TEIL1.md 27229 B; ENTSCHEIDUNGEN-TEIL3.md 20829 B; ENTSCHEIDUNGEN-TEIL2.md 26444 B; STAND.md 4903 B; ENTSCHEIDUNGEN-TEIL4.md 19014 B; 
+inventar: STAND.md 6556 B; 
+lage-offen: LAGE-BAUSTEINE-H-TEIL1.md 30478 B; STAND.md 3158 B; LAGE-BAUSTEINE-H-TEIL3.md 20388 B; LAGE-BAUSTEINE-H-TEIL2.md 15160 B; 
+lage-werke: LAGE-BAUSTEINE-G-TEIL2.md 33101 B; STAND.md 4326 B; LAGE-BAUSTEINE-G-TEIL1.md 27694 B; 
+soll-ist: SOLL-IST-TEIL4.md 8858 B; SOLL-IST-TEIL2.md 30410 B; STAND.md 4129 B; SOLL-IST-TEIL1.md 27887 B; SOLL-IST-TEIL3.md 20352 B; 
+tore: TORE-TEIL2.md 20115 B; TORE-TEIL3.md 22165 B; STAND.md 3959 B; TORE-TEIL1.md 17782 B; TORE-TEIL4.md 18118 B; 
+verfassungen: VERFASSUNGEN-TEIL3.md 7861 B; vorlage-TEIL2.md 24643 B; VERFASSUNGEN-TEIL1.md 28642 B; STAND.md 5127 B; vorlage-TEIL1.md 17846 B; VERFASSUNGEN-TEIL4.md 29862 B; VERFASSUNGEN-TEIL2.md 27834 B; 
+== Delegationen dieses Auftrags: Status und Endgrund je Teilaufgabe
+"status": "completed" "exit_reason": "completed" "status": "completed" "exit_reason": "completed" "status": "completed" "exit_reason": "completed" "status": "completed" "exit_reason": "completed" "status": "completed" "exit_reason": "completed" "status": "completed" "exit_reason": "completed" "status": "completed" "exit_reason": "completed" "status": "completed" "exit_reason": "completed" "completed": "2026-09-25 18:55:33" 
+"status": "completed" "exit_reason": "completed" "completed": "2026-09-25 17:45:46" 
+== Geheimnisdateien unter /root/.hermes (nur Namen und Bytes, für die Auslassung in der Sicherung)
+.env.sicherung-2026-09-18 27099 B
+.env 27173 B
+=== Ende R171 ===

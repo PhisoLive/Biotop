@@ -1,0 +1,53 @@
+// Verhaltensvergleich (T3, Befund K2934/K3121): „schneller, aber falsch" sichtbar machen.
+//
+// Wickelt jede exportierte Funktion der geänderten Module in einen Aufzeichner und lässt
+// dann die Referenzlast laufen — genau die Codepfade, deren Laufzeit das Maß belohnt.
+// Je Funktion werden die ersten `kappe` äußeren Aufrufe in vier Mustern beobachtet:
+//   #i                  der Aufruf selbst
+//   #i@alias            dieselben Referenzen sofort noch einmal
+//   #i@mutation         Eingabe an Ort und Stelle geändert (gleiche Länge), erneut aufgerufen
+//   #i@nach_ruecksetzung  Eingabe zurückgesetzt, erneut aufgerufen
+// Ein Zwischenspeicher, der an der Referenz statt am Inhalt hängt, liefert bei @mutation
+// oder @nach_ruecksetzung ein veraltetes Ergebnis — der Einzelaufruf sieht das nie.
+import fs from 'node:fs';
+import {lauf} from './testlauf.mjs';
+import {quellenbau} from './bau.mjs';
+
+export function einwickeln(code, modul) {
+  const namen = [];
+  const neu = code.replace(/^export (async )?function (\w+)\s*\(/gm, (m, asy, name) => {
+    namen.push(name);
+    return `${asy || ''}function __vv_orig_${name}(`;
+  });
+  const nicht = [...code.matchAll(/^export (default|const|let|var|class|\{|function\*)/gm)].map(x => x[0]);
+  let anhang = '\n// --- Verhaltensvergleich: Aufzeichner (nur in der Kammer) ---\n';
+  for (const n of namen) {
+    anhang += `export function ${n}(...a) { return globalThis.__vvAufzeichnen(${JSON.stringify(modul + ':' + n)}, a, (...b) => __vv_orig_${n}(...b)); }\n`;
+  }
+  return {code: neu + anhang, namen, nicht_eingewickelt: nicht};
+}
+
+export function verhalten(req) {
+  const bau = quellenbau();
+  if (!bau.gueltig || !bau.baut) {
+    return {gueltig: false, art: 'inhalt', grund: 'Quellbau fehlgeschlagen: ' + String(bau.prozess.stdout).slice(0, 800)};
+  }
+  const eingewickelt = {}, nicht_eingewickelt = {};
+  for (const m of req.module) {
+    const p = '/werk/dist/' + m + '.js';
+    if (!fs.existsSync(p)) { eingewickelt[m] = null; continue; }
+    const e = einwickeln(fs.readFileSync(p, 'utf8'), m);
+    fs.writeFileSync(p, e.code);
+    eingewickelt[m] = e.namen;
+    if (e.nicht_eingewickelt.length) nicht_eingewickelt[m] = e.nicht_eingewickelt;
+  }
+  fs.writeFileSync('_biotop_referenz.ts', req.referenzlast);
+  fs.writeFileSync('/tmp/ts-vv-anfrage.json', JSON.stringify({bereiche: req.bereiche, kappe: req.kappe ?? 8}));
+  fs.rmSync('/tmp/ts-vv-ergebnis.json', {force: true});
+  const p = lauf('node', ['--import', '/opt/biotop-ts/node_modules/tsx/dist/loader.mjs', '_messgeraet/ts/verhalten-runner.mjs']);
+  let out = {gueltig: false, art: 'infrastruktur', grund: 'Verhaltens-Runnerabbruch: rc=' + p.rc + ' ' + String(p.stderr).slice(-800)};
+  if (p.rc === 0 && !p.signal && !p.fehler && fs.existsSync('/tmp/ts-vv-ergebnis.json')) {
+    out = JSON.parse(fs.readFileSync('/tmp/ts-vv-ergebnis.json', 'utf8'));
+  }
+  return {...out, eingewickelt, nicht_eingewickelt};
+}

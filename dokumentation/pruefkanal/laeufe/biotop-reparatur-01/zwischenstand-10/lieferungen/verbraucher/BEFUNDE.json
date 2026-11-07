@@ -1,0 +1,136 @@
+{
+  "runde": 2,
+  "letzte_automatische_runde": true,
+  "regel": "Ein Nachweis zählt nur, wenn er ausgeführt wurde — übersprungen, abgebrochen, leer oder fehlend gilt als rot, nie als grün.",
+  "scope": "Nach Auftraggeber-Steuerung ausschließlich Fund-Neubewertung im Pflichtvorspann und _verhandeln als Leser des Kernmaß-/Pareto-Urteils; keine Produzenten-, Legacy-, Gen0- oder Aufnahmereparatur integrierbar.",
+  "suche": {
+    "quelltext_vollstaendig_gelesen": ["biotop/organe/fundpruefung.py", "biotop/organe/generation0.py", "biotop/organe/aufnahme.py"],
+    "gezielt_gelesen": ["biotop/lauf.py::_verhandeln", "biotop/organe/vorspann.py", "pruefung/funde_neubewerten.py", "pruefung/verhandlungsprobe.py", "pruefung/proben_tor2.py"],
+    "status": "Außenpfad-Reproduktion und weitere Suche nach Scope-Reduktion abgebrochen/unvollständig. Keine Entwarnung außerhalb des gelieferten Kerns.",
+    "zeilenbezug": "Zeilennummern beziehen sich auf die gesicherten Ausgangsdateien, nicht den Lieferstand."
+  },
+  "lesestellen": [
+    {
+      "id": "KERN-FUND-BESTEHEN",
+      "datei": "biotop/organe/fundpruefung.py",
+      "zeilen": "34-43",
+      "urteil": "behoben und ausgeführt geprüft",
+      "befund": "Reststdout mit passed wurde ohne rc/Zeitlimit und ohne vollständige Ausführung aller benannten Tests als Bestehen gelesen. Mischläufe mit Skip/xfail und fehlende Testnamen sind kein Bestandensnachweis.",
+      "fix": "Prozessstatus einschließlich innerem pytest-Rückgabecode, nichtleeres parsebares JUnit, keine skipped/error-Testcases, Konsistenz von rc und Failure sowie benannte Testfunktionen prüfen. Ungültigkeit liefert kein boolesches Inhaltsurteil, sondern RuntimeError.",
+      "rot": "belege/01-fund-rot",
+      "gruen": ["belege/02-fund-gruen", "belege/09-kern-eigensuite", "belege/11-kern-abschluss"],
+      "gegenrouten": "Echte Kammer: vollständiges Bestehen; ausgeführter AssertionError; ausgeführter ValueError aus der Eigenfixture. Zusätzliche reale Läufe: leer, Sammelfehler, fehlende Funktion, xfail, pytest-Abbruch, os._exit(0) ohne JUnit.",
+      "grenze": "Vorhandene Absturzheuristik nur auf ausgeführte Failure eingeschränkt; keine allgemeine Reparatur der semantischen Unterscheidung testeigener Fehler versus Produktfehler."
+    },
+    {
+      "id": "KERN-FUND-FORTLEITUNG",
+      "datei": "biotop/organe/fundpruefung.py",
+      "zeilen": "56-77; Aufrufer vorspann.py:157-159",
+      "urteil": "behoben und ausgeführt geprüft",
+      "befund": "Ein boolesches False nach ungültigem Lauf kann mit Vertragsverweis zum Fund werden; ohne laute Invalidität kann der Pflichtvorspann weiterlaufen.",
+      "fix": "Abbruch vor Statusänderung und vor weiteren Vorspannstufen; vorhandener Exception-Pfad des Vorspanns setzt gescheitert und verweigert Freigabe. Keine Änderung an vorspann.py erforderlich.",
+      "belege": ["belege/01-fund-rot", "belege/08-pflichtvorspann-kernbezug", "belege/11-kern-abschluss"],
+      "gegenroute": "Gate-UNIT mit echter Fund-Kammer: gültiger Fundlauf erreicht Proben und Nachweisfreigabe; leerer Fundbestand nach ausgeführter DB-Abfrage bleibt legitim, ohne künstliche Kammerpflicht.",
+      "grenze": "Rauschen, Eichgegenstand, Messung und Eichproben sind in diesem Gate-UNIT explizite I/O-Doubles. Nicht als echte Gesamteichung oder -1-CLI ausgeben. Die bestehende Kostenbuchung im Vorspann nach bewerten() wird bei Ausnahme nicht erreicht; tatsächliche Kammeraufrufe stehen unabhängig davon in KAMMERZAEHLUNG.json."
+    },
+    {
+      "id": "KERN-FUND-WEITERE-LESER",
+      "datei": "biotop/organe/fundpruefung.py",
+      "zeilen": "96-118; 121-128",
+      "urteil": "Quellprüfung; keine zusätzliche Reparatur",
+      "befund": "uebernehmen() delegiert die Neubewertung unmittelbar an bewerten(); text() formatiert nur. Kein weiterer unabhängiger Ergebnisparser in der Datei.",
+      "grenze": "Übernahmeweg nicht zusätzlich ausgeführt; außerhalb des direkten Pflichtvorspann-Kernnachweises."
+    },
+    {
+      "id": "KERN-VERHANDLUNG-MASS",
+      "datei": "biotop/lauf.py",
+      "zeilen": "573-595, insbesondere 580",
+      "urteil": "behoben und ausgeführt geprüft",
+      "befund": "Fehlendes oder unvollständiges u2.mass und fehlende Ergebnislisten wurden durch not get(...) zu bestandener Verhandlung.",
+      "fix": "Expliziter Maßdatensatz mit booleschem ok, Grund, vorhandenen numerischen Kernwerten und expliziten leeren Vertrags-/Pareto-/Grenzlisten erforderlich. mass.ok=False wegen unverändertem Kernmaß bleibt eine gültige Vertragsgegenroute.",
+      "rot": "belege/05-verhandlung-rot",
+      "gruen": ["belege/06-verhandlung-gruen", "belege/11-kern-abschluss"],
+      "gegenrouten": "Originaler _verhandeln-Entscheider mit echten urteil_f2-Ausgaben aus Unit-Messwerten; Aegis-/Hersteller-I/O ausdrücklich gedoppelt. Vollständiger Maßbeleg ohne Kernmaßgewinn wird akzeptiert; ausgeführte rote Vertrags-/Pareto-/Grenzurteile bleiben rot.",
+      "grenze": "Keine Wirkungskreis-/Transitivitätsreparatur, kein Vertragsaustausch, keine Maß-Freeze-/NaN-Collector-Reparatur."
+    },
+    {
+      "id": "AUSSEN-VERHANDLUNG-LEERE-ANTWORT",
+      "datei": "biotop/lauf.py",
+      "zeilen": "554-560",
+      "urteil": "bestätigt offen (Quellbefund), Folgeauftrag",
+      "befund": "all(...) über ids=[] kann ohne Hersteller-/Nachbarantwort bestätigen.",
+      "grund_offen": "Auftraggeber nimmt diesen Produzenten-/Antwortleerheitsfall ausdrücklich aus dem unmittelbaren Messresultatleser-Scope. Nicht geändert, nicht zusätzlich ausgeführt."
+    },
+    {
+      "id": "AUSSEN-GEN0-FANG",
+      "datei": "biotop/organe/generation0.py",
+      "zeilen": "108-113; 180-200",
+      "urteil": "bestätigt offen (Ausführungsrepro), Folgeauftrag",
+      "befund": "Jeder Nichtnull-Rückgabecode zählt als Mutantenfang; Infrastruktur- und Sammelfehler werden wie gefallene Produkttests behandelt und von messen() gezählt.",
+      "belege": ["belege/03-gen0-fang-rot", "belege/04-gen0-fang-gruen"],
+      "teilfix": "quarantaene/gen0-nichtintegrierbar/TEILFIX.diff",
+      "grund_offen": "Vor Scope-Reduktion TDD-Teilfix erstellt, danach gesichert und aus dem Repo vollständig zurückgenommen. Keine Kernlieferung; nicht als erledigt ausgeben."
+    },
+    {
+      "id": "AUSSEN-GEN0-AEQUIVALENZ",
+      "datei": "biotop/organe/generation0.py",
+      "zeilen": "151-174",
+      "urteil": "bestätigt offen (Quellbefund), Folgeauftrag",
+      "befund": "Äquivalenz nutzt nicht gefangen als alle Tests bestehen; Referenzbeobachtung liest unvollständigen AEQ-Regex ohne positive Beobachtungszahl und ohne zeitlimit. AEQ keine-beobachtung wird vom Regex nur als keine erfasst, sodass der spätere Vergleich gegen keine-beobachtung nicht greift.",
+      "grund_offen": "Außenreproduktion nach Scope-Reduktion gestoppt. Keine Reparatur und kein dynamischer Nachweis dieser Route."
+    },
+    {
+      "id": "AUSSEN-GEN0-TESTBAU",
+      "datei": "biotop/organe/generation0.py",
+      "zeilen": "245-255",
+      "urteil": "bestätigt offen (Quellbefund), Folgeauftrag",
+      "befund": "Original gilt mit rc=0 plus passed als bestanden trotz möglicher Skips; Mutantenroute zählt jedes rc!=0 als Fang, auch Infrastrukturabbruch.",
+      "grund_offen": "Nach Scope-Reduktion keine Testproduktion, keine Modellaufrufe, keine weitere Reparatur/Reproduktion."
+    },
+    {
+      "id": "AUSSEN-AUFNAHME-TESTLAUF",
+      "datei": "biotop/organe/aufnahme.py",
+      "zeilen": "133-160",
+      "urteil": "bestätigt offen (Quellbefund), Folgeauftrag",
+      "befund": "Summierung von passed/failed/error ignoriert Skips und Prozessinvalidität. Positive Restzählung genügt, obwohl der Testprozess abgebrochen ist.",
+      "gegenroute_erforderlich": "Ausgeführte rote Produkttests dürfen nicht pauschal mit fehlendem Messgerät gleichgesetzt werden.",
+      "grund_offen": "Kein direkter Kernleser belegt; nach Scope-Reduktion weder geändert noch ausgeführt."
+    },
+    {
+      "id": "AUSSEN-AUFNAHME-BAU",
+      "datei": "biotop/organe/aufnahme.py",
+      "zeilen": "145-149",
+      "urteil": "offener Quellhinweis, Folgeauftrag",
+      "befund": "Importnachweis verwendet nur rc=0, ohne Zeitlimit-/Abschlussbeleg. Normale stille Imports sind gültig; geeignete abgeschlossene Gutkontrolle wäre vor Reparatur notwendig.",
+      "grund_offen": "Keine dynamische Reproduktion und keine Änderung. _holen/_zaehlen/_paket sind hier keine zusätzlichen Kernmessresultatleser; Ethik liegt außerhalb des Auftrags und blieb gesperrt."
+    },
+    {
+      "id": "AUSSEN-LEGACY-FUND",
+      "datei": "pruefung/funde_neubewerten.py",
+      "zeilen": "26-34",
+      "urteil": "bestätigt offen (Quellbefund), Folgeauftrag",
+      "befund": "passed ohne failed als Bestehen, ohne rc/Zeitlimit/Skip/Vollständigkeit.",
+      "grund_offen": "Legacy ausdrücklich aus Kernlieferung ausgeschlossen. Skript nie gestartet, Datei unverändert."
+    },
+    {
+      "id": "AUSSEN-LEGACY-VERHANDLUNG",
+      "datei": "pruefung/verhandlungsprobe.py",
+      "zeilen": "70-72",
+      "urteil": "bestätigt offen (Quellbefund), Folgeauftrag",
+      "befund": "not u2.get(vertrag_verletzt) meldet bei fehlendem Messurteil Vertrag bestanden.",
+      "grund_offen": "Legacy ausdrücklich aus Kernlieferung ausgeschlossen. Skript nie gestartet, Datei unverändert."
+    },
+    {
+      "id": "AUSSEN-LEGACY-TOR2",
+      "datei": "pruefung/proben_tor2.py",
+      "zeilen": "209",
+      "urteil": "bestätigt offen (Quellbefund), Folgeauftrag",
+      "befund": "not u4b.get(vertrag_verletzt) bezeichnet fehlenden Nachweis als bestanden.",
+      "grund_offen": "Legacy ausdrücklich aus Kernlieferung ausgeschlossen. Skript nie gestartet, Datei unverändert."
+    }
+  ],
+  "schnittstelle": {
+    "aegis": "Parent-Lieferung junit_lauf Zeilen 75-114 gelesen. Keine neue Abhängigkeit: Fundlauf verwendet eigenen schmalen Kammer-/JUnit-Statusleser; aegis._nennt_vertrag unverändert. Weder Aegis-Datei übernommen noch ein neues ausgefuehrt-Pflichtfeld angenommen.",
+    "pytest": "Innerer pytest-Exit 1 mit tatsächlich ausgeführten Failures bleibt klassifizierbar; Exit 2/3/4/5, Zeitlimit, fehlendes/kaputtes/übersprungenes JUnit sind kein Inhaltsurteil."
+  }
+}

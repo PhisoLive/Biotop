@@ -1,0 +1,66 @@
+EB24 · Geheimnissuche: gesuchte Werte nach Art (nur Namen und Längen)
+Beginn: 2026-09-26 00:09:57 CEST (UTC+0200)
+Ende:   2026-09-26 00:09:58 CEST (UTC+0200)
+Dauer:  0.2 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/biotop-einlagerung/arbeit/geheim_arten.py
+--- Inhalt von /root/biotop-einlagerung/arbeit/geheim_arten.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-EINLAGERUNG-01 (nur lesend): Welche Werte sucht die Geheimnissuche, und welcher Art sind sie?
+Ausgegeben werden NUR Variablennamen, Länge und Art — nie ein Wert.
+Art (Auslegung Hermes, für die Entscheidung, was in welches Archiv darf):
+  ZUGANG  — Name enthält KEY, TOKEN, SECRET, PASSWORD, PASSWD, PASS, AUTH, COOKIE, CREDENTIAL, PRIVATE, SESSION, oder der
+            Wert passt auf ein Schlüsselmuster (sk-…, gh?_…, AKIA…, Bot-Token), oder der Wert stammt aus auth.json;
+  KENNUNG — Wert besteht nur aus Ziffern (auch mit Komma/Minus), z. B. Telegram-Chat- oder Benutzerkennung;
+  SONST   — übrige .env-Werte ≥ 8 Zeichen (Modellnamen, Adressen, Einstellungen).
+"""
+import re
+import sys
+from collections import Counter
+
+sys.path.insert(0, '/root/biotop-einlagerung/arbeit')
+import geheimnis  # noqa: E402
+
+ZUGANG_NAME = re.compile(r'KEY|TOKEN|SECRET|PASSWORD|PASSWD|PASS|AUTH|COOKIE|CREDENTIAL|PRIVATE|SESSION', re.I)
+MUSTER = [re.compile(m) for m in geheimnis.MUSTER.values()]
+
+
+def art(wert: str, quelle: str) -> str:
+    datei, name = quelle.rsplit(':', 1)
+    if datei.endswith('auth.json') or 'auth.json' in datei:
+        return 'ZUGANG'
+    if ZUGANG_NAME.search(name) or any(m.search(wert) for m in MUSTER):
+        return 'ZUGANG'
+    if re.fullmatch(r'[\d,\-\s]+', wert):
+        return 'KENNUNG'
+    return 'SONST'
+
+
+if __name__ == '__main__':
+    w = geheimnis.werte()
+    z = Counter()
+    for v, q in sorted(w.items(), key=lambda x: x[1]):
+        a = art(v, q)
+        z[a] += 1
+        datei, name = q.rsplit(':', 1)
+        print(f'{a:8} {len(v):4} Zeichen · {datei.replace("/root/", "~/")} : {name}')
+    print(f'Werte gesamt {len(w)} · je Art {dict(z)}')
+--- Ende /root/biotop-einlagerung/arbeit/geheim_arten.py ---
+Ausgabe (vollständig, stdout und stderr):
+ZUGANG     73 Zeichen · ~/.hermes/.env : OPENROUTER_API_KEY
+KENNUNG    10 Zeichen · ~/.hermes/.env : TELEGRAM_ALLOWED_USERS
+ZUGANG     46 Zeichen · ~/.hermes/.env : TELEGRAM_BOT_TOKEN
+SONST      42 Zeichen · ~/.hermes/.env : TERMINAL_MODAL_IMAGE
+ZUGANG     12 Zeichen · ~/.hermes/auth.json : auth.active_provider
+ZUGANG     23 Zeichen · ~/.hermes/auth.json : auth.credential_pool.anthropic[0].secret_fingerprint
+ZUGANG     23 Zeichen · ~/.hermes/auth.json : auth.credential_pool.anthropic[1].secret_fingerprint
+ZUGANG     21 Zeichen · ~/.hermes/auth.json : auth.credential_pool.anthropic[1].source
+ZUGANG     23 Zeichen · ~/.hermes/auth.json : auth.credential_pool.openrouter[0].secret_fingerprint
+ZUGANG     22 Zeichen · ~/.hermes/auth.json : auth.credential_pool.openrouter[0].source
+ZUGANG   1685 Zeichen · ~/.hermes/auth.json : auth.providers.[GESCHWÄRZT: Wert aus /root/.hermes/auth.json].tokens.access_token
+ZUGANG     36 Zeichen · ~/.hermes/auth.json : auth.providers.[GESCHWÄRZT: Wert aus /root/.hermes/auth.json].tokens.account_id
+ZUGANG   1752 Zeichen · ~/.hermes/auth.json : auth.providers.[GESCHWÄRZT: Wert aus /root/.hermes/auth.json].tokens.id_token
+ZUGANG    211 Zeichen · ~/.hermes/auth.json : auth.providers.[GESCHWÄRZT: Wert aus /root/.hermes/auth.json].tokens.refresh_token
+Werte gesamt 14 · je Art {'ZUGANG': 12, 'KENNUNG': 1, 'SONST': 1}
+=== Ende EB24 ===

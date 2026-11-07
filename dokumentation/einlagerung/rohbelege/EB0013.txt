@@ -1,0 +1,61 @@
+EB13 · Meldung 1 senden (genau einmal, hermes send)
+Beginn: 2026-09-25 23:48:21 CEST (UTC+0200)
+Ende:   2026-09-25 23:48:24 CEST (UTC+0200)
+Dauer:  3.0 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/biotop-einlagerung/arbeit/melden.py /root/biotop-einlagerung/meldungen/meldung1.txt
+--- Inhalt von /root/biotop-einlagerung/arbeit/melden.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-EINLAGERUNG-01 · Meldung an Philipp genau einmal senden: `hermes send --to telegram --file <datei> --json`
+(kein Modell, kein Agent; Heimkanal = Philipps Direktchat). Vorlage: BIOTOP-LAGE-01 arbeit/meldung2_senden.py.
+- Vor dem Senden: Geheimnissuche über die Datei (geheimnis.py); bei einem Treffer kein Versand.
+- Schutz gegen doppelten Versand: Merkdatei /root/biotop-einlagerung/meldungen/<name>.gesendet wird exklusiv angelegt,
+  BEVOR gesendet wird; besteht sie schon, bricht das Skript ab (jede Meldung genau einmal).
+- Ausgabe: Zeichen, SHA-256 des Texts, Rückgabecode, Antwort des Werkzeugs (Ziffernfolgen ab 9 Stellen geschwärzt).
+Aufruf: melden.py <datei> [<datei> …]   (mehrere Teile in Reihenfolge; beim ersten Fehler Abbruch ohne Wiederholung)"""
+import hashlib
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+M = Path('/root/biotop-einlagerung/meldungen')
+M.mkdir(exist_ok=True)
+for datei in map(Path, sys.argv[1:]):
+    text = datei.read_text(encoding='utf-8')
+    g = subprocess.run([sys.executable, '/root/biotop-einlagerung/arbeit/geheimnis.py', str(datei)], capture_output=True, text=True)
+    zz = [z for z in g.stdout.splitlines() if z.startswith('Durchsucht')]
+    print(f'{datei.name}: Geheimnissuche {zz[0] if zz else "ohne Zählzeile"} · rc {g.returncode}')
+    if g.returncode != 0:
+        sys.exit(f'ABBRUCH vor {datei.name}: Geheimnissuche nicht sauber — nicht gesendet')
+    merk = M / (datei.name + '.gesendet')
+    try:
+        fd = os.open(merk, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        sys.exit(f'ABBRUCH: {merk} besteht — {datei.name} wurde schon gesendet (genau einmal)')
+    r = subprocess.run(['hermes', 'send', '--to', 'telegram', '--file', str(datei), '--json'],
+                       capture_output=True, text=True, timeout=180)
+    antwort = re.sub(r'\d{9,}', '[KENNUNG GESCHWÄRZT]', (r.stdout + ' ' + r.stderr).strip())[:800]
+    with os.fdopen(fd, 'w') as f:
+        f.write(f'rc {r.returncode}\n{antwort}\n')
+    print(f'{datei.name} · {len(text)} Zeichen · SHA-256 {hashlib.sha256(text.encode("utf-8")).hexdigest()} · rc {r.returncode}')
+    print(f'  Antwort: {antwort}')
+    if r.returncode != 0:
+        sys.exit(f'ABBRUCH nach {datei.name}: rc {r.returncode}; keine Wiederholung')
+print('gesendet: alle genannten Teile')
+--- Ende /root/biotop-einlagerung/arbeit/melden.py ---
+Ausgabe (vollständig, stdout und stderr):
+meldung1.txt: Geheimnissuche Durchsucht: 1 Dateien · Treffer: 0 · rc 0
+meldung1.txt · 631 Zeichen · SHA-256 44a29748e7d2b7308c8a610fdf0a0408537eb09dcff79e7a1f719a13369f1422 · rc 0
+  Antwort: {
+  "success": true,
+  "platform": "telegram",
+  "chat_id": "[KENNUNG GESCHWÄRZT]",
+  "message_id": "8322",
+  "note": "Sent to telegram home channel (chat_id: [KENNUNG GESCHWÄRZT])",
+  "mirrored": true
+}
+gesendet: alle genannten Teile
+=== Ende EB13 ===

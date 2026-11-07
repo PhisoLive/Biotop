@@ -1,0 +1,143 @@
+EB31 · Schritt 4: Prüfkanal-Kopien (biotop-*, gedaechtnis) mit Geheimnissuche je Datei
+Beginn: 2026-09-26 00:31:21 CEST (UTC+0200)
+Ende:   2026-09-26 00:31:55 CEST (UTC+0200)
+Dauer:  33.5 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/biotop-einlagerung/arbeit/d_pruefkanal.py
+--- Inhalt von /root/biotop-einlagerung/arbeit/d_pruefkanal.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-EINLAGERUNG-01 · Schritt 4: Kopien aller Biotop-Ordner des Prüfkanals (laeufe/biotop-* und laeufe/gedaechtnis/)
+nach paket/dokumentation/pruefkanal/laeufe/…, dabei Geheimnissuche über JEDE Datei des Prüfkanals (Muster und Werte aus
+.env ≥ 8 / auth.json ≥ 12 Zeichen).
+- Datei ohne Treffer: bytegleich kopiert (Zeit übernommen), SHA-256 verglichen.
+- Textdatei mit Treffer: in der Kopie geschwärzt („[GESCHWÄRZT]“ bzw. „[GESCHWÄRZT: <Muster>]“), in der Liste der
+  Schwärzungen geführt (Datei, Art, Anzahl) — die Datei im Prüfkanal selbst bleibt unverändert (sie ist ein Befund).
+- Binärdatei mit Treffer: nicht kopiert, nur genannt.
+- Nicht lesbare Dateien (Rechte): Kopie trotzdem als root; gezählt.
+Ausgabe: je Ordner Dateien/Bytes/geschwärzt; alle Fundstellen im Prüfkanal (ohne Werte); Summe. Exklusiv geschrieben."""
+import hashlib
+import os
+import re
+import shutil
+import sys
+from pathlib import Path
+
+sys.path.insert(0, '/root/biotop-einlagerung/arbeit')
+import geheimnis  # noqa: E402
+
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+L = Path(f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe')
+Z = Path('/root/biotop-einlagerung/paket/dokumentation/pruefkanal/laeufe')
+WERTE = geheimnis.werte()
+MU = {n: re.compile(m) for n, m in geheimnis.MUSTER.items()}
+sha = lambda b: hashlib.sha256(b).hexdigest()
+Z.mkdir(parents=True, exist_ok=False)
+ordner = sorted(p for p in L.iterdir() if p.is_dir() and (p.name.startswith('biotop-') or p.name == 'gedaechtnis'))
+funde, gesamt = [], {'dateien': 0, 'bytes': 0, 'geschwaerzt': 0, 'nicht_kopiert': 0, 'gleich': 0}
+for o in ordner:
+    z = {'dateien': 0, 'bytes': 0, 'geschwaerzt': 0, 'nicht_kopiert': 0, 'gleich': 0}
+    for p in sorted(o.rglob('*')):
+        if p.is_dir() or p.is_symlink():
+            continue
+        rel = p.relative_to(L)
+        d = p.read_bytes()
+        try:
+            t = d.decode('utf-8')
+            text = True
+        except UnicodeDecodeError:
+            t = d.decode('latin-1')
+            text = False
+        treffer = []
+        for name, m in MU.items():
+            k = len(m.findall(t))
+            if k:
+                treffer.append((f'Muster {name}', k))
+        for v, q in WERTE.items():
+            if v in t:
+                treffer.append((f'Wert {q.split(":")[-1]}', t.count(v)))
+        ziel = Z / rel
+        ziel.parent.mkdir(parents=True, exist_ok=True)
+        z['dateien'] += 1
+        if treffer and not text:
+            z['nicht_kopiert'] += 1
+            funde.append(f'{rel} · BINÄR, nicht kopiert · {treffer}')
+            continue
+        if treffer:
+            for name, m in MU.items():
+                t = m.sub(f'[GESCHWÄRZT: {name}]', t)
+            for v in WERTE:
+                t = t.replace(v, '[GESCHWÄRZT]')
+            d2 = t.encode('utf-8')
+            z['geschwaerzt'] += 1
+            funde.append(f'{rel} · Text, in der Kopie geschwärzt · {treffer}')
+        else:
+            d2 = d
+        fd = os.open(ziel, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+        with os.fdopen(fd, 'wb') as f:
+            f.write(d2)
+        shutil.copystat(p, ziel)
+        os.chmod(ziel, 0o644)
+        z['bytes'] += len(d2)
+        z['gleich'] += (not treffer) and sha(ziel.read_bytes()) == sha(d)
+    for k in gesamt:
+        gesamt[k] += z[k]
+    print(f"{o.name} | Dateien {z['dateien']} | Bytes der Kopie {z['bytes']} | bytegleich kopiert {z['gleich']} | "
+          f"geschwärzt {z['geschwaerzt']} | nicht kopiert {z['nicht_kopiert']}")
+print(f"SUMME: Ordner {len(ordner)} · Dateien {gesamt['dateien']} · Bytes {gesamt['bytes']} · bytegleich {gesamt['gleich']} · "
+      f"geschwärzt {gesamt['geschwaerzt']} · nicht kopiert {gesamt['nicht_kopiert']}")
+print(f'Fundstellen im Prüfkanal (Dateien mit Treffer): {len(funde)}')
+for f in funde:
+    print('  ' + f)
+--- Ende /root/biotop-einlagerung/arbeit/d_pruefkanal.py ---
+Ausgabe (vollständig, stdout und stderr):
+biotop-einlagerung-01 | Dateien 21 | Bytes der Kopie 268033 | bytegleich kopiert 21 | geschwärzt 0 | nicht kopiert 0
+biotop-gesamtstand | Dateien 86 | Bytes der Kopie 14518774 | bytegleich kopiert 85 | geschwärzt 1 | nicht kopiert 0
+biotop-lage-01 | Dateien 341 | Bytes der Kopie 10994942 | bytegleich kopiert 341 | geschwärzt 0 | nicht kopiert 0
+biotop-phase-1 | Dateien 49 | Bytes der Kopie 2195723 | bytegleich kopiert 49 | geschwärzt 0 | nicht kopiert 0
+biotop-phase-1-nachlauf | Dateien 135 | Bytes der Kopie 7982872 | bytegleich kopiert 135 | geschwärzt 0 | nicht kopiert 0
+biotop-phase-2 | Dateien 124 | Bytes der Kopie 20081853 | bytegleich kopiert 124 | geschwärzt 0 | nicht kopiert 0
+biotop-phase-3 | Dateien 200 | Bytes der Kopie 550354 | bytegleich kopiert 200 | geschwärzt 0 | nicht kopiert 0
+biotop-phase-3-nachlauf | Dateien 54 | Bytes der Kopie 338915 | bytegleich kopiert 54 | geschwärzt 0 | nicht kopiert 0
+biotop-phase-4-einstieg-20260921-01 | Dateien 16 | Bytes der Kopie 272536 | bytegleich kopiert 12 | geschwärzt 4 | nicht kopiert 0
+biotop-phase-4-vorbedingung-1 | Dateien 146 | Bytes der Kopie 3510322 | bytegleich kopiert 146 | geschwärzt 0 | nicht kopiert 0
+biotop-reparatur-01 | Dateien 9489 | Bytes der Kopie 108067603 | bytegleich kopiert 9475 | geschwärzt 14 | nicht kopiert 0
+biotop-reparatur-02 | Dateien 21 | Bytes der Kopie 1842498 | bytegleich kopiert 21 | geschwärzt 0 | nicht kopiert 0
+biotop-t3-typescript | Dateien 231 | Bytes der Kopie 2132803 | bytegleich kopiert 225 | geschwärzt 6 | nicht kopiert 0
+biotop-vor-t4 | Dateien 98 | Bytes der Kopie 1106771 | bytegleich kopiert 98 | geschwärzt 0 | nicht kopiert 0
+biotop-vor-t4-02 | Dateien 79 | Bytes der Kopie 706497 | bytegleich kopiert 79 | geschwärzt 0 | nicht kopiert 0
+biotop-vor-t4-03 | Dateien 100 | Bytes der Kopie 1194888 | bytegleich kopiert 100 | geschwärzt 0 | nicht kopiert 0
+biotop-vor-t4-04 | Dateien 123 | Bytes der Kopie 1130135 | bytegleich kopiert 123 | geschwärzt 0 | nicht kopiert 0
+biotop-vor-t4-05 | Dateien 159 | Bytes der Kopie 1558761 | bytegleich kopiert 159 | geschwärzt 0 | nicht kopiert 0
+biotop-vor-t4-06 | Dateien 20 | Bytes der Kopie 56694 | bytegleich kopiert 20 | geschwärzt 0 | nicht kopiert 0
+biotop-wiedereinstieg-2026-09-20-01 | Dateien 35 | Bytes der Kopie 333744 | bytegleich kopiert 34 | geschwärzt 1 | nicht kopiert 0
+gedaechtnis | Dateien 8 | Bytes der Kopie 17737 | bytegleich kopiert 8 | geschwärzt 0 | nicht kopiert 0
+SUMME: Ordner 21 · Dateien 11535 · Bytes 178862455 · bytegleich 11509 · geschwärzt 26 · nicht kopiert 0
+Fundstellen im Prüfkanal (Dateien mit Treffer): 26
+  biotop-gesamtstand/ausgaben/27-auftragskosten.json · Text, in der Kopie geschwärzt · [('Wert auth.active_provider', 3)]
+  biotop-phase-4-einstieg-20260921-01/MESSAUSGABE.json · Text, in der Kopie geschwärzt · [('Wert auth.active_provider', 2)]
+  biotop-phase-4-einstieg-20260921-01/MOA-BEITRAGSEINGANG.json · Text, in der Kopie geschwärzt · [('Wert auth.active_provider', 2)]
+  biotop-phase-4-einstieg-20260921-01/TRAEGER-AKTUELL.json · Text, in der Kopie geschwärzt · [('Wert auth.active_provider', 2)]
+  biotop-phase-4-einstieg-20260921-01/bericht_und_lieferung.py · Text, in der Kopie geschwärzt · [('Wert auth.active_provider', 2)]
+  biotop-reparatur-01/auftragseingrenzung-01/KASSE.json · Text, in der Kopie geschwärzt · [('Wert auth.active_provider', 10)]
+  biotop-reparatur-01/auftragseingrenzung-02/KASSE.json · Text, in der Kopie geschwärzt · [('Wert auth.active_provider', 15)]
+  biotop-reparatur-01/auftragspraezisierung-02/KASSE.json · Text, in der Kopie geschwärzt · [('Wert auth.active_provider', 15)]
+  biotop-reparatur-01/ausgaben/29-kasse-zwischenstand.json · Text, in der Kopie geschwärzt · [('Wert auth.active_provider', 5)]
+  biotop-reparatur-01/eskalation-runde-02/KASSE.json · Text, in der Kopie geschwärzt · [('Wert auth.active_provider', 16)]
+  biotop-reparatur-01/zwischenstand-03/KASSE.json · Text, in der Kopie geschwärzt · [('Wert auth.active_provider', 5)]
+  biotop-reparatur-01/zwischenstand-04/KASSE.json · Text, in der Kopie geschwärzt · [('Wert auth.active_provider', 7)]
+  biotop-reparatur-01/zwischenstand-05/KASSE.json · Text, in der Kopie geschwärzt · [('Wert auth.active_provider', 10)]
+  biotop-reparatur-01/zwischenstand-06/KASSE.json · Text, in der Kopie geschwärzt · [('Wert auth.active_provider', 11)]
+  biotop-reparatur-01/zwischenstand-07/KASSE.json · Text, in der Kopie geschwärzt · [('Wert auth.active_provider', 12)]
+  biotop-reparatur-01/zwischenstand-08/KASSE.json · Text, in der Kopie geschwärzt · [('Wert auth.active_provider', 15)]
+  biotop-reparatur-01/zwischenstand-09/KASSE.json · Text, in der Kopie geschwärzt · [('Wert auth.active_provider', 15)]
+  biotop-reparatur-01/zwischenstand-10/KASSE.json · Text, in der Kopie geschwärzt · [('Wert auth.active_provider', 16)]
+  biotop-reparatur-01/zwischenstand-11/KASSE.json · Text, in der Kopie geschwärzt · [('Wert auth.active_provider', 16)]
+  biotop-t3-typescript/abschluss-01/skills/hermes-agent/references/cli-reference.md · Text, in der Kopie geschwärzt · [('Wert auth.active_provider', 1)]
+  biotop-t3-typescript/abschluss-01/skills/hermes-agent/references/native-mcp.md · Text, in der Kopie geschwärzt · [('Muster sk-Schlüssel allgemein', 2), ('Muster Bearer-Token', 2)]
+  biotop-t3-typescript/abschluss-01/skills/hermes-agent/references/providers-and-models.md · Text, in der Kopie geschwärzt · [('Wert auth.active_provider', 2)]
+  biotop-t3-typescript/uebernahme-01/skills/hermes-agent/references/cli-reference.md · Text, in der Kopie geschwärzt · [('Wert auth.active_provider', 1)]
+  biotop-t3-typescript/uebernahme-01/skills/hermes-agent/references/native-mcp.md · Text, in der Kopie geschwärzt · [('Muster sk-Schlüssel allgemein', 2), ('Muster Bearer-Token', 2)]
+  biotop-t3-typescript/uebernahme-01/skills/hermes-agent/references/providers-and-models.md · Text, in der Kopie geschwärzt · [('Wert auth.active_provider', 2)]
+  biotop-wiedereinstieg-2026-09-20-01/belege/ANMELDUNGEN-01.txt · Text, in der Kopie geschwärzt · [('Wert auth.active_provider', 1), ('Wert auth.credential_pool.anthropic[1].source', 1), ('Wert auth.credential_pool.openrouter[0].source', 1)]
+=== Ende EB31 ===

@@ -1,0 +1,401 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 03 · Teil 204 (Teile 166–239 dieses Stands) · enthält R196 bis R199
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+[R196 · Fortsetzung, Stück 22 von 22]
+ERROR tests/test_review_vertrag.py::test_normgegenprobe_braucht_ausgefuehrtes_zeugenpaar[xfail]
+ERROR tests/test_review_vertrag.py::test_normgegenprobe_braucht_ausgefuehrtes_zeugenpaar[fehlend]
+ERROR tests/test_review_vertrag.py::test_normgegenprobe_braucht_ausgefuehrtes_zeugenpaar[pass]
+ERROR tests/test_review_vertrag.py::test_test_eigener_fehler_ist_keine_pruefbare_vertragsgegenprobe[setup]
+ERROR tests/test_review_vertrag.py::test_test_eigener_fehler_ist_keine_pruefbare_vertragsgegenprobe[aufruf]
+ERROR tests/test_review_vertrag.py::test_test_eigener_fehler_ist_keine_pruefbare_vertragsgegenprobe[sammlung]
+ERROR tests/test_review_vertrag.py::test_test_eigener_fehler_ist_keine_pruefbare_vertragsgegenprobe[fehlend]
+ERROR tests/test_review_vertrag.py::test_test_eigener_fehler_ist_keine_pruefbare_vertragsgegenprobe[skip]
+ERROR tests/test_review_vertrag.py::test_test_eigener_fehler_ist_keine_pruefbare_vertragsgegenprobe[xfail]
+ERROR tests/test_review_vertrag.py::test_modulhelfer_und_konstanten_bleiben_im_eigenen_namensraum
+ERROR tests/test_vor_t4_06.py::test_t1_r6_4_festhalten_am_ausnahmetyp_in_der_kammer[zahl-True]
+ERROR tests/test_vor_t4_06.py::test_t1_r6_4_festhalten_am_ausnahmetyp_in_der_kammer[liste-True]
+ERROR tests/test_vor_t4_06.py::test_t1_r6_4_festhalten_am_ausnahmetyp_in_der_kammer[wahrheitswert-True]
+ERROR tests/test_vor_t4_06.py::test_t1_r6_4_festhalten_am_ausnahmetyp_in_der_kammer[text-True]
+ERROR tests/test_vor_t4_06.py::test_t1_r6_4_festhalten_am_ausnahmetyp_in_der_kammer[werk_ausnahme-False]
+SKIPPED [1] tests/test_eichproben.py:280: Private Werk-/DB-Kopie nicht angegeben
+SKIPPED [1] tests/test_review_vertrag.py:229: Private Werk-/DB-Kopie nicht angegeben
+187 failed, 748 passed, 2 skipped, 93 deselected, 16 errors in 61.10s (0:01:01)
+pytest rc=1
+== Testlauf rc=1 · Dauer 62 s
+<testsuite name="pytest" errors="16" failures="187" skipped="2" tests="953" time="60.901" timestamp="2026-09-25T19:56:36.939290+02:00" hostname="ubuntu">
+== Originale nach der Marke geändert (ohne den eigenen Ordner laeufe/biotop-lage-01; muss leer sein)
+Anzahl: 0
+=== Ende R196 ===
+
+
+R197 · Aufbau des Nachrichtenverzeichnisses v3 für VERLAUF (FK11): Felder, Zählungen, ohne Inhalte
+Beginn: 2026-09-25 19:58:36 CEST (UTC+0200)
+Ende:   2026-09-25 19:58:36 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/v3_aufbau.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/v3_aufbau.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Aufbau des Nachrichtenverzeichnisses v3 für VERLAUF (FK11), ohne Inhalte auszugeben.
+Gibt Dateien in arbeit/verlauf/v3/, Feldnamen, Zählungen je Absender/Art/Biotop ab 21.09. und die Längenverteilung aus."""
+import collections
+import json
+from pathlib import Path
+
+V = Path('/root/sicherung/biotop-lage-01/arbeit/verlauf/v3')
+for p in sorted(V.iterdir()):
+    print(f'{p.name} · {p.stat().st_size} B')
+for name in ('nachrichten.jsonl', 'wortlaut.jsonl'):
+    p = V / name
+    if not p.exists():
+        continue
+    zeilen = [json.loads(z) for z in p.open(encoding='utf-8')]
+    felder = collections.Counter(k for z in zeilen for k in z)
+    print(f'== {name}: {len(zeilen)} Zeilen · Felder: {dict(felder)}')
+    beispiel = {k: (v if not isinstance(v, str) or len(v) < 40 else f'<{len(v)} Zeichen>') for k, v in zeilen[0].items()}
+    print(f'   erste Zeile (gekürzt): {beispiel}')
+    for feld in ('absender', 'art', 'biotop', 'einordnung', 'rolle', 'quelle', 'sitzung_quelle', 'doppel', 'spiegel'):
+        if feld in felder:
+            print(f'   {feld}: {dict(collections.Counter(str(z.get(feld)) for z in zeilen).most_common(12))}')
+    ab21 = [z for z in zeilen if str(z.get('zeit', z.get('zeitpunkt', '')))[:10] >= '2026-09-21']
+    print(f'   ab 21.09.: {len(ab21)} Zeilen')
+--- Ende /root/sicherung/biotop-lage-01/arbeit/v3_aufbau.py ---
+Ausgabe (vollständig, stdout und stderr):
+nachrichten.jsonl · 354947 B
+wortlaut.jsonl · 4092077 B
+== nachrichten.jsonl: 1456 Zeilen · Felder: {'id': 1456, 'zeit': 1456, 'ts': 1456, 'sitzung': 1456, 'quelle': 1456, 'rolle': 1456, 'absender': 1456, 'biotop': 1456, 'bytes': 1456, 'zeilen': 1456, 'geschwaerzt': 1456}
+   erste Zeile (gekürzt): {'id': 629, 'zeit': '2026-09-18 20:59:08', 'ts': 1789757948.0, 'sitzung': '20260918_205818_3767d1c9', 'quelle': 'telegram', 'rolle': 'user', 'absender': 'Philipp', 'biotop': 'ja', 'bytes': 29051, 'zeilen': 1, 'geschwaerzt': 0}
+   absender: {'Hermes-Zwischentext': 643, 'Hermes': 224, 'Subagent-Zwischentext': 158, 'Hermes→Subagent': 131, 'Philipp': 115, 'Subagent': 54, 'System-Hintergrundprozess': 50, 'System-Hinweis': 26, 'System-Delegationsergebnis': 26, 'System-Verdichtung': 21, 'CLI-Probe': 8}
+   biotop: {'ja': 1441, 'nein': 15}
+   rolle: {'assistant': 1079, 'user': 377}
+   quelle: {'telegram': 1100, 'subagent': 341, 'cli': 15}
+   ab 21.09.: 771 Zeilen
+== wortlaut.jsonl: 1456 Zeilen · Felder: {'id': 1456, 'zeit': 1456, 'ts': 1456, 'sitzung': 1456, 'quelle': 1456, 'rolle': 1456, 'absender': 1456, 'biotop': 1456, 'bytes': 1456, 'zeilen': 1456, 'geschwaerzt': 1456, 'text': 1456}
+   erste Zeile (gekürzt): {'id': 629, 'zeit': '2026-09-18 20:59:08', 'ts': 1789757948.0, 'sitzung': '20260918_205818_3767d1c9', 'quelle': 'telegram', 'rolle': 'user', 'absender': 'Philipp', 'biotop': 'ja', 'bytes': 29051, 'zeilen': 1, 'geschwaerzt': 0, 'text': '<28442 Zeichen>'}
+   absender: {'Hermes-Zwischentext': 643, 'Hermes': 224, 'Subagent-Zwischentext': 158, 'Hermes→Subagent': 131, 'Philipp': 115, 'Subagent': 54, 'System-Hintergrundprozess': 50, 'System-Hinweis': 26, 'System-Delegationsergebnis': 26, 'System-Verdichtung': 21, 'CLI-Probe': 8}
+   biotop: {'ja': 1441, 'nein': 15}
+   rolle: {'assistant': 1079, 'user': 377}
+   quelle: {'telegram': 1100, 'subagent': 341, 'cli': 15}
+   ab 21.09.: 771 Zeilen
+=== Ende R197 ===
+
+
+R198 · Philipps Nachrichten in v2 gegen v3: ids nur in einem Verzeichnis, Zählung vor/ab 21.09., Zeilen ohne Text (ohne Inhalte)
+Beginn: 2026-09-25 20:00:58 CEST (UTC+0200)
+Ende:   2026-09-25 20:00:58 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/v2v3_philipp.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/v2v3_philipp.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Philipps Nachrichten in v2 gegen v3 (ohne Inhalte).
+Welche ids nur in einem Verzeichnis stehen, Zählung vor/ab 21.09., Zeilen ohne Text (bytes 0)."""
+import json
+from pathlib import Path
+
+V = Path('/root/sicherung/biotop-lage-01/arbeit/verlauf')
+def lade(n):
+    return {z['id']: z for z in map(json.loads, (V / n / 'nachrichten.jsonl').open(encoding='utf-8'))}
+v2, v3 = lade('v2'), lade('v3')
+for name, v in (('v2', v2), ('v3', v3)):
+    ph = [z for z in v.values() if z['absender'] == 'Philipp']
+    ab = [z for z in ph if z['zeit'] >= '2026-09-21']
+    leer = [z['id'] for z in ph if not z['bytes']]
+    print(f'{name}: {len(v)} Zeilen, letzte {max(z["zeit"] for z in v.values())} · Philipp {len(ph)} '
+          f'(vor 21.09.: {len(ph) - len(ab)}, ab 21.09.: {len(ab)}) · Philipp ohne Text: {leer} · '
+          f'biotop ja {sum(z["biotop"] == "ja" for z in v.values())}')
+nur2 = sorted(set(v2) - set(v3)); nur3 = sorted(set(v3) - set(v2))
+print(f'nur in v2: {len(nur2)} · nur in v3: {len(nur3)}')
+for i in nur2[:20]:
+    z = v2[i]; print(f'  nur v2: id {i} {z["zeit"]} {z["absender"]} {z["bytes"]} B')
+for i in nur3[:60]:
+    z = v3[i]; print(f'  nur v3: id {i} {z["zeit"]} {z["absender"]} {z["bytes"]} B biotop {z["biotop"]}')
+anders = [i for i in set(v2) & set(v3) if (v2[i]['absender'], v2[i]['biotop']) != (v3[i]['absender'], v3[i]['biotop'])]
+print(f'in beiden, aber anders eingeordnet: {len(anders)}')
+for i in sorted(anders)[:20]:
+    print(f'  id {i} {v2[i]["zeit"]}: v2 {v2[i]["absender"]}/{v2[i]["biotop"]} → v3 {v3[i]["absender"]}/{v3[i]["biotop"]}')
+--- Ende /root/sicherung/biotop-lage-01/arbeit/v2v3_philipp.py ---
+Ausgabe (vollständig, stdout und stderr):
+v2: 1415 Zeilen, letzte 2026-09-25 16:41:36 · Philipp 114 (vor 21.09.: 71, ab 21.09.: 43) · Philipp ohne Text: [7468] · biotop ja 1400
+v3: 1456 Zeilen, letzte 2026-09-25 17:29:59 · Philipp 115 (vor 21.09.: 71, ab 21.09.: 44) · Philipp ohne Text: [7468] · biotop ja 1441
+nur in v2: 0 · nur in v3: 41
+  nur v3: id 23509 2026-09-25 16:43:37 Hermes→Subagent 833 B biotop ja
+  nur v3: id 23526 2026-09-25 16:43:57 Hermes→Subagent 937 B biotop ja
+  nur v3: id 23561 2026-09-25 16:44:51 Hermes→Subagent 937 B biotop ja
+  nur v3: id 23579 2026-09-25 16:45:19 Subagent 9223 B biotop ja
+  nur v3: id 23687 2026-09-25 16:45:19 Hermes→Subagent 806 B biotop ja
+  nur v3: id 23714 2026-09-25 16:45:19 Hermes→Subagent 937 B biotop ja
+  nur v3: id 23775 2026-09-25 16:48:11 Hermes→Subagent 937 B biotop ja
+  nur v3: id 23891 2026-09-25 16:53:07 Hermes 2027 B biotop ja
+  nur v3: id 23948 2026-09-25 16:57:02 Subagent-Zwischentext 106 B biotop ja
+  nur v3: id 23963 2026-09-25 16:57:56 Subagent-Zwischentext 107 B biotop ja
+  nur v3: id 23995 2026-09-25 16:59:23 Subagent-Zwischentext 152 B biotop ja
+  nur v3: id 24002 2026-09-25 16:59:39 Subagent-Zwischentext 187 B biotop ja
+  nur v3: id 24008 2026-09-25 16:59:54 Subagent-Zwischentext 170 B biotop ja
+  nur v3: id 24010 2026-09-25 17:00:06 Subagent-Zwischentext 117 B biotop ja
+  nur v3: id 24023 2026-09-25 17:00:33 Subagent-Zwischentext 91 B biotop ja
+  nur v3: id 24025 2026-09-25 17:00:41 Subagent-Zwischentext 158 B biotop ja
+  nur v3: id 24029 2026-09-25 17:00:52 Subagent-Zwischentext 149 B biotop ja
+  nur v3: id 24036 2026-09-25 17:01:09 Subagent-Zwischentext 187 B biotop ja
+  nur v3: id 24044 2026-09-25 17:01:34 Subagent-Zwischentext 189 B biotop ja
+  nur v3: id 24053 2026-09-25 17:01:44 Subagent 9799 B biotop ja
+  nur v3: id 24118 2026-09-25 17:01:44 Hermes→Subagent 806 B biotop ja
+  nur v3: id 24159 2026-09-25 17:01:44 Hermes→Subagent 937 B biotop ja
+  nur v3: id 24268 2026-09-25 17:06:57 Subagent-Zwischentext 121 B biotop ja
+  nur v3: id 24270 2026-09-25 17:07:12 Subagent-Zwischentext 197 B biotop ja
+  nur v3: id 24300 2026-09-25 17:08:20 Philipp 953 B biotop ja
+  nur v3: id 24506 2026-09-25 17:15:45 Subagent-Zwischentext 111 B biotop ja
+  nur v3: id 24528 2026-09-25 17:16:19 Subagent-Zwischentext 41 B biotop ja
+  nur v3: id 24564 2026-09-25 17:18:54 Subagent-Zwischentext 178 B biotop ja
+  nur v3: id 24625 2026-09-25 17:20:52 Hermes-Zwischentext 72 B biotop ja
+  nur v3: id 24664 2026-09-25 17:21:56 Subagent 13673 B biotop ja
+  nur v3: id 24668 2026-09-25 17:21:56 Hermes→Subagent 833 B biotop ja
+  nur v3: id 24731 2026-09-25 17:22:13 Subagent 12121 B biotop ja
+  nur v3: id 24775 2026-09-25 17:24:35 Subagent-Zwischentext 124 B biotop ja
+  nur v3: id 24795 2026-09-25 17:25:06 Subagent-Zwischentext 115 B biotop ja
+  nur v3: id 24803 2026-09-25 17:25:12 Subagent-Zwischentext 120 B biotop ja
+  nur v3: id 24817 2026-09-25 17:25:35 Subagent 14287 B biotop ja
+  nur v3: id 24824 2026-09-25 17:25:35 Hermes→Subagent 937 B biotop ja
+  nur v3: id 24940 2026-09-25 17:26:27 Subagent 16152 B biotop ja
+  nur v3: id 24943 2026-09-25 17:26:27 Hermes→Subagent 806 B biotop ja
+  nur v3: id 25140 2026-09-25 17:25:50 Hermes→Subagent 188 B biotop ja
+  nur v3: id 25141 2026-09-25 17:29:59 Subagent 11293 B biotop ja
+in beiden, aber anders eingeordnet: 0
+=== Ende R198 ===
+
+
+R199 · Einsetzen, Probe ohne Schreiben: Größen, Platzhalter, Adressen {LAEUFE}/… im Prüfkanal, Rohbeleg-Nennungen je Entwurfsdatei
+Beginn: 2026-09-25 20:04:53 CEST (UTC+0200)
+Ende:   2026-09-25 20:04:53 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 1
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/einsetzen.py --probe ENTSCHEIDUNGEN VERFASSUNGEN TORE AUFBAU GLOSSAR SOLL-IST CHRONIK LAGE INVENTAR LISTEN KASSE
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/einsetzen.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 · Einsetzen der Entwurfsteile in die Dateien des Abschlussordners (Abschnitt 8), Stand 03.
+Je Zeile der Tafel TEILE: Entwurfsdatei → ausgabe/<ziel>.
+- Kopf (nur .md): Kennung, Fragen, Stichzeitpunkt, Verfasser und Arbeitszeit, Quelle mit Bytes und SHA-256,
+  Änderungen beim Einsetzen, Verweis auf die Prüfung, Nachtrag Hermes (entwurf/hermes/nachtrag/<ziel>, falls vorhanden).
+- `{LAEUFE}` → volle Adresse; jeder andere Platzhalter `{GROSSBUCHSTABEN}` bricht ab.
+- Prüfungen je Datei: Größe ≤ 40.000 B; jede `{LAEUFE}/…`-Adresse im Prüfkanal vorhanden (Datei oder Ordner);
+  jede Rohbeleg-Nennung R<n> als rohbelege/R<nnnn>.txt vorhanden (Review-Kennungen wie R5-14 oder R02-26 zählen nicht).
+- Schreibt exklusiv. Liegt das Ziel schon in ausgabe/: Abbruch, außer mit --ersetzen und nur, wenn es noch nicht im
+  Prüfkanal liegt. --probe: nur prüfen und zählen, nichts schreiben.
+Aufruf: einsetzen.py [--probe] [--ersetzen] <zielpräfix> [...]"""
+import datetime as dt
+import hashlib
+import os
+import re
+import sys
+from pathlib import Path
+
+W = Path('/root/sicherung/biotop-lage-01')
+E = W / 'entwurf'
+A = W / 'ausgabe'
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+PK = Path(f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe')
+LAEUFE = f'https://milieulux-reinigung-muenchen.de/_akte/{K}/laeufe'
+ORDNER = f'{LAEUFE}/biotop-lage-01'
+MAX = 40_000
+START_TEILE = dt.datetime(2026, 9, 25, 16, 10, 47)
+DAUER = {'A': 5774.98, 'B': 5524.72, 'C': 4285.17, 'D': 5904.11, 'E': 9885.15, 'F': 7214.53, 'G': 7523.87,
+         'H': 5767.94}
+
+TEILE = []
+def teile(teil, quelle, ziel, n, fragen):
+    for k in range(1, n + 1):
+        TEILE.append((teil, quelle.format(k=k), ziel.format(k=k), k, n, fragen))
+teile('A', 'entscheidungen/ENTSCHEIDUNGEN-TEIL{k}.md', 'ENTSCHEIDUNGEN-TEIL{k}-01.md', 4, 'FK15–FK19, FK21')
+teile('B', 'verfassungen/VERFASSUNGEN-TEIL{k}.md', 'VERFASSUNGEN-TEIL{k}-01.md', 4, 'FK22')
+teile('C', 'tore/TORE-TEIL{k}.md', 'TORE-TEIL{k}-01.md', 4, 'FK24, FK27–FK29')
+teile('D', 'aufbau/AUFBAU-TEIL{k}.md', 'AUFBAU-TEIL{k}-01.md', 3, 'FK31–FK38')
+teile('D', 'aufbau/GLOSSAR.md', 'GLOSSAR-TEIL1-01.md', 1, 'FK50')
+teile('E', 'soll-ist/SOLL-IST-TEIL{k}.md', 'SOLL-IST-TEIL{k}-01.md', 4, 'FK30')
+teile('F', 'chronik/CHRONIK-TEIL{k}.md', 'CHRONIK-TEIL{k}-01.md', 3, 'FK10, FK12, FK20')
+teile('G', 'lage-werke/LAGE-BAUSTEINE-G-TEIL{k}.md', 'LAGE-TEIL{k}-01.md', 2, 'WS01–WS19; FK23, FK25, FK26, FK44, FK45')
+for k, n in ((1, 3), (2, 4), (3, 5)):
+    TEILE.append(('H', f'lage-offen/LAGE-BAUSTEINE-H-TEIL{k}.md', f'LAGE-TEIL{n}-01.md', k, 3,
+                  ['FK08, FK09, FK13', 'FK39', 'FK40–FK43'][k - 1]))
+teile('I', 'inventar/lauf-stich-v3/INVENTAR-TEIL{k}.md', 'INVENTAR-TEIL{k}-01.md', 3, 'Abschnitt 5')
+teile('I', 'inventar/lauf-stich-v3/LISTEN-TEIL{k}.txt', 'LISTEN-TEIL{k}-01.txt', 6, 'Abschnitt 5, Rohlisten')
+teile('I', 'inventar/lauf-stich-v3/KASSE-TEIL{k}.csv', 'KASSE-TEIL{k}-01.csv', 28, 'Abschnitt 5, Rohlisten')
+for name in sorted(p.name for p in (E / 'hermes').glob('*.md')) if (E / 'hermes').exists() else []:
+    TEILE.append(('Hermes', f'hermes/{name}', name, 0, 0, ''))
+
+sha = lambda b: hashlib.sha256(b).hexdigest()
+R_MUSTER = re.compile(r'(?<![\w\-/.])R0*(\d{1,4})(?![\w\-])')
+L_MUSTER = re.compile(r'\{LAEUFE\}/([^\s)`\'"|<>\]\[,;*]+)')
+MAX_R = max(int(p.stem[1:]) for p in (W / 'rohbelege').glob('R*.txt'))
+
+
+def kopf(teil, quelle, ziel, k, n, fragen, roh, stellen):
+    if teil == 'Hermes':
+        return ''
+    ende = START_TEILE + dt.timedelta(seconds=DAUER[teil]) if teil in DAUER else None
+    arbeit = (f'Subagent Teil {teil}, Arbeitszeit 25.09.2026 {START_TEILE:%H:%M:%S}–{ende:%H:%M:%S} CEST '
+              f'(Delegationsbuch, R193)' if ende else
+              'Skript `entwurf/inventar/inventar.py` (Subagent Teil I), ausgeführt von Hermes zum Stichzeitpunkt (R191)')
+    nachtrag_p = E / 'hermes' / 'nachtrag' / ziel
+    nachtrag = nachtrag_p.read_text(encoding='utf-8').strip() if nachtrag_p.exists() else 'keiner zu diesem Teil.'
+    z = [f'# BIOTOP-LAGE-01 · Fassung 2 · `{ziel}`', '',
+         f'- **Inhalt:** {fragen}' + (f' · Teil {k} von {n}' if n > 1 else ''),
+         '- **Stichzeitpunkt:** 25.09.2026 17:29:59 CEST (Ende des Baus S1c). Der Entwurf beschreibt den Stand zur '
+         'Zeit seines Lesens; Abweichungen bis zum Stich stehen im Nachtrag unten. Endstand von S1c und Runde 6: '
+         f'{ORDNER}/LAGE-TEIL1-01.md (Abschnitt „Endstand Runde 6 zum Stichzeitpunkt“).',
+         f'- **Verfasser:** {arbeit}. Eingesetzt von Hermes.',
+         f'- **Quelle:** `/root/sicherung/biotop-lage-01/entwurf/{quelle}` · {len(roh)} B · SHA-256 `{sha(roh)}`. '
+         f'Änderungen beim Einsetzen: nur dieser Kopf und `{{LAEUFE}}` → `{LAEUFE}` ({stellen} Stellen).',
+         f'- **Prüfung durch Hermes:** {ORDNER}/VOLLSTAENDIGKEIT-TEIL1-01.md (Abschnitt „Prüfung der Entwürfe“).',
+         f'- **Rohbelege:** Jede Nennung „R<n>“ ist ein Rohbeleg dieses Auftrags; welche Datei ihn enthält, steht in '
+         f'{ORDNER}/VOLLSTAENDIGKEIT-TEIL1-01.md (Abschnitt „Rohbelege je Datei“).',
+         f'- **Nachtrag Hermes:** {nachtrag}', '', '---', '']
+    return '\n'.join(z)
+
+
+def main():
+    args = sys.argv[1:]
+    probe = '--probe' in args
+    ersetzen = '--ersetzen' in args
+    praefixe = [a for a in args if not a.startswith('--')]
+    auswahl = [t for t in TEILE if any(t[2].startswith(p) for p in praefixe)]
+    print(f'{dt.datetime.now():%Y-%m-%d %H:%M:%S} · Auswahl {praefixe}: {len(auswahl)} von {len(TEILE)} Zeilen der Tafel '
+          f'· Modus {"PROBE" if probe else "SCHREIBEN"} · höchster Rohbeleg R{MAX_R}')
+    fehler, adr_ok, adr_fehlt, r_fehlt = 0, 0, [], []
+    for teil, quelle, ziel, k, n, fragen in auswahl:
+        q = E / quelle
+        if not q.exists():
+            print(f'FEHLT Quelle: {quelle}'); fehler += 1; continue
+        roh = q.read_bytes()
+        text = roh.decode('utf-8')
+        andere = sorted(set(re.findall(r'\{[A-ZÄÖÜ_]{3,}\}', text)) - {'{LAEUFE}'})
+        pfade = [p.rstrip('.:') for p in L_MUSTER.findall(text)]
+        da = [p for p in pfade if (PK / p).exists()]
+        weg = sorted(set(p for p in pfade if not (PK / p).exists()))
+        adr_ok += len(da); adr_fehlt += [f'{ziel}: {p}' for p in weg]
+        rs = sorted({int(m) for m in R_MUSTER.findall(text)})
+        rw = [r for r in rs if not (W / 'rohbelege' / f'R{r:04d}.txt').exists()]
+        r_fehlt += [f'{ziel}: R{r}' for r in rw]
+        stellen = text.count('{LAEUFE}')
+        neu = text.replace('{LAEUFE}', LAEUFE)
+        if ziel.endswith('.md'):
+            neu = kopf(teil, quelle, ziel, k, n, fragen, roh, stellen) + neu
+        b = neu.encode('utf-8')
+        zeile = (f'{ziel} ← {quelle} · Teil {teil} · {len(b)} B · {{LAEUFE}} {stellen} · Adressen {len(da)} da, '
+                 f'{len(weg)} fehlen · Rohbelege genannt {len(rs)}, fehlen {len(rw)}')
+        if andere:
+            zeile += f' · ANDERE PLATZHALTER {andere}'; fehler += 1
+        if len(b) > MAX:
+            zeile += f' · ZU GROSS (> {MAX})'; fehler += 1
+        print(zeile)
+        if probe or andere or len(b) > MAX:
+            continue
+        z = A / ziel
+        if z.exists():
+            if (PK / 'biotop-lage-01' / ziel).exists() or not ersetzen:
+                print(f'   ABBRUCH für {ziel}: liegt schon in ausgabe/' +
+                      (' und im Prüfkanal' if (PK / 'biotop-lage-01' / ziel).exists() else ' (ohne --ersetzen)'))
+                fehler += 1; continue
+            z.unlink()
+        fd = os.open(z, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+        with os.fdopen(fd, 'wb') as f:
+            f.write(b)
+        print(f'   geschrieben: ausgabe/{ziel} · SHA-256 {sha(b)}')
+    print(f'Adressen {{LAEUFE}}/…: {adr_ok} vorhanden, {len(adr_fehlt)} verschiedene fehlen')
+    for a in adr_fehlt:
+        print(f'   FEHLT im Prüfkanal: {a}')
+    print(f'Rohbeleg-Nennungen ohne Datei: {len(r_fehlt)}')
+    for r in r_fehlt:
+        print(f'   {r}')
+    print(f'Fehler: {fehler}')
+    sys.exit(1 if fehler else 0)
+
+
+if __name__ == '__main__':
+    main()
+--- Ende /root/sicherung/biotop-lage-01/arbeit/einsetzen.py ---
+Ausgabe (vollständig, stdout und stderr):
+2026-09-25 20:04:53 · Auswahl ['ENTSCHEIDUNGEN', 'VERFASSUNGEN', 'TORE', 'AUFBAU', 'GLOSSAR', 'SOLL-IST', 'CHRONIK', 'LAGE', 'INVENTAR', 'LISTEN', 'KASSE']: 65 von 65 Zeilen der Tafel · Modus PROBE · höchster Rohbeleg R199
+ENTSCHEIDUNGEN-TEIL1-01.md ← entscheidungen/ENTSCHEIDUNGEN-TEIL1.md · Teil A · 29423 B · {LAEUFE} 9 · Adressen 5 da, 2 fehlen · Rohbelege genannt 11, fehlen 0
+ENTSCHEIDUNGEN-TEIL2-01.md ← entscheidungen/ENTSCHEIDUNGEN-TEIL2.md · Teil A · 28253 B · {LAEUFE} 4 · Adressen 4 da, 0 fehlen · Rohbelege genannt 8, fehlen 0
+ENTSCHEIDUNGEN-TEIL3-01.md ← entscheidungen/ENTSCHEIDUNGEN-TEIL3.md · Teil A · 23023 B · {LAEUFE} 9 · Adressen 6 da, 1 fehlen · Rohbelege genannt 4, fehlen 0
+ENTSCHEIDUNGEN-TEIL4-01.md ← entscheidungen/ENTSCHEIDUNGEN-TEIL4.md · Teil A · 20746 B · {LAEUFE} 3 · Adressen 2 da, 0 fehlen · Rohbelege genannt 18, fehlen 0
+VERFASSUNGEN-TEIL1-01.md ← verfassungen/VERFASSUNGEN-TEIL1.md · Teil B · 30355 B · {LAEUFE} 3 · Adressen 2 da, 1 fehlen · Rohbelege genannt 9, fehlen 0
+VERFASSUNGEN-TEIL2-01.md ← verfassungen/VERFASSUNGEN-TEIL2.md · Teil B · 30241 B · {LAEUFE} 12 · Adressen 12 da, 0 fehlen · Rohbelege genannt 5, fehlen 0
+VERFASSUNGEN-TEIL3-01.md ← verfassungen/VERFASSUNGEN-TEIL3.md · Teil B · 9342 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 5, fehlen 0
+VERFASSUNGEN-TEIL4-01.md ← verfassungen/VERFASSUNGEN-TEIL4.md · Teil B · 33963 B · {LAEUFE} 34 · Adressen 34 da, 0 fehlen · Rohbelege genannt 4, fehlen 0
+TORE-TEIL1-01.md ← tore/TORE-TEIL1.md · Teil C · 19330 B · {LAEUFE} 1 · Adressen 0 da, 1 fehlen · Rohbelege genannt 2, fehlen 0
+TORE-TEIL2-01.md ← tore/TORE-TEIL2.md · Teil C · 22202 B · {LAEUFE} 8 · Adressen 8 da, 0 fehlen · Rohbelege genannt 4, fehlen 0
+TORE-TEIL3-01.md ← tore/TORE-TEIL3.md · Teil C · 23790 B · {LAEUFE} 2 · Adressen 2 da, 0 fehlen · Rohbelege genannt 9, fehlen 0
+TORE-TEIL4-01.md ← tore/TORE-TEIL4.md · Teil C · 19589 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 8, fehlen 0
+AUFBAU-TEIL1-01.md ← aufbau/AUFBAU-TEIL1.md · Teil D · 29769 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 15, fehlen 0
+AUFBAU-TEIL2-01.md ← aufbau/AUFBAU-TEIL2.md · Teil D · 22312 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 11, fehlen 0
+AUFBAU-TEIL3-01.md ← aufbau/AUFBAU-TEIL3.md · Teil D · 27861 B · {LAEUFE} 33 · Adressen 29 da, 1 fehlen · Rohbelege genannt 22, fehlen 0
+GLOSSAR-TEIL1-01.md ← aufbau/GLOSSAR.md · Teil D · 29126 B · {LAEUFE} 3 · Adressen 2 da, 1 fehlen · Rohbelege genannt 16, fehlen 0
+SOLL-IST-TEIL1-01.md ← soll-ist/SOLL-IST-TEIL1.md · Teil E · 30282 B · {LAEUFE} 12 · Adressen 12 da, 0 fehlen · Rohbelege genannt 14, fehlen 0
+SOLL-IST-TEIL2-01.md ← soll-ist/SOLL-IST-TEIL2.md · Teil E · 31880 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 9, fehlen 0
+SOLL-IST-TEIL3-01.md ← soll-ist/SOLL-IST-TEIL3.md · Teil E · 21899 B · {LAEUFE} 1 · Adressen 1 da, 0 fehlen · Rohbelege genannt 8, fehlen 0
+SOLL-IST-TEIL4-01.md ← soll-ist/SOLL-IST-TEIL4.md · Teil E · 10481 B · {LAEUFE} 2 · Adressen 2 da, 0 fehlen · Rohbelege genannt 11, fehlen 0
+CHRONIK-TEIL1-01.md ← chronik/CHRONIK-TEIL1.md · Teil F · 28801 B · {LAEUFE} 25 · Adressen 24 da, 0 fehlen · Rohbelege genannt 14, fehlen 0
+CHRONIK-TEIL2-01.md ← chronik/CHRONIK-TEIL2.md · Teil F · 26436 B · {LAEUFE} 1 · Adressen 0 da, 1 fehlen · Rohbelege genannt 11, fehlen 0
+CHRONIK-TEIL3-01.md ← chronik/CHRONIK-TEIL3.md · Teil F · 18101 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 4, fehlen 0
+LAGE-TEIL1-01.md ← lage-werke/LAGE-BAUSTEINE-G-TEIL1.md · Teil G · 30286 B · {LAEUFE} 14 · Adressen 13 da, 1 fehlen · Rohbelege genannt 6, fehlen 0
+LAGE-TEIL2-01.md ← lage-werke/LAGE-BAUSTEINE-G-TEIL2.md · Teil G · 36463 B · {LAEUFE} 24 · Adressen 23 da, 0 fehlen · Rohbelege genannt 10, fehlen 0
+LAGE-TEIL3-01.md ← lage-offen/LAGE-BAUSTEINE-H-TEIL1.md · Teil H · 32043 B · {LAEUFE} 1 · Adressen 1 da, 0 fehlen · Rohbelege genannt 11, fehlen 0
+LAGE-TEIL4-01.md ← lage-offen/LAGE-BAUSTEINE-H-TEIL2.md · Teil H · 16944 B · {LAEUFE} 4 · Adressen 4 da, 0 fehlen · Rohbelege genannt 3, fehlen 0
+LAGE-TEIL5-01.md ← lage-offen/LAGE-BAUSTEINE-H-TEIL3.md · Teil H · 21871 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 9, fehlen 0
+INVENTAR-TEIL1-01.md ← inventar/lauf-stich-v3/INVENTAR-TEIL1.md · Teil I · 28524 B · {LAEUFE} 63 · Adressen 60 da, 1 fehlen · Rohbelege genannt 3, fehlen 0
+INVENTAR-TEIL2-01.md ← inventar/lauf-stich-v3/INVENTAR-TEIL2.md · Teil I · 37263 B · {LAEUFE} 32 · Adressen 32 da, 0 fehlen · Rohbelege genannt 25, fehlen 0
+INVENTAR-TEIL3-01.md ← inventar/lauf-stich-v3/INVENTAR-TEIL3.md · Teil I · 3557 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 1, fehlen 0
+LISTEN-TEIL1-01.txt ← inventar/lauf-stich-v3/LISTEN-TEIL1.txt · Teil I · 39520 B · {LAEUFE} 20 · Adressen 20 da, 0 fehlen · Rohbelege genannt 1, fehlen 0
+LISTEN-TEIL2-01.txt ← inventar/lauf-stich-v3/LISTEN-TEIL2.txt · Teil I · 37896 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 0, fehlen 0
+LISTEN-TEIL3-01.txt ← inventar/lauf-stich-v3/LISTEN-TEIL3.txt · Teil I · 37916 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 0, fehlen 0
+LISTEN-TEIL4-01.txt ← inventar/lauf-stich-v3/LISTEN-TEIL4.txt · Teil I · 37922 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 0, fehlen 0
+LISTEN-TEIL5-01.txt ← inventar/lauf-stich-v3/LISTEN-TEIL5.txt · Teil I · 37970 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 0, fehlen 0
+LISTEN-TEIL6-01.txt ← inventar/lauf-stich-v3/LISTEN-TEIL6.txt · Teil I · 43618 B · {LAEUFE} 73 · Adressen 73 da, 0 fehlen · Rohbelege genannt 0, fehlen 0 · ZU GROSS (> 40000)
+KASSE-TEIL1-01.csv ← inventar/lauf-stich-v3/KASSE-TEIL1.csv · Teil I · 6650 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 1, fehlen 0
+KASSE-TEIL2-01.csv ← inventar/lauf-stich-v3/KASSE-TEIL2.csv · Teil I · 37902 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 0, fehlen 0
+KASSE-TEIL3-01.csv ← inventar/lauf-stich-v3/KASSE-TEIL3.csv · Teil I · 37960 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 0, fehlen 0
+KASSE-TEIL4-01.csv ← inventar/lauf-stich-v3/KASSE-TEIL4.csv · Teil I · 37862 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 0, fehlen 0
+KASSE-TEIL5-01.csv ← inventar/lauf-stich-v3/KASSE-TEIL5.csv · Teil I · 37885 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 0, fehlen 0
+KASSE-TEIL6-01.csv ← inventar/lauf-stich-v3/KASSE-TEIL6.csv · Teil I · 37997 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 0, fehlen 0
+KASSE-TEIL7-01.csv ← inventar/lauf-stich-v3/KASSE-TEIL7.csv · Teil I · 37971 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 0, fehlen 0
+KASSE-TEIL8-01.csv ← inventar/lauf-stich-v3/KASSE-TEIL8.csv · Teil I · 37885 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 0, fehlen 0
+KASSE-TEIL9-01.csv ← inventar/lauf-stich-v3/KASSE-TEIL9.csv · Teil I · 37881 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 0, fehlen 0
+KASSE-TEIL10-01.csv ← inventar/lauf-stich-v3/KASSE-TEIL10.csv · Teil I · 37878 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 0, fehlen 0
+KASSE-TEIL11-01.csv ← inventar/lauf-stich-v3/KASSE-TEIL11.csv · Teil I · 37849 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 0, fehlen 0
+KASSE-TEIL12-01.csv ← inventar/lauf-stich-v3/KASSE-TEIL12.csv · Teil I · 37882 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 0, fehlen 0
+KASSE-TEIL13-01.csv ← inventar/lauf-stich-v3/KASSE-TEIL13.csv · Teil I · 37936 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 0, fehlen 0
+KASSE-TEIL14-01.csv ← inventar/lauf-stich-v3/KASSE-TEIL14.csv · Teil I · 37932 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 0, fehlen 0
+KASSE-TEIL15-01.csv ← inventar/lauf-stich-v3/KASSE-TEIL15.csv · Teil I · 37869 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 0, fehlen 0
+KASSE-TEIL16-01.csv ← inventar/lauf-stich-v3/KASSE-TEIL16.csv · Teil I · 37864 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 0, fehlen 0
+KASSE-TEIL17-01.csv ← inventar/lauf-stich-v3/KASSE-TEIL17.csv · Teil I · 37876 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 0, fehlen 0
+KASSE-TEIL18-01.csv ← inventar/lauf-stich-v3/KASSE-TEIL18.csv · Teil I · 37923 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 0, fehlen 0
+KASSE-TEIL19-01.csv ← inventar/lauf-stich-v3/KASSE-TEIL19.csv · Teil I · 37993 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 0, fehlen 0
+KASSE-TEIL20-01.csv ← inventar/lauf-stich-v3/KASSE-TEIL20.csv · Teil I · 37999 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 0, fehlen 0
+KASSE-TEIL21-01.csv ← inventar/lauf-stich-v3/KASSE-TEIL21.csv · Teil I · 37872 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 0, fehlen 0
+KASSE-TEIL22-01.csv ← inventar/lauf-stich-v3/KASSE-TEIL22.csv · Teil I · 37880 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 0, fehlen 0
+KASSE-TEIL23-01.csv ← inventar/lauf-stich-v3/KASSE-TEIL23.csv · Teil I · 37999 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 0, fehlen 0
+KASSE-TEIL24-01.csv ← inventar/lauf-stich-v3/KASSE-TEIL24.csv · Teil I · 37975 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 0, fehlen 0
+KASSE-TEIL25-01.csv ← inventar/lauf-stich-v3/KASSE-TEIL25.csv · Teil I · 37882 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 0, fehlen 0
+KASSE-TEIL26-01.csv ← inventar/lauf-stich-v3/KASSE-TEIL26.csv · Teil I · 37933 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 0, fehlen 0
+KASSE-TEIL27-01.csv ← inventar/lauf-stich-v3/KASSE-TEIL27.csv · Teil I · 36373 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 0, fehlen 0
+KASSE-TEIL28-01.csv ← inventar/lauf-stich-v3/KASSE-TEIL28.csv · Teil I · 10514 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege genannt 1, fehlen 0
+Adressen {LAEUFE}/…: 371 vorhanden, 10 verschiedene fehlen
+   FEHLT im Prüfkanal: ENTSCHEIDUNGEN-TEIL1-01.md: biotop-
+   FEHLT im Prüfkanal: ENTSCHEIDUNGEN-TEIL1-01.md: …
+   FEHLT im Prüfkanal: ENTSCHEIDUNGEN-TEIL3-01.md: biotop-phase-4-vorbedingung-1/NACHGANG
+   FEHLT im Prüfkanal: VERFASSUNGEN-TEIL1-01.md: …
+   FEHLT im Prüfkanal: TORE-TEIL1-01.md: …
+   FEHLT im Prüfkanal: AUFBAU-TEIL3-01.md: …
+   FEHLT im Prüfkanal: GLOSSAR-TEIL1-01.md: …
+   FEHLT im Prüfkanal: CHRONIK-TEIL2-01.md: …
+   FEHLT im Prüfkanal: LAGE-TEIL1-01.md: …
+   FEHLT im Prüfkanal: INVENTAR-TEIL1-01.md: biotop-
+Rohbeleg-Nennungen ohne Datei: 0
+Fehler: 1
+=== Ende R199 ===

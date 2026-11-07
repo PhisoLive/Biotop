@@ -1,0 +1,494 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 03 · Teil 198 (Teile 166–239 dieses Stands) · enthält R196 bis R196
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+[R196 · Fortsetzung, Stück 16 von 22]
+referenzlast = "import sys\nsys.path.insert(0, '/werk')\n\n\ndef last_m():\n    import io\n    from paket.m.a import schreibe\n    p = io.StringIO()\n    schreibe(p, 3)\n    v = p.getvalue()\n"
+bereiche = ['m'], deckende = {'tests': [], 'aufrufe': []}
+korpus_erweitert = True, deckungsregel = 'muster'
+
+    def pruefen(werk: Path, code: dict[str, str], referenzlast: str | None, bereiche: list[str],
+                deckende: dict | Callable[[list[str]], dict], *, korpus_erweitert: bool = True,
+                deckungsregel: str = "muster") -> dict:
+        """Vorgeneration (Werk wie es ist) gegen Kandidat (Werk + `code`), dieselbe Sonde, dieselbe Last.
+    
+        `deckende`: {"tests", "aufrufe", "haelt", "blind"} (deckende_aufrufe) — oder ein Aufruf (Abweichungen → dieses
+        dict), der erst ausgewertet wird, wenn es Abweichungen gibt (spart Kammerläufe).
+        Rückgabe mit `ausgefuehrt`, `geurteilt`, `tragfaehig`, `grund` und `grund_art` (für den Neutralzähler)."""
+        from ..kern import sprachprofil
+        python = not sprachprofil.ist_typescript(Path(werk))
+        module = geaenderte_module(code, python=python)
+        # S1c (D): geänderte Dateien im Quellpaket, die keine Quellmodule sind — die Sonde beobachtet sie nicht (Enthaltung);
+        # außerhalb des Quellpakets gezählt wie bisher (`nicht_quelldateien_ausserhalb`).
+        d_innen, d_aussen = nicht_quelldateien(werk, code, python)
+        basis = {"module": module, "bereiche": sorted(bereiche), "kappe": KAPPE, "sprache": "python" if python else "typescript",
+                 "deckungsregel": deckungsregel, "korpus_erweitert": korpus_erweitert,
+                 "werkzeugdateien": werkzeugdateien(code) if python else [], "nicht_quelldateien_ausserhalb": d_aussen}
+        ausserhalb: dict[str, str] = {p: _D_GRUND for p in d_innen}      # S1c: Wirkung außerhalb der Beobachtung (C, D)
+        if not module and ausserhalb:
+            return {**basis, "ausgefuehrt": False, "geurteilt": False, "tragfaehig": False, "enthaltung": True,
+                    "grund_art": "wirkung_ausserhalb_beobachtung", "ausserhalb": ausserhalb,
+                    "grund": (f"Enthaltung (S1c, D): {len(ausserhalb)} geänderte Datei(en) im Quellpaket, die kein "
+                              f"Quellmodul sind — die Sonde beobachtet sie nicht: {sorted(ausserhalb)[:3]}"),
+                    "beobachtungen": 0, "abweichungen": [], "ungedeckt": [], "gedeckt": {}}
+        if not module:
+            return {**basis, "ausgefuehrt": False, "geurteilt": True, "tragfaehig": True,
+                    "grund_art": "keine_quellaenderung",
+                    "grund": "Kandidat ändert keine Quellmodule — Verhalten der Quellen unverändert"
+                             + (f" (Werkzeugdateien nicht beobachtbar: {basis['werkzeugdateien']})" if basis["werkzeugdateien"] else ""),
+                    "beobachtungen": 0, "abweichungen": [], "ungedeckt": [], "gedeckt": {}}
+        if not referenzlast:
+            # Konfiguration, kein Urteil über den Kandidaten (Review 03 Nr. 3): ohne Referenzlast misst die Sonde nicht.
+            raise SondeAusgefallen("keine Referenzlast — die Verhaltenssonde kann nicht messen")
+        # Behebungsrunde 6 (Entscheidung 3): die vom Kandidaten betroffenen Funktionen (Syntaxbaum)
+        nennung: dict = {}
+        betroffen = betroffene_funktionen(werk, code, module, python=python, nennung=nennung)
+        alt = beobachten(werk, {}, referenzlast, module, bereiche, korpus_erweitert=korpus_erweitert)
+        if not alt.get("gueltig"):
+            if alt.get("art") != "inhalt":
+>               raise SondeAusgefallen(f"Sonde an der Vorgeneration ausgefallen ({alt.get('art')}): {str(alt.get('grund'))[:300]}")
+E               biotop.organe.verhaltensvergleich.SondeAusgefallen: Sonde an der Vorgeneration ausgefallen (infrastruktur): Python-Sonde ohne Ergebnis (rc=1): failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory
+
+biotop/organe/verhaltensvergleich.py:1937: SondeAusgefallen
+_______ test_u2_gegenprobe_gleicher_c_zustand_bleibt_tragfaehig[decimal] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_u2_gegenprobe_gleicher_c_1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c06d2780>
+fall = 'decimal'
+
+    @pytest.mark.parametrize("fall", ["stringio", "decimal"])
+    def test_u2_gegenprobe_gleicher_c_zustand_bleibt_tragfaehig(tmp_path, monkeypatch, fall):
+        """Gegenprobe gegen Fehlalarm: dieselbe Wirkung anders geschrieben — geurteilt, tragfähig, keine Enthaltung."""
+        if fall == "stringio":
+            neu = "import io\n\n\ndef schreibe(puffer: io.StringIO, n: int) -> None:\n    s = 'x' * n\n    puffer.write(s)\n"
+            r = _organ(tmp_path, monkeypatch, SIOA.format("x"), neu, LAST_SIOA)
+        else:
+>           r = _organ(tmp_path, monkeypatch, DEC.format("x * 2"), DEC.format("2 * x"), "from paket.m.a import netto\nnetto(5)")
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_06.py:288: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_vor_t4_06.py:95: in _organ
+    return vv.pruefen(w, code, _ref(last), ["m"], d)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/pytest-of-root/pytest-0/test_u2_gegenprobe_gleicher_c_1/w')
+code = {'paket/m/a.py': 'from decimal import Decimal\n\n\nclass Betrag(Decimal):\n    pass\n\n\ndef netto(x: int) -> Betrag:\n    return Betrag(2 * x)\n'}
+referenzlast = "import sys\nsys.path.insert(0, '/werk')\n\n\ndef last_m():\n    from paket.m.a import netto\n    netto(5)\n"
+bereiche = ['m'], deckende = {'tests': [], 'aufrufe': []}
+korpus_erweitert = True, deckungsregel = 'muster'
+
+    def pruefen(werk: Path, code: dict[str, str], referenzlast: str | None, bereiche: list[str],
+                deckende: dict | Callable[[list[str]], dict], *, korpus_erweitert: bool = True,
+                deckungsregel: str = "muster") -> dict:
+        """Vorgeneration (Werk wie es ist) gegen Kandidat (Werk + `code`), dieselbe Sonde, dieselbe Last.
+    
+        `deckende`: {"tests", "aufrufe", "haelt", "blind"} (deckende_aufrufe) — oder ein Aufruf (Abweichungen → dieses
+        dict), der erst ausgewertet wird, wenn es Abweichungen gibt (spart Kammerläufe).
+        Rückgabe mit `ausgefuehrt`, `geurteilt`, `tragfaehig`, `grund` und `grund_art` (für den Neutralzähler)."""
+        from ..kern import sprachprofil
+        python = not sprachprofil.ist_typescript(Path(werk))
+        module = geaenderte_module(code, python=python)
+        # S1c (D): geänderte Dateien im Quellpaket, die keine Quellmodule sind — die Sonde beobachtet sie nicht (Enthaltung);
+        # außerhalb des Quellpakets gezählt wie bisher (`nicht_quelldateien_ausserhalb`).
+        d_innen, d_aussen = nicht_quelldateien(werk, code, python)
+        basis = {"module": module, "bereiche": sorted(bereiche), "kappe": KAPPE, "sprache": "python" if python else "typescript",
+                 "deckungsregel": deckungsregel, "korpus_erweitert": korpus_erweitert,
+                 "werkzeugdateien": werkzeugdateien(code) if python else [], "nicht_quelldateien_ausserhalb": d_aussen}
+        ausserhalb: dict[str, str] = {p: _D_GRUND for p in d_innen}      # S1c: Wirkung außerhalb der Beobachtung (C, D)
+        if not module and ausserhalb:
+            return {**basis, "ausgefuehrt": False, "geurteilt": False, "tragfaehig": False, "enthaltung": True,
+                    "grund_art": "wirkung_ausserhalb_beobachtung", "ausserhalb": ausserhalb,
+                    "grund": (f"Enthaltung (S1c, D): {len(ausserhalb)} geänderte Datei(en) im Quellpaket, die kein "
+                              f"Quellmodul sind — die Sonde beobachtet sie nicht: {sorted(ausserhalb)[:3]}"),
+                    "beobachtungen": 0, "abweichungen": [], "ungedeckt": [], "gedeckt": {}}
+        if not module:
+            return {**basis, "ausgefuehrt": False, "geurteilt": True, "tragfaehig": True,
+                    "grund_art": "keine_quellaenderung",
+                    "grund": "Kandidat ändert keine Quellmodule — Verhalten der Quellen unverändert"
+                             + (f" (Werkzeugdateien nicht beobachtbar: {basis['werkzeugdateien']})" if basis["werkzeugdateien"] else ""),
+                    "beobachtungen": 0, "abweichungen": [], "ungedeckt": [], "gedeckt": {}}
+        if not referenzlast:
+            # Konfiguration, kein Urteil über den Kandidaten (Review 03 Nr. 3): ohne Referenzlast misst die Sonde nicht.
+            raise SondeAusgefallen("keine Referenzlast — die Verhaltenssonde kann nicht messen")
+        # Behebungsrunde 6 (Entscheidung 3): die vom Kandidaten betroffenen Funktionen (Syntaxbaum)
+        nennung: dict = {}
+        betroffen = betroffene_funktionen(werk, code, module, python=python, nennung=nennung)
+        alt = beobachten(werk, {}, referenzlast, module, bereiche, korpus_erweitert=korpus_erweitert)
+        if not alt.get("gueltig"):
+            if alt.get("art") != "inhalt":
+>               raise SondeAusgefallen(f"Sonde an der Vorgeneration ausgefallen ({alt.get('art')}): {str(alt.get('grund'))[:300]}")
+E               biotop.organe.verhaltensvergleich.SondeAusgefallen: Sonde an der Vorgeneration ausgefallen (infrastruktur): Python-Sonde ohne Ergebnis (rc=1): failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory
+
+biotop/organe/verhaltensvergleich.py:1937: SondeAusgefallen
+_______ test_b3_a3x_geaenderte_funktion_im_sondenausfall_stellt_zurueck ________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_b3_a3x_geaenderte_funktio0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c06d31a0>
+
+    def test_b3_a3x_geaenderte_funktion_im_sondenausfall_stellt_zurueck(tmp_path, monkeypatch):
+        """Review 05 Nr. 3 (a3x): der Kandidat ändert genau `naechste`, die Funktion mit Sondenausfall — an 0c2f058
+        geurteilt, tragfähig („1 von 2 beobachtet“). Jetzt: eine betroffene Funktion enthält sich → der Vergleich enthält
+        sich (aegis stellt zurück), der Grund nennt die Funktion."""
+>       r = _organ(tmp_path, monkeypatch, ZL.format(""), ZL.format(" - 1"), LAST_ZL)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_06.py:459: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_vor_t4_06.py:95: in _organ
+    return vv.pruefen(w, code, _ref(last), ["m"], d)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/pytest-of-root/pytest-0/test_b3_a3x_geaenderte_funktio0/w')
+code = {'paket/m/a.py': '_n = [0]\n\n\ndef naechste() -> int:\n    _n[0] += 1\n    return _n[0] - 1\n\n\ndef doppel(x: int) -> int:\n    return 2 * x\n'}
+referenzlast = "import sys\nsys.path.insert(0, '/werk')\n\n\ndef last_m():\n    from paket.m.a import naechste, doppel\n    a = naechste()\n    b = naechste()\n    assert b == a + 1\n    doppel(3)\n"
+bereiche = ['m'], deckende = {'tests': [], 'aufrufe': []}
+korpus_erweitert = True, deckungsregel = 'muster'
+
+    def pruefen(werk: Path, code: dict[str, str], referenzlast: str | None, bereiche: list[str],
+                deckende: dict | Callable[[list[str]], dict], *, korpus_erweitert: bool = True,
+                deckungsregel: str = "muster") -> dict:
+        """Vorgeneration (Werk wie es ist) gegen Kandidat (Werk + `code`), dieselbe Sonde, dieselbe Last.
+    
+        `deckende`: {"tests", "aufrufe", "haelt", "blind"} (deckende_aufrufe) — oder ein Aufruf (Abweichungen → dieses
+        dict), der erst ausgewertet wird, wenn es Abweichungen gibt (spart Kammerläufe).
+        Rückgabe mit `ausgefuehrt`, `geurteilt`, `tragfaehig`, `grund` und `grund_art` (für den Neutralzähler)."""
+        from ..kern import sprachprofil
+        python = not sprachprofil.ist_typescript(Path(werk))
+        module = geaenderte_module(code, python=python)
+        # S1c (D): geänderte Dateien im Quellpaket, die keine Quellmodule sind — die Sonde beobachtet sie nicht (Enthaltung);
+        # außerhalb des Quellpakets gezählt wie bisher (`nicht_quelldateien_ausserhalb`).
+        d_innen, d_aussen = nicht_quelldateien(werk, code, python)
+        basis = {"module": module, "bereiche": sorted(bereiche), "kappe": KAPPE, "sprache": "python" if python else "typescript",
+                 "deckungsregel": deckungsregel, "korpus_erweitert": korpus_erweitert,
+                 "werkzeugdateien": werkzeugdateien(code) if python else [], "nicht_quelldateien_ausserhalb": d_aussen}
+        ausserhalb: dict[str, str] = {p: _D_GRUND for p in d_innen}      # S1c: Wirkung außerhalb der Beobachtung (C, D)
+        if not module and ausserhalb:
+            return {**basis, "ausgefuehrt": False, "geurteilt": False, "tragfaehig": False, "enthaltung": True,
+                    "grund_art": "wirkung_ausserhalb_beobachtung", "ausserhalb": ausserhalb,
+                    "grund": (f"Enthaltung (S1c, D): {len(ausserhalb)} geänderte Datei(en) im Quellpaket, die kein "
+                              f"Quellmodul sind — die Sonde beobachtet sie nicht: {sorted(ausserhalb)[:3]}"),
+                    "beobachtungen": 0, "abweichungen": [], "ungedeckt": [], "gedeckt": {}}
+        if not module:
+            return {**basis, "ausgefuehrt": False, "geurteilt": True, "tragfaehig": True,
+                    "grund_art": "keine_quellaenderung",
+                    "grund": "Kandidat ändert keine Quellmodule — Verhalten der Quellen unverändert"
+                             + (f" (Werkzeugdateien nicht beobachtbar: {basis['werkzeugdateien']})" if basis["werkzeugdateien"] else ""),
+                    "beobachtungen": 0, "abweichungen": [], "ungedeckt": [], "gedeckt": {}}
+        if not referenzlast:
+            # Konfiguration, kein Urteil über den Kandidaten (Review 03 Nr. 3): ohne Referenzlast misst die Sonde nicht.
+            raise SondeAusgefallen("keine Referenzlast — die Verhaltenssonde kann nicht messen")
+        # Behebungsrunde 6 (Entscheidung 3): die vom Kandidaten betroffenen Funktionen (Syntaxbaum)
+        nennung: dict = {}
+        betroffen = betroffene_funktionen(werk, code, module, python=python, nennung=nennung)
+        alt = beobachten(werk, {}, referenzlast, module, bereiche, korpus_erweitert=korpus_erweitert)
+        if not alt.get("gueltig"):
+            if alt.get("art") != "inhalt":
+>               raise SondeAusgefallen(f"Sonde an der Vorgeneration ausgefallen ({alt.get('art')}): {str(alt.get('grund'))[:300]}")
+E               biotop.organe.verhaltensvergleich.SondeAusgefallen: Sonde an der Vorgeneration ausgefallen (infrastruktur): Python-Sonde ohne Ergebnis (rc=1): failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory
+
+biotop/organe/verhaltensvergleich.py:1937: SondeAusgefallen
+__ test_b3_f1_f2_unveraenderte_schwer_erfassbare_funktion_urteil_am_rest[f1] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_b3_f1_f2_unveraenderte_sc0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0708c50>
+fall = 'f1'
+
+    @pytest.mark.parametrize("fall", ["f1", "f2"])
+    def test_b3_f1_f2_unveraenderte_schwer_erfassbare_funktion_urteil_am_rest(tmp_path, monkeypatch, fall):
+        """Review 05 Nr. 6 (f1 Iterator-Attribut, f2 Generator mit 1.500 Elementen), verhaltensgleicher Kandidat (2*x → x+x
+        in doppel): an 0c2f058 Enthaltung des ganzen Vergleichs. Jetzt: nur unveränderte Funktionen schwer erfassbar —
+        geurteilt am Rest, tragfähig (f2: `zahlen` als gezählte Enthaltung)."""
+        if fall == "f1":
+>           r = _organ(tmp_path, monkeypatch, ZER.format("2 * x"), ZER.format("x + x"),
+                       "from paket.m.a import zerleger, doppel\nz = zerleger('a b')\nz.weiter()\ndoppel(3)")
+
+tests/test_vor_t4_06.py:476: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_vor_t4_06.py:95: in _organ
+    return vv.pruefen(w, code, _ref(last), ["m"], d)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/pytest-of-root/pytest-0/test_b3_f1_f2_unveraenderte_sc0/w')
+code = {'paket/m/a.py': "class Zerleger:\n    def __init__(self, text: str):\n        self._teile = iter(text.split())\n\n   ...def zerleger(text: str) -> 'Zerleger':\n    return Zerleger(text)\n\n\ndef doppel(x: int) -> int:\n    return x + x\n"}
+referenzlast = "import sys\nsys.path.insert(0, '/werk')\n\n\ndef last_m():\n    from paket.m.a import zerleger, doppel\n    z = zerleger('a b')\n    z.weiter()\n    doppel(3)\n"
+bereiche = ['m'], deckende = {'tests': [], 'aufrufe': []}
+korpus_erweitert = True, deckungsregel = 'muster'
+
+    def pruefen(werk: Path, code: dict[str, str], referenzlast: str | None, bereiche: list[str],
+                deckende: dict | Callable[[list[str]], dict], *, korpus_erweitert: bool = True,
+                deckungsregel: str = "muster") -> dict:
+        """Vorgeneration (Werk wie es ist) gegen Kandidat (Werk + `code`), dieselbe Sonde, dieselbe Last.
+    
+        `deckende`: {"tests", "aufrufe", "haelt", "blind"} (deckende_aufrufe) — oder ein Aufruf (Abweichungen → dieses
+        dict), der erst ausgewertet wird, wenn es Abweichungen gibt (spart Kammerläufe).
+        Rückgabe mit `ausgefuehrt`, `geurteilt`, `tragfaehig`, `grund` und `grund_art` (für den Neutralzähler)."""
+        from ..kern import sprachprofil
+        python = not sprachprofil.ist_typescript(Path(werk))
+        module = geaenderte_module(code, python=python)
+        # S1c (D): geänderte Dateien im Quellpaket, die keine Quellmodule sind — die Sonde beobachtet sie nicht (Enthaltung);
+        # außerhalb des Quellpakets gezählt wie bisher (`nicht_quelldateien_ausserhalb`).
+        d_innen, d_aussen = nicht_quelldateien(werk, code, python)
+        basis = {"module": module, "bereiche": sorted(bereiche), "kappe": KAPPE, "sprache": "python" if python else "typescript",
+                 "deckungsregel": deckungsregel, "korpus_erweitert": korpus_erweitert,
+                 "werkzeugdateien": werkzeugdateien(code) if python else [], "nicht_quelldateien_ausserhalb": d_aussen}
+        ausserhalb: dict[str, str] = {p: _D_GRUND for p in d_innen}      # S1c: Wirkung außerhalb der Beobachtung (C, D)
+        if not module and ausserhalb:
+            return {**basis, "ausgefuehrt": False, "geurteilt": False, "tragfaehig": False, "enthaltung": True,
+                    "grund_art": "wirkung_ausserhalb_beobachtung", "ausserhalb": ausserhalb,
+                    "grund": (f"Enthaltung (S1c, D): {len(ausserhalb)} geänderte Datei(en) im Quellpaket, die kein "
+                              f"Quellmodul sind — die Sonde beobachtet sie nicht: {sorted(ausserhalb)[:3]}"),
+                    "beobachtungen": 0, "abweichungen": [], "ungedeckt": [], "gedeckt": {}}
+        if not module:
+            return {**basis, "ausgefuehrt": False, "geurteilt": True, "tragfaehig": True,
+                    "grund_art": "keine_quellaenderung",
+                    "grund": "Kandidat ändert keine Quellmodule — Verhalten der Quellen unverändert"
+                             + (f" (Werkzeugdateien nicht beobachtbar: {basis['werkzeugdateien']})" if basis["werkzeugdateien"] else ""),
+                    "beobachtungen": 0, "abweichungen": [], "ungedeckt": [], "gedeckt": {}}
+        if not referenzlast:
+            # Konfiguration, kein Urteil über den Kandidaten (Review 03 Nr. 3): ohne Referenzlast misst die Sonde nicht.
+            raise SondeAusgefallen("keine Referenzlast — die Verhaltenssonde kann nicht messen")
+        # Behebungsrunde 6 (Entscheidung 3): die vom Kandidaten betroffenen Funktionen (Syntaxbaum)
+        nennung: dict = {}
+        betroffen = betroffene_funktionen(werk, code, module, python=python, nennung=nennung)
+        alt = beobachten(werk, {}, referenzlast, module, bereiche, korpus_erweitert=korpus_erweitert)
+        if not alt.get("gueltig"):
+            if alt.get("art") != "inhalt":
+>               raise SondeAusgefallen(f"Sonde an der Vorgeneration ausgefallen ({alt.get('art')}): {str(alt.get('grund'))[:300]}")
+E               biotop.organe.verhaltensvergleich.SondeAusgefallen: Sonde an der Vorgeneration ausgefallen (infrastruktur): Python-Sonde ohne Ergebnis (rc=1): failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory
+
+biotop/organe/verhaltensvergleich.py:1937: SondeAusgefallen
+__ test_b3_f1_f2_unveraenderte_schwer_erfassbare_funktion_urteil_am_rest[f2] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_b3_f1_f2_unveraenderte_sc1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0708e60>
+fall = 'f2'
+
+    @pytest.mark.parametrize("fall", ["f1", "f2"])
+    def test_b3_f1_f2_unveraenderte_schwer_erfassbare_funktion_urteil_am_rest(tmp_path, monkeypatch, fall):
+        """Review 05 Nr. 6 (f1 Iterator-Attribut, f2 Generator mit 1.500 Elementen), verhaltensgleicher Kandidat (2*x → x+x
+        in doppel): an 0c2f058 Enthaltung des ganzen Vergleichs. Jetzt: nur unveränderte Funktionen schwer erfassbar —
+        geurteilt am Rest, tragfähig (f2: `zahlen` als gezählte Enthaltung)."""
+        if fall == "f1":
+            r = _organ(tmp_path, monkeypatch, ZER.format("2 * x"), ZER.format("x + x"),
+                       "from paket.m.a import zerleger, doppel\nz = zerleger('a b')\nz.weiter()\ndoppel(3)")
+        else:
+>           r = _organ(tmp_path, monkeypatch, GROSS.format("2 * x"), GROSS.format("x + x"),
+                       "from paket.m.a import zahlen, doppel\nsum(zahlen(1500))\ndoppel(3)")
+
+tests/test_vor_t4_06.py:479: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_vor_t4_06.py:95: in _organ
+    return vv.pruefen(w, code, _ref(last), ["m"], d)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/pytest-of-root/pytest-0/test_b3_f1_f2_unveraenderte_sc1/w')
+code = {'paket/m/a.py': 'def zahlen(n: int):\n    for i in range(n):\n        yield i\n\n\ndef doppel(x: int) -> int:\n    return x + x\n'}
+referenzlast = "import sys\nsys.path.insert(0, '/werk')\n\n\ndef last_m():\n    from paket.m.a import zahlen, doppel\n    sum(zahlen(1500))\n    doppel(3)\n"
+bereiche = ['m'], deckende = {'tests': [], 'aufrufe': []}
+korpus_erweitert = True, deckungsregel = 'muster'
+
+    def pruefen(werk: Path, code: dict[str, str], referenzlast: str | None, bereiche: list[str],
+                deckende: dict | Callable[[list[str]], dict], *, korpus_erweitert: bool = True,
+                deckungsregel: str = "muster") -> dict:
+        """Vorgeneration (Werk wie es ist) gegen Kandidat (Werk + `code`), dieselbe Sonde, dieselbe Last.
+    
+        `deckende`: {"tests", "aufrufe", "haelt", "blind"} (deckende_aufrufe) — oder ein Aufruf (Abweichungen → dieses
+        dict), der erst ausgewertet wird, wenn es Abweichungen gibt (spart Kammerläufe).
+        Rückgabe mit `ausgefuehrt`, `geurteilt`, `tragfaehig`, `grund` und `grund_art` (für den Neutralzähler)."""
+        from ..kern import sprachprofil
+        python = not sprachprofil.ist_typescript(Path(werk))
+        module = geaenderte_module(code, python=python)
+        # S1c (D): geänderte Dateien im Quellpaket, die keine Quellmodule sind — die Sonde beobachtet sie nicht (Enthaltung);
+        # außerhalb des Quellpakets gezählt wie bisher (`nicht_quelldateien_ausserhalb`).
+        d_innen, d_aussen = nicht_quelldateien(werk, code, python)
+        basis = {"module": module, "bereiche": sorted(bereiche), "kappe": KAPPE, "sprache": "python" if python else "typescript",
+                 "deckungsregel": deckungsregel, "korpus_erweitert": korpus_erweitert,
+                 "werkzeugdateien": werkzeugdateien(code) if python else [], "nicht_quelldateien_ausserhalb": d_aussen}
+        ausserhalb: dict[str, str] = {p: _D_GRUND for p in d_innen}      # S1c: Wirkung außerhalb der Beobachtung (C, D)
+        if not module and ausserhalb:
+            return {**basis, "ausgefuehrt": False, "geurteilt": False, "tragfaehig": False, "enthaltung": True,
+                    "grund_art": "wirkung_ausserhalb_beobachtung", "ausserhalb": ausserhalb,
+                    "grund": (f"Enthaltung (S1c, D): {len(ausserhalb)} geänderte Datei(en) im Quellpaket, die kein "
+                              f"Quellmodul sind — die Sonde beobachtet sie nicht: {sorted(ausserhalb)[:3]}"),
+                    "beobachtungen": 0, "abweichungen": [], "ungedeckt": [], "gedeckt": {}}
+        if not module:
+            return {**basis, "ausgefuehrt": False, "geurteilt": True, "tragfaehig": True,
+                    "grund_art": "keine_quellaenderung",
+                    "grund": "Kandidat ändert keine Quellmodule — Verhalten der Quellen unverändert"
+                             + (f" (Werkzeugdateien nicht beobachtbar: {basis['werkzeugdateien']})" if basis["werkzeugdateien"] else ""),
+                    "beobachtungen": 0, "abweichungen": [], "ungedeckt": [], "gedeckt": {}}
+        if not referenzlast:
+            # Konfiguration, kein Urteil über den Kandidaten (Review 03 Nr. 3): ohne Referenzlast misst die Sonde nicht.
+            raise SondeAusgefallen("keine Referenzlast — die Verhaltenssonde kann nicht messen")
+        # Behebungsrunde 6 (Entscheidung 3): die vom Kandidaten betroffenen Funktionen (Syntaxbaum)
+        nennung: dict = {}
+        betroffen = betroffene_funktionen(werk, code, module, python=python, nennung=nennung)
+        alt = beobachten(werk, {}, referenzlast, module, bereiche, korpus_erweitert=korpus_erweitert)
+        if not alt.get("gueltig"):
+            if alt.get("art") != "inhalt":
+>               raise SondeAusgefallen(f"Sonde an der Vorgeneration ausgefallen ({alt.get('art')}): {str(alt.get('grund'))[:300]}")
+E               biotop.organe.verhaltensvergleich.SondeAusgefallen: Sonde an der Vorgeneration ausgefallen (infrastruktur): Python-Sonde ohne Ergebnis (rc=1): failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory
+
+biotop/organe/verhaltensvergleich.py:1937: SondeAusgefallen
+______ test_b3_r6_1_unveraenderte_stringio_funktion_stellt_nicht_zurueck _______
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_b3_r6_1_unveraenderte_str0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c07095e0>
+
+    def test_b3_r6_1_unveraenderte_stringio_funktion_stellt_nicht_zurueck(tmp_path, monkeypatch):
+        """R6-1 (spez/test_spez_r6_laufweg.py) durch aegis.pruefen: die richtige Behebung von normieren mit einem Soll-Test je
+        Formvariante; im Modul eine UNVERÄNDERTE Funktion puffer(), die ein io.StringIO liefert. An 0c2f058 zurückgestellt
+        (ganzer Vergleich enthielt sich). Jetzt: überlebt, puffer als gezählte Enthaltung."""
+        q = QUELLE + PUFFER
+        monkeypatch.setattr(R3, "QUELLE", q)
+>       u, v = R3._pruefen(tmp_path, monkeypatch, R3._diff(q, q.replace(ALT_NORMIEREN, RICHTIG)), nische="sicher",
+                           werk_extra=_norm_tests(SOLL_ALLE))
+
+tests/test_vor_t4_06.py:496: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_b3_r6_1_unveraenderte_str0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c07095e0>
+diff = '--- a/probewerk/werk/kern.py\n+++ b/probewerk/werk/kern.py\n@@ -29,7 +29,7 @@\n \n def normieren(text: str) -> str:\n...ernt."""\n-    return " ".join(text.split())\n+    return "_".join(text.split())\n \n \n def _alt(text: str) -> str:\n'
+nische = 'sicher'
+werk_extra = {'tests/test_werk_normieren_gewoehnlich.py': "from probewerk.werk.kern import normieren\n\n\ndef test_normieren_gewoeh...n('x x x x x x x x x x x x x x x x x x x x x x x x x ') == 'x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x'\n", ...}
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+_ test_b3_p24_geaenderte_stringio_rueckgabe_mit_sichtbarer_abweichung_lehnt_ab _
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_b3_p24_geaenderte_stringi0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0709b50>
+
+    def test_b3_p24_geaenderte_stringio_rueckgabe_mit_sichtbarer_abweichung_lehnt_ab(tmp_path, monkeypatch):
+        """p24 (Review 05): geänderte Funktion liefert ein StringIO mit anderem Text. An 0c2f058 Enthaltung (Inhalt nicht
+        erfasst). Jetzt ist der Inhalt erfasst (getvalue, Entscheidung 2) — die Abweichung ist sichtbar und ungedeckt:
+        abgelehnt („Eine ungedeckte Abweichung lehnt immer ab“), nie tragfähig."""
+>       r = _organ(tmp_path, monkeypatch, SIO.format("x"), SIO.format("y"), "from paket.m.a import bericht\nbericht(3)")
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_06.py:510: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_vor_t4_06.py:95: in _organ
+    return vv.pruefen(w, code, _ref(last), ["m"], d)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/pytest-of-root/pytest-0/test_b3_p24_geaenderte_stringi0/w')
+code = {'paket/m/a.py': "import io\n\n\ndef bericht(n: int) -> io.StringIO:\n    p = io.StringIO()\n    p.write('y' * n)\n    return p\n"}
+referenzlast = "import sys\nsys.path.insert(0, '/werk')\n\n\ndef last_m():\n    from paket.m.a import bericht\n    bericht(3)\n"
+bereiche = ['m'], deckende = {'tests': [], 'aufrufe': []}
+korpus_erweitert = True, deckungsregel = 'muster'
+
+    def pruefen(werk: Path, code: dict[str, str], referenzlast: str | None, bereiche: list[str],
+                deckende: dict | Callable[[list[str]], dict], *, korpus_erweitert: bool = True,
+                deckungsregel: str = "muster") -> dict:
+        """Vorgeneration (Werk wie es ist) gegen Kandidat (Werk + `code`), dieselbe Sonde, dieselbe Last.
+    
+        `deckende`: {"tests", "aufrufe", "haelt", "blind"} (deckende_aufrufe) — oder ein Aufruf (Abweichungen → dieses
+        dict), der erst ausgewertet wird, wenn es Abweichungen gibt (spart Kammerläufe).
+        Rückgabe mit `ausgefuehrt`, `geurteilt`, `tragfaehig`, `grund` und `grund_art` (für den Neutralzähler)."""
+        from ..kern import sprachprofil
+        python = not sprachprofil.ist_typescript(Path(werk))
+        module = geaenderte_module(code, python=python)
+        # S1c (D): geänderte Dateien im Quellpaket, die keine Quellmodule sind — die Sonde beobachtet sie nicht (Enthaltung);
+        # außerhalb des Quellpakets gezählt wie bisher (`nicht_quelldateien_ausserhalb`).
+        d_innen, d_aussen = nicht_quelldateien(werk, code, python)
+        basis = {"module": module, "bereiche": sorted(bereiche), "kappe": KAPPE, "sprache": "python" if python else "typescript",
+                 "deckungsregel": deckungsregel, "korpus_erweitert": korpus_erweitert,
+                 "werkzeugdateien": werkzeugdateien(code) if python else [], "nicht_quelldateien_ausserhalb": d_aussen}
+        ausserhalb: dict[str, str] = {p: _D_GRUND for p in d_innen}      # S1c: Wirkung außerhalb der Beobachtung (C, D)
+        if not module and ausserhalb:
+            return {**basis, "ausgefuehrt": False, "geurteilt": False, "tragfaehig": False, "enthaltung": True,
+                    "grund_art": "wirkung_ausserhalb_beobachtung", "ausserhalb": ausserhalb,
+                    "grund": (f"Enthaltung (S1c, D): {len(ausserhalb)} geänderte Datei(en) im Quellpaket, die kein "
+                              f"Quellmodul sind — die Sonde beobachtet sie nicht: {sorted(ausserhalb)[:3]}"),
+                    "beobachtungen": 0, "abweichungen": [], "ungedeckt": [], "gedeckt": {}}
+        if not module:
+            return {**basis, "ausgefuehrt": False, "geurteilt": True, "tragfaehig": True,
+                    "grund_art": "keine_quellaenderung",
+                    "grund": "Kandidat ändert keine Quellmodule — Verhalten der Quellen unverändert"
+                             + (f" (Werkzeugdateien nicht beobachtbar: {basis['werkzeugdateien']})" if basis["werkzeugdateien"] else ""),
+                    "beobachtungen": 0, "abweichungen": [], "ungedeckt": [], "gedeckt": {}}
+        if not referenzlast:
+            # Konfiguration, kein Urteil über den Kandidaten (Review 03 Nr. 3): ohne Referenzlast misst die Sonde nicht.
+            raise SondeAusgefallen("keine Referenzlast — die Verhaltenssonde kann nicht messen")
+        # Behebungsrunde 6 (Entscheidung 3): die vom Kandidaten betroffenen Funktionen (Syntaxbaum)
+        nennung: dict = {}
+        betroffen = betroffene_funktionen(werk, code, module, python=python, nennung=nennung)
+        alt = beobachten(werk, {}, referenzlast, module, bereiche, korpus_erweitert=korpus_erweitert)
+        if not alt.get("gueltig"):
+            if alt.get("art") != "inhalt":
+>               raise SondeAusgefallen(f"Sonde an der Vorgeneration ausgefallen ({alt.get('art')}): {str(alt.get('grund'))[:300]}")
+E               biotop.organe.verhaltensvergleich.SondeAusgefallen: Sonde an der Vorgeneration ausgefallen (infrastruktur): Python-Sonde ohne Ergebnis (rc=1): failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory
+
+biotop/organe/verhaltensvergleich.py:1937: SondeAusgefallen
+_ test_b3_p24z_geaenderte_stringio_funktion_ohne_sichtbare_abweichung_stellt_zurueck _
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_b3_p24z_geaenderte_string0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c06af500>
+
+    def test_b3_p24z_geaenderte_stringio_funktion_ohne_sichtbare_abweichung_stellt_zurueck(tmp_path, monkeypatch):
+        """p24 ohne sichtbare Abweichung: der Kandidat schreibt `bericht` um (gleicher Text). Das zurückgegebene StringIO
+        bleibt ein Iterator-Objekt (Elemente nicht erfasst) — die geänderte Funktion enthält sich: zurückgestellt, mit Grund
+        und Funktion (an 0c2f058 enthielt sich der ganze Vergleich als 'unvollstaendig_erfasst')."""
+>       r = _organ(tmp_path, monkeypatch, SIO.format("x"), SIO_UMGESCHRIEBEN, "from paket.m.a import bericht\nbericht(3)")
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_06.py:519: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_vor_t4_06.py:95: in _organ
+    return vv.pruefen(w, code, _ref(last), ["m"], d)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/pytest-of-root/pytest-0/test_b3_p24z_geaenderte_string0/w')
+code = {'paket/m/a.py': "import io\n\n\ndef bericht(n: int) -> io.StringIO:\n    p = io.StringIO()\n    s = 'x' * n\n    p.write(s)\n    return p\n"}
+referenzlast = "import sys\nsys.path.insert(0, '/werk')\n\n\ndef last_m():\n    from paket.m.a import bericht\n    bericht(3)\n"
+bereiche = ['m'], deckende = {'tests': [], 'aufrufe': []}
+korpus_erweitert = True, deckungsregel = 'muster'
+
+    def pruefen(werk: Path, code: dict[str, str], referenzlast: str | None, bereiche: list[str],
+                deckende: dict | Callable[[list[str]], dict], *, korpus_erweitert: bool = True,
+                deckungsregel: str = "muster") -> dict:
+        """Vorgeneration (Werk wie es ist) gegen Kandidat (Werk + `code`), dieselbe Sonde, dieselbe Last.
+    
+        `deckende`: {"tests", "aufrufe", "haelt", "blind"} (deckende_aufrufe) — oder ein Aufruf (Abweichungen → dieses
+        dict), der erst ausgewertet wird, wenn es Abweichungen gibt (spart Kammerläufe).
+        Rückgabe mit `ausgefuehrt`, `geurteilt`, `tragfaehig`, `grund` und `grund_art` (für den Neutralzähler)."""
+        from ..kern import sprachprofil
+        python = not sprachprofil.ist_typescript(Path(werk))
+        module = geaenderte_module(code, python=python)
+        # S1c (D): geänderte Dateien im Quellpaket, die keine Quellmodule sind — die Sonde beobachtet sie nicht (Enthaltung);
+        # außerhalb des Quellpakets gezählt wie bisher (`nicht_quelldateien_ausserhalb`).
+        d_innen, d_aussen = nicht_quelldateien(werk, code, python)
+        basis = {"module": module, "bereiche": sorted(bereiche), "kappe": KAPPE, "sprache": "python" if python else "typescript",
+                 "deckungsregel": deckungsregel, "korpus_erweitert": korpus_erweitert,
+                 "werkzeugdateien": werkzeugdateien(code) if python else [], "nicht_quelldateien_ausserhalb": d_aussen}
+        ausserhalb: dict[str, str] = {p: _D_GRUND for p in d_innen}      # S1c: Wirkung außerhalb der Beobachtung (C, D)
+        if not module and ausserhalb:
+            return {**basis, "ausgefuehrt": False, "geurteilt": False, "tragfaehig": False, "enthaltung": True,
+                    "grund_art": "wirkung_ausserhalb_beobachtung", "ausserhalb": ausserhalb,
+                    "grund": (f"Enthaltung (S1c, D): {len(ausserhalb)} geänderte Datei(en) im Quellpaket, die kein "
+                              f"Quellmodul sind — die Sonde beobachtet sie nicht: {sorted(ausserhalb)[:3]}"),
+                    "beobachtungen": 0, "abweichungen": [], "ungedeckt": [], "gedeckt": {}}

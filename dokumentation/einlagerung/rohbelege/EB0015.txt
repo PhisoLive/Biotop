@@ -1,0 +1,53 @@
+EB15 · Schritt 2: Auswertung EB14 (Repositorys mit nicht Eingechecktem)
+Beginn: 2026-09-25 23:53:15 CEST (UTC+0200)
+Ende:   2026-09-25 23:53:15 CEST (UTC+0200)
+Dauer:  0.0 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/biotop-einlagerung/arbeit/s2_repos_auswerten.py
+--- Inhalt von /root/biotop-einlagerung/arbeit/s2_repos_auswerten.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-EINLAGERUNG-01 Schritt 2 (nur lesend): EB14 auswerten — Repositorys außerhalb der Probe-Kopien mit nicht
+eingecheckten Änderungen (Status-Zeilen > 0), gruppiert nach oberstem Ort; dazu die Zahl der Repositorys je Ort."""
+import re
+from collections import Counter
+from pathlib import Path
+
+t = Path('/root/biotop-einlagerung/rohbelege/EB0014.txt').read_text()
+zeilen = [z for z in t.splitlines() if re.match(r'^/\S+ \| HEAD ', z)]
+print(f'Repositorys außerhalb der Probe-Kopien: {len(zeilen)}')
+je = Counter()
+for z in zeilen:
+    p = z.split(' | ')[0]
+    teile = p.split('/')
+    je['/'.join(teile[:3]) if not p.startswith('/tmp') else '/'.join(teile[:3])] += 1
+for k, v in sorted(je.items()):
+    print(f'  {k}: {v}')
+print('Mit nicht eingecheckten Änderungen (Status > 0 Zeilen) oder Fehler:')
+n = 0
+for z in zeilen:
+    m = re.search(r'Status (\d+) Zeilen', z)
+    if not m or int(m.group(1)) > 0 or 'fatal' in z:
+        n += 1
+        print('  ' + z)
+print(f'Anzahl: {n}')
+--- Ende /root/biotop-einlagerung/arbeit/s2_repos_auswerten.py ---
+Ausgabe (vollständig, stdout und stderr):
+Repositorys außerhalb der Probe-Kopien: 53
+  /root/biotop: 23
+  /root/biotop-t3: 22
+  /root/phase-4-vorbedingung-1: 1
+  /root/reparatur-01: 1
+  /root/uebungswerk: 1
+  /root/uebungswerk2: 1
+  /tmp/k3: 1
+  /tmp/r6-s2: 3
+Mit nicht eingecheckten Änderungen (Status > 0 Zeilen) oder Fehler:
+  /root/biotop-t3/repo-sicherung-vor-commits | HEAD b42dc941e7fc | Zweig main | Zweige: main=b42dc941e7fc  | Markierungen: keine | Status 31 Zeilen (20 geändert, 11 unverfolgt) | Wurzel /root/biotop-t3/repo-sicherung-vor-commits
+  /root/biotop | HEAD 0c2f058d57f6 | Zweig main | Zweige: main=0c2f058d57f6  | Markierungen: keine | Status 25 Zeilen (19 geändert, 6 unverfolgt) | Wurzel /root/biotop
+  /root/reparatur-01/teil-eichung/repo | HEAD 3bb9325d5d84 | Zweig master | Zweige: master=3bb9325d5d84  | Markierungen: keine | Status 4 Zeilen (3 geändert, 0 unverfolgt) | Wurzel /root/reparatur-01/teil-eichung/repo
+  /tmp/r6-s2/baum | HEAD 0c2f058d57f6 | Zweig main | Zweige: main=0c2f058d57f6  | Markierungen: keine | Status 2 Zeilen (1 geändert, 1 unverfolgt) | Wurzel /tmp/r6-s2/baum
+  /tmp/r6-s2/baum2 | HEAD 0c2f058d57f6 | Zweig main | Zweige: main=0c2f058d57f6  | Markierungen: keine | Status 2 Zeilen (1 geändert, 1 unverfolgt) | Wurzel /tmp/r6-s2/baum2
+  /tmp/r6-s2/baum3 | HEAD 0c2f058d57f6 | Zweig main | Zweige: main=0c2f058d57f6  | Markierungen: keine | Status 2 Zeilen (1 geändert, 1 unverfolgt) | Wurzel /tmp/r6-s2/baum3
+Anzahl: 6
+=== Ende EB15 ===

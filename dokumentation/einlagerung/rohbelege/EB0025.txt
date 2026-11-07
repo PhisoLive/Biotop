@@ -1,0 +1,520 @@
+EB25 · Schritt 3: /tmp nach tmp-belege/ kopieren und je Datei vergleichen
+Beginn: 2026-09-26 00:11:41 CEST (UTC+0200)
+Ende:   2026-09-26 00:12:55 CEST (UTC+0200)
+Dauer:  73.3 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/biotop-einlagerung/arbeit/s3_vergaenglich.py tmp
+--- Inhalt von /root/biotop-einlagerung/arbeit/s3_vergaenglich.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-EINLAGERUNG-01 · Schritt 3: Vergängliches dauerhaft machen (kopieren, nie verschieben; jede Datei per
+SHA-256 verglichen).
+
+Unterbefehle (je über eb.py):
+  tmp            /tmp → /root/biotop-einlagerung/tmp-belege/<eintrag>. Umfang wie BIOTOP-LAGE-01 Teil 2b
+                 (sich.py tmp_teile): jeder Eintrag der obersten Ebene außer Werkzeug- und Systemordnern (Namensanfänge
+                 TMP_AUSSER_PREFIX). Biotop-Bezug je Eintrag wird nur ausgewiesen (Name oder Inhalt nennt „biotop“).
+  zwischenspeicher
+                 /root/.hermes/cache/delegation/live/<id>/ und /root/.hermes/cache/documents/<datei> mit Biotop-Bezug
+                 (Inhalt nennt „biotop“, Groß/klein egal) → /root/biotop-einlagerung/hermes-zwischenspeicher/…
+                 Einträge ohne Biotop-Bezug: nur gezählt und benannt, nicht kopiert (sie liegen in /root/.hermes, das in
+                 KOMPLETT kommt).
+Regeln:
+- Geheimnisdateien werden NICHT kopiert (nur mit Pfad genannt): Name wie in sich.py (.env*, auth.json*, *.pem, *.key,
+  id_*), dazu jede Datei, die einen Zugangswert (OPENROUTER_API_KEY, TELEGRAM_BOT_TOKEN, access/id/refresh_token aus
+  auth.json) oder ein Schlüsselmuster (geheimnis.MUSTER) enthält — „gleichartige Dateien“ (Auftrag Regel 4).
+- Sonderdateien (Sockets, FIFOs) werden nicht kopiert (Protokollzeile).
+- Kopie mit Rechten, Besitzer und Änderungszeit; Verweise als Verweise; nichts wird überschrieben (Zielordner je Eintrag
+  wird exklusiv angelegt).
+- Danach Vergleich: je Datei SHA-256 Quelle = Kopie, je Verweis Ziel = Ziel; Zählung je Quelle (x von x).
+Ausgabe: Tafel je Quelle (Dateien, Verweise, Bytes, gleich, ausgelassen je Grund), Protokoll der Auslassungen.
+"""
+import hashlib
+import json
+import os
+import re
+import shutil
+import stat
+import sys
+import time
+from pathlib import Path
+
+sys.path.insert(0, '/root/biotop-einlagerung/arbeit')
+import geheimnis  # noqa: E402
+
+W = Path('/root/biotop-einlagerung')
+TMP_AUSSER_PREFIX = ('systemd-private-', 'hermes_kernel_', 'hermes_rpc_', 'hermes-codex-schema-', 'claude-',
+                     'node-compile-cache', 'data-gym-cache', 'tirith')
+GEHEIM_NAMEN = {'.env', 'auth.json'}
+GEHEIM_ENDUNGEN = ('.pem', '.key')
+GEHEIM_ANFAENGE = ('id_rsa', 'id_ed25519', 'id_ecdsa', 'id_dsa')
+STRENG_QUELLEN = ('OPENROUTER_API_KEY', 'TELEGRAM_BOT_TOKEN', 'tokens.access_token', 'tokens.id_token',
+                  'tokens.refresh_token')
+WERTE = {v: q for v, q in geheimnis.werte().items() if q.endswith(STRENG_QUELLEN)}
+MUSTER = {n: re.compile(m.encode()) for n, m in geheimnis.MUSTER.items()}
+WERTE_B = {v.encode(): q for v, q in WERTE.items()}
+
+
+def jetzt() -> str:
+    return time.strftime('%Y-%m-%d %H:%M:%S %Z (UTC%z)')
+
+
+def sha_datei(p) -> str:
+    h = hashlib.sha256()
+    with open(p, 'rb') as f:
+        for block in iter(lambda: f.read(1 << 20), b''):
+            h.update(block)
+    return h.hexdigest()
+
+
+def geheim_name(name: str) -> bool:
+    return (name in GEHEIM_NAMEN or name.startswith(('.env', 'auth.json')) or name.endswith(GEHEIM_ENDUNGEN)
+            or name.startswith(GEHEIM_ANFAENGE))
+
+
+def zugang_treffer(p: str) -> list:
+    """Namen der gefundenen Zugangswerte/-muster (nie die Werte). Große Dateien blockweise mit Überlappung."""
+    gefunden = set()
+    rest = b''
+    with open(p, 'rb') as f:
+        while True:
+            block = f.read(8 << 20)
+            if not block:
+                break
+            daten = rest + block
+            for v, q in WERTE_B.items():
+                if v in daten:
+                    gefunden.add('Wert ' + q.rsplit(':', 1)[1])
+            for n, m in MUSTER.items():
+                if m.search(daten):
+                    gefunden.add('Muster ' + n)
+            rest = daten[-4096:]
+    return sorted(gefunden)
+
+
+def kopiere_baum(quelle: Path, ziel: Path, protokoll: list, zahl: dict) -> None:
+    """Kopiert quelle (Datei, Verweis oder Ordner) nach ziel. ziel darf nicht bestehen."""
+    if quelle.is_symlink():
+        os.symlink(os.readlink(quelle), ziel)
+        st = os.lstat(quelle)
+        os.chown(ziel, st.st_uid, st.st_gid, follow_symlinks=False)
+        zahl['verweise'] += 1
+        return
+    if quelle.is_file():
+        kopiere_datei(quelle, ziel, protokoll, zahl)
+        return
+    ordner = []
+    for d, ds, fs in os.walk(quelle):
+        rel = os.path.relpath(d, quelle)
+        zd = ziel if rel == '.' else ziel / rel
+        st = os.lstat(d)
+        zd.mkdir(parents=False, exist_ok=False) if rel != '.' else ziel.mkdir(parents=True, exist_ok=False)
+        os.chown(zd, st.st_uid, st.st_gid)
+        ordner.append((zd, st))
+        zahl['ordner'] += 1
+        for x in sorted(ds):
+            p = Path(d) / x
+            if p.is_symlink():
+                os.symlink(os.readlink(p), zd / x)
+                s = os.lstat(p)
+                os.chown(zd / x, s.st_uid, s.st_gid, follow_symlinks=False)
+                zahl['verweise'] += 1
+        ds[:] = sorted(x for x in ds if not (Path(d) / x).is_symlink())
+        for f in sorted(fs):
+            kopiere_datei(Path(d) / f, zd / f, protokoll, zahl)
+    for zd, st in reversed(ordner):   # Rechte und Zeiten der Ordner zuletzt (Kinder ändern die Zeit)
+        os.chmod(zd, stat.S_IMODE(st.st_mode))
+        os.utime(zd, ns=(st.st_atime_ns, st.st_mtime_ns))
+
+
+def kopiere_datei(p: Path, z: Path, protokoll: list, zahl: dict) -> None:
+    try:
+        st = os.lstat(p)
+    except FileNotFoundError:
+        protokoll.append(f'VERSCHWUNDEN vor dem Kopieren: {p}')
+        zahl['verschwunden'] += 1
+        return
+    if stat.S_ISLNK(st.st_mode):
+        os.symlink(os.readlink(p), z)
+        os.chown(z, st.st_uid, st.st_gid, follow_symlinks=False)
+        zahl['verweise'] += 1
+        return
+    if not stat.S_ISREG(st.st_mode):
+        protokoll.append(f'AUSGELASSEN (Sonderdatei): {p}')
+        zahl['sonder'] += 1
+        return
+    if geheim_name(p.name):
+        protokoll.append(f'AUSGELASSEN (Geheimnisdatei nach Name, nur Pfad): {p}')
+        zahl['geheim'] += 1
+        return
+    t = zugang_treffer(str(p))
+    if t:
+        protokoll.append(f'AUSGELASSEN (enthält Zugangsgeheimnis: {", ".join(t)}; nur Pfad): {p}')
+        zahl['geheim'] += 1
+        return
+    fd = os.open(z, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    os.close(fd)
+    shutil.copyfile(p, z, follow_symlinks=False)
+    shutil.copystat(p, z, follow_symlinks=False)
+    os.chown(z, st.st_uid, st.st_gid)
+    zahl['dateien'] += 1
+    zahl['bytes'] += st.st_size
+
+
+def vergleiche(quelle: Path, ziel: Path, protokoll_aus: set) -> dict:
+    """Je kopierte Datei SHA-256 Quelle = Kopie; je Verweis Ziel gleich. Ausgelassene zählen gesondert."""
+    e = {'dateien': 0, 'gleich': 0, 'verweise': 0, 'verweise_gleich': 0, 'fehlt_in_kopie': 0, 'abweichend': []}
+    wurzeln = [(quelle, ziel)]
+    if quelle.is_dir() and not quelle.is_symlink():
+        paare = []
+        for d, ds, fs in os.walk(quelle):
+            for x in ds + fs:
+                p = Path(d) / x
+                paare.append((p, ziel / p.relative_to(quelle)))
+            ds[:] = [x for x in ds if not (Path(d) / x).is_symlink()]
+    else:
+        paare = wurzeln
+    for p, z in paare:
+        if p.is_symlink():
+            e['verweise'] += 1
+            e['verweise_gleich'] += z.is_symlink() and os.readlink(z) == os.readlink(p)
+        elif p.is_file():
+            if str(p) in protokoll_aus:
+                continue
+            e['dateien'] += 1
+            if not z.is_file():
+                e['fehlt_in_kopie'] += 1
+                e['abweichend'].append(f'fehlt: {z}')
+            elif sha_datei(p) == sha_datei(z):
+                e['gleich'] += 1
+            else:
+                e['abweichend'].append(f'verschieden: {z}')
+    return e
+
+
+def biotop_bezug(p: Path) -> str:
+    if re.search(r'biotop', p.name, re.I):
+        return 'ja (Name)'
+    kandidaten = [p] if p.is_file() else [Path(d) / f for d, _, fs in os.walk(p) for f in fs][:4000]
+    for q in kandidaten:
+        try:
+            if q.is_file() and not q.is_symlink() and q.stat().st_size < 20_000_000 and b'biotop' in q.read_bytes().lower():
+                return 'ja (Inhalt)'
+        except OSError:
+            pass
+    return 'nein'
+
+
+def lauf(quellen: list, zielwurzel: Path, name: str) -> None:
+    print(f'Beginn {jetzt()} · {name} · Quellen {len(quellen)} · Ziel {zielwurzel}')
+    print(f'Zugangswerte gesucht: {len(WERTE)} ({sorted(q.rsplit(":", 1)[1] for q in WERTE.values())}); Muster: {len(MUSTER)}')
+    zielwurzel.mkdir(parents=True, exist_ok=True)
+    tafel, protokoll_alle, summe = [], [], {'dateien': 0, 'gleich': 0, 'bytes': 0, 'geheim': 0}
+    for q, zrel, bezug in quellen:
+        z = zielwurzel / zrel
+        if os.path.lexists(z):
+            raise SystemExit(f'ABBRUCH: {z} besteht schon (nie überschreiben)')
+        z.parent.mkdir(parents=True, exist_ok=True)
+        zahl = {'ordner': 0, 'dateien': 0, 'verweise': 0, 'bytes': 0, 'sonder': 0, 'geheim': 0, 'verschwunden': 0}
+        protokoll = []
+        kopiere_baum(q, z, protokoll, zahl)
+        aus = {x.rsplit(': ', 1)[1] for x in protokoll if x.startswith(('AUSGELASSEN', 'VERSCHWUNDEN'))}
+        v = vergleiche(q, z, aus)
+        ok = v['gleich'] == v['dateien'] == zahl['dateien'] and v['verweise_gleich'] == v['verweise'] and not v['abweichend']
+        tafel.append(f"{q} | Biotop-Bezug {bezug} | Dateien {zahl['dateien']} · Bytes {zahl['bytes']} · Verweise {zahl['verweise']} "
+                     f"| SHA-256 gleich {v['gleich']} von {v['dateien']} · Verweise gleich {v['verweise_gleich']} von {v['verweise']} "
+                     f"| ausgelassen: Geheimnis {zahl['geheim']}, Sonder {zahl['sonder']}, verschwunden {zahl['verschwunden']} "
+                     f"| {'GLEICH' if ok else 'ABWEICHUNG ' + str(v['abweichend'][:3])}")
+        protokoll_alle += protokoll
+        for k in ('dateien', 'gleich', 'bytes', 'geheim'):
+            summe[k] += zahl[k] if k != 'gleich' else v['gleich']
+    print('--- Tafel je Quelle')
+    print('\n'.join(tafel))
+    print(f"--- Summe: Quellen {len(quellen)} · Dateien kopiert {summe['dateien']} · gleich {summe['gleich']} von {summe['dateien']} "
+          f"· Bytes {summe['bytes']} · Geheimnisdateien ausgelassen {summe['geheim']}")
+    print(f'--- Protokoll der Auslassungen ({len(protokoll_alle)} Zeilen)')
+    print('\n'.join(protokoll_alle) or '(keine)')
+    (W / 'protokolle').mkdir(exist_ok=True)
+    fd = os.open(W / 'protokolle' / f's3-{name}.json', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, 'w') as f:
+        json.dump({'tafel': tafel, 'protokoll': protokoll_alle, 'summe': summe}, f, ensure_ascii=False, indent=1)
+    print(f'Ende {jetzt()}')
+
+
+def tmp() -> None:
+    eintraege = [Path('/tmp') / x for x in sorted(os.listdir('/tmp')) if not x.startswith(TMP_AUSSER_PREFIX)]
+    ausser = [x for x in sorted(os.listdir('/tmp')) if x.startswith(TMP_AUSSER_PREFIX)]
+    print(f'/tmp: {len(eintraege) + len(ausser)} Einträge oberster Ebene · kopiert werden {len(eintraege)} · Werkzeug-/'
+          f'Systemordner ausgelassen {len(ausser)}: {ausser}')
+    quellen = []
+    for p in eintraege:
+        if not (p.is_dir() or p.is_file() or p.is_symlink()):
+            print(f'AUSGELASSEN (Sonderdatei oberster Ebene): {p}')
+            continue
+        quellen.append((p, p.name, biotop_bezug(p)))
+    lauf(quellen, W / 'tmp-belege', 'tmp')
+
+
+def zwischenspeicher() -> None:
+    quellen, ohne = [], []
+    L = Path('/root/.hermes/cache/delegation/live')
+    for d in sorted(L.iterdir()):
+        b = biotop_bezug(d)
+        (quellen.append((d, f'delegation/live/{d.name}', b)) if b != 'nein' else ohne.append(str(d)))
+    D = Path('/root/.hermes/cache/documents')
+    for f in sorted(D.iterdir()):
+        b = biotop_bezug(f)
+        (quellen.append((f, f'documents/{f.name}', b)) if b != 'nein' else ohne.append(str(f)))
+    print(f'Delegationen: {sum(1 for _ in L.iterdir())} · Dokumente: {sum(1 for _ in D.iterdir())} · mit Biotop-Bezug: '
+          f'{len(quellen)} · ohne: {len(ohne)}')
+    for o in ohne:
+        print(f'  ohne Biotop-Bezug, nicht kopiert (liegt in /root/.hermes → KOMPLETT): {o}')
+    lauf(quellen, W / 'hermes-zwischenspeicher', 'zwischenspeicher')
+
+
+if __name__ == '__main__':
+    {'tmp': tmp, 'zwischenspeicher': zwischenspeicher}[sys.argv[1]]()
+--- Ende /root/biotop-einlagerung/arbeit/s3_vergaenglich.py ---
+Ausgabe (vollständig, stdout und stderr):
+/tmp: 256 Einträge oberster Ebene · kopiert werden 233 · Werkzeug-/Systemordner ausgelassen 23: ['claude-0', 'data-gym-cache', 'hermes-codex-schema-20260909', 'hermes_kernel_3uoj45gk', 'hermes_kernel_jn6xz_ez', 'hermes_kernel_l4dxywo7', 'hermes_kernel_neecs_j6', 'hermes_kernel_s5mbsd8c', 'hermes_kernel_tuu5lpuk', 'hermes_rpc_2780644003b54664a747385f84e7ee3d.sock', 'hermes_rpc_2cbb09b2dc3c4eb9bb5bfc14cc24d3d7.sock', 'hermes_rpc_4f4ec1dc2b0849b48b1af553fe88c678.sock', 'hermes_rpc_5fd04c84aef04798ad99a55911bec81c.sock', 'hermes_rpc_ad16f4c4937e4e09af98a883d5522952.sock', 'hermes_rpc_f0ad392bfe15449da002e8247f8ef406.sock', 'node-compile-cache', 'systemd-private-f2ef1dd7c39a43839a1b6161b804a36a-ModemManager.service-q5bP3b', 'systemd-private-f2ef1dd7c39a43839a1b6161b804a36a-caddy.service-4f0AHK', 'systemd-private-f2ef1dd7c39a43839a1b6161b804a36a-milieulux.service-9VlAqE', 'systemd-private-f2ef1dd7c39a43839a1b6161b804a36a-polkit.service-lJPJjY', 'systemd-private-f2ef1dd7c39a43839a1b6161b804a36a-systemd-logind.service-oz7Trs', 'systemd-private-f2ef1dd7c39a43839a1b6161b804a36a-systemd-resolved.service-L99yWg', 'systemd-private-f2ef1dd7c39a43839a1b6161b804a36a-systemd-timesyncd.service-p98caG']
+Beginn 2026-09-26 00:11:42 CEST (UTC+0200) · tmp · Quellen 233 · Ziel /root/biotop-einlagerung/tmp-belege
+Zugangswerte gesucht: 5 (['OPENROUTER_API_KEY', 'TELEGRAM_BOT_TOKEN', 'auth.providers.[GESCHWÄRZT: Wert aus /root/.hermes/auth.json].tokens.access_token', 'auth.providers.[GESCHWÄRZT: Wert aus /root/.hermes/auth.json].tokens.id_token', 'auth.providers.[GESCHWÄRZT: Wert aus /root/.hermes/auth.json].tokens.refresh_token']); Muster: 9
+--- Tafel je Quelle
+/tmp/.ICE-unix | Biotop-Bezug nein | Dateien 0 · Bytes 0 · Verweise 0 | SHA-256 gleich 0 von 0 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/.X11-unix | Biotop-Bezug nein | Dateien 0 · Bytes 0 · Verweise 0 | SHA-256 gleich 0 von 0 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/.XIM-unix | Biotop-Bezug nein | Dateien 0 · Bytes 0 · Verweise 0 | SHA-256 gleich 0 von 0 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/.config | Biotop-Bezug nein | Dateien 1 · Bytes 40 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/.font-unix | Biotop-Bezug nein | Dateien 0 · Bytes 0 · Verweise 0 | SHA-256 gleich 0 von 0 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/.local | Biotop-Bezug nein | Dateien 3 · Bytes 65987 · Verweise 0 | SHA-256 gleich 3 von 3 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/MEMORY-neu.md | Biotop-Bezug nein | Dateien 1 · Bytes 13502 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/__pycache__ | Biotop-Bezug ja (Inhalt) | Dateien 11 · Bytes 346319 · Verweise 0 | SHA-256 gleich 11 von 11 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/abschluss3_l38 | Biotop-Bezug ja (Inhalt) | Dateien 1437 · Bytes 2346371 · Verweise 0 | SHA-256 gleich 1437 von 1437 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/astra_lauf_check.pyc | Biotop-Bezug nein | Dateien 1 · Bytes 6978 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/aussen-BERICHT.md | Biotop-Bezug nein | Dateien 1 · Bytes 22237 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/aussen-PRUEFAKTE.md | Biotop-Bezug nein | Dateien 1 · Bytes 19309 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/aussen-STAND.json | Biotop-Bezug nein | Dateien 1 · Bytes 12501 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/aussen.bin | Biotop-Bezug nein | Dateien 1 · Bytes 2204 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/b02.md | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 37024 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/belege.json | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 4163 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/biotop-0aac612-scTj | Biotop-Bezug ja (Name) | Dateien 276 · Bytes 2162458 · Verweise 0 | SHA-256 gleich 276 von 276 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/biotop-6243377-SEYl | Biotop-Bezug ja (Name) | Dateien 234 · Bytes 1895036 · Verweise 0 | SHA-256 gleich 234 von 234 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/biotop-NACHHER-HEAD-ha2lcq4j | Biotop-Bezug ja (Name) | Dateien 263 · Bytes 2938807 · Verweise 0 | SHA-256 gleich 263 von 263 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/biotop-VORHER-43b8fad-57f06qf_ | Biotop-Bezug ja (Name) | Dateien 261 · Bytes 2863003 · Verweise 0 | SHA-256 gleich 261 von 261 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/biotop-commit | Biotop-Bezug ja (Name) | Dateien 1 · Bytes 8 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/biotop-head-DhGz | Biotop-Bezug ja (Name) | Dateien 237 · Bytes 2035094 · Verweise 0 | SHA-256 gleich 237 von 237 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/biotop-head-Xa8F | Biotop-Bezug ja (Name) | Dateien 278 · Bytes 2221972 · Verweise 0 | SHA-256 gleich 278 von 278 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/biotop-phase4-lektuere-mm6_llag | Biotop-Bezug ja (Name) | Dateien 2 · Bytes 82557 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/cachetest | Biotop-Bezug nein | Dateien 1 · Bytes 2728 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/cc-socks | Biotop-Bezug nein | Dateien 0 · Bytes 0 · Verweise 0 | SHA-256 gleich 0 von 0 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/cfg.py | Biotop-Bezug nein | Dateien 1 · Bytes 383 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/codex-bwrap-synthetic-mount-targets-0 | Biotop-Bezug nein | Dateien 1 · Bytes 0 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/codexprobe | Biotop-Bezug nein | Dateien 8 · Bytes 9248 · Verweise 0 | SHA-256 gleich 8 von 8 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/db.py | Biotop-Bezug nein | Dateien 1 · Bytes 614 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/dienst.log | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 67 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/diffout.txt | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 9816 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/drahtwerk-probe | Biotop-Bezug ja (Inhalt) | Dateien 14 · Bytes 4286 · Verweise 0 | SHA-256 gleich 14 von 14 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/drahtwerk-rauschen | Biotop-Bezug ja (Inhalt) | Dateien 14 · Bytes 4797 · Verweise 0 | SHA-256 gleich 14 von 14 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/eff.py | Biotop-Bezug nein | Dateien 1 · Bytes 824 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/eich-diag-imfrukxt | Biotop-Bezug nein | Dateien 10 · Bytes 102980 · Verweise 0 | SHA-256 gleich 10 von 10 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/eich.txt | Biotop-Bezug nein | Dateien 1 · Bytes 1823 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/eichprobe | Biotop-Bezug nein | Dateien 1 · Bytes 56 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/eichprobe-ocep7i85 | Biotop-Bezug ja (Inhalt) | Dateien 44 · Bytes 102085701 · Verweise 0 | SHA-256 gleich 44 von 44 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/eichprobe-ose8x61m | Biotop-Bezug ja (Inhalt) | Dateien 44 · Bytes 102489471 · Verweise 0 | SHA-256 gleich 44 von 44 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/eichprobe-qvyqg_ld | Biotop-Bezug ja (Inhalt) | Dateien 44 · Bytes 102098023 · Verweise 0 | SHA-256 gleich 44 von 44 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/eichprobe-wnyfc8la | Biotop-Bezug ja (Inhalt) | Dateien 44 · Bytes 102493567 · Verweise 0 | SHA-256 gleich 44 von 44 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/f5-testausgabe.log | Biotop-Bezug nein | Dateien 1 · Bytes 18327 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/f5_abschluss.py | Biotop-Bezug nein | Dateien 1 · Bytes 12186 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/f5_dokumente.py | Biotop-Bezug nein | Dateien 1 · Bytes 10882 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/g.txt | Biotop-Bezug nein | Dateien 1 · Bytes 112 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/gegenlese-1k1_ktec | Biotop-Bezug nein | Dateien 2 · Bytes 904713 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/gegenlese-5s5w5c38 | Biotop-Bezug nein | Dateien 2 · Bytes 17709 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/gegenlese-7ds176wj | Biotop-Bezug nein | Dateien 2 · Bytes 8666 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/gegenlese-93m1jdk_ | Biotop-Bezug nein | Dateien 2 · Bytes 1117853 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/gegenlese-9nobci30 | Biotop-Bezug nein | Dateien 2 · Bytes 1024389 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/gegenlese-9pqv319l | Biotop-Bezug nein | Dateien 2 · Bytes 16059 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/gegenlese-efgvgass | Biotop-Bezug nein | Dateien 2 · Bytes 10879 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/gegenlese-fphj1pea | Biotop-Bezug nein | Dateien 2 · Bytes 7207 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/gegenlese-ihl5lqe4 | Biotop-Bezug nein | Dateien 2 · Bytes 16486 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/gegenlese-n676slr4 | Biotop-Bezug nein | Dateien 2 · Bytes 13044 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/gegenlese-oj33yeud | Biotop-Bezug nein | Dateien 2 · Bytes 6880 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/gegenlese-p0vqk8x4 | Biotop-Bezug nein | Dateien 2 · Bytes 499296 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/gegenlese-rn7kwjk9 | Biotop-Bezug nein | Dateien 2 · Bytes 13041 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/gegenlese-uvt_glsl | Biotop-Bezug nein | Dateien 2 · Bytes 9994 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/gegenlese-v1g98c0g | Biotop-Bezug nein | Dateien 2 · Bytes 495790 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/gegenlese-xt20t_pq | Biotop-Bezug nein | Dateien 2 · Bytes 10755 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/gen0-ursache | Biotop-Bezug nein | Dateien 53 · Bytes 238758 · Verweise 0 | SHA-256 gleich 53 von 53 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/h-r6 | Biotop-Bezug ja (Inhalt) | Dateien 926 · Bytes 8933305 · Verweise 16 | SHA-256 gleich 926 von 926 · Verweise gleich 16 von 16 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/hermes-dm-0 | Biotop-Bezug nein | Dateien 0 · Bytes 0 · Verweise 0 | SHA-256 gleich 0 von 0 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/hermes-fassung3-gemini-vermerken.py | Biotop-Bezug nein | Dateien 1 · Bytes 2767 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/hermes-fassung4-testconsole.log | Biotop-Bezug nein | Dateien 1 · Bytes 17339 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/hersteller | Biotop-Bezug nein | Dateien 9 · Bytes 696627 · Verweise 0 | SHA-256 gleich 9 von 9 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/k-aufnahme.json | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 1026 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/k-gen1.err | Biotop-Bezug nein | Dateien 1 · Bytes 0 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/k-gen1.json | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 1792 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/k-gen2.err | Biotop-Bezug nein | Dateien 1 · Bytes 0 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/k-gen2.json | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 1899 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/k-gen3.err | Biotop-Bezug nein | Dateien 1 · Bytes 0 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/k-gen3.json | Biotop-Bezug nein | Dateien 1 · Bytes 1548 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/k-gen4.err | Biotop-Bezug nein | Dateien 1 · Bytes 181 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/k-gen4.json | Biotop-Bezug nein | Dateien 1 · Bytes 0 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/k3 | Biotop-Bezug nein | Dateien 71 · Bytes 67526 · Verweise 0 | SHA-256 gleich 71 von 71 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/k3.diff | Biotop-Bezug nein | Dateien 1 · Bytes 5046 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/k3106-probe | Biotop-Bezug ja (Inhalt) | Dateien 54 · Bytes 121794 · Verweise 0 | SHA-256 gleich 54 von 54 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/k5-aufnahme.json | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 1021 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/k5-gen1.err | Biotop-Bezug nein | Dateien 1 · Bytes 0 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/k5-gen1.json | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 1861 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/k5-gen2.err | Biotop-Bezug nein | Dateien 1 · Bytes 0 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/k5-gen2.json | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 1872 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/k5-gen3.err | Biotop-Bezug nein | Dateien 1 · Bytes 184 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/k5-gen3.json | Biotop-Bezug nein | Dateien 1 · Bytes 0 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/kammer-emjl83s8 | Biotop-Bezug ja (Inhalt) | Dateien 55 · Bytes 135984 · Verweise 1 | SHA-256 gleich 55 von 55 · Verweise gleich 1 von 1 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/kammer-gewqiokc | Biotop-Bezug nein | Dateien 6 · Bytes 62659 · Verweise 0 | SHA-256 gleich 6 von 6 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/kammer-h12bconp | Biotop-Bezug ja (Inhalt) | Dateien 44 · Bytes 54740 · Verweise 0 | SHA-256 gleich 44 von 44 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/kammer-yvtzyer1 | Biotop-Bezug ja (Inhalt) | Dateien 57 · Bytes 144732 · Verweise 1 | SHA-256 gleich 57 von 57 · Verweise gleich 1 von 1 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/kanal-1.log | Biotop-Bezug nein | Dateien 1 · Bytes 698 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/kanal-2.log | Biotop-Bezug nein | Dateien 1 · Bytes 651 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/kanal-3.log | Biotop-Bezug nein | Dateien 1 · Bytes 651 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/kanal-4.log | Biotop-Bezug nein | Dateien 1 · Bytes 457 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/kanal-5.log | Biotop-Bezug nein | Dateien 1 · Bytes 651 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/kanal-vergleich-endmeldung.log | Biotop-Bezug nein | Dateien 1 · Bytes 754 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/kanal-vergleich.log | Biotop-Bezug nein | Dateien 1 · Bytes 754 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/kanal2.log | Biotop-Bezug nein | Dateien 1 · Bytes 657 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/kasse3.json | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 1006 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/lehren-katalog.md | Biotop-Bezug nein | Dateien 1 · Bytes 29613 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/liste.txt | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 3852 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/m02 | Biotop-Bezug nein | Dateien 1 · Bytes 5120 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/mut_p3.json | Biotop-Bezug nein | Dateien 1 · Bytes 60030 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/nach.py | Biotop-Bezug nein | Dateien 1 · Bytes 692 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/nachlauf.env | Biotop-Bezug nein | Dateien 1 · Bytes 7 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/nachprobe-tests.out | Biotop-Bezug nein | Dateien 1 · Bytes 404 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/nachtrag-f5.md | Biotop-Bezug nein | Dateien 1 · Bytes 4284 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/nachtrag18.py | Biotop-Bezug nein | Dateien 1 · Bytes 5671 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/paket-f3 | Biotop-Bezug nein | Dateien 44 · Bytes 915989 · Verweise 0 | SHA-256 gleich 44 von 44 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/pflicht-gegenprobe | Biotop-Bezug ja (Inhalt) | Dateien 247 · Bytes 2081430 · Verweise 0 | SHA-256 gleich 247 von 247 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/pruef-vor-t4-03 | Biotop-Bezug ja (Inhalt) | Dateien 5 · Bytes 92034 · Verweise 0 | SHA-256 gleich 5 von 5 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/pytest-of-root | Biotop-Bezug ja (Inhalt) | Dateien 307 · Bytes 436241 · Verweise 29 | SHA-256 gleich 307 von 307 · Verweise gleich 29 von 29 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/q0.py | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 373 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/q1.py | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 1320 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/q10.py | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 2778 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/q11.py | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 2410 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/q12.py | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 1350 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/q13.py | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 2061 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/q14.py | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 738 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/q15.py | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 745 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/q16.py | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 1454 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/q2.py | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 2726 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/q3.py | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 1216 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/q4.py | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 2975 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/q5.py | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 1627 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/q6.py | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 2047 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/q7.py | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 3596 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/q8.py | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 2255 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/q9.py | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 2069 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/r3-rauch | Biotop-Bezug nein | Dateien 5 · Bytes 863 · Verweise 0 | SHA-256 gleich 5 von 5 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/r3-rauch-ts | Biotop-Bezug nein | Dateien 3 · Bytes 598 · Verweise 0 | SHA-256 gleich 3 von 3 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/r5-baum-43b8fad | Biotop-Bezug ja (Inhalt) | Dateien 219 · Bytes 1777896 · Verweise 0 | SHA-256 gleich 219 von 219 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/r5-baum-head | Biotop-Bezug ja (Inhalt) | Dateien 222 · Bytes 1850710 · Verweise 0 | SHA-256 gleich 222 von 222 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/r5-vorprobe-e2 | Biotop-Bezug nein | Dateien 6 · Bytes 5711 · Verweise 0 | SHA-256 gleich 6 von 6 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/r5-vorprobe-e2b | Biotop-Bezug nein | Dateien 6 · Bytes 5241 · Verweise 0 | SHA-256 gleich 6 von 6 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/r6-s1 | Biotop-Bezug ja (Inhalt) | Dateien 1059 · Bytes 15180367 · Verweise 91 | SHA-256 gleich 1059 von 1059 · Verweise gleich 91 von 91 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/r6-s1b | Biotop-Bezug ja (Inhalt) | Dateien 737 · Bytes 15424259 · Verweise 101 | SHA-256 gleich 737 von 737 · Verweise gleich 101 von 101 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/r6-s1c | Biotop-Bezug ja (Inhalt) | Dateien 841 · Bytes 9877985 · Verweise 32 | SHA-256 gleich 841 von 841 · Verweise gleich 32 von 32 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/r6-s2 | Biotop-Bezug ja (Inhalt) | Dateien 3627 · Bytes 23725990 · Verweise 63 | SHA-256 gleich 3627 von 3627 · Verweise gleich 63 von 63 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/r6-s3 | Biotop-Bezug ja (Inhalt) | Dateien 5730 · Bytes 86846302 · Verweise 490 | SHA-256 gleich 5730 von 5730 · Verweise gleich 490 von 490 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/r6-s4 | Biotop-Bezug ja (Inhalt) | Dateien 2702 · Bytes 51149500 · Verweise 115 | SHA-256 gleich 2702 von 2702 · Verweise gleich 115 von 115 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/res.py | Biotop-Bezug nein | Dateien 1 · Bytes 977 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/review-vor-t4 | Biotop-Bezug ja (Inhalt) | Dateien 20 · Bytes 138175 · Verweise 0 | SHA-256 gleich 20 von 20 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/review-vor-t4-02 | Biotop-Bezug ja (Inhalt) | Dateien 58 · Bytes 144489 · Verweise 0 | SHA-256 gleich 58 von 58 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/review-vor-t4-03 | Biotop-Bezug ja (Inhalt) | Dateien 111 · Bytes 330913 · Verweise 0 | SHA-256 gleich 111 von 111 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/review-vor-t4-04 | Biotop-Bezug ja (Inhalt) | Dateien 86 · Bytes 142566 · Verweise 0 | SHA-256 gleich 86 von 86 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/review-vor-t4-05 | Biotop-Bezug ja (Inhalt) | Dateien 116 · Bytes 384859 · Verweise 0 | SHA-256 gleich 116 von 116 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/review03 | Biotop-Bezug ja (Inhalt) | Dateien 18 · Bytes 262237 · Verweise 0 | SHA-256 gleich 18 von 18 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/review_prompt.txt | Biotop-Bezug nein | Dateien 1 · Bytes 3755 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/rot-1cf2eb1 | Biotop-Bezug ja (Inhalt) | Dateien 212 · Bytes 1467524 · Verweise 0 | SHA-256 gleich 212 von 212 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/rot-verdrahtung-1cf2eb1 | Biotop-Bezug ja (Inhalt) | Dateien 244 · Bytes 2006799 · Verweise 0 | SHA-256 gleich 244 von 244 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/rv-7ndmgfmp | Biotop-Bezug nein | Dateien 2 · Bytes 123 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/rv02-32t8nzkt | Biotop-Bezug nein | Dateien 1 · Bytes 35 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/rv2-5ze6rrtv | Biotop-Bezug nein | Dateien 2 · Bytes 113 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/s1-doppelt-leer | Biotop-Bezug nein | Dateien 0 · Bytes 0 · Verweise 0 | SHA-256 gleich 0 von 0 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/s1-klaerung | Biotop-Bezug nein | Dateien 135 · Bytes 175422 · Verweise 0 | SHA-256 gleich 135 von 135 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/s1-staende | Biotop-Bezug ja (Inhalt) | Dateien 380 · Bytes 595552 · Verweise 0 | SHA-256 gleich 380 von 380 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/s1s5-abschluss3 | Biotop-Bezug ja (Inhalt) | Dateien 193 · Bytes 308348 · Verweise 0 | SHA-256 gleich 193 von 193 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/s1s5-zuordnung | Biotop-Bezug ja (Inhalt) | Dateien 269 · Bytes 600446 · Verweise 0 | SHA-256 gleich 269 von 269 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/sammlung-1cf2eb1 | Biotop-Bezug ja (Inhalt) | Dateien 290 · Bytes 2876445 · Verweise 0 | SHA-256 gleich 290 von 290 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/schwaerz-probe | Biotop-Bezug nein | Dateien 2 · Bytes 1201 · Verweise 0 | SHA-256 gleich 2 von 2 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/snap-private-tmp | Biotop-Bezug nein | Dateien 0 · Bytes 0 · Verweise 0 | SHA-256 gleich 0 von 0 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/snap.py | Biotop-Bezug nein | Dateien 1 · Bytes 690 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/speicherwerk-diagnose | Biotop-Bezug nein | Dateien 9 · Bytes 1091 · Verweise 0 | SHA-256 gleich 9 von 9 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/sperre-gegenprobe | Biotop-Bezug nein | Dateien 0 · Bytes 0 · Verweise 0 | SHA-256 gleich 0 von 0 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/stage | Biotop-Bezug nein | Dateien 19 · Bytes 251707 · Verweise 0 | SHA-256 gleich 19 von 19 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/t_k1165.py | Biotop-Bezug nein | Dateien 1 · Bytes 1043 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/tk_330.txt | Biotop-Bezug nein | Dateien 1 · Bytes 1683 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/tk_neu.txt | Biotop-Bezug nein | Dateien 1 · Bytes 1683 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/tmp0uk0l4by | Biotop-Bezug ja (Inhalt) | Dateien 40 · Bytes 51695 · Verweise 0 | SHA-256 gleich 40 von 40 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/tmp3vdxpk_a | Biotop-Bezug ja (Inhalt) | Dateien 35 · Bytes 48121 · Verweise 0 | SHA-256 gleich 35 von 35 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/tmp5s6e2mrj | Biotop-Bezug ja (Inhalt) | Dateien 34 · Bytes 47187 · Verweise 0 | SHA-256 gleich 34 von 34 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/tmpa6iy5p18 | Biotop-Bezug nein | Dateien 25 · Bytes 28784 · Verweise 0 | SHA-256 gleich 25 von 25 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/tmpfiehwsas | Biotop-Bezug ja (Inhalt) | Dateien 37 · Bytes 49285 · Verweise 0 | SHA-256 gleich 37 von 37 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/tmpigulv9sc | Biotop-Bezug nein | Dateien 25 · Bytes 28784 · Verweise 0 | SHA-256 gleich 25 von 25 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/tmpmyps5060 | Biotop-Bezug ja (Inhalt) | Dateien 34 · Bytes 47187 · Verweise 0 | SHA-256 gleich 34 von 34 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/tmpnm5y1qxr | Biotop-Bezug ja (Inhalt) | Dateien 38 · Bytes 49953 · Verweise 0 | SHA-256 gleich 38 von 38 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/tmpreumw4tc | Biotop-Bezug ja (Inhalt) | Dateien 38 · Bytes 50511 · Verweise 0 | SHA-256 gleich 38 von 38 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/tmpshpth9bf | Biotop-Bezug nein | Dateien 3 · Bytes 251136 · Verweise 0 | SHA-256 gleich 3 von 3 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/tmpu1hmekta | Biotop-Bezug ja (Inhalt) | Dateien 40 · Bytes 52079 · Verweise 0 | SHA-256 gleich 40 von 40 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/tmpwfaw3aci | Biotop-Bezug ja (Inhalt) | Dateien 40 · Bytes 52079 · Verweise 0 | SHA-256 gleich 40 von 40 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/tmux-0 | Biotop-Bezug nein | Dateien 0 · Bytes 0 · Verweise 0 | SHA-256 gleich 0 von 0 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/umformung | Biotop-Bezug ja (Inhalt) | Dateien 270 · Bytes 605387 · Verweise 0 | SHA-256 gleich 270 von 270 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/uv-b627a726dddf4bcb.lock | Biotop-Bezug nein | Dateien 1 · Bytes 0 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/uv-setuptools-b627a726dddf4bcb.lock | Biotop-Bezug nein | Dateien 1 · Bytes 0 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/verdrahtung-gegenprobe-beide | Biotop-Bezug ja (Inhalt) | Dateien 248 · Bytes 2214239 · Verweise 0 | SHA-256 gleich 248 von 248 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/verdrahtung-gegenprobe-mass_roh | Biotop-Bezug ja (Inhalt) | Dateien 248 · Bytes 2214473 · Verweise 0 | SHA-256 gleich 248 von 248 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/verdrahtung-gegenprobe-phase | Biotop-Bezug ja (Inhalt) | Dateien 248 · Bytes 2210820 · Verweise 0 | SHA-256 gleich 248 von 248 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/verdrahtung-gegenprobe-schwarm | Biotop-Bezug ja (Inhalt) | Dateien 248 · Bytes 2214387 · Verweise 0 | SHA-256 gleich 248 von 248 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/verdrahtung-gegenprobe-vv | Biotop-Bezug ja (Inhalt) | Dateien 248 · Bytes 2214185 · Verweise 0 | SHA-256 gleich 248 von 248 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/vor_t4_alle.txt | Biotop-Bezug nein | Dateien 1 · Bytes 100 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/vor_t4_b.txt | Biotop-Bezug nein | Dateien 1 · Bytes 1255 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/vor_t4_c.txt | Biotop-Bezug nein | Dateien 1 · Bytes 100 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/vor_t4_d.txt | Biotop-Bezug nein | Dateien 1 · Bytes 1931 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/vor_t4_drei.txt | Biotop-Bezug nein | Dateien 1 · Bytes 100 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/vor_t4_einheit.txt | Biotop-Bezug nein | Dateien 1 · Bytes 100 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/vor_t4_regression_schnell.txt | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 3513 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/vor_t4_review.txt | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 2801 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/vv-probe | Biotop-Bezug ja (Inhalt) | Dateien 163 · Bytes 367931 · Verweise 0 | SHA-256 gleich 163 von 163 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/vv-rauch | Biotop-Bezug ja (Inhalt) | Dateien 189 · Bytes 301489 · Verweise 0 | SHA-256 gleich 189 von 189 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/w5_auth.py | Biotop-Bezug nein | Dateien 1 · Bytes 1456 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/w5_scan.py | Biotop-Bezug nein | Dateien 1 · Bytes 1160 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/w5b.py | Biotop-Bezug nein | Dateien 1 · Bytes 1605 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/w7_codex.py | Biotop-Bezug nein | Dateien 1 · Bytes 1428 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/w7_db.py | Biotop-Bezug nein | Dateien 1 · Bytes 906 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/w7_route.py | Biotop-Bezug nein | Dateien 1 · Bytes 602 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/w7_route2.py | Biotop-Bezug nein | Dateien 1 · Bytes 373 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/w7_slash.py | Biotop-Bezug nein | Dateien 1 · Bytes 906 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/waechter-gegenprobe-kontext_fremde_sitzung.py | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 23193 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/waechter-gegenprobe-kontext_fremde_sitzung.xml | Biotop-Bezug nein | Dateien 1 · Bytes 3253 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/waechter-gegenprobe-kontext_grenzfall_echt_groesser.py | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 23212 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/waechter-gegenprobe-kontext_grenzfall_echt_groesser.xml | Biotop-Bezug nein | Dateien 1 · Bytes 2669 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/waechter-gegenprobe-kontext_mehrfach.py | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 23162 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/waechter-gegenprobe-kontext_mehrfach.xml | Biotop-Bezug nein | Dateien 1 · Bytes 4353 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/waechter-gegenprobe-kontext_schwelle_aus.py | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 23212 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/waechter-gegenprobe-kontext_schwelle_aus.xml | Biotop-Bezug nein | Dateien 1 · Bytes 4568 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/waechter-gegenprobe-nachspiel_beendete_sitzung.py | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 23220 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/waechter-gegenprobe-nachspiel_beendete_sitzung.xml | Biotop-Bezug nein | Dateien 1 · Bytes 4172 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/waechter-gegenprobe-sperrkonflikt_als_scheitern.py | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 23200 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/waechter-gegenprobe-sperrkonflikt_als_scheitern.xml | Biotop-Bezug nein | Dateien 1 · Bytes 3360 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/waechter-gegenprobe-verdichtung_aus.py | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 23229 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/waechter-gegenprobe-verdichtung_aus.xml | Biotop-Bezug nein | Dateien 1 · Bytes 6951 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/waechter-gegenprobe-verdichtung_fremde_sitzung.py | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 23180 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/waechter-gegenprobe-verdichtung_fremde_sitzung.xml | Biotop-Bezug nein | Dateien 1 · Bytes 3411 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/waechter-gegenprobe-verdichtung_mehrfach.py | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 23159 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/waechter-gegenprobe-verdichtung_mehrfach.xml | Biotop-Bezug nein | Dateien 1 · Bytes 4583 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/waechter-gegenprobe-verdichtung_vor_turnbeginn.py | Biotop-Bezug ja (Inhalt) | Dateien 1 · Bytes 23173 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/waechter-gegenprobe-verdichtung_vor_turnbeginn.xml | Biotop-Bezug nein | Dateien 1 · Bytes 3491 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/waechter-nachspiel | Biotop-Bezug ja (Inhalt) | Dateien 36 · Bytes 4982651 · Verweise 2 | SHA-256 gleich 36 von 36 · Verweise gleich 2 von 2 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/waechter-test.txt | Biotop-Bezug nein | Dateien 1 · Bytes 715 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/zugang-jetzt.txt | Biotop-Bezug nein | Dateien 1 · Bytes 3165 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+/tmp/zz_attr_query.py | Biotop-Bezug nein | Dateien 1 · Bytes 407 · Verweise 0 | SHA-256 gleich 1 von 1 · Verweise gleich 0 von 0 | ausgelassen: Geheimnis 0, Sonder 0, verschwunden 0 | GLEICH
+--- Summe: Quellen 233 · Dateien kopiert 24869 · gleich 24869 von 24869 · Bytes 678681304 · Geheimnisdateien ausgelassen 0
+--- Protokoll der Auslassungen (0 Zeilen)
+(keine)
+Ende 2026-09-26 00:12:55 CEST (UTC+0200)
+=== Ende EB25 ===

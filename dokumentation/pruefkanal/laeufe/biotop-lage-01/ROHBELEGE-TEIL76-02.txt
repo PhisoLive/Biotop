@@ -1,0 +1,370 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 76 (Teile 4–165 dieses Stands) · enthält R77 bis R78
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R77 · Teil E: Belegstellen in Berichten (Prüfkanal und Arbeitsordner)
+Beginn: 2026-09-25 16:27:44 CEST (UTC+0200)
+Ende:   2026-09-25 16:27:44 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/soll-ist/e4_bericht_suche.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/soll-ist/e4_bericht_suche.py (wörtlich) ---
+#!/usr/bin/env python3
+"""Teil E (SOLL-IST), nur lesend: gezielte Suche in Berichten des Prüfkanals und der Arbeitsordner nach
+Belegstellen für Forderungen aus Masterprompt v8. Gibt den Prüfkanal-Schlüssel nicht aus (Pfade relativ zu
+laeufe/). Schreibt nichts. Je Suche: Datei(en), Muster, bis zu N Trefferzeilen (gekürzt auf 260 Zeichen)."""
+import re
+from pathlib import Path
+
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+L = Path(f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe')
+
+SUCHEN = [
+    # (Titel, Wurzel, Glob, Muster, max)
+    ('Phase 1: versiegelte Schwächen / ethische Prüfung / Aufnahmebericht', L, 'biotop-phase-1/BERICHT.md',
+     r'versiegelt|ethisch|Aufnahmebericht|Halluzination', 8),
+    ('Phase 2: OpenRouter-Katalog vor dem ersten Lauf', L, 'biotop-phase-2/BERICHT.md', r'Katalog', 6),
+    ('Phase 2: Bandit-Gewichte nach 10 Generationen', L, 'biotop-phase-2/BERICHT.md', r'Bandit', 5),
+    ('Phase 3: Tablet / Anmeldung / Oberfläche', L, 'biotop-phase-3/BERICHT.md', r'Tablet|Web-Oberfl|401', 6),
+    ('Phase 3: Geschmacksgedächtnis', L, 'biotop-phase-3/BERICHT.md', r'Geschmack', 4),
+    ('VB1: Mindestanteil / Ansage vorab / Aufnahmesperre', L, 'biotop-phase-4-vorbedingung-1/BERICHT.md',
+     r'Mindestanteil|vorab|Aufnahmesperre|Bauteil A|Bauteil B|Bauteil C', 10),
+    ('VB1 Nachgang 06: Abnahme / Torzeile', L, 'biotop-phase-4-vorbedingung-1/NACHGANG-06.md',
+     r'abgenommen|Zeile 8|9,09|Richtung', 6),
+    ('T3: Vollmacht / Freigabe', Path('/root/biotop-t3'), 'ABSCHLUSSBERICHT.md', r'Vollmacht|Freigabe|freigabe', 8),
+    ('T3: Verbundausfall / Aufnahme / Eichgegenstand', Path('/root/biotop-t3'), 'ABSCHLUSSBERICHT.md',
+     r'Verbundausfall|Ausfall|Aufnahme|Eichgegenstand|Gegenzeug', 10),
+    ('Runde 1 vor T4: Rundung / _beschleunigen / Verfall', Path('/root/biotop-vor-t4'), 'BERICHT.md',
+     r'Rundung|_beschleunigen|Verfall|Anzeige', 8),
+    ('Runde 2–4: Kopfzeilen', Path('/root'), 'biotop-vor-t4-0[234]/BERICHT.md', r'^# ', 3),
+    ('Runde 2–4: Ergebnis Gegenprobe K2904/K3091', Path('/root'), 'biotop-vor-t4-0[234]/BERICHT.md',
+     r'K2904.*K3091|drei von drei|3 von 3', 6),
+    ('Runde 6: Review/Commit Stand', Path('/root/biotop-vor-t4-06'), 'UEBERGABE.md', r'Review|Commit|commit', 6),
+]
+
+for titel, wurzel, glob, rx, maxn in SUCHEN:
+    r = re.compile(rx)
+    dateien = sorted(wurzel.glob(glob))
+    print(f'\n## {titel} — {len(dateien)} Datei(en), Muster /{rx}/')
+    for p in dateien:
+        name = p.relative_to(L).as_posix() if str(p).startswith(str(L)) else str(p)
+        n = 0
+        zeilen = p.read_text(errors='replace').splitlines()
+        treffer = [(i, z) for i, z in enumerate(zeilen, 1) if r.search(z)]
+        print(f'   {name}: {len(treffer)} Trefferzeilen von {len(zeilen)} Zeilen')
+        for i, z in treffer[:maxn]:
+            print(f'      {i}: {z.strip()[:260]}')
+--- Ende /root/sicherung/biotop-lage-01/entwurf/soll-ist/e4_bericht_suche.py ---
+Ausgabe (vollständig, stdout und stderr):
+
+## Phase 1: versiegelte Schwächen / ethische Prüfung / Aufnahmebericht — 1 Datei(en), Muster /versiegelt|ethisch|Aufnahmebericht|Halluzination/
+   biotop-phase-1/BERICHT.md: 4 Trefferzeilen von 124 Zeilen
+      16: | 2 | Schwächen ≥ 4 von 5 gefunden und in angenommenen Generationen behoben; Kernmaß gestiegen | **bestanden (Mindestmaß), S2 offen** | 4 von 5 (S1, S3, S4, S5); Kernmaß 39 → 51 | `45-tor-zeilen-1-bis-4.txt`, `46-versiegelte-liste-entsiegelt.md` (sha256 `35190
+      18: | 4 | Halluzinationsprobe: sauberer Bereich unverändert | **bestanden** | 0 von 14 Kandidaten im Bereich `bericht` angenommen; `git diff gen0..gen5 -- lagerhaus/bericht` leer | `45-tor-zeilen-1-bis-4.txt` (Abschnitt Zeile 4) |
+      39: | Aufnahme | `biotop/organe/aufnahme.py` | ZIP / Git / Ordner; Zählung Dateien, Zeilen je Sprache, Testdateien; erster Testlauf in der Kammer; ethische Prüfung (Stichworte + 1 Modellurteil, das Werk beantwortet die Frage nicht); `MessgeraetFehlt` (Zeile 175) b
+      49: **Übungswerk `lagerhaus`** (`werk/uebungswerk-ausgang.tar.gz`, 856 Zeilen Python, 4 Bereiche, 50 Tests): `formeln` (Rabattformeln), `preise` (Katalog, Staffeln, Rabatt, Währung → formeln), `lager` (Bestand aus Journal, Reservierungen), `bericht` (Auswertung → 
+
+## Phase 2: OpenRouter-Katalog vor dem ersten Lauf — 1 Datei(en), Muster /Katalog/
+   biotop-phase-2/BERICHT.md: 2 Trefferzeilen von 151 Zeilen
+      26: | 11 | Modellwahl am OpenRouter-Katalog belegt | **bestanden** | Katalog 19.09.2026 geprüft; neuere Modelle gleicher Hersteller zu gleichem/niedrigerem Preis gewählt (Tabelle Abschnitt 2); Rauchtest je Modell mit Diff-Aufgabe (Lauf 11, 0,0016 €) | `00-openrout
+      146: - `ausgaben/` — 80 Dateien + `lauf12-vorlauf/` (28): Katalog & Rauchtest (00–01), Versiegeltes (02), Ausgang (03), Lauf 12 (10–21, 20a), Lauf 13 (40–46, 4gN je Generation + Freigaben), Proben (50–54, 54a), Tor-2-Auswertung (60–65), Übersicht aller Läufe (97), 
+
+## Phase 2: Bandit-Gewichte nach 10 Generationen — 1 Datei(en), Muster /Bandit/
+   biotop-phase-2/BERICHT.md: 3 Trefferzeilen von 151 Zeilen
+      16: | 1 | Nischen: 4 aktiv, je ≥ 2 Anbieter; Bandit-Gewichte nach 10 Generationen | **bestanden** | 4 von 4 Nischen, je 4 von 4 Herstellern genutzt (openai, google, deepseek, qwen); Gewichte nach 14 Generationen protokolliert; 235 `bandit.wahl`-Protokollzeilen | `
+      51: | Bandit-Gewichtung | Thompson-Stichprobe Beta(erfolge+1, misserfolge+1) je (Lauf, Nische, Hersteller); Erfolg = Kandidat überlebt den Ankläger; jede Wahl protokolliert (`bandit.wahl`); Gewichte = (e+1)/(v+2) | `nischen.waehlen`, `nischen.buchen`, `nischen.gew
+      135: - **Bandit-Gewichte trennen nur schwach** (0,03–0,17), weil fast alle Nischen fast nur Misserfolge buchen. Die Buchung zählt „überlebt", nicht „KEIN VORSCHLAG" als neutral — ein ehrliches „nichts gefunden" wird wie ein Fehlschlag gewertet. Für Fassung 4: leere
+
+## Phase 3: Tablet / Anmeldung / Oberfläche — 1 Datei(en), Muster /Tablet|Web-Oberfl|401/
+   biotop-phase-3/BERICHT.md: 2 Trefferzeilen von 332 Zeilen
+      41: | Web-Oberfläche (3.15) | `biotop/oberflaeche.py`, `biotop/dienst.py` | eine Seite hinter der Anmeldung, 18 Bedienelemente, je mit Codestelle |
+      139: - **18 von 18 Routen** ohne Token → HTTP 401 (vollständige Liste mit Ergebnis je Route).
+
+## Phase 3: Geschmacksgedächtnis — 1 Datei(en), Muster /Geschmack/
+   biotop-phase-3/BERICHT.md: 4 Trefferzeilen von 332 Zeilen
+      36: | Drei Gedächtnisse (3.12) | `biotop/organe/gedaechtnis.py` | Projekt-, Art-, Geschmacksgedächtnis; alle in der Datenbank, alle vor jeder Generation gelesen |
+      120: ### Zeile 7 — Geschmacksgedächtnis (Mechanikprüfung): **erfüllt**
+      125: **Ausdrücklich: Mechanikprüfung, kein Nachweis über Philipps Geschmack** — Philipps echte Entscheidungen gibt es
+      328: Geschmacksgedächtnis, `3x` Aufnahme `logmuehle`, `4x`–`10x` Mentor/Richtungen/Generationen je Lauf, `6x` Tor-3-Zeilen,
+
+## VB1: Mindestanteil / Ansage vorab / Aufnahmesperre — 1 Datei(en), Muster /Mindestanteil|vorab|Aufnahmesperre|Bauteil A|Bauteil B|Bauteil C/
+   biotop-phase-4-vorbedingung-1/BERICHT.md: 8 Trefferzeilen von 140 Zeilen
+      6: > gezählten Tests waren übernommener Altbestand). (4) Bauteil B streut (3 von 4 gegen 1 von 5) und ist damit
+      24: | A (3.7) Ankläger nennt Behauptung vorab | Tor 2 Zeile 8 unter 20 % | **0,0 % — bestanden**, aber bei nur 2 erzeugten Tests (Einschränkung unten) |
+      25: | B (3.12) Mindestanteil werkübergreifender Block | `lagerhaus`-Lauf mit ≥ 1 werkübergreifendem Verweis | **erfüllt** — 3 von 4 Richtungen, zweite Messung 1 von 5 |
+      32: ## 1. Bauteil B (3.12) — Mindestanteil des werkübergreifenden Blocks
+      43: | `lagerhaus` Lauf 22, mit Bauteil B | 6 | **3 von 4** (A271, A597, A569, A568, A270) | **0** |
+      46: **Der Anteil allein genügte nicht.** `logmuehle` hatte nur 4 Muster; der Mindestanteil kann nicht mehr zeigen,
+      52: ## 2. Bauteil A (3.7) — Ankläger nennt die Behauptung vorab
+      124: | Lauf 22, Generation 5 (Bauteil A, erste Messung) | 44 | 0,1190 |
+
+## VB1 Nachgang 06: Abnahme / Torzeile — 1 Datei(en), Muster /abgenommen|Zeile 8|9,09|Richtung/
+   biotop-phase-4-vorbedingung-1/NACHGANG-06.md: 0 Trefferzeilen von 158 Zeilen
+
+## T3: Vollmacht / Freigabe — 1 Datei(en), Muster /Vollmacht|Freigabe|freigabe/
+   /root/biotop-t3/ABSCHLUSSBERICHT.md: 4 Trefferzeilen von 225 Zeilen
+      192: **Freigaberegel**, Ablage `/root/.hermes/memories/MEMORY.md` Zeile 7, wirkt in jeder
+      193: künftigen Sitzung: Eine abgelehnte oder abgelaufene Befehlsfreigabe wird nie umgangen —
+      195: Entweder neu anfordern oder mit der wörtlichen Blockmeldung anhalten. Freigaberegeln setzt
+      197: durch `cd` ersetzt, nachdem die Freigabe abgelaufen war — das beseitigte nur das vom
+
+## T3: Verbundausfall / Aufnahme / Eichgegenstand — 1 Datei(en), Muster /Verbundausfall|Ausfall|Aufnahme|Eichgegenstand|Gegenzeug/
+   /root/biotop-t3/ABSCHLUSSBERICHT.md: 8 Trefferzeilen von 225 Zeilen
+      81: **Verbundausfall (Auflage 3)** — belegt an **114 echten Ausfällen**, nicht gestellt:
+      82: qwen/qwen3.8-flash lieferte durchgehend HTTP 429, jeder Ausfall mit `beitraege=0` und
+      83: `verbrauch_bekannt=false`. Verteilung: Lauf 29, 30 und 35 je 1 Ausfall (vor der
+      92: aus. Jeder Ausfall nach 3 Versuchen (Wiederholung nach 2 s, dann nach 8 s); für die drei
+      109: | 35 | 3 | 0,0038 | gen0 rot (Ausfall ohne Klärungsweg) |
+      118: Ausfallklärungen (Höchstfall, null Beitrag).
+      136: | `5b4066f` | Ausfallklärung läuft automatisch — die Regel mechanisch angewandt |
+      185: 111-mal aus, ohne dass der Bandit das lernen konnte — absichtlich, weil Satz 8 Ausfall
+
+## Runde 1 vor T4: Rundung / _beschleunigen / Verfall — 1 Datei(en), Muster /Rundung|_beschleunigen|Verfall|Anzeige/
+   /root/biotop-vor-t4/BERICHT.md: 1 Trefferzeilen von 338 Zeilen
+      59: | 11 | Erreichbarkeit, Verfall, `_beschleunigen`, Rohwerte | wie `58bd9f9` | Laufweg `anbieter.aufrufen` → `nischen.waehlen`: 3 Drosselungen → qwen in 0 von 15 Wahlen (`test_review5_drosselung…`). Laufweg `eichung.rauschmessung`: Rohwerte in Messreihenfolge | 
+
+## Runde 2–4: Kopfzeilen — 3 Datei(en), Muster /^# /
+   /root/biotop-vor-t4-02/BERICHT.md: 1 Trefferzeilen von 438 Zeilen
+      1: # Behebungsrunde 2 vor T4: nicht abgenommen — Gegenprobe K2904/K3091 nur 2 von 3; das Review fand an der neuen Python-Sonde 5 gemessene Lücken, die T4 treffen
+   /root/biotop-vor-t4-03/BERICHT.md: 1 Trefferzeilen von 451 Zeilen
+      1: # Behebungsrunde 3 vor T4: nicht abgenommen — K2904/K3091 wieder nur 2 von 3 (Vergleichslast); die fünf Lücken der Python-Sonde sind für ihre Probenfälle geschlossen, aber das Review hat vier neue gemessen (Deckung: grobes Weißraum-Merkmal, Verfälschung je Fun
+   /root/biotop-vor-t4-04/BERICHT.md: 1 Trefferzeilen von 367 Zeilen
+      1: # Behebungsrunde 4 vor T4: Gegenproben der Entscheidungen 1, 3 und 4 erfüllt; die vier hohen Befunde sind für ihre Probenfälle geschlossen, die Fehlerklassen nicht (Review: 2 neue hohe Befunde, an Runde 5)
+
+## Runde 2–4: Ergebnis Gegenprobe K2904/K3091 — 3 Datei(en), Muster /K2904.*K3091|drei von drei|3 von 3/
+   /root/biotop-vor-t4-02/BERICHT.md: 6 Trefferzeilen von 438 Zeilen
+      1: # Behebungsrunde 2 vor T4: nicht abgenommen — Gegenprobe K2904/K3091 nur 2 von 3; das Review fand an der neuen Python-Sonde 5 gemessene Lücken, die T4 treffen
+      25: - **Nicht erfüllt: eine Gegenprobe des Auftrags.** K2904 und K3091 wurden in **2 von 3** Durchgängen
+      26: gleich entschieden, nicht in 3 von 3.
+      157: | 3 | Nenner zählt Funktionen, deren Aufrufe nur Fehler liefern | p4 | 3 von 3 Randfällen `AttributeError` auf beiden Seiten, Änderung unsichtbar, „1 von 1“ |
+      259: | K2904 und K3091 in 3 von 3 Durchgängen gleich entschieden | Nachspiel durch `aegis.pruefen` am Commit, drei Durchgänge | **gleich entschieden in 2 von 3 Durchgängen — Gegenprobe gescheitert.** K2904 überlebt 3 von 3, K3091 2 von 3. In Durchgang 3 wurde K3091
+      263: **K2904 und K3091, drei Durchgänge am Commit** (`nachspiel-d1..3/`; jeder Beleg trägt Commit und sauberen Arbeitsbaum):
+   /root/biotop-vor-t4-03/BERICHT.md: 4 Trefferzeilen von 451 Zeilen
+      1: # Behebungsrunde 3 vor T4: nicht abgenommen — K2904/K3091 wieder nur 2 von 3 (Vergleichslast); die fünf Lücken der Python-Sonde sind für ihre Probenfälle geschlossen, aber das Review hat vier neue gemessen (Deckung: grobes Weißraum-Merkmal, Verfälschung je Fun
+      14: - **Gegenprobe K2904/K3091 wieder nur 2 von 3 — gemeldet, wie verlangt.** Die Nachmessung an der Gewinnschwelle ist
+      178: **Nachspiele K2904/K3091 am Commit `d54bf2f`** (`NACHSPIEL-D1..3.txt`, `nachspiel/d1..d3/`; `planung` = Quote
+      436: Streuung einer 5er-Messung bei ≈ 6,5 %. Ohne größere Last bleibt „3 von 3 gleich“ für diesen Kandidaten Zufall.
+   /root/biotop-vor-t4-04/BERICHT.md: 12 Trefferzeilen von 367 Zeilen
+      8: jeder Nische, Gegenprobe K2904/K3091 drei von drei, T3s Ergebnisse unverändert; (2) die vier hohen Befunde vor T4, jede
+      15: - **Entscheidung 1 (Stufe 2):** 12 von 12 Kammerläufen der Stufe 2 unter 60 s (längster 11,7 s). K2904 und K3091
+      16: überleben an Stufe 2 in je 3 von 3 Durchgängen (N1–N3 am Nachtrag `43b8fad`), `planung`-Quote 0,376–0,455, alle
+      50: **Gemessen** (`proben/STUFE2-ZEITEN.txt/.json`, an den Vorgenerationen und Kandidaten K2904/K3091, je Stand und Stufe
+      60: „drei von drei“ tragen soll.
+      66: **Gegenprobe erfüllt: K2904 und K3091 in 3 von 3 Durchgängen gleich entschieden** (beide überlebt in N1, N2, N3;
+
+## Runde 6: Review/Commit Stand — 1 Datei(en), Muster /Review|Commit|commit/
+   /root/biotop-vor-t4-06/UEBERGABE.md: 26 Trefferzeilen von 231 Zeilen
+      3: ## Auftrag (Philipp, 24.09., Entscheidungen Chat-Claude zu Review 05 und Bericht 05)
+      4: 0. **Runde 5 abschließen:** es gilt das zweite Review (`/tmp/review-vor-t4-05/REVIEW.md`); das erste bleibt als verworfen im
+      5: Ordner, was nur es fand → „unbestätigt“ auf die Liste; im Bericht erklären, wie zwei Reviews entstanden; künftig eigener
+      6: Ordner je Review und Prüfung vor dem Start, dass keines läuft; §11/§12 füllen, veröffentlichen, Endmeldung.
+      9: (Review 05 Nr. 1, x5, x5b).
+      21: **Startregel T4 (vorab gesetzt):** T4 beginnt, sobald das Review dieser Runde keinen stillen Durchlass mehr findet — jede
+=== Ende R77 ===
+
+
+R78 · Teil H: Nachlese FK08/FK13/FK39–FK43 (Offen-Abschnitte R1–R4, R5-14, 9,09 %, v8 Gedächtnis/Freigabe, Skills, tmpfiles, R2, Lauf 38, REVIEW-B, OpenRouter im Code, Wächter) nur lesend
+Beginn: 2026-09-25 16:28:54 CEST (UTC+0200)
+Ende:   2026-09-25 16:28:54 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/sicherung/biotop-lage-01/entwurf/lage-offen/h7_nachlese.sh
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/lage-offen/h7_nachlese.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-LAGE-01 Teil H (nur lesend): Nachlese für FK08/FK13/FK39–FK43. Nur sed/grep/cat auf Berichte, Masterprompt v8,
+# Skills, tmpfiles-Konfiguration und Rohbelege. Schlüssel des Prüfkanals in Ausgaben durch {LAEUFE} ersetzt.
+date '+== Zeitpunkt %Y-%m-%d %H:%M:%S %Z (UTC%z)'
+K=$(cat /etc/pruefkanal/schluessel); L=/var/pruefkanal/oeffentlich/_akte/$K/laeufe
+m() { sed "s#$L#{LAEUFE}#g; s#$K#{SCHLUESSEL}#g" | cut -c1-300; }
+echo "== A1 vor-t4 BERICHT §8 und §9 (Zeilen 262–282)"; sed -n '262,282p' /root/biotop-vor-t4/BERICHT.md | m
+echo "== A2 vor-t4-02 BERICHT §12 (ab Zeile 412)"; sed -n '412,460p' /root/biotop-vor-t4-02/BERICHT.md | m
+echo "== A3 vor-t4-03 BERICHT §14 (ab Zeile 433)"; sed -n '433,451p' /root/biotop-vor-t4-03/BERICHT.md | m
+echo "== A4 vor-t4-04 BERICHT §14 (ab Zeile 357)"; sed -n '357,367p' /root/biotop-vor-t4-04/BERICHT.md | m
+echo "== B R5-14/Ereignisschleife in Runde 5/6"; grep -n 'R5-14\|Ereignisschleife' /root/biotop-vor-t4-05/*.md /root/biotop-vor-t4-06/*.md | m
+echo "== C 9,09 in T3-Ordner und Runden"; grep -rn '9,09' $L/biotop-t3-typescript --include=*.md | m | head -12; grep -n '9,09' /root/biotop-vor-t4*/BERICHT.md | m | head -5
+echo "== D Masterprompt v8: Gedächtnis/STAND/Vollmacht/Freigabe/Testwerk"
+V8=/root/sicherung/biotop-lage-01/arbeit/dokumente/2026-09-23_155353_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v8.md
+grep -n -i 'gedaechtnis/\|STAND-\|REGELN-\|Vollmacht\|gibt .*frei\|Freigabe' $V8 | m | head -30
+echo "== E Skills: Zweigvergleich / null Fälle (Anweisung 22.09.)"
+grep -n -i 'Zweigvergleich\|null Fälle\|zweite Hälfte\|jede Enthaltung zählen' /root/.hermes/skills/software-development/measurement-harness-discipline/SKILL.md /root/.hermes/skills/software-development/measurement-harness-discipline/references/defect-class-sweep.md 2>&1 | m | head -10
+echo "== F tmpfiles für /tmp"; cat /usr/lib/tmpfiles.d/tmp.conf 2>&1 | grep -v '^#' | grep -v '^$'; ls /etc/tmpfiles.d/ 2>&1
+echo "== G R2: Biotop-Prozesse zu Auftragsbeginn (Zusammenfassung)"; grep -n -i 'biotop\|lauf' /root/sicherung/biotop-lage-01/rohbelege/R0002.txt | m | head -25
+echo "== H Meldungen zu Lauf 38 (22.09. 15:30 – 23.09. 06:00)"
+awk '/^## 2026-09-2[23] /{k=$0; t=substr($0,4,16)} /Lauf 38/ && t>="2026-09-22 15:30" && t<="2026-09-23 06:00" {print k; print "   > " substr($0,1,300)}' /root/sicherung/biotop-lage-01/arbeit/lesen/hermes-an-philipp.md | head -24
+echo "== I REVIEW-B im Prüfkanal biotop-vor-t4-04"; grep -c 'REVIEW' $L/biotop-vor-t4-04/DATEIEN.txt; grep -n 'REVIEW' $L/biotop-vor-t4-04/DATEIEN.txt | m
+echo "== J Probenkandidaten aus Projektgedächtnis entfernt (Phase-3-Nachlauf)"; grep -n -i 'entfernt\|gelöscht\|DELETE' $L/biotop-phase-3-nachlauf/BERICHT.md | m | head -10
+echo "== K OpenRouter-Schlüssel im Biotop-Code (nur Fundstellen des Namens)"; grep -rn 'OPENROUTER_API_KEY' /root/biotop/biotop --include=*.py | m | head -8
+echo "== L Prüfkanal biotop-vor-t4-06: jüngste Datei"; find $L/biotop-vor-t4-06 -type f -printf '%TY-%Tm-%Td %TH:%TM %P\n' | sort | tail -3 | m
+echo "== M Wächter-Auftrag (Name des Ordners, ohne Inhalte sonst)"; grep -o '"auftrag"[^,]*' /root/.hermes/zwischenbericht/auftrag.json 2>&1 | m
+--- Ende /root/sicherung/biotop-lage-01/entwurf/lage-offen/h7_nachlese.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== Zeitpunkt 2026-09-25 16:28:54 CEST (UTC+0200)
+== A1 vor-t4 BERICHT §8 und §9 (Zeilen 262–282)
+## 8. Zurückgezogene oder berichtigte Aussagen des 18:18-Entwurfs
+
+- „Alle elf Vorbedingungen sind gebaut“ → gebaut für den TypeScript-Pfad. Für Python fehlt der Verhaltensvergleich
+  (Nr. 2), und der Python-Zweig von Nr. 1 ist nur einmal ausgeführt.
+- „Offen aus dem Auftrag: nach meiner Prüfung nichts“ → zurückgezogen (§2, Nr. 8a).
+- „Gestellt ist nur die Kammergrenze“ (Nr. 3) → gestellt waren Kammer, Messgerät und Modell.
+- „Vorgeneration 4,80“ → ein gestellter Testwert, keine Messung.
+- „K2868 Durchgang 2 überlebt, 12 von 12 gedeckt“ → stimmt als Ausgabe des Organs. Die Deckung gilt aber je Funktion,
+  und der Kandidat ändert gültiges Verhalten (§2).
+
+## 9. Sperren im Wortlaut
+
+- `terminal` mit `nohup … &`: „Foreground command uses shell-level background wrappers (nohup/disown/setsid). Re-send
+  WITHOUT the wrapper as terminal(command="<cmd>", background=true, notify_on_complete=true) …“
+  - Einordnung: Formatvorgabe der Ausführungsschicht, kein Sicherheitsurteil.
+  - Umgang: derselbe Befehl ohne `nohup`, als verfolgter Hintergrundprozess, wie die Meldung verlangt.
+- Drei Befehle wurden vom Sicherheitsscan markiert („[HIGH] Pipe to interpreter …“ bzw. „Nested executable body could not
+  be resolved …“) und **von der Smart-Approval freigegeben**. Es waren Lesebefehle (Sitzungsindex, Modellkatalog,
+  Cron-Liste). Kein Block.
+- Zwei Aufrufe über 600 s hat die Ausführungsschicht als Hintergrundprozess gestartet. Kein Block.
+
+== A2 vor-t4-02 BERICHT §12 (ab Zeile 412)
+## 12. Offen für Philipp
+
+1. **Methoden von Klassen beobachtet keine der beiden Sonden** (nur Funktionen der Modulebene bzw. `export function`).
+   T4 ist ein fremdes Python-Werk mit 6.000–10.000 Zeilen, Klassen sind dort wahrscheinlich. Zu entscheiden: vor T4
+   bauen, oder als benannte Grenze mit Enthaltung führen.
+2. **Deckung je Abweichung macht echte Behebungen schwer deckbar.** Ein Test deckt nur, was er mit genau der Eingabe
+   der Sonde festhält; Schwarm und Ankläger kennen diese Eingaben nicht.
+   - Gemessen an K2868: Die drei Befundklassen-Tests decken jetzt keine der Abweichungen mehr, auch nicht die
+     beabsichtigte Behebung `'a'` → SyntaxError.
+   - Vorschlag zur Entscheidung: die ungedeckten Eingaben dem Ankläger oder dem Kandidaten als Auftrag zurückgeben
+     („Test für `ausdruck('a')` fehlt“), statt nur abzulehnen.
+3. **T3-Stand im Masterprompt:** „Lauf 38: 4 von 5 = 80 %“ ist nach Entscheidung 1 zu korrigieren auf 3 von 5 = 60 %
+   (Lauf 37: 2 von 5 = 40 %). Das versiegelte Kriterium S1 (`KRITERIEN-v1.md`) prüft nur den Marker; eine neue
+   Versiegelung mit Weißraum wäre Eure Entscheidung.
+4. **K3044 akzeptiert Tab, K2868 nicht.** Beide weisen den Zeilenumbruch ab. Sollen Tab und Zeilenumbruch gleich
+   behandelt werden, oder gilt die Normalversion Zeichen für Zeichen?
+5. Die Nachmessung in der Generalprobe hat keinen eigenen Laufweg-Test (§4).
+6. **Die Python-Sonde vor T4 nachbessern** (Review Nr. 1–5, 11, 12; §2). Ohne das ist T4 gegen „schneller, aber falsch“
+   bei Generatoren, Nebenwirkungen an Eingaben und nicht annotierten Funktionen weiter ungeschützt. Zugleich würde die
+   Sonde verhaltensgleiche Beschleunigungen ablehnen (Hash-Reihenfolge, `@lru_cache`).
+7. **Deckungsregel** (Review Nr. 6): Gilt „dieselbe Eingabe und dasselbe Ergebnis je Muster“? Gemessen deckt ein
+   richtiger Test damit 2 von 28 Abweichungen. Behebungen auf dem Lastpfad sind so praktisch nicht annehmbar; das
+   gefährdet die Torzeile „Schwächen ≥ 80 %“.
+   - Alternativen: Deckung je Eingabe ohne Muster, oder eine Verfälschungsprobe (der Test muss fallen, wenn das
+     aufgezeichnete Ergebnis verfälscht wird).
+8. **Gewinnschwelle der Nische schnell:** in beiden Richtungen bestätigen (vor Ablehnung und vor Annahme)? Das ist Teil
+   von Grundsatz 14; es gibt dazu zwei rote Spezifikationen.
+== A3 vor-t4-03 BERICHT §14 (ab Zeile 433)
+## 14. Offen für Philipp
+
+1. **Vergleichslast für die Gewinnschwelle vergrößern** (Entscheidung 2, §4): K3091 liegt 2 Punkte von der Schwelle, die
+   Streuung einer 5er-Messung bei ≈ 6,5 %. Ohne größere Last bleibt „3 von 3 gleich“ für diesen Kandidaten Zufall.
+2. **Muster und nicht variierte Argumente** (§3): Sollen Merkmale von Argumenten, die die Sonde nicht variiert hat, zum
+   Muster gehören? Bei K2868 verlangt jedes der 40 Muster `null_zahl`. Ohne sie verlören Lastbeobachtungen ihr
+   Weißraum-Merkmal nicht, wenn nur die Grundliste ausgenommen wird — das wäre eine Regeländerung nach der Messung und
+   braucht Eure Entscheidung.
+3. **Methoden in TypeScript** (§2): nicht gebaut.
+4. **Doppelprüfung erzwingen** (§5): Wo soll sie für künftige Testwerke laufen — bei der Versiegelung, bei der Aufnahme?
+5. **S-12 und S-3 (Wurzelmodul) nur am Organ belegt**, nicht durch den Laufweg (§6).
+6. **Generalprobe:** Die Gewinn-Nachmessung in `lauf._generation_koerper` ist gelesen, nicht ausgeführt (0 von 16
+   Urteilen im Verdrahtungslauf mit Nachmessung).
+7. **Die vier hohen Review-Befunde vor T4 beheben** (R4-1 … R4-4): Mit ihnen lässt die Deckung je Muster die K2868-Lage
+   durch, sobald ein Kandidat einen Test mit doppeltem Leerzeichen mitbringt, und die Sonde schweigt bei Iterator-Objekten
+   und `__slots__`-Klassen. Dazu eine Frage: Soll `weissraum` je Zeichen getrennt werden (Tab, Zeilenumbruch, CR, NBSP,
+   doppeltes Leerzeichen), passend zu den Formvarianten?
+8. **Sicherheitssperre des Filters für den Dienstprozess auf Befehle ohne Bezug dazu** (Runde 2 beim Prüfer, Runde 3
+   zweimal bei mir): als Fehlalarm melden, oder gibt es eine Regel, die ich kennen muss?
+== A4 vor-t4-04 BERICHT §14 (ab Zeile 357)
+## 14. Offen für Philipp
+
+1. **Die Befunde des Reviews 04:** am 24.09. entschieden (Runde 5, Entscheidungen 1–8).
+2. **`eingang` an Stufe 2 gesperrt in 3 von 6 Nachspielen:** entschieden (Runde 5, Entscheidung 6: die Stufe-2-Lasten
+   werden wie Stufe 1 bemessen und geeicht, bis `eingang` nicht mehr sperrt).
+3. **Normalvergleich je Schwäche:** entschieden (Runde 5, Entscheidung 5: für T4 gilt das Verhalten der Vorgeneration
+   über den Verhaltensvergleich; eine verhaltensändernde Altlast braucht einen unabhängigen Test aus der
+   Altlastenliste).
+4. **K2868, führende Null (`~form#7`, 4 ungedeckte Abweichungen):** Die Werte stehen nicht im Beleg. Runde 5 schreibt
+   sie ins Nachspiel. Danach ist zu klären, ob `007` eine gültige Zahl ist (die Normalversion nimmt sie an). Wenn ja,
+   ist das ein weiterer Rückschritt von K2868.
+== B R5-14/Ereignisschleife in Runde 5/6
+/root/biotop-vor-t4-05/BERICHT.md:61:- Die Review-Proben liegen jetzt in `biotop-vor-t4-04/review-proben/` (13 Dateien), dazu die Spezifikationen R5-1 … R5-14.
+/root/biotop-vor-t4-05/REVIEW-AUFTRAG.md:16:   R5-14), `review-proben/` (`kammerprobe.py`, `x4probe.py`, `lokal_proben*.py` u. a.).
+/root/biotop-vor-t4-05/UEBERGABE.md:42:  gefüllt (bau/r4_bericht_fuellen.py), SPEZIFIKATIONEN R5-1…R5-14, review-proben/ (13 Dateien). NÄCHSTES: Code lesen.
+== C 9,09 in T3-Ordner und Runden
+{LAEUFE}/biotop-t3-typescript/abschluss-02/NACHTRAG-02.md:180:| planung | 1,172 | 9,08 / 9,09 / 9,65 / 9,75 / 11,37 |
+{LAEUFE}/biotop-t3-typescript/MASTERPROMPT-v7.md:11:- 8: Vorbedingung 1 **abgenommen** (21.09.2026): Tor 2 Zeile 8 erfüllt mit 9,09 %, Artgedächtnis 3 von 5 Richtungen mit werkübergreifendem Verweis.
+== D Masterprompt v8: Gedächtnis/STAND/Vollmacht/Freigabe/Testwerk
+41:- 2, Satz 5 und 4: **Abbrüche nach Satz 2 sind vom Freigabe-Gate ausgenommen** — immer erlaubt, protokolliert. Grund: Hermes konnte Lauf 16 nicht stoppen und er lief weiter.
+44:- 4: **Richtungswahl unter Vollmacht** bei Übungswerken (protokolliert); bei Werken mit Betriebszweck wählt Philipp.
+76:- 4: Vollmacht für Übungswerke (Freigaben durch Hermes mit Protokoll; echte Werke nur durch Philipp).
+231:6. Bei Bestehen: Schnappschuss (Lazarus), Vorlage an Philipp zur Freigabe.
+240:**Aufgabe:** Jeder Fehler — vom Ankläger gefunden, in der Generalprobe aufgetreten, von Philipp bei der Freigabe benannt — wird zu einem Test im Werk.
+258:- **Geschmacksgedächtnis** (Philipp): jede Freigabe, jede Ablehnung, jede Begründung. Ab 20 Entscheidungen wird daraus ein Vorhersagemodell, das die Jury (3.5) bei weichen Maßen ergänzt. Es ersetzt Philipp nie; es sagt vorher, was er wahrscheinlich entscheidet, und legt es ihm mit der Vorlag
+269:**Aufgabe:** Philipp sieht: das Werk und seine Landkarte; die Verfassung; das eingefrorene Maß; den Verlauf aller Maße über die Generationen (als Kurven); die aktuelle Generation mit Kandidaten je Nische; die Vorlage zur Freigabe mit Diff, Maß-Vergleich, Anklägerbericht und Geschmacksvorher
+283:8. **Freigabe** → Philipp gibt frei oder lehnt ab; Ablehnung mit Grund → Immunisierung + Geschmacksgedächtnis.
+287:Philipp gibt jede Generation frei. Vollautomatik über mehrere Generationen kommt erst, wenn das Messgerät über mindestens drei Werke ohne einen einzigen unbemerkten Rückschritt gearbeitet hat — und dann nur auf Philipps Satz.
+288:**Vollmacht für Übungswerke (Fassung 2, erweitert in Fassung 5):** Für Werke ohne Betriebszweck, die Hermes selbst erzeugt hat, gilt eine schriftliche Vollmacht: Hermes gibt Generationen frei **und wählt die Richtung des Mentors**, protokolliert je Entscheidung die Begründung (`freigabe.fre
+305:**Abbrüche sind nie gesperrt (Fassung 5):** Ein Abbruch nach Satz 2 (Messgerätänderung) oder nach dem Budget ist eine Pflicht, keine Freigabe. Das Freigabe-Gate darf ihn nicht blockieren; er ist immer erlaubt und wird protokolliert. Grund: In Phase 3 blockierte das Gate den Versuch, einen als
+347:- Die Schalter „Sicherheitsmodus" und „Freigabepflicht" als Prompt-Text. Freigabe ist ein Kernmechanismus (Abschnitt 4, Schritt 8), kein Text.
+405:- Geschmacksgedächtnis, Mechanik (Fassung 4): Philipps echte Entscheidungen gibt es erst ab Phase 4. Prüfung mit versiegelter Regel — Hermes hinterlegt vor dem Lauf eine Entscheidungsregel (versiegelt, Prüfsumme), erzeugt danach 30 Freigaben/Ablehnungen nach dieser Regel; das Gedächtnis le
+491:4. **Freigaben ausschließlich durch Philipp**; die Vollmacht für Übungswerke gilt hier nicht. Hier beginnt das echte Geschmacksgedächtnis.
+== E Skills: Zweigvergleich / null Fälle (Anweisung 22.09.)
+== F tmpfiles für /tmp
+D /tmp 1777 root root 30d
+screen-cleanup.conf
+== G R2: Biotop-Prozesse zu Auftragsbeginn (Zusammenfassung)
+1:R2 · Schritt 1: laufende Biotop-Prozesse, Container, Zeitgeber, Cron, Subagenten, Ports
+7:bash /root/sicherung/biotop-lage-01/arbeit/s1_prozesse.sh
+8:--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/s1_prozesse.sh (wörtlich) ---
+10:# BIOTOP-LAGE-01 Schritt 1: Läuft ein Biotop-Lauf oder ein anderer Biotop-Prozess (Prozesse, Container, Zeitgeber,
+13:echo "== Prozesse mit biotop / pytest / kammer / vitest / tsc im Befehl (Start, Laufzeit, Befehl)"
+14:ps -eo pid,lstart,etime,args --sort=start_time | grep -E "biotop|pytest|kammer|vitest|tsc " | grep -v -E "grep -E|s1_prozesse" || echo "(keine)"
+17:echo "(Anzahl laufender Container: $(docker ps -q | wc -l))"
+18:echo "== Kammer-Sperrdatei /tmp/biotop-kammer-exklusiv"
+19:ls -ld /tmp/biotop-kammer-exklusiv 2>&1
+26:echo "== systemd-Dienste mit biotop/hermes/caddy/pruef im Namen"
+27:systemctl list-units --type=service --all --no-pager 2>&1 | grep -i -E "biotop|hermes|caddy|pruef" || echo "(keine)"
+28:echo "== Hermes-Zeitgeber (Cron-Jobs von Hermes): Name, Zeitplan, Status, nächster Lauf, Skript"
+43:echo "== Subagenten (Delegationen) mit Stand 'laufend' laut Manifest"
+50:laeuft = [t for t in aufgaben if str(t.get('status', '')).lower() in ('running', 'laufend', 'started', 'queued')] if isinstance(aufgaben, list) else []
+63:--- Ende /root/sicherung/biotop-lage-01/arbeit/s1_prozesse.sh ---
+67:== Prozesse mit biotop / pytest / kammer / vitest / tsc im Befehl (Start, Laufzeit, Befehl)
+70:(Anzahl laufender Container: 0)
+71:== Kammer-Sperrdatei /tmp/biotop-kammer-exklusiv
+72:ls: cannot access '/tmp/biotop-kammer-exklusiv': No such file or directory
+115:== systemd-Dienste mit biotop/hermes/caddy/pruef im Namen
+119:● melder-wache.service                           loaded    failed   failed  Prueft, ob der Anfragen-Melder noch laeuft (Gegenlese Lauf 1)
+121:  zertifikat-wache.service                       loaded    inactive dead    Prueft die Restlaufzeit des ausgelieferten TLS-Zertifikats
+122:== Hermes-Zeitgeber (Cron-Jobs von Hermes): Name, Zeitplan, Status, nächster Lauf, Skript
+125:   {'id': '5825fd644daa', 'name': 'Endmeldung Runde 5 (vor T4)', 'schedule': {'kind': 'once', 'run_at': '2026-09-24T23:53:16.849038+02:00', 'display': 'once in 1m'}, 'enabled': False, 'state': 'completed', 'next_run_at': None, 'last_run_at': '2026-09-24T23:54:23.855222+02:00', 'script': 'biotop_
+126:== Subagenten (Delegationen) mit Stand 'laufend' laut Manifest
+== H Meldungen zu Lauf 38 (22.09. 15:30 – 23.09. 06:00)
+## 2026-09-22 15:43:02 · Hermes · id 11556 · 20260921_015554_e79a4a0f
+   > **Alle drei Punkte erledigt, Lauf 38 läuft.**
+## 2026-09-22 21:29:37 · Hermes · id 11574 · 20260921_015554_e79a4a0f
+   > **Lauf 38 am Budget beendet — mit einem Befund über meine eigene Arbeit, der schwerer wiegt als das Laufergebnis.**
+## 2026-09-22 21:29:37 · Hermes · id 11574 · 20260921_015554_e79a4a0f
+   > **Der Befund:** Ich habe `verhaltensvergleich` und `masseichung` gebaut, getestet, committet — und **nie in den Prüfpfad eingehängt**. `grep` findet beide Namen nur in ihren eigenen Moduldateien. Lauf 38 lief ohne die Abwehr.
+## 2026-09-23 05:50:55 · Hermes · id 11729 · 20260921_015554_e79a4a0f
+   > Restbudget **4,52 €**, Nachtrag 0,00 €. Soll ich die 9,09 % rekonstruieren oder Lauf 38 mit Kernänderung 1 und 3 starten?
+## 2026-09-23 05:50:55 · Hermes · id 11781 · 20260921_015554_e79a4a0f
+   > **Alle drei Punkte erledigt, Lauf 38 läuft.**
+## 2026-09-23 05:50:55 · Hermes · id 11799 · 20260921_015554_e79a4a0f
+   > **Lauf 38 am Budget beendet — mit einem Befund über meine eigene Arbeit, der schwerer wiegt als das Laufergebnis.**
+## 2026-09-23 05:50:55 · Hermes · id 11799 · 20260921_015554_e79a4a0f
+   > **Der Befund:** Ich habe `verhaltensvergleich` und `masseichung` gebaut, getestet, committet — und **nie in den Prüfpfad eingehängt**. `grep` findet beide Namen nur in ihren eigenen Moduldateien. Lauf 38 lief ohne die Abwehr.
+== I REVIEW-B im Prüfkanal biotop-vor-t4-04
+2
+42:https://milieulux-reinigung-muenchen.de/_akte/{SCHLUESSEL}/laeufe/biotop-vor-t4-04/REVIEW-AUFTRAG.md  147bf60c00cdfb88d7a96986f0ced91395a26e3c5bc95b1a2f9b08a2f5d1734e
+43:https://milieulux-reinigung-muenchen.de/_akte/{SCHLUESSEL}/laeufe/biotop-vor-t4-04/REVIEW.md  2f5b01050d91bf95ccc03cdbb28f069bdeb444d9e22db30de510623fb862b315
+== J Probenkandidaten aus Projektgedächtnis entfernt (Phase-3-Nachlauf)
+263:> 6. **Was nie passieren darf:** Ein Kandidat, der Tests entfernt oder abschwächt, um einen Fehlschlag zu
+268:**Anmerkung zur Wirksamkeit:** Satz 2 wurde vom Werk anders erfüllt als erwartet — der Schwarm entfernte den
+297:  nicht entfernt.
+== K OpenRouter-Schlüssel im Biotop-Code (nur Fundstellen des Namens)
+/root/biotop/biotop/anbieter/__init__.py:101:        self.key = _schluessel("OPENROUTER_API_KEY")
+== L Prüfkanal biotop-vor-t4-06: jüngste Datei
+2026-09-25 01:12 zwischenbericht-20260925-011225-r12-verdichtung/PRUEFSUMME-ORDNER.txt
+2026-09-25 01:12 zwischenbericht-20260925-011225-r12-verdichtung/UEBERGABE-1-UEBERGABE.md
+2026-09-25 01:12 zwischenbericht-20260925-011225-r12-verdichtung/ZWISCHENBERICHT.md
+== M Wächter-Auftrag (Name des Ordners, ohne Inhalte sonst)
+"auftrag": "biotop-lage-01"
+=== Ende R78 ===

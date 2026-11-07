@@ -1,0 +1,26 @@
+# Tor 3 — Jury (weiche Maße): Fälle mit Einstimmigkeit / ohne
+Lauf 17 Gen 2 zaehlen: K1405 vs K1406 — einstimmig: True, Gewinner: 1405
+    openai/gpt-5.6-luna: A — Beide Diffs sind inhaltlich identisch und entfernen dieselbe tote Funktion, wodurch die Struktur klarer wird. Kandidat A begründet die konkrete Änderung präziser und bleibt dabei näher am tatsächlich 
+    google/gemini-3.5-flash-lite: A — Beide Kandidaten reichen exakt denselben, sauberen Diff ein, der die tote Funktion entfernt. Da die harten Maße identisch sind und kein Unterschied in der Codequalität vorliegt, fällt die Wahl formal 
+    deepseek/deepseek-v4.1-flash: A — Beide Diffs sind identisch, aber A begründet die Änderung klarer und fokussierter: knapp, ohne unnötige Abschweifung über fremde Bereiche. Bs Begründung ist länger und verliert sich in einer nicht rel
+Lauf 17 Gen 3 filtern: K1425 vs K1427 — einstimmig: True, Gewinner: 1427
+    openai/gpt-5.6-luna: B — Kandidat B ist klarer strukturiert: Das Datenmodell `_GrepSpec` und der separate Parser trennen das Parsen von der eigentlichen Filterlogik. Die Benennung ist überwiegend sprechend und die explizite B
+    google/gemini-3.5-flash-lite: B — Kandidat B wirkt durch den Einsatz einer `@dataclass` und das saubere, tokenbasierte Parsing (`_parse_befehl`) strukturierter und eleganter als Kandidat A. Zudem ist die Regex-Unterstützung robuster, 
+    deepseek/deepseek-v4.1-flash: B — B trennt das Parsen sauber in eine eigene Funktion mit einer kleinen, sprechenden Datenklasse (_GrepSpec) und behandelt Regex- vs. Fixed-String-Fälle explizit — die Struktur ist klarer und die Absicht
+Lauf 20 Gen 1 preise: K1924 vs K1928 — einstimmig: True, Gewinner: 1924
+    openai/gpt-5.6-luna: A — Kandidat A ist klarer und fokussiert die notwendige Änderung unmittelbar auf die Preisquelle. Kandidat B führt zusätzlich eine Validierung ein, die für die beschriebene Anpassung unnötige Sonderlogik 
+    google/gemini-3.5-flash-lite: A — Kandidat A ist fokussierter und eleganter, da er exakt die Kernaufgabe der Fehlerbehebung löst. Kandidat B fügt ohne Not eine neue Validierungslogik (Menge <= 0) hinzu, die im Diff nicht gefordert war
+    deepseek/deepseek-v4.1-flash: A — Kandidat A ist minimal und präzise: eine Zeile, die exakt die fehlerhafte Berechnung korrigiert, ohne zusätzliche Logik einzuführen. Kandidat B fügt eine Validierung hinzu, die nicht Teil des Auftrags
+Lauf 20 Gen 0 probe_jury_hermes: K2064 vs K2065 — einstimmig: True, Gewinner: 2064
+    openai/gpt-5.6-luna: A — A ist klarer und eleganter, weil der zusammengesetzte Schlüssel die vollständige Sortierabsicht direkt ausdrückt. B führt mit zwei Sortierschritten und dem irreführenden Namen „nach_anzahl“ unnötige K
+    google/gemini-3.5-flash-lite: A — Kandidat A ersetzt die verschachtelte Sortierlogik durch einen einzigen, eleganten Ausdruck mit zusammengesetztem Schlüssel. Das vermeidet unnötige Zwischenvariablen und ist für Python-Entwickler sofo
+    deepseek/deepseek-v4.1-flash: A — Kandidat A ist deutlich eleganter: ein einziger sorted-Aufruf mit zusammengesetztem Schluessel (-p[1], p[0]) druckt die Sortierabsicht direkt aus, ohne den Umweg ueber zwei stabile Sortierungen. Der T
+Lauf 20 Gen 0 probe_jury_hermes: K2066 vs K2067 — einstimmig: True, Gewinner: 2067
+    openai/gpt-5.6-luna: B — B macht die Struktur durch sprechende Zwischennamen und die explizite Trennung von Zeitstempel und Zeitzone klarer. Die benannten Fehlerfälle sind verständlicher als die positionsabhängigen Slices in 
+    google/gemini-3.5-flash-lite: B — Kandidat B verzichtet auf starre Slicing-Magie und nutzt stattdessen mit `partition` ein sprechendes, robustes Werkzeug zur Trennung. Zudem sorgt die klare Fehlerbehandlung für sprechende Domain-Ausna
+    deepseek/deepseek-v4.1-flash: B — B nutzt sprechende Namen (roh, zone) und partition statt magischer Slicing-Indizes wie text[:20] und text[21:], was die Absicht klar macht. Die explizite Fehlerbehandlung mit aussagekräftigen Meldunge
+Lauf 20 Gen 0 probe_jury_mechanik: K2066 vs K2067 — einstimmig: False, Gewinner: None
+    openai/gpt-5.6-luna: B — B strukturiert das Zerlegen und Parsen klarer und verwendet mit `roh`, `zone` und den aussagekräftigen Fehlermeldungen sprechende Namen. Die explizite Behandlung der beiden Eingabefälle macht den Abla
+    google/gemini-3.5-flash-lite: B — Kandidat B verzichtet auf starres Slicing durch magische Indizes und verwendet stattdessen das aussagekräftige `partition`. Zudem sorgt die explizite Fehlerbehandlung für eine klare Struktur und sprec
+    deepseek/deepseek-v4.1-flash: A — Gestellte Gegenstimme (Mechanikprobe Hermes): A ist kuerzer.
+ERGEBNIS: 6 Jury-Fälle; einstimmig 5, ohne Einstimmigkeit (kein Urteil) 1; Hersteller je Fall: 3 (openai, google, deepseek)

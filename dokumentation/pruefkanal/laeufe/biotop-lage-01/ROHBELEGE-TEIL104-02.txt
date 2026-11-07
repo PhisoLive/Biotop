@@ -1,0 +1,290 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 104 (Teile 4–165 dieses Stands) · enthält R130 bis R130
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R130 · Teil G: Abgleichsbelege WS03/WS07/WS11/WS16/WS18, FK23, FK25, FK44/45 (nur lesend)
+Beginn: 2026-09-25 17:34:09 CEST (UTC+0200)
+Ende:   2026-09-25 17:34:10 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/lage-werke/g8_abgleich.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/lage-werke/g8_abgleich.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil G (nur lesend): Abgleichsbelege für WS03, WS07, WS11, WS16, WS18, FK23, FK25, FK44/FK45.
+Alle Dateien werden intern geöffnet (Vorsorge nach SPERRE-01); kein Biotop-Code wird importiert oder ausgeführt.
+(a) Nachrichten Philipps (berichtigtes Verzeichnis v2) mit „abgenommen|abgeschlossen|Abnahme“: id, Zeit, ±110 Zeichen
+    je Treffer; Dokumente (Text beginnt mit „#“ und > 20.000 Zeichen) übersprungen; höchstens 3 Treffer je Nachricht.
+(b) id 11505: ±320 Zeichen um „9,09“.
+(c) Masterprompt v8: Zeilen 1–81 (Änderungsverzeichnis) mit „Grundsatz|Grundsätze“ (Zeilennummer, 260 Zeichen).
+(d) Masterprompt v8: Zeilen 169–197 (Abschnitt 3.5), je 260 Zeichen.
+(e) Masterprompt v8: Zeilen mit „überschrieben|Ende des Vorhabens|nach Phase 5|Phase 6“.
+(f) ABNAHME Vorbedingung 1 (20.09.): Abschnitt „## 4“ bis zum nächsten „## “.
+(g) {LAEUFE}/biotop-phase-2/BERICHT.md: Zeilen mit „Hersteller|Anbieter“ (höchstens 8, je 220 Zeichen).
+(h) Kopf (erste 14 Zeilen) von /root/biotop/tests/drahtwerk.py und speicherwerk.py; Treffer „grosswerk“ in /root/biotop/tests.
+"""
+import json
+import re
+from pathlib import Path
+
+W = Path('/root/sicherung/biotop-lage-01')
+D = W / 'arbeit/dokumente'
+V8 = D / '2026-09-23_155353_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v8.md'
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+L = Path(f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe')
+
+
+def eng(s):
+    return s.replace('\n', ' ')
+
+
+nachr = [json.loads(z) for z in (W / 'arbeit/verlauf/v2/wortlaut.jsonl').open(encoding='utf-8')]
+ph = [d for d in nachr if d.get('absender') == 'Philipp']
+print('== (a) Philipp: abgenommen/abgeschlossen/Abnahme')
+for d in ph:
+    t = d.get('text') or ''
+    if t.lstrip().startswith('#') and len(t) > 20000:
+        continue
+    n = 0
+    for m in re.finditer(r'abgenommen|abgeschlossen|Abnahme', t):
+        a = max(0, m.start() - 110)
+        print(f"id {d['id']} · {d['zeit']}: …{eng(t[a:m.end() + 110])}…")
+        n += 1
+        if n >= 3:
+            break
+
+print('\n== (b) id 11505 um „9,09“')
+for d in ph:
+    if d['id'] == 11505:
+        t = d['text']
+        for m in re.finditer(r'9,09', t):
+            a = max(0, m.start() - 320)
+            print(f"…{eng(t[a:m.end() + 320])}…")
+
+zeilen = V8.read_text(encoding='utf-8').splitlines()
+print('\n== (c) v8 Zeilen 1–81 mit Grundsatz/Grundsätze')
+for i, z in enumerate(zeilen[:81], 1):
+    if re.search('Grundsatz|Grundsätze', z):
+        print(f'{i}: {z[:260]}')
+print('\n== (d) v8 Zeilen 169–197')
+for i in range(169, 198):
+    print(f'{i}: {zeilen[i - 1][:260]}')
+print('\n== (e) v8 überschrieben / Ende des Vorhabens / nach Phase 5 / Phase 6')
+for i, z in enumerate(zeilen, 1):
+    if re.search('überschrieben|Ende des Vorhabens|nach Phase 5|Phase 6', z):
+        print(f'{i}: {z[:260]}')
+
+print('\n== (f) ABNAHME Vorbedingung 1, Abschnitt 4')
+ab = (D / '2026-09-20_045016_ABNAHME_Vorbedingung-1_2026-09-20.md').read_text(encoding='utf-8').splitlines()
+drin = False
+for i, z in enumerate(ab, 1):
+    if z.startswith('## '):
+        drin = z.startswith('## 4')
+    if drin:
+        print(f'{i}: {z[:300]}')
+
+print('\n== (g) biotop-phase-2/BERICHT.md: Hersteller/Anbieter')
+n = 0
+for i, z in enumerate((L / 'biotop-phase-2/BERICHT.md').read_text(errors='replace').splitlines(), 1):
+    if re.search('Hersteller|Anbieter', z) and n < 8:
+        print(f'{i}: {z[:220]}')
+        n += 1
+
+print('\n== (h) Köpfe der Prüfwerk-Erzeuger')
+for f in ('drahtwerk.py', 'speicherwerk.py'):
+    print(f'-- /root/biotop/tests/{f}')
+    for i, z in enumerate(Path('/root/biotop/tests', f).read_text(encoding='utf-8').splitlines()[:14], 1):
+        print(f'{i}: {z[:200]}')
+print('-- „grosswerk“ in /root/biotop/tests (*.py)')
+for p in sorted(Path('/root/biotop/tests').glob('*.py')):
+    for i, z in enumerate(p.read_text(encoding='utf-8', errors='replace').splitlines(), 1):
+        if 'grosswerk' in z:
+            print(f'{p.name}:{i}: {z.strip()[:160]}')
+print('=== Ende')
+--- Ende /root/sicherung/biotop-lage-01/entwurf/lage-werke/g8_abgleich.py ---
+Ausgabe (vollständig, stdout und stderr):
+== (a) Philipp: abgenommen/abgeschlossen/Abnahme
+id 629 · 2026-09-18 20:59:08: …`, `coverage`, `.tools` aus (der Vorgänger wurde mit echten Schlüsseln verschickt).  ---  ## 8. Bauphasen mit Abnahmetoren  Jede Phase ist ein eigener Hermes-Auftrag mit eigenem Abschlussordner. Ein Tor gilt als bestanden, wenn…
+id 641 · 2026-09-18 22:59:45: …`, `coverage`, `.tools` aus (der Vorgänger wurde mit echten Schlüsseln verschickt).  ---  ## 8. Bauphasen mit Abnahmetoren  Jede Phase ist ein eigener Hermes-Auftrag mit eigenem Abschlussordner. Ein Tor gilt als bestanden, wenn…
+id 831 · 2026-09-19 00:36:30: …`, `coverage`, `.tools` aus (der Vorgänger wurde mit echten Schlüsseln verschickt).  ---  ## 8. Bauphasen mit Abnahmetoren  Jede Phase ist ein eigener Hermes-Auftrag mit eigenem Abschlussordner. Ein Tor gilt als bestanden, wenn…
+id 997 · 2026-09-19 02:23:42: …`, `coverage`, `.tools` aus (der Vorgänger wurde mit echten Schlüsseln verschickt).  ---  ## 8. Bauphasen mit Abnahmetoren  Jede Phase ist ein eigener Hermes-Auftrag mit eigenem Abschlussordner. Ein Tor gilt als bestanden, wenn…
+id 997 · 2026-09-19 02:23:42: …8) deckten die Messgerät-Funde auf, die in Fassung 3 eingearbeitet sind. Kosten 1,79 € von 5 €. **Phase 1 ist abgeschlossen; Phase 2 ist freigegeben.**  ### Phase 2 — Der Schwarm **Bauen:** Vier Nischen, Bandit-Gewichtung, Generation…
+id 997 · 2026-09-19 02:23:42: …te Fassung gilt. Fortschreibung als Fassung 4 bei grundlegenden neuen Erkenntnissen.*   Tor 1 ist mit 9 von 9 abgenommen, Phase 1 abgeschlossen — lies INFINITE-EVOLUTION-BIOTOP-Masterprompt-v3.md vollständig, Fassung 2 ist ersetzt…
+id 1393 · 2026-09-19 12:39:25: …[Replying to: "Phase 2 „Der Schwarm" abgeschlossen. Abschlussordner liegt im Prüfkanal.  Abholadresse: https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvj…
+id 1393 · 2026-09-19 12:39:25: …`, `coverage`, `.tools` aus (der Vorgänger wurde mit echten Schlüsseln verschickt).  ---  ## 8. Bauphasen mit Abnahmetoren  Jede Phase ist ein eigener Hermes-Auftrag mit eigenem Abschlussordner. Ein Tor gilt als bestanden, wenn…
+id 1393 · 2026-09-19 12:39:25: …8) deckten die Messgerät-Funde auf, die in Fassung 3 eingearbeitet sind. Kosten 1,79 € von 5 €. **Phase 1 ist abgeschlossen; Phase 2 ist freigegeben.**  ### Phase 2 — Der Schwarm **Bauen:** Vier Nischen, Bandit-Gewichtung, Generation…
+id 2232 · 2026-09-19 19:35:53: …* Nebenwirkungs-, Regressions-, Norm- und Vertragsprobe laufen als Vorspann jedes Laufs, nicht nur einmal als Abnahme. Grund: fünf von sieben Läufen in Phase 3 starben, weil das Messgerät erst im Lauf als kaputt auffiel; Kosten…
+id 2232 · 2026-09-19 19:35:53: …prüft das Biotop sich selbst. Die vier Proben aus Tor 2 laufen als Vorspann jedes Laufs, nicht nur einmal als Abnahme: Nebenwirkungsprobe (hebt A, senkt B → tot), Regressionsprobe (Behebung rückgängig plus grüne Tests → tot, ge…
+id 2232 · 2026-09-19 19:35:53: …`, `coverage`, `.tools` aus (der Vorgänger wurde mit echten Schlüsseln verschickt).  ---  ## 8. Bauphasen mit Abnahmetoren  Jede Phase ist ein eigener Hermes-Auftrag mit eigenem Abschlussordner. Ein Tor gilt als bestanden, wenn…
+id 2234 · 2026-09-19 20:14:46: …Teil 1 stimmt Zahl für Zahl mit dem Bericht überein, den ich selbst geholt habe — Phase 3 ist abgeschlossen, keine Nachfragen. Ein Punkt fehlt in deiner Aufzählung der Nachlaufarbeiten: Laufzeiten werden ab Fassung 5 …
+id 2718 · 2026-09-20 00:18:44: …l das ausdrücklich erlaubt ist. Die Rolle des Gegners erzeugt Zwangsbefunde; die Entscheidung wird dem Modell abgenommen, statt sie ihm anzutragen. Spart zusätzlich Aufrufe. - 3.12: Der werkübergreifende Block des Artgedächtnisses…
+id 2718 · 2026-09-20 00:18:44: …* Nebenwirkungs-, Regressions-, Norm- und Vertragsprobe laufen als Vorspann jedes Laufs, nicht nur einmal als Abnahme. Grund: fünf von sieben Läufen in Phase 3 starben, weil das Messgerät erst im Lauf als kaputt auffiel; Kosten…
+id 2718 · 2026-09-20 00:18:44: …ehrlich nichts liefern. Die Rolle des Gegners erzeugt Zwangsbefunde; deshalb wird dem Modell die Entscheidung abgenommen, statt sie ihm anzutragen.  **Angriffstests sind keine Verträge (Fassung 3, erweitert in Fassung 4):** Ein Te…
+id 2798 · 2026-09-20 00:55:54: …Nachlauf abgenommen, alle neun Punkte geprüft — lies INFINITE-EVOLUTION-BIOTOP-Masterprompt-v6.md vollständig, Fassung 5 ist erse…
+id 2844 · 2026-09-20 01:47:55: …ile 8 **nicht gemessen**. Bauteil B gebaut, Wirkung **nicht stabil belegt**. **Ergebnis: Vorbedingung 1 nicht abgenommen.** Nachgang nötig — überwiegend **ohne neue Modellaufrufe**.  ---  ## 1. Was nachgerechnet wurde und stimmt  …
+id 2844 · 2026-09-20 01:47:55: …neuen Lauf.  ---  ## 7. Kurzprompt für den Telegram-Chat mit Hermes  > Vorbedingung 1 ist geprüft und **nicht abgenommen** — der Nachgangsauftrag N1 bis N6 steht in `PRUEFUNG_Vorbedingung-1_2026-09-20.md`. Tragender Befund: größte…
+id 2846 · 2026-09-20 01:47:58: …"} Do not guess a reply destination when these fields are insufficient.  Vorbedingung 1 ist geprüft und nicht abgenommen — der Nachgangsauftrag N1 bis N6 steht in PRUEFUNG_Vorbedingung-1_2026-09-20.md. Tragender Befund: größte Gru…
+id 2902 · 2026-09-20 02:01:47: …genstand:** `NACHGANG.md`, `DATEIEN.txt`, `PRUEFSUMME-ORDNER.txt`, abgerufen 20.09.2026 **Wertung: noch nicht abgenommen.** Ein einziger Punkt fehlt — er kostet **0 Modellaufrufe**.  ---  ## 1. Prüfsumme — diesmal nachgerechnet, n…
+id 2902 · 2026-09-20 02:01:47: …Lauf nennen, oder die Aussage auf zwei belegte Messungen zurücknehmen.  > **Freigabetor:** Vorbedingung 1 ist abgenommen, sobald N7, N8 und N9 vorliegen. Alle drei kosten **0 Modellaufrufe**. Vorbedingung 2 startet danach.  ---  #…
+id 2902 · 2026-09-20 02:01:47: …e stimmt, 54 Zeilen, keine zwei inhaltsgleichen Nutzdateien, N6 wirkt. Vorbedingung 1 ist trotzdem noch nicht abgenommen: In `ausgaben/04g6-gen6.json` stehen 0 Byte, während `04g6-gen6.err` gefüllt ist — Generation 6 des Lauf-23-F…
+id 2903 · 2026-09-20 02:01:48: …e stimmt, 54 Zeilen, keine zwei inhaltsgleichen Nutzdateien, N6 wirkt. Vorbedingung 1 ist trotzdem noch nicht abgenommen: In ausgaben/04g6-gen6.json stehen 0 Byte, während 04g6-gen6.err gefüllt ist — Generation 6 des Lauf-23-Forts…
+id 2935 · 2026-09-20 02:25:43: …gung 1 — N7 bis N9  **Geprüft von:** Chat-Claude · **Abruf:** 20.09.2026, alle vier Adressen **Wertung: nicht abgenommen** — diesmal nicht wegen der Inhalte, sondern weil sie an der Abholadresse nicht liegen.  ---  ## 1. Der harte…
+id 2935 · 2026-09-20 02:25:43: …esen zu sein**. Genau das geht gerade nicht.  Das ist kein Verschieben der Grenze. Mein Freigabetor lautete: „abgenommen, sobald N7, N8 und N9 **vorliegen**." Vorliegen heißt an der Abholadresse.  ---  ## 2. Mein eigener Fehler — …
+id 2935 · 2026-09-20 02:25:43: …nen, sodass die Messung von außen prüfbar ist.  > **Freigabetor, unverändert im Maßstab:** Vorbedingung 1 ist abgenommen, wenn der Ordner N7 bis N9 trägt, die gemeldete Prüfsumme zum ausgelieferten Ordner passt, und N10 beantworte…
+id 2967 · 2026-09-20 02:46:30: ….09.2026, dritte Runde **Wertung: Vorbedingung 1 nicht erfüllt.** Ich stimme Hermes' eigenem Antrag zu, keine Abnahme zu beantragen — **gestützt auf seine Meldung, nicht auf eigene Ausführung.**  ---  ## 1. Zuerst das, was zähl…
+id 2967 · 2026-09-20 02:46:30: …üllt gemeldet. Er hat nachgeprüft, den Fehler in der eigenen Messung gefunden, das Ergebnis umgedreht und die Abnahme von sich aus zurückgezogen. Das ist der Vorgang, für den das ganze Biotop gebaut wird — nicht die Zahl, sonde…
+id 2967 · 2026-09-20 02:46:30: … €** — als Schätzung gekennzeichnet. Frei sind 2,09 €. Das Budget trägt.  **Freigabetor:** Vorbedingung 1 ist abgenommen, wenn Durchgerutscht an C null ist, der Fehlalarm belegt unter der Grenze liegt, beide Eichfälle vorliegen un…
+id 2969 · 2026-09-20 02:46:35: …message_id": "6935"} Do not guess a reply destination when these fields are insufficient.  Dein Antrag, keine Abnahme zu beantragen, ist richtig — Durchgerutscht 2 statt 0 reißt den Maßstab, und dass du das gegen dein eigenes B…
+id 3005 · 2026-09-20 03:12:33: …dem echten Lauf**. Das hängt beim roten Fall daran, ob der Ankläger sich zufällig wiederholt. Ein Tor, dessen Abnahme vom Zufall abhängt, ist schlecht gesetzt.  **Berichtigt:**  - **Natürlich aufgetretener roter Fall geht vor.*…
+id 3005 · 2026-09-20 03:12:33: …liefern, melden.** Nicht überschreiten, nicht nachverhandeln.  ---  ## 9. Freigabetor  > **Vorbedingung 1 ist abgenommen, wenn alle vier zutreffen:** > 1. Pfadnachweis steht — geprüfte Aufnahmen = erzeugte Einträge, mit Nenner > 2…
+id 3057 · 2026-09-20 04:00:48: …rbedingung 1 — Lauf 25  **Geprüft von:** Chat-Claude · **Abruf:** 20.09.2026, Adressen `-05` **Wertung: nicht abgenommen.** Drei Punkte, einer davon an der harten Budgetgrenze. Zwei davon kosten null Modellaufrufe.  ---  ## 1. Was…
+id 3057 · 2026-09-20 04:00:48: … weil die Budgetlage davon abhängt. **Kein Lauf, bevor N12 vorliegt.**  > **Freigabetor:** Vorbedingung 1 ist abgenommen, wenn N12 den Kassenstand klärt und die Laufgrenze nachweislich gehalten ist, N13 die Aufnahmestelle benennt,…
+id 3057 · 2026-09-20 04:00:48: … — der Auftraggeber schreibt das hin, nicht der Ausführer.  Fassung 7 wird geschrieben, sobald Vorbedingung 1 abgenommen ist. Vorher nicht — sie ist selbst eine Messgerätänderung.  ---  ## 8. Kurzprompt für den Telegram-Chat mit H…
+id 3058 · 2026-09-20 04:00:50: …Lauf 25 ist geprüft und nicht abgenommen, aber zwei der drei Punkte kosten null Modellaufrufe: Erstens geht die Kasse nicht auf — 476 + 183 = 659 Aufr…
+id 3102 · 2026-09-20 04:50:16: …/doc_f18e4c5d9f14_ABNAHME_Vorbedingung-1_2026-09-20.md]  [Content of ABNAHME_Vorbedingung-1_2026-09-20.md]: # Abnahme: Biotop Phase 4, Vorbedingung 1  **Geprüft von:** Chat-Claude · **Abruf:** 20.09.2026, Adressen `-06` **Wertu…
+id 3102 · 2026-09-20 04:50:16: …unkte des Freigabetors aus Prüfung 6 sind belegt. **Geltungsbereich ist eng — Abschnitt 4 gehört zwingend zur Abnahme dazu.**  ---  ## 1. Bestätigt durch Ausführung  ``` Je Zweck, vollständige Liste:   76 Zwecke, 183 Aufrufe   …
+id 3102 · 2026-09-20 04:50:16: …cherer** Beleg für die Echtheit des Pfads gewesen als diese drei Fehlschläge.  ---  ## 4. Geltungsbereich der Abnahme — das gehört dazu  Abgenommen ist: **Die Bauteile sind gebaut, und ihre Mechanik ist im laufenden Kern nachge…
+id 3104 · 2026-09-20 04:50:18: …message_id": "7017"} Do not guess a reply destination when these fields are insufficient.  Vorbedingung 1 ist abgenommen. Ich habe alles nachgerechnet: 76 Zwecke und 183 Aufrufe in der vollständigen Kassenliste, 848 Aufrufe und 1,…
+id 3104 · 2026-09-20 04:50:18: … zwei verschiedene Sperrfälle an drei Stellen-Durchläufen, nicht drei Fälle, und mein Tor verlangte zwei. Die Abnahme gilt eng: gebaut und im laufenden Kern nachgewiesen, aber C hat im natürlichen Betrieb nie eine Doppelung abg…
+id 3105 · 2026-09-20 04:54:01: …laeufe/biotop-phase-4-vorbedingung-1/KASSE-06.md  ---  ## 3. Der Stand in zehn Zeilen  - **Vorbedingung 1 ist abgenommen** (20.09.2026, sechs Prüfrunden, Läufe 22–25, 848 Aufrufe, 1,6970 € von 3 €). - **Bauteil A** (Ankläger sagt …
+id 3105 · 2026-09-20 04:54:01: … deterministisch, im Kern, an beiden Aufnahmestellen (`aegis.py` Zeile 621 `fund`, Zeile 654 `norm`). - **Die Abnahme gilt eng.** C hat im natürlichen Betrieb **nie** eine Doppelung abgefangen. Alle Belege stammen aus gestellte…
+id 3105 · 2026-09-20 04:54:01: …, 0,3976 €) dort bereits abgerechnet ist. Ist sie es, fällt Vorbedingung 1 auf 1,2994 €. Ändert nichts an der Abnahme, bereinigt nur die Bücher. Falls die Abfrage mehr als ein paar Minuten kostet: liegen lassen und melden.  **W…
+id 3107 · 2026-09-20 04:54:03: …ER-06.txt abgerufen und der Ordner steht mit 87 Dateien und 89a68d30…, genau wie gemeldet; Vorbedingung 1 ist abgenommen, der ganze Stand liegt in WIEDEREINSTIEG_Hermes_2026-09-20.md, und ab sofort gilt: eine Sitzung, ein Auftrag,…
+id 4317 · 2026-09-20 15:28:25: …Bestandsaufnahme abgenommen und geprüft — sie ist der wichtigste Bericht dieser Reihe, und deine Entscheidung, Vorbedingung 1 nicht zu st…
+id 7913 · 2026-09-20 21:14:38: …Reparatur 02 abgenommen — alle vier Torzeilen erfüllt, Batterie beweisbar unverändert (305 IDs in gleicher Reihenfolge, Eichgegenstan…
+id 8461 · 2026-09-20 22:55:04: …Wertung: nicht abgenommen, ich folge dir — beide Zahlen sind erreicht (9,09 % und 3 von 5), aber das Review ist ohne Urteil abgebrochen…
+id 8749 · 2026-09-21 00:07:30: …Vorbedingung 1 abgenommen. K2689 ist richtig repariert — nur der Importname, Testkörper und Assertions AST-identisch, und die zwei Gege…
+id 8749 · 2026-09-21 00:07:30: …hase 4 beginnt in einer frischen Sitzung anhand von UEBERGABE-PHASE-4.md. Stell sicher, dass die Übergabe die Abnahme von Vorbedingung 1 und den Verweis auf abschluss-02 enthält; sonst nichts.…
+id 9017 · 2026-09-21 01:19:00: …ch mit einer Bestätigung des Stands aus gemessenen Quellen, nicht aus dem Gedächtnis — Biotop-Bestand, letzte Abnahme, offene Befunde, Kassenstand, und ob das Preset astra-opus-max in dieser Sitzung trägt. Starte nichts von sel…
+id 9105 · 2026-09-21 02:14:34: …Fassung 7 · Auftraggeber: Philipp Zöllisch · Prüfer: Chat-Claude  **Änderungen gegenüber Fassung 6** (aus der Abnahme von Vorbedingung 1 und Philipps Richtungsentscheidung vom 21.09.2026): - **Phase 4 ist neu gefasst: Breitente…
+id 9105 · 2026-09-21 02:14:34: …e mit `stop_reason: refusal`, Kategorie `cyber`, abgelehnt; HTTP 200 ohne Ausgabetext). - 8: Vorbedingung 1 **abgenommen** (21.09.2026): Tor 2 Zeile 8 erfüllt mit 9,09 %, Artgedächtnis 3 von 5 Richtungen mit werkübergreifendem Ver…
+id 9105 · 2026-09-21 02:14:34: …l das ausdrücklich erlaubt ist. Die Rolle des Gegners erzeugt Zwangsbefunde; die Entscheidung wird dem Modell abgenommen, statt sie ihm anzutragen. Spart zusätzlich Aufrufe. - 3.12: Der werkübergreifende Block des Artgedächtnisses…
+id 9106 · 2026-09-21 02:14:40: …) sind ungültig. Stattdessen Breitentest an mehreren Testwerken, die du selbst baust (Entscheidung Philipps), Abnahme nach der Sättigungsregel in Abschnitt 8 — nicht nach einer festen Zahl. Auftrag: T3 — ein TypeScript- oder Ja…
+id 10669 · 2026-09-21 12:05:50: …rei Vorentscheidungen von Chat-Claude. Erstens einchecken, jetzt, vor jeder weiteren Änderung: Lässt sich der abgenommene Stand aus Vorbedingung 1 noch vom T3-Stand trennen, zuerst ihn als eigenen Commit, gegen das Übergabe-Manife…
+id 10669 · 2026-09-21 12:05:50: …en Commit, gegen das Übergabe-Manifest geprüft, sonst ein Commit mit ehrlicher Beschreibung; künftig ist jede Abnahme und jeder eingefrorene Kern ein eigener Commit. Zweitens den offenen Ausfall aus Lauf 30 mit dem Höchstfall k…
+id 11033 · 2026-09-21 18:56:21: …ung Chat-Claude: Lauf 34 jetzt anhalten, Zähler nachrüsten, dann Lauf 35 — ohne Zähler kann Lauf 34 nicht der Abnahmelauf sein, weil Doppelungs- und Fangzeile an Organen hängen, deren Schweigen sich nicht messen lässt; im Vorsp…
+id 11301 · 2026-09-22 14:52:53: …n, Zahlen nachgerechnet und stimmig — Kasse, Ausfälle, Fangquote, Zähler, Commits. Wertung Chat-Claude: nicht abgenommen, weil fünf Torzeilen aus Tor 4 im Bericht fehlen; alles aus der vorhandenen Datenbank, kein neuer Lauf, als N…
+id 11434 · 2026-09-22 15:15:11: …ut ist: Sie hat gefangen, dass das Biotop die Messung optimiert statt den Code. Wertung Chat-Claude: T3 nicht abgenommen. Nach Review und Versiegelung von abschluss-02 zuerst die Frage, die das ehrliche Ergebnis bestimmt: Stammen …
+id 11505 · 2026-09-22 15:32:32: …edingung 1; findest du sie nicht, miss Lauf 26 mit derselben Methode wie T3 — weicht das Ergebnis ab, ist die Abnahme von Tor 2 Zeile 8 wieder offen, und das gehört so in den Bericht. (3) Aufnahmesperre: null von null in beiden…
+id 11575 · 2026-09-23 05:41:59: … 182. (5) Die Blockmeldung „unparsbare Payload" im Wortlaut. Dann Abschlussbericht T3 als abschluss-03: nicht abgenommen, alle Befunde, alle Behebungen mit Nachweis am Laufweg. Ein Reviewdurchgang.…
+id 13998 · 2026-09-23 15:53:53: …er: Chat-Claude  **Änderungen gegenüber Fassung 7** (aus T3 `versandwerk`, Läufe 26–38, `abschluss-03`, nicht abgenommen): - **2a: fünf Grundsätze neu (10–14).** T3 hat gezeigt, dass das Biotop die Messung optimiert, wo sie von de…
+id 13998 · 2026-09-23 15:53:53: …oppelzählung der Zweige).  **Änderungen gegenüber Fassung 7 — Ende. Änderungen gegenüber Fassung 6** (aus der Abnahme von Vorbedingung 1 und Philipps Richtungsentscheidung vom 21.09.2026): - **Phase 4 ist neu gefasst: Breitente…
+id 13998 · 2026-09-23 15:53:53: …e mit `stop_reason: refusal`, Kategorie `cyber`, abgelehnt; HTTP 200 ohne Ausgabetext). - 8: Vorbedingung 1 **abgenommen** (21.09.2026): Tor 2 Zeile 8 erfüllt mit 9,09 %, Artgedächtnis 3 von 5 Richtungen mit werkübergreifendem Ver…
+id 14000 · 2026-09-23 15:53:55: … "source_message_id": "7824"} Do not guess a reply destination when these fields are insufficient.  T3 sauber abgeschlossen — abschluss-03 ist der gründlichste Bericht bisher. Lies INFINITE-EVOLUTION-BIOTOP-Masterprompt-v8.md vollstä…
+id 14337 · 2026-09-23 19:42:19: … nach automatischem Zurücksetzen durch Kontextüberlauf; die Behebungsrunde vor T4 ist fast fertig, aber weder abgeschlossen noch veröffentlicht. Zuerst, von Philipp festgelegt: Stell den Träger dauerhaft auf Claude Opus 5.5 mit Denks…
+id 14340 · 2026-09-23 19:49:24: … nach automatischem Zurücksetzen durch Kontextüberlauf; die Behebungsrunde vor T4 ist fast fertig, aber weder abgeschlossen noch veröffentlicht. Philipp hat den Träger auf Claude Opus 5.5 gestellt — setz die Denkstufe max als Grundwe…
+id 14624 · 2026-09-23 22:32:40: …Richtig, nicht abgenommen — und die fehlende Python-Sonde ist der wichtigste Fund: T4 wäre gegen „schneller, aber falsch" ungeschützt g…
+id 15154 · 2026-09-24 02:14:45: …Richtig nicht abgenommen, und die Lücken der Python-Sonde gehören zu den wichtigsten Befunden vor T4. Entscheidungen Chat-Claude: (1) …
+id 15154 · 2026-09-24 02:14:45: …hlussordner laeufe/biotop-vor-t4-03/, Endmeldung mit Abholadresse als ganze Zeile und Prüfsumme.Richtig nicht abgenommen, und die Lücken der Python-Sonde gehören zu den wichtigsten Befunden vor T4. Entscheidungen Chat-Claude: (1) …
+id 15992 · 2026-09-24 11:49:51: …R4-1 bis R4-20 alles, was T4 gefährden würde — der Rest mit Begründung auf die Liste. Die Übergabe nach jedem abgeschlossenen Schritt nachführen, damit die Zwischenberichte nicht veralten. Kein Lauf, kein Modellgeld, ein Review, eige…
+id 17217 · 2026-09-25 00:27:35: …Runde 5 sauber abgeschlossen, und die Aufklärung der zwei Reviews ist gründlich — mein Grund für die Wahl des zweiten war falsch, die Wahl…
+id 20987 · 2026-09-25 14:44:20: …nd was auf Chat-Claude oder Philipp wartet   12. Abbrüche, Rückschritte, Löschungen oder Befunde, die frühere Abnahmen in Frage stellen - **FK02** (`LAGE`) Was ist vom 21.09.2026 bis zum Stichzeitpunkt am Biotop geschehen? Höch…
+id 20987 · 2026-09-25 14:44:20: …UNDEN` da.  **D — Ergebnisse, Tore, Messgerät** - **FK23** (`LAGE`) Stand jeder Phase: nicht begonnen, läuft, abgenommen, eng abgenommen oder gescheitert. Mit Datum und Abschlussordner. - **FK24** (`TORE`) Tafel aller Torzeilen al…
+id 20987 · 2026-09-25 14:44:20: …— Ergebnisse, Tore, Messgerät** - **FK23** (`LAGE`) Stand jeder Phase: nicht begonnen, läuft, abgenommen, eng abgenommen oder gescheitert. Mit Datum und Abschlussordner. - **FK24** (`TORE`) Tafel aller Torzeilen aller Phasen: Wort…
+
+== (b) id 11505 um „9,09“
+…n, K2868 (S1) und die S2-Beschleunigung müssen bestehen. (2) Doppelungsanteil auf der Ebene, die die Torzeile nennt — erzeugte Angriffstests, geurteilt nach ihrer tatsächlichen Behauptung, nicht nach der Ansage; die 35,1 % sind die Sperrquote des Ansagefilters, eine Diagnose, keine Torzeile, und mein Vergleich mit den 9,09 % war falsch, weil er zwei verschiedene Größen verglich. Such die Berechnung der 9,09 % im Abschlussordner von Vorbedingung 1; findest du sie nicht, miss Lauf 26 mit derselben Methode wie T3 — weicht das Ergebnis ab, ist die Abnahme von Tor 2 Zeile 8 wieder offen, und das gehört so in den Bericht. (3) Aufnahmesperre: …
+…Ebene, die die Torzeile nennt — erzeugte Angriffstests, geurteilt nach ihrer tatsächlichen Behauptung, nicht nach der Ansage; die 35,1 % sind die Sperrquote des Ansagefilters, eine Diagnose, keine Torzeile, und mein Vergleich mit den 9,09 % war falsch, weil er zwei verschiedene Größen verglich. Such die Berechnung der 9,09 % im Abschlussordner von Vorbedingung 1; findest du sie nicht, miss Lauf 26 mit derselben Methode wie T3 — weicht das Ergebnis ab, ist die Abnahme von Tor 2 Zeile 8 wieder offen, und das gehört so in den Bericht. (3) Aufnahmesperre: null von null in beiden Läufen — prüfe, ob sie überhaupt läuft und auf welchem Pfad; l…
+
+== (c) v8 Zeilen 1–81 mit Grundsatz/Grundsätze
+7: - **2a: fünf Grundsätze neu (10–14).** T3 hat gezeigt, dass das Biotop die Messung optimiert, wo sie von der Sache abweicht: Fehlalarme weggeräumt, Zwischenspeicher mit falschen Ergebnissen eingebaut, eine unbeobachtete Funktion verändert. Nach Generation 1 ha
+16: - 2a: Zwei Grundsätze ergänzt (7: Ein Nachweis zählt nur, wenn er ausgeführt wurde. 8: Jede Probe braucht eine Gegenprobe, die fehlschlagen muss) und einer (9: Der Prüfaufwand muss zum Gegenstand passen).
+22: - **Abschnitt 2a neu: sechs Grundsätze**, die aus wiederkehrenden Fehlerklassen gefasst wurden. Sie stehen vor den Organen, weil jeder von ihnen an mehr als einer Stelle greift.
+
+== (d) v8 Zeilen 169–197
+169: ### 3.5 Maß und Messgerät
+170: **Aufgabe:** Festlegen, was „besser" heißt — und sicherstellen, dass das Messgerät das auch erkennt.
+171: **Zwei Schichten:**
+172: - **Harte Maße** entscheiden allein und automatisch. Sie zerfallen in drei Sorten:
+173:   - **Kernmaß je Bereich** (Fassung 2; gilt für alle Werke ohne eigenes Klassenmaß): `−(fehlgeschlagene Tests) − 10·(Sicherheitsbefunde HIGH) − 3·(MEDIUM) − 1·(LOW) − (tote Funktionen)`. Höchstwert ist 0. **Bestandene Tests zählen nicht.** Ein Kandidat, der Te
+174:   - **Paarweise Messung:** Vorgeneration und Kandidat werden mit demselben Testbestand gemessen — dem des Kandidaten (einschließlich neuer Immuntests). Zuwachs ist die Differenz. Die Verlaufskurve eines Laufs wird am Laufende mit dem Endbestand aller Tests neu
+175:   - **Pareto-Maße** (dürfen im Wirkungskreis nie schlechter werden, sonst ist der Kandidat tot): Sicherheitspunkte, tote Funktionen, Bauen, Verträge — und **Tests je Test, nicht als Summe** (Fassung 3): Jeder einzelne Test, der an der Vorgeneration besteht und
+176:   - **Grenzmaße** (keine Punkte; darüber ist der Kandidat tot): Laufzeit auf Referenzlast, Speicher, Bauzeit, größte Funktion, Zyklen. **Bezug ist der Bestwert des Laufs** (Fassung 4): je Maß und Bereich der beste Wert aller bisher angenommenen Generationen ei
+177:   - **Verlaufskurve** (Fassung 3): Für jeden Lauf wird am Laufende jede angenommene Generation aus Lazarus geholt, mit dem Endtestbestand gemessen und als Kurve (Kernmaß je Generation, Zerlegung nach Fehlschlägen / Sicherheit / toten Funktionen) dem Abschlusso
+178:   - **Nischenmaß:** Die Nische *Der Schnelle* wird an der Laufzeit gemessen; ihre Kandidaten werden nur angenommen, wenn das Kernmaß dabei gleich bleibt oder steigt.
+179:   - **Klassenmaß:** Je Werkklasse kann die Verfassung ein Kernmaß setzen, das das obige ersetzt oder ergänzt (Beispiel: bei einem Werk, dessen Zweck eine messbare Zielgröße hat, tritt diese an die Stelle der Fehlschlagszählung).
+180:   - **Behoben heißt verschwunden:** Eine Sicherheitsschwäche gilt erst als behoben, wenn der statische Befund verschwunden ist und die für diese Befundklasse bekannte Umgehung als Immuntest im Werk liegt. Ein Kandidat, der einen Befund entschärft, ohne ihn zu 
+181: - **Weiche Maße** (Lesbarkeit, Eleganz, Nutzererlebnis) bewertet eine Jury aus mindestens drei Modellen verschiedener Anbieter mit Begründung — **nur** zwischen Kandidaten, die alle harten Maße bereits bestehen, und nur bei Einstimmigkeit. Weiche Maße beweisen
+182: **Generation minus eins — das Messgerät eichen (Fassung 5, ausgebaut in Fassung 6):** Vor Generation 0 prüft das Biotop sich selbst. Fünf Teile, in dieser Reihenfolge:
+183: 
+184: 1. **Rauschmessung je Bereich.** Fünf Messungen am unveränderten Ausgang, jede selbst ein Median aus drei Durchläufen (Grundsatz 3: die Streuung wird zwischen den fünf Messungen gebildet, nie innerhalb einer). Höchst- und Tiefstwert werden gestrichen, die Span
+185: 2. **Bereichsweise Sperre.** Bleibt die Toleranz eines Bereichs über 1,5, meldet das Biotop ein Messproblem und **überspringt diesen Bereich** — keine Kandidaten, Sperre mit Zahl im Bericht. Melden alle Bereiche ein Problem, startet der Lauf nicht. Ein gesperr
+186: 3. **Die vier Proben am versiegelten Eichgegenstand** (siehe unten): Nebenwirkung, Regression, Norm, Vertrag. Besteht eine nicht, beginnt kein Lauf; der reparierte Stand ist ein neuer Lauf nach Satz 2.
+187: 4. **Fund-Neubewertung** aller übernommenen offenen Funde (3.10).
+188: 5. **Eichkosten getrennt ausweisen**, Kammerläufe und Modellaufrufe je Teil, nie in der Laufsumme. Gemessen an vier Bereichen: 9 Kammerläufe, 4 Modellaufrufe, 0,0057 €, 44 s. Die **Zahl** der Kammerläufe hängt nicht an der Bereichszahl — alle Bereiche werden z
+189: 
+190: **Versiegelter Eichgegenstand (Fassung 6):** Jede Probe braucht einen Gegenstand — ein Bereichspaar mit Vertrag. Er wird **je Werk einmal gewählt und versiegelt**, beim ersten Lauf, mit Prüfsumme und Begründung; danach unverändert, damit jede Eichung mit jeder
+191: 
+192: **Die Proben setzen mechanisch am Syntaxbaum an, nicht an Textankern** (Grundsatz 6) — sonst zielen sie nach jeder angenommenen Generation stillschweigend woanders hin, was in Phase 2 und 3 geschah und dort vier Torzeilen entwertet hat. Ihre Prüfbedingungen mü
+193: 
+194: **Generation 0 — das Messgerät schärfen:** Bevor das Werk verbessert wird, prüft das Biotop, ob die Tests Fehler überhaupt bemerken. Es erzeugt Mutanten (eine Bedingung umgedreht, eine Grenze um eins verschoben, ein Rückgabewert vertauscht) und lässt die Tests
+195: **Äquivalente Mutanten (Fassung 4):** Ein Mutant, der das beobachtbare Verhalten nicht ändert, kann von keinem Test gefangen werden und zählt nicht. Äquivalenz wird **vor** der Zählung geprüft und belegt — Ausgabe auf der Referenzlast und auf allen vorhandenen
+196: **Regel:** Das Biotop schlägt das Maß vor, Philipp bestätigt, danach ist es eingefroren (Verfassungssatz 2). Das Messgerät selbst (Testläufer, Messskripte) liegt im unantastbaren Kern und wird nie vom Schwarm verändert — die Tests des Werks dagegen dürfen in G
+197: 
+
+== (e) v8 überschrieben / Ende des Vorhabens / nach Phase 5 / Phase 6
+
+== (f) ABNAHME Vorbedingung 1, Abschnitt 4
+71: ## 4. Geltungsbereich der Abnahme — das gehört dazu
+72: 
+73: Abgenommen ist: **Die Bauteile sind gebaut, und ihre Mechanik ist im laufenden Kern nachgewiesen.**
+74: 
+75: Nicht abgenommen und ausdrücklich offen:
+76: 
+77: | Offener Punkt | Wo er gemessen wird |
+78: |---|---|
+79: | C hat im **natürlichen Betrieb** nie eine Doppelung abgefangen — alle Belege sind gestellte Gegenstände | Tor 4 am echten Werk |
+80: | Tor 2 Zeile 8 ist **ungemessen** — Lauf 25 erzeugte 0 Funde | Tor 4, wo 135 Testfehlschläge den Nenner liefern |
+81: | Abweichungsquote Ansage ↔ Ausführung: **0 Zeilen**, ungemessen | Tor 4 |
+82: | Bauteil B zeigt **Streuung statt Wirkung** (75 % gegen 20 % bei gleichem Bestand) | bleibt so; die Zeile wird umbenannt, siehe Fassung 7 |
+83: | Der Prüfkandidat kam erst nach einer Änderung an `katalog.py` am Grenzmaß vorbei | belegt den **Pfad**, nicht das Grenzmaß oder die Kandidatengüte |
+84: 
+85: Hermes hat jeden dieser Punkte von sich aus benannt. Keiner davon ist ein verstecktes Loch.
+86: 
+87: ---
+88: 
+
+== (g) biotop-phase-2/BERICHT.md: Hersteller/Anbieter
+16: | 1 | Nischen: 4 aktiv, je ≥ 2 Anbieter; Bandit-Gewichte nach 10 Generationen | **bestanden** | 4 von 4 Nischen, je 4 von 4 Herstellern genutzt (openai, google, deepseek, qwen); Gewichte nach 14 Generationen protokollier
+26: | 11 | Modellwahl am OpenRouter-Katalog belegt | **bestanden** | Katalog 19.09.2026 geprüft; neuere Modelle gleicher Hersteller zu gleichem/niedrigerem Preis gewählt (Tabelle Abschnitt 2); Rauchtest je Modell mit Diff-Au
+36: | Masse (3. Hersteller) | — | **deepseek/deepseek-v4.1-flash** (09/2026) | 0,15 / 0,60 | dritter Anbieter |
+37: | Masse (4. Hersteller) | — | **qwen/qwen3.8-flash** (08/2026) | 0,15 / 0,47 | vierter Anbieter |
+50: | Vier Nischen | sicher (T 0,2), schnell (T 0,3, Ziel Laufzeit, bekommt die Referenzlast), elegant (T 0,4), wild (T 0,9, darf Verträge benennen); je Generation und Bereich 2 Hersteller je Nische → 32 Kandidaten je Genera
+51: | Bandit-Gewichtung | Thompson-Stichprobe Beta(erfolge+1, misserfolge+1) je (Lauf, Nische, Hersteller); Erfolg = Kandidat überlebt den Ankläger; jede Wahl protokolliert (`bandit.wahl`); Gewichte = (e+1)/(v+2) | `nischen.
+62: | Verhandlung 3.8 | bei benanntem, verletztem Vertrag: Schwarm des Nachbarn (Nische sicher, 2 Hersteller) erzeugt Anpassung; Paar (Kandidat + Anpassung) wird vom Ankläger geprüft; bestanden = 0 Vertragsverletzungen, 0 Pa
+
+== (h) Köpfe der Prüfwerk-Erzeuger
+-- /root/biotop/tests/drahtwerk.py
+1: """Drahtwerk: kleinstes TypeScript-Werk, an dem ein ganzer Lauf jedes Organ erreicht.
+2: 
+3: Aufbau, mit Begründung je Teil (der Vorspann verlangt vier bestandene Eichproben und vier Gegenproben):
+4: - src/beta/wert.ts   halb(x) zuerst, plus(a,b) zuletzt: halb ist die numerische Einparameterfunktion der
+5:                      Normprobe; plus ist die letzte numerische Funktion, die die Nebenwirkungs- und die
+6:                      Regressionsprobe in B beschädigen.
+7: - src/alpha/liste.ts summen(werte: number[]) (Array-Rückgabe für den privaten Defekt der Nebenwirkungsprobe,
+8:                      rein, ohne beta) und gesamt(werte) über beta.plus (Verbraucher für die Regressionsprobe).
+9:                      Der Import aus beta macht alpha zum Vertragsverbraucher. `ungenutzt` ist toter Code, den
+10:                      zwei Schwarmkandidaten gleich gut entfernen — Gleichstand, also Jury.
+11: - tests/test_alpha.test.ts: summen([]) (Leereingang-Verbraucherzeuge der Vertragsprobe), zwei Tests, die der
+12:                      private Defekt bricht, ein Test auf gesamt, den der Eingriff in B bricht. Damit sinkt alpha
+13:                      in der Nebenwirkungsprobe von 2 auf 1 fallende Tests, während beta steigt.
+14: - tests/test_beta.test.ts prüft plus und halb genau.
+-- /root/biotop/tests/speicherwerk.py
+1: """Python-Prüfwerk „speicherwerk“ (Behebungsrunde 2 vor T4): kleinstes Python-Werk, an dem die Python-Sonde des
+2: Verhaltensvergleichs durch den Annahmepfad (aegis.pruefen) geprüft wird — Gegenprobe des Auftrags: „an einem
+3: Python-Prüfwerk scheitert ein eingebauter Zwischenspeicher-Fehler“.
+4: 
+5: - speicherwerk/zahlen/statistik.py: `summe(werte)`, `spannweite(werte)` — rein, sortieren eine Kopie.
+6: - speicherwerk/text/format.py: `normieren(text)` — Weißraumfolgen (auch Tab/Zeilenumbruch) zu einem Leerzeichen.
+7: - Referenzlast: last_zahlen/last_text (Arbeit im Bereich einiger Millisekunden), beobachten() als Raster.
+8: - Kandidat ZWISCHENSPEICHER (Nische schnell): `spannweite` merkt sich das Ergebnis an der REFERENZ der Liste
+9:   (id(werte)) — nach einer Änderung an Ort und Stelle liefert sie das alte Ergebnis (T3-Muster K2934/K3121: 8 statt 80).
+10:   Gegenprobe: derselbe Speicher, aber am INHALT (tuple(werte)) — verhaltensgleich.
+11: - Kandidat WEISSRAUM: `normieren` nur noch für Leerzeichen — Tab und Zeilenumbruch bleiben stehen (T3-Muster K2868).
+12:   Kein Test und keine Referenzlast nutzt Tab: nur die Formvarianten des Korpus sehen es.
+13: Kein Modell, keine Netzwirkung; die Kammer ist das Python-Image biotop-kammer:1.
+14: """
+-- „grosswerk“ in /root/biotop/tests (*.py)
+=== Ende
+=== Ende R130 ===

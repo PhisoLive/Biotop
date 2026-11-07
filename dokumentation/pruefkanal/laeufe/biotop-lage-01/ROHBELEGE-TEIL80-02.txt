@@ -1,0 +1,466 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 80 (Teile 4–165 dieses Stands) · enthält R86 bis R88
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R86 · Teil I: Erkundung vor dem Bau von inventar.py (Schema generationen/eichkosten/werke, Protokoll-Laufbezug, Prüfkanal, git-Spitzen, geänderte Dateien seit 21.09.; nur lesend)
+Beginn: 2026-09-25 16:38:55 CEST (UTC+0200)
+Ende:   2026-09-25 16:38:56 CEST (UTC+0200)
+Dauer:  1.6 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/inventar/i0_erkunden.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/inventar/i0_erkunden.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil I (nur lesend): Erkundung vor dem Bau von inventar.py.
+- Kammer-Sperre /tmp/biotop-kammer-exklusiv; WAL-Größe STAMM (nur bei 0 Bytes öffnen, immutable=1).
+- Je Zweig: Spalten von generationen, eichkosten, werke; werke-Zeilen (id, name, pfad, sprache, status, aufgenommen_am);
+  Protokollarten mit 'lauf' im Namen (Anzahl); Anzahl Protokollzeilen mit lauf_id bzw. lauf im JSON.
+- eichkosten: Zeilen und Beispiel.
+- Prüfkanal laeufe/: Anzahl Ordner gesamt, davon biotop-*, gedaechtnis; Dateien in gedaechtnis.
+- git (nur lesend): Spitzen mit Dekoration, Anzahl Commits seit 18.09.
+- Anzahl Dateien unter /root/biotop mit mtime >= 21.09. 00:00 CEST (ohne .git, __pycache__, node_modules).
+Schreibt nichts."""
+import datetime as dt
+import os
+import sqlite3
+import subprocess
+from pathlib import Path
+
+print('Zeit:', dt.datetime.now().astimezone().isoformat(timespec='seconds'))
+print('Kammer-Sperre besteht:', os.path.exists('/tmp/biotop-kammer-exklusiv'))
+ZW = [('STAMM', '/root/biotop/daten/biotop.db'), ('VB1', '/root/phase-4-vorbedingung-1/privat/biotop.db'),
+      ('R02', '/root/reparatur-02/privat-cli/privat.db'), ('T3', '/root/biotop-t3/t3.db')]
+for name, pfad in ZW:
+    wal = os.path.getsize(pfad + '-wal') if os.path.exists(pfad + '-wal') else None
+    print(f'\n== {name} {pfad} wal={wal} mtime={dt.datetime.fromtimestamp(os.path.getmtime(pfad)).isoformat(timespec="seconds")}')
+    if name == 'STAMM':
+        if wal not in (None, 0):
+            print('   NICHT GEÖFFNET')
+            continue
+        uri = f'file:{pfad}?mode=ro&immutable=1'
+    else:
+        uri = f'file:{pfad}?mode=ro'
+    c = sqlite3.connect(uri, uri=True)
+    for t in ('generationen', 'eichkosten', 'werke', 'eichung'):
+        print(f'   Spalten {t}:', [r[1] for r in c.execute(f'PRAGMA table_info({t})')])
+    print('   eichkosten Beispiel:', c.execute('SELECT * FROM eichkosten ORDER BY rowid DESC LIMIT 2').fetchall())
+    print('   generationen Beispiel:', [str(x)[:60] for x in (c.execute('SELECT * FROM generationen ORDER BY rowid DESC LIMIT 1').fetchone() or [])])
+    for r in c.execute('SELECT id, name, pfad, sprache, status, aufgenommen_am FROM werke ORDER BY id'):
+        print('   werk', r)
+    arten = c.execute("SELECT art, count(*) FROM protokoll WHERE art LIKE '%lauf%' GROUP BY art ORDER BY art").fetchall()
+    print('   Protokollarten *lauf*:', arten)
+    n1 = c.execute("SELECT count(*) FROM protokoll WHERE json_valid(inhalt) AND json_extract(inhalt,'$.lauf_id') IS NOT NULL").fetchone()[0]
+    n2 = c.execute("SELECT count(*) FROM protokoll WHERE json_valid(inhalt) AND json_extract(inhalt,'$.lauf') IS NOT NULL").fetchone()[0]
+    n3 = c.execute('SELECT count(*), min(nr), max(nr), min(zeit), max(zeit) FROM protokoll').fetchone()
+    n4 = c.execute("SELECT count(*) FROM protokoll WHERE NOT json_valid(inhalt)").fetchone()[0]
+    print(f'   Protokoll gesamt {n3}; mit $.lauf_id {n1}; mit $.lauf {n2}; kein JSON {n4}')
+    print('   Beispiel $.lauf:', c.execute("SELECT art, substr(inhalt,1,160) FROM protokoll WHERE json_valid(inhalt) AND json_extract(inhalt,'$.lauf') IS NOT NULL LIMIT 2").fetchall())
+    print('   Kosten-/Kassentabellen:', [r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table' AND (name LIKE '%kost%' OR name LIKE '%kasse%')")])
+    c.close()
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+L = Path(f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe')
+alle = [p for p in L.iterdir() if p.is_dir()]
+print('\nPrüfkanal laeufe/: Ordner gesamt', len(alle), '| biotop-*', sum(p.name.startswith('biotop') for p in alle),
+      '| gedaechtnis', (L / 'gedaechtnis').is_dir())
+print('gedaechtnis:', sorted(p.name for p in (L / 'gedaechtnis').iterdir()))
+env = dict(os.environ, GIT_OPTIONAL_LOCKS='0')
+r = subprocess.run(['git', '--no-optional-locks', '-C', '/root/biotop', 'log', '--all', '--no-walk', '--format=%H%x09%D'],
+                   capture_output=True, text=True, env=env)
+print('\ngit Spitzen:', r.stdout.strip(), r.stderr.strip())
+r = subprocess.run(['git', '--no-optional-locks', '-C', '/root/biotop', 'log', '--all', '--since=2026-09-18T00:00:00+02:00',
+                    '--format=%H'], capture_output=True, text=True, env=env)
+print('Commits seit 18.09.:', len(r.stdout.split()))
+grenze = dt.datetime(2026, 9, 21).timestamp()
+n = 0
+groesse = 0
+oben = {}
+for wurzel, dirs, files in os.walk('/root/biotop'):
+    dirs[:] = [d for d in dirs if d not in ('.git', '__pycache__', 'node_modules')]
+    for f in files:
+        p = os.path.join(wurzel, f)
+        try:
+            st = os.lstat(p)
+        except OSError:
+            continue
+        if st.st_mtime >= grenze:
+            n += 1
+            groesse += st.st_size
+            teil = os.path.relpath(p, '/root/biotop').split('/')[0:2]
+            oben['/'.join(teil)] = oben.get('/'.join(teil), 0) + 1
+print(f'\nDateien unter /root/biotop mit mtime >= 21.09.: {n}, {groesse} Bytes')
+for k, v in sorted(oben.items(), key=lambda x: -x[1])[:25]:
+    print('  ', k, v)
+--- Ende /root/sicherung/biotop-lage-01/entwurf/inventar/i0_erkunden.py ---
+Ausgabe (vollständig, stdout und stderr):
+Zeit: 2026-09-25T16:38:55+02:00
+Kammer-Sperre besteht: False
+
+== STAMM /root/biotop/daten/biotop.db wal=0 mtime=2026-09-20T04:05:13
+   Spalten generationen: ['id', 'lauf_id', 'nummer', 'status', 'masse', 'tag', 'pruefsumme', 'grund', 'erstellt_am', 'freigabe_am', 'freigabe_grund', 'kandidaten']
+   Spalten eichkosten: ['id', 'lauf_id', 'werk_id', 'teil', 'kammerlaeufe', 'modellaufrufe', 'kosten_eur', 'dauer_s', 'erstellt_am']
+   Spalten werke: ['id', 'name', 'pfad', 'quelle', 'aufgenommen_am', 'bericht', 'sprache', 'status']
+   Spalten eichung: ['id', 'lauf_id', 'werk_id', 'bereich', 'toleranz', 'spannweite', 'median', 'werte', 'aussetzer', 'nachgemessen', 'gesperrt', 'meldung', 'erstellt_am']
+   eichkosten Beispiel: [(11, 22, 19, 'probe.vertrag', 1, 1, 0.001737, 6.1, '2026-09-19T20:59:15.461+00:00'), (10, 22, 19, 'probe.norm', 1, 1, 0.000852, 7.6, '2026-09-19T20:59:09.320+00:00')]
+   generationen Beispiel: ['145', '25', '4', 'abgelehnt', '{"_basis_paar": {"bereiche": {"bericht": {"groesste_funktion', 'None', 'None', 'Generalprobe: Grenzmaß gerissen: bericht.laufzeit_ms: 8.92 >', '2026-09-20T01:39:00.350+00:00', 'None', 'None', '{"_bandit": {"elegant": {"deepseek": {"erfolge": 0, "gewicht']
+   werk (1, 'lagerhaus', '/root/biotop/daten/werke/lagerhaus', 'Python', 'aufgenommen', '2026-09-18T21:44:52.044+00:00')
+   werk (2, 'lagerhaus-ohne-tests', '/root/biotop/daten/werke/lagerhaus-ohne-tests', 'Python', 'messgeraet_fehlt', '2026-09-18T22:04:14.095+00:00')
+   werk (3, 'lagerhaus-kasse', '/root/biotop/daten/werke/lagerhaus-kasse', 'Python', 'aufgenommen', '2026-09-18T22:04:53.733+00:00')
+   werk (4, 'lagerhaus-kasse2', '/root/biotop/daten/werke/lagerhaus-kasse2', 'Python', 'aufgenommen', '2026-09-18T22:11:48.165+00:00')
+   werk (5, 'lagerhaus-nachlauf', '/root/biotop/daten/werke/lagerhaus-nachlauf', 'Python', 'aufgenommen', '2026-09-18T22:48:37.825+00:00')
+   werk (6, 'lagerhaus-nachlauf2', '/root/biotop/daten/werke/lagerhaus-nachlauf2', 'Python', 'aufgenommen', '2026-09-18T23:20:23.094+00:00')
+   werk (7, 'lagerhaus-nachlauf8', '/root/biotop/daten/werke/lagerhaus-nachlauf8', 'Python', 'aufgenommen', '2026-09-18T23:33:16.059+00:00')
+   werk (8, 'lagerhaus-nachlauf9', '/root/biotop/daten/werke/lagerhaus-nachlauf9', 'Python', 'aufgenommen', '2026-09-18T23:53:38.805+00:00')
+   werk (9, 'lagerhaus-kasse3', '/root/biotop/daten/werke/lagerhaus-kasse3', 'Python', 'aufgenommen', '2026-09-19T00:09:22.616+00:00')
+   werk (10, 'lagerhaus-p2', '/root/biotop/daten/werke/lagerhaus-p2', 'Python', 'aufgenommen', '2026-09-19T00:41:57.996+00:00')
+   werk (11, 'lagerhaus-p2-13', '/root/biotop/daten/werke/lagerhaus-p2-13', 'Python', 'aufgenommen', '2026-09-19T01:47:13.582+00:00')
+   werk (12, 'lagerhaus-p3-14', '/root/biotop/daten/werke/lagerhaus-p3-14', 'Python', 'aufgenommen', '2026-09-19T11:03:10.128+00:00')
+   werk (13, 'lagerhaus-p3-15', '/root/biotop/daten/werke/lagerhaus-p3-15', 'Python', 'aufgenommen', '2026-09-19T11:09:13.594+00:00')
+   werk (14, 'lagerhaus-p3-16', '/root/biotop/daten/werke/lagerhaus-p3-16', 'Python', 'aufgenommen', '2026-09-19T11:26:09.227+00:00')
+   werk (15, 'logmuehle-17', '/root/biotop/daten/werke/logmuehle-17', 'Python', 'aufgenommen', '2026-09-19T11:55:36.753+00:00')
+   werk (16, 'lagerhaus-p3-18', '/root/biotop/daten/werke/lagerhaus-p3-18', 'Python', 'aufgenommen', '2026-09-19T14:41:06.236+00:00')
+   werk (17, 'lagerhaus-p3-19', '/root/biotop/daten/werke/lagerhaus-p3-19', 'Python', 'aufgenommen', '2026-09-19T15:06:22.040+00:00')
+   werk (18, 'lagerhaus-p3-20', '/root/biotop/daten/werke/lagerhaus-p3-20', 'Python', 'aufgenommen', '2026-09-19T15:40:08.059+00:00')
+   werk (19, 'lagerhaus-p3-22', '/root/biotop/daten/werke/lagerhaus-p3-22', 'Python', 'aufgenommen', '2026-09-19T20:57:43.945+00:00')
+   werk (20, 'logmuehle-23', '/root/biotop/daten/werke/logmuehle-23', 'Python', 'aufgenommen', '2026-09-19T21:32:58.298+00:00')
+   werk (21, 'lagerhaus-zeile8-24', '/root/biotop/daten/werke/lagerhaus-zeile8-24', 'Python', 'aufgenommen', '2026-09-19T22:57:52.153+00:00')
+   werk (22, 'lagerhaus-c-25', '/root/biotop/daten/werke/lagerhaus-c-25', 'Python', 'aufgenommen', '2026-09-20T01:13:33.013+00:00')
+   Protokollarten *lauf*: [('eichung.lauf_startet_nicht', 3), ('lauf.abgebrochen', 7), ('lauf.angelegt', 24), ('lauf.beendet', 2), ('lauf.gestoppt', 1), ('lauf.verworfen', 5)]
+   Protokoll gesamt (16030, 1, 16030, '2026-09-18T21:40:42.528+00:00', '2026-09-20T02:04:59.281+00:00'); mit $.lauf_id 15932; mit $.lauf 0; kein JSON 0
+   Beispiel $.lauf: []
+   Kosten-/Kassentabellen: ['kasse', 'eichkosten']
+
+== VB1 /root/phase-4-vorbedingung-1/privat/biotop.db wal=4140632 mtime=2026-09-20T22:08:28
+   Spalten generationen: ['id', 'lauf_id', 'nummer', 'status', 'masse', 'tag', 'pruefsumme', 'grund', 'erstellt_am', 'freigabe_am', 'freigabe_grund', 'kandidaten']
+   Spalten eichkosten: ['id', 'lauf_id', 'werk_id', 'teil', 'kammerlaeufe', 'modellaufrufe', 'kosten_eur', 'dauer_s', 'erstellt_am']
+   Spalten werke: ['id', 'name', 'pfad', 'quelle', 'aufgenommen_am', 'bericht', 'sprache', 'status']
+   Spalten eichung: ['id', 'lauf_id', 'werk_id', 'bereich', 'toleranz', 'spannweite', 'median', 'werte', 'aussetzer', 'nachgemessen', 'gesperrt', 'meldung', 'erstellt_am']
+   eichkosten Beispiel: [(22, 26, 23, 'gegenprobe.vertrag', 4, 0, 0.0, 8.2, '2026-09-20T19:33:46.456+00:00'), (21, 26, 23, 'gegenprobe.norm', 4, 0, 0.0, 8.3, '2026-09-20T19:33:46.456+00:00')]
+   generationen Beispiel: ['151', '26', '5', 'abgelehnt', 'None', 'None', 'None', 'kein Kandidat hat den Ankläger überlebt (0 von 32)', '2026-09-20T20:04:48.473+00:00', 'None', 'None', '{"_bandit": {"elegant": {"deepseek": {"erfolge": 0, "gewicht']
+   werk (1, 'lagerhaus', '/root/biotop/daten/werke/lagerhaus', 'Python', 'aufgenommen', '2026-09-18T21:44:52.044+00:00')
+   werk (2, 'lagerhaus-ohne-tests', '/root/biotop/daten/werke/lagerhaus-ohne-tests', 'Python', 'messgeraet_fehlt', '2026-09-18T22:04:14.095+00:00')
+   werk (3, 'lagerhaus-kasse', '/root/biotop/daten/werke/lagerhaus-kasse', 'Python', 'aufgenommen', '2026-09-18T22:04:53.733+00:00')
+   werk (4, 'lagerhaus-kasse2', '/root/biotop/daten/werke/lagerhaus-kasse2', 'Python', 'aufgenommen', '2026-09-18T22:11:48.165+00:00')
+   werk (5, 'lagerhaus-nachlauf', '/root/biotop/daten/werke/lagerhaus-nachlauf', 'Python', 'aufgenommen', '2026-09-18T22:48:37.825+00:00')
+   werk (6, 'lagerhaus-nachlauf2', '/root/biotop/daten/werke/lagerhaus-nachlauf2', 'Python', 'aufgenommen', '2026-09-18T23:20:23.094+00:00')
+   werk (7, 'lagerhaus-nachlauf8', '/root/biotop/daten/werke/lagerhaus-nachlauf8', 'Python', 'aufgenommen', '2026-09-18T23:33:16.059+00:00')
+   werk (8, 'lagerhaus-nachlauf9', '/root/biotop/daten/werke/lagerhaus-nachlauf9', 'Python', 'aufgenommen', '2026-09-18T23:53:38.805+00:00')
+   werk (9, 'lagerhaus-kasse3', '/root/biotop/daten/werke/lagerhaus-kasse3', 'Python', 'aufgenommen', '2026-09-19T00:09:22.616+00:00')
+   werk (10, 'lagerhaus-p2', '/root/biotop/daten/werke/lagerhaus-p2', 'Python', 'aufgenommen', '2026-09-19T00:41:57.996+00:00')
+   werk (11, 'lagerhaus-p2-13', '/root/biotop/daten/werke/lagerhaus-p2-13', 'Python', 'aufgenommen', '2026-09-19T01:47:13.582+00:00')
+   werk (12, 'lagerhaus-p3-14', '/root/biotop/daten/werke/lagerhaus-p3-14', 'Python', 'aufgenommen', '2026-09-19T11:03:10.128+00:00')
+   werk (13, 'lagerhaus-p3-15', '/root/biotop/daten/werke/lagerhaus-p3-15', 'Python', 'aufgenommen', '2026-09-19T11:09:13.594+00:00')
+   werk (14, 'lagerhaus-p3-16', '/root/biotop/daten/werke/lagerhaus-p3-16', 'Python', 'aufgenommen', '2026-09-19T11:26:09.227+00:00')
+   werk (15, 'logmuehle-17', '/root/biotop/daten/werke/logmuehle-17', 'Python', 'aufgenommen', '2026-09-19T11:55:36.753+00:00')
+   werk (16, 'lagerhaus-p3-18', '/root/biotop/daten/werke/lagerhaus-p3-18', 'Python', 'aufgenommen', '2026-09-19T14:41:06.236+00:00')
+   werk (17, 'lagerhaus-p3-19', '/root/biotop/daten/werke/lagerhaus-p3-19', 'Python', 'aufgenommen', '2026-09-19T15:06:22.040+00:00')
+   werk (18, 'lagerhaus-p3-20', '/root/biotop/daten/werke/lagerhaus-p3-20', 'Python', 'aufgenommen', '2026-09-19T15:40:08.059+00:00')
+   werk (19, 'lagerhaus-p3-22', '/root/biotop/daten/werke/lagerhaus-p3-22', 'Python', 'aufgenommen', '2026-09-19T20:57:43.945+00:00')
+   werk (20, 'logmuehle-23', '/root/biotop/daten/werke/logmuehle-23', 'Python', 'aufgenommen', '2026-09-19T21:32:58.298+00:00')
+   werk (21, 'lagerhaus-zeile8-24', '/root/biotop/daten/werke/lagerhaus-zeile8-24', 'Python', 'aufgenommen', '2026-09-19T22:57:52.153+00:00')
+   werk (22, 'lagerhaus-c-25', '/root/biotop/daten/werke/lagerhaus-c-25', 'Python', 'aufgenommen', '2026-09-20T01:13:33.013+00:00')
+   werk (23, 'lagerhaus-vorbedingung1-26', '/root/phase-4-vorbedingung-1/privat/werke/lagerhaus-vorbedingung1-26', 'Python', 'aufgenommen', '2026-09-20T19:31:57.942+00:00')
+   Protokollarten *lauf*: [('eichung.lauf_startet_nicht', 3), ('lauf.abgebrochen', 7), ('lauf.angelegt', 25), ('lauf.beendet', 2), ('lauf.gestoppt', 1), ('lauf.verworfen', 5)]
+   Protokoll gesamt (17051, 1, 17051, '2026-09-18T21:40:42.528+00:00', '2026-09-20T20:16:10.117+00:00'); mit $.lauf_id 16949; mit $.lauf 0; kein JSON 0
+   Beispiel $.lauf: []
+   Kosten-/Kassentabellen: ['kasse', 'eichkosten']
+
+== R02 /root/reparatur-02/privat-cli/privat.db wal=0 mtime=2026-09-20T20:44:08
+   Spalten generationen: ['id', 'lauf_id', 'nummer', 'status', 'masse', 'tag', 'pruefsumme', 'grund', 'erstellt_am', 'freigabe_am', 'freigabe_grund', 'kandidaten']
+   Spalten eichkosten: ['id', 'lauf_id', 'werk_id', 'teil', 'kammerlaeufe', 'modellaufrufe', 'kosten_eur', 'dauer_s', 'erstellt_am']
+   Spalten werke: ['id', 'name', 'pfad', 'quelle', 'aufgenommen_am', 'bericht', 'sprache', 'status']
+   Spalten eichung: ['id', 'lauf_id', 'werk_id', 'bereich', 'toleranz', 'spannweite', 'median', 'werte', 'aussetzer', 'nachgemessen', 'gesperrt', 'meldung', 'erstellt_am']
+   eichkosten Beispiel: [(22, 26, 22, 'gegenprobe.vertrag', 4, 0, 0.0, 8.4, '2026-09-20T18:44:07.866+00:00'), (21, 26, 22, 'gegenprobe.norm', 4, 0, 0.0, 8.8, '2026-09-20T18:44:07.864+00:00')]
+   generationen Beispiel: ['145', '25', '4', 'abgelehnt', '{"_basis_paar": {"bereiche": {"bericht": {"groesste_funktion', 'None', 'None', 'Generalprobe: Grenzmaß gerissen: bericht.laufzeit_ms: 8.92 >', '2026-09-20T01:39:00.350+00:00', 'None', 'None', '{"_bandit": {"elegant": {"deepseek": {"erfolge": 0, "gewicht']
+   werk (1, 'lagerhaus', '/root/biotop/daten/werke/lagerhaus', 'Python', 'aufgenommen', '2026-09-18T21:44:52.044+00:00')
+   werk (2, 'lagerhaus-ohne-tests', '/root/biotop/daten/werke/lagerhaus-ohne-tests', 'Python', 'messgeraet_fehlt', '2026-09-18T22:04:14.095+00:00')
+   werk (3, 'lagerhaus-kasse', '/root/biotop/daten/werke/lagerhaus-kasse', 'Python', 'aufgenommen', '2026-09-18T22:04:53.733+00:00')
+   werk (4, 'lagerhaus-kasse2', '/root/biotop/daten/werke/lagerhaus-kasse2', 'Python', 'aufgenommen', '2026-09-18T22:11:48.165+00:00')
+   werk (5, 'lagerhaus-nachlauf', '/root/biotop/daten/werke/lagerhaus-nachlauf', 'Python', 'aufgenommen', '2026-09-18T22:48:37.825+00:00')
+   werk (6, 'lagerhaus-nachlauf2', '/root/biotop/daten/werke/lagerhaus-nachlauf2', 'Python', 'aufgenommen', '2026-09-18T23:20:23.094+00:00')
+   werk (7, 'lagerhaus-nachlauf8', '/root/biotop/daten/werke/lagerhaus-nachlauf8', 'Python', 'aufgenommen', '2026-09-18T23:33:16.059+00:00')
+   werk (8, 'lagerhaus-nachlauf9', '/root/biotop/daten/werke/lagerhaus-nachlauf9', 'Python', 'aufgenommen', '2026-09-18T23:53:38.805+00:00')
+   werk (9, 'lagerhaus-kasse3', '/root/biotop/daten/werke/lagerhaus-kasse3', 'Python', 'aufgenommen', '2026-09-19T00:09:22.616+00:00')
+   werk (10, 'lagerhaus-p2', '/root/biotop/daten/werke/lagerhaus-p2', 'Python', 'aufgenommen', '2026-09-19T00:41:57.996+00:00')
+   werk (11, 'lagerhaus-p2-13', '/root/biotop/daten/werke/lagerhaus-p2-13', 'Python', 'aufgenommen', '2026-09-19T01:47:13.582+00:00')
+   werk (12, 'lagerhaus-p3-14', '/root/biotop/daten/werke/lagerhaus-p3-14', 'Python', 'aufgenommen', '2026-09-19T11:03:10.128+00:00')
+   werk (13, 'lagerhaus-p3-15', '/root/biotop/daten/werke/lagerhaus-p3-15', 'Python', 'aufgenommen', '2026-09-19T11:09:13.594+00:00')
+   werk (14, 'lagerhaus-p3-16', '/root/biotop/daten/werke/lagerhaus-p3-16', 'Python', 'aufgenommen', '2026-09-19T11:26:09.227+00:00')
+   werk (15, 'logmuehle-17', '/root/biotop/daten/werke/logmuehle-17', 'Python', 'aufgenommen', '2026-09-19T11:55:36.753+00:00')
+   werk (16, 'lagerhaus-p3-18', '/root/biotop/daten/werke/lagerhaus-p3-18', 'Python', 'aufgenommen', '2026-09-19T14:41:06.236+00:00')
+   werk (17, 'lagerhaus-p3-19', '/root/biotop/daten/werke/lagerhaus-p3-19', 'Python', 'aufgenommen', '2026-09-19T15:06:22.040+00:00')
+   werk (18, 'lagerhaus-p3-20', '/root/biotop/daten/werke/lagerhaus-p3-20', 'Python', 'aufgenommen', '2026-09-19T15:40:08.059+00:00')
+   werk (19, 'lagerhaus-p3-22', '/root/biotop/daten/werke/lagerhaus-p3-22', 'Python', 'aufgenommen', '2026-09-19T20:57:43.945+00:00')
+   werk (20, 'logmuehle-23', '/root/biotop/daten/werke/logmuehle-23', 'Python', 'aufgenommen', '2026-09-19T21:32:58.298+00:00')
+   werk (21, 'lagerhaus-zeile8-24', '/root/biotop/daten/werke/lagerhaus-zeile8-24', 'Python', 'aufgenommen', '2026-09-19T22:57:52.153+00:00')
+   werk (22, 'lagerhaus-c-25', '/root/reparatur-02/privat-cli/werk', 'Python', 'aufgenommen', '2026-09-20T01:13:33.013+00:00')
+   Protokollarten *lauf*: [('eichung.lauf_startet_nicht', 3), ('lauf.abgebrochen', 7), ('lauf.angelegt', 24), ('lauf.beendet', 2), ('lauf.gestoppt', 1), ('lauf.verworfen', 5)]
+   Protokoll gesamt (16034, 1, 16034, '2026-09-18T21:40:42.528+00:00', '2026-09-20T18:44:07.928+00:00'); mit $.lauf_id 15936; mit $.lauf 0; kein JSON 0
+   Beispiel $.lauf: []
+   Kosten-/Kassentabellen: ['kasse', 'eichkosten']
+
+== T3 /root/biotop-t3/t3.db wal=13221112 mtime=2026-09-22T21:16:34
+   Spalten generationen: ['id', 'lauf_id', 'nummer', 'status', 'masse', 'tag', 'pruefsumme', 'grund', 'erstellt_am', 'freigabe_am', 'freigabe_grund', 'kandidaten']
+   Spalten eichkosten: ['id', 'lauf_id', 'werk_id', 'teil', 'kammerlaeufe', 'modellaufrufe', 'kosten_eur', 'dauer_s', 'erstellt_am']
+   Spalten werke: ['id', 'name', 'pfad', 'quelle', 'aufgenommen_am', 'bericht', 'sprache', 'status']
+   Spalten eichung: ['id', 'lauf_id', 'werk_id', 'bereich', 'toleranz', 'spannweite', 'median', 'werte', 'aussetzer', 'nachgemessen', 'gesperrt', 'meldung', 'erstellt_am']
+   eichkosten Beispiel: [(127, 38, 23, 'gegenprobe.vertrag', 7, 0, 0.0, 61.0, '2026-09-22T13:55:53.067+00:00'), (126, 38, 23, 'gegenprobe.norm', 10, 0, 0.0, 61.6, '2026-09-22T13:55:53.066+00:00')]
+   generationen Beispiel: ['185', '38', '17', 'abgelehnt', 'None', 'None', 'None', 'kein Kandidat hat den Ankläger überlebt (0 von 15)', '2026-09-22T19:16:35.710+00:00', 'None', 'None', '{"_bandit": {"elegant": {"deepseek": {"erfolge": 0, "gewicht']
+   werk (1, 'lagerhaus', '/root/biotop/daten/werke/lagerhaus', 'Python', 'aufgenommen', '2026-09-18T21:44:52.044+00:00')
+   werk (2, 'lagerhaus-ohne-tests', '/root/biotop/daten/werke/lagerhaus-ohne-tests', 'Python', 'messgeraet_fehlt', '2026-09-18T22:04:14.095+00:00')
+   werk (3, 'lagerhaus-kasse', '/root/biotop/daten/werke/lagerhaus-kasse', 'Python', 'aufgenommen', '2026-09-18T22:04:53.733+00:00')
+   werk (4, 'lagerhaus-kasse2', '/root/biotop/daten/werke/lagerhaus-kasse2', 'Python', 'aufgenommen', '2026-09-18T22:11:48.165+00:00')
+   werk (5, 'lagerhaus-nachlauf', '/root/biotop/daten/werke/lagerhaus-nachlauf', 'Python', 'aufgenommen', '2026-09-18T22:48:37.825+00:00')
+   werk (6, 'lagerhaus-nachlauf2', '/root/biotop/daten/werke/lagerhaus-nachlauf2', 'Python', 'aufgenommen', '2026-09-18T23:20:23.094+00:00')
+   werk (7, 'lagerhaus-nachlauf8', '/root/biotop/daten/werke/lagerhaus-nachlauf8', 'Python', 'aufgenommen', '2026-09-18T23:33:16.059+00:00')
+   werk (8, 'lagerhaus-nachlauf9', '/root/biotop/daten/werke/lagerhaus-nachlauf9', 'Python', 'aufgenommen', '2026-09-18T23:53:38.805+00:00')
+   werk (9, 'lagerhaus-kasse3', '/root/biotop/daten/werke/lagerhaus-kasse3', 'Python', 'aufgenommen', '2026-09-19T00:09:22.616+00:00')
+   werk (10, 'lagerhaus-p2', '/root/biotop/daten/werke/lagerhaus-p2', 'Python', 'aufgenommen', '2026-09-19T00:41:57.996+00:00')
+   werk (11, 'lagerhaus-p2-13', '/root/biotop/daten/werke/lagerhaus-p2-13', 'Python', 'aufgenommen', '2026-09-19T01:47:13.582+00:00')
+   werk (12, 'lagerhaus-p3-14', '/root/biotop/daten/werke/lagerhaus-p3-14', 'Python', 'aufgenommen', '2026-09-19T11:03:10.128+00:00')
+   werk (13, 'lagerhaus-p3-15', '/root/biotop/daten/werke/lagerhaus-p3-15', 'Python', 'aufgenommen', '2026-09-19T11:09:13.594+00:00')
+   werk (14, 'lagerhaus-p3-16', '/root/biotop/daten/werke/lagerhaus-p3-16', 'Python', 'aufgenommen', '2026-09-19T11:26:09.227+00:00')
+   werk (15, 'logmuehle-17', '/root/biotop/daten/werke/logmuehle-17', 'Python', 'aufgenommen', '2026-09-19T11:55:36.753+00:00')
+   werk (16, 'lagerhaus-p3-18', '/root/biotop/daten/werke/lagerhaus-p3-18', 'Python', 'aufgenommen', '2026-09-19T14:41:06.236+00:00')
+   werk (17, 'lagerhaus-p3-19', '/root/biotop/daten/werke/lagerhaus-p3-19', 'Python', 'aufgenommen', '2026-09-19T15:06:22.040+00:00')
+   werk (18, 'lagerhaus-p3-20', '/root/biotop/daten/werke/lagerhaus-p3-20', 'Python', 'aufgenommen', '2026-09-19T15:40:08.059+00:00')
+   werk (19, 'lagerhaus-p3-22', '/root/biotop/daten/werke/lagerhaus-p3-22', 'Python', 'aufgenommen', '2026-09-19T20:57:43.945+00:00')
+   werk (20, 'logmuehle-23', '/root/biotop/daten/werke/logmuehle-23', 'Python', 'aufgenommen', '2026-09-19T21:32:58.298+00:00')
+   werk (21, 'lagerhaus-zeile8-24', '/root/biotop/daten/werke/lagerhaus-zeile8-24', 'Python', 'aufgenommen', '2026-09-19T22:57:52.153+00:00')
+   werk (22, 'lagerhaus-c-25', '/root/biotop/daten/werke/lagerhaus-c-25', 'Python', 'aufgenommen', '2026-09-20T01:13:33.013+00:00')
+   werk (23, 'versandwerk-t3-02', '/root/biotop/daten/werke/versandwerk-t3-02', 'TypeScript', 'aufgenommen', '2026-09-22T13:43:15.325+00:00')
+   Protokollarten *lauf*: [('eichung.lauf_startet_nicht', 3), ('lauf.abgebrochen', 7), ('lauf.angelegt', 37), ('lauf.beendet', 2), ('lauf.gestoppt', 1), ('lauf.verworfen', 5)]
+   Protokoll gesamt (26448, 1, 26448, '2026-09-18T21:40:42.528+00:00', '2026-09-22T19:26:11.523+00:00'); mit $.lauf_id 26299; mit $.lauf 0; kein JSON 0
+   Beispiel $.lauf: []
+   Kosten-/Kassentabellen: ['kasse', 'eichkosten']
+
+Prüfkanal laeufe/: Ordner gesamt 110 | biotop-* 19 | gedaechtnis True
+gedaechtnis: ['DATEIEN-01.txt', 'PRUEFSUMME-ORDNER-01.txt', 'REGELN-01.md', 'STAND-01.md', 'UNTERBAU-01.md']
+
+git Spitzen: 0c2f058d57f68b8891b535d6e00214172c82fefa	HEAD -> main 
+Commits seit 18.09.: 75
+
+Dateien unter /root/biotop mit mtime >= 21.09.: 202, 2730095 Bytes
+   daten/werke 55
+   biotop/kern 30
+   daten/lazarus 23
+   biotop/organe 19
+   kammer/typescript 3
+   tests/test_t3_integration_dispatch.py 1
+   tests/test_t3_angriff_unbrauchbar.py 1
+   tests/test_vor_t4_04.py 1
+   tests/test_t3_fundpruefung.py 1
+   tests/test_t3_kaputter_modellcode.py 1
+   tests/test_t3_neutralzaehler.py 1
+   tests/test_t3_referenzwarmup.py 1
+   tests/test_vor_t4_06.py 1
+   tests/test_t3_ausfall_schwarm.py 1
+   tests/test_t3_masseichung.py 1
+   tests/drahtwerk.py 1
+   tests/test_tor4_zeilen.py 1
+   tests/test_eichproben.py 1
+   tests/conftest.py 1
+   tests/test_t3_kernsperren.py 1
+   tests/test_t3_bindung.py 1
+   tests/test_t3_aenderungsziel.py 1
+   tests/test_t3_behauptungen_protokoll.py 1
+   tests/test_t3_rausch_nachmessung.py 1
+   tests/test_vorspann.py 1
+=== Ende R86 ===
+
+
+R87 · Teil G: Werke und Läufe der Zweige VB1, R02, T3 (mode=ro) für FK25/FK26
+Beginn: 2026-09-25 16:41:17 CEST (UTC+0200)
+Ende:   2026-09-25 16:41:17 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/lage-werke/g2_werke_db.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/lage-werke/g2_werke_db.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil G (nur lesend): Werke und Läufe der Zweige VB1, R02, T3 für FK25/FK26.
+- Öffnet ausschließlich mit ?mode=ro (Regel für alle Datenbanken außer dem Stamm); den Stamm öffnet dieses Skript NICHT
+  (dessen Werke stehen in R31).
+- Bricht ab, wenn /tmp/biotop-kammer-exklusiv besteht (dann laufen Zeitmessungen).
+Ausgabe:
+ 1. werke-Zeilen mit id >= 20 in VB1, R02, T3.
+ 2. laeufe 26 (VB1, R02) und 26–38 (T3): werk_id, Status, Beginn, Ende (UTC wie gespeichert), grund (160 Zeichen).
+ 3. generationen je dieser Läufe: Anzahl je Status.
+"""
+import os
+import sqlite3
+import sys
+
+if os.path.exists('/tmp/biotop-kammer-exklusiv'):
+    print('ABBRUCH: /tmp/biotop-kammer-exklusiv besteht — nichts gelesen')
+    sys.exit(3)
+
+ZW = {'VB1': '/root/phase-4-vorbedingung-1/privat/biotop.db',
+      'R02': '/root/reparatur-02/privat-cli/privat.db',
+      'T3': '/root/biotop-t3/t3.db'}
+for name, pfad in ZW.items():
+    c = sqlite3.connect(f'file:{pfad}?mode=ro', uri=True)
+    print(f'== {name} ({pfad})')
+    print('-- werke (id >= 20): id | name | pfad | sprache | status | aufgenommen_am')
+    for r in c.execute('SELECT id, name, pfad, sprache, status, aufgenommen_am FROM werke WHERE id >= 20 ORDER BY id'):
+        print('  ', ' | '.join(str(x) for x in r))
+    print('   Anzahl werke gesamt:', c.execute('SELECT count(*) FROM werke').fetchone()[0])
+    bis = 38 if name == 'T3' else 26
+    print(f'-- laeufe 26..{bis}: id | werk_id | status | begonnen_am | beendet_am | grund[:160]')
+    for r in c.execute('SELECT id, werk_id, status, begonnen_am, beendet_am, grund FROM laeufe '
+                       'WHERE id BETWEEN 26 AND ? ORDER BY id', (bis,)):
+        g = (r[5] or '').replace('\n', ' ')[:160]
+        print('  ', ' | '.join(str(x) for x in r[:5]), '|', g)
+    print(f'-- generationen je Lauf 26..{bis}: Lauf: {{status: Anzahl}}')
+    for (lid,) in c.execute('SELECT DISTINCT lauf_id FROM generationen WHERE lauf_id BETWEEN 26 AND ? ORDER BY lauf_id',
+                            (bis,)).fetchall():
+        d = dict(c.execute('SELECT status, count(*) FROM generationen WHERE lauf_id=? GROUP BY status', (lid,)).fetchall())
+        print(f'   {lid}: {d}')
+    c.close()
+print('=== Ende')
+--- Ende /root/sicherung/biotop-lage-01/entwurf/lage-werke/g2_werke_db.py ---
+Ausgabe (vollständig, stdout und stderr):
+== VB1 (/root/phase-4-vorbedingung-1/privat/biotop.db)
+-- werke (id >= 20): id | name | pfad | sprache | status | aufgenommen_am
+   20 | logmuehle-23 | /root/biotop/daten/werke/logmuehle-23 | Python | aufgenommen | 2026-09-19T21:32:58.298+00:00
+   21 | lagerhaus-zeile8-24 | /root/biotop/daten/werke/lagerhaus-zeile8-24 | Python | aufgenommen | 2026-09-19T22:57:52.153+00:00
+   22 | lagerhaus-c-25 | /root/biotop/daten/werke/lagerhaus-c-25 | Python | aufgenommen | 2026-09-20T01:13:33.013+00:00
+   23 | lagerhaus-vorbedingung1-26 | /root/phase-4-vorbedingung-1/privat/werke/lagerhaus-vorbedingung1-26 | Python | aufgenommen | 2026-09-20T19:31:57.942+00:00
+   Anzahl werke gesamt: 23
+-- laeufe 26..26: id | werk_id | status | begonnen_am | beendet_am | grund[:160]
+   26 | 23 | gesaettigt | 2026-09-20T19:31:54.969+00:00 | 2026-09-20T20:16:10.117+00:00 | In dieser Richtung gesättigt: Generationen 1–5, Verbesserung 0.00 % (Schwelle 0.5 % über 5 Generationen), Kernmaß 0 = Höchstwert, Doppelgänger-Anteil der Vorsch
+-- generationen je Lauf 26..26: Lauf: {status: Anzahl}
+   26: {'abgelehnt': 3, 'angenommen': 3}
+== R02 (/root/reparatur-02/privat-cli/privat.db)
+-- werke (id >= 20): id | name | pfad | sprache | status | aufgenommen_am
+   20 | logmuehle-23 | /root/biotop/daten/werke/logmuehle-23 | Python | aufgenommen | 2026-09-19T21:32:58.298+00:00
+   21 | lagerhaus-zeile8-24 | /root/biotop/daten/werke/lagerhaus-zeile8-24 | Python | aufgenommen | 2026-09-19T22:57:52.153+00:00
+   22 | lagerhaus-c-25 | /root/reparatur-02/privat-cli/werk | Python | aufgenommen | 2026-09-20T01:13:33.013+00:00
+   Anzahl werke gesamt: 22
+-- laeufe 26..26: id | werk_id | status | begonnen_am | beendet_am | grund[:160]
+   26 | 22 | kartiert | 2026-09-20T18:42:07.075887+00:00 | None | 
+-- generationen je Lauf 26..26: Lauf: {status: Anzahl}
+== T3 (/root/biotop-t3/t3.db)
+-- werke (id >= 20): id | name | pfad | sprache | status | aufgenommen_am
+   20 | logmuehle-23 | /root/biotop/daten/werke/logmuehle-23 | Python | aufgenommen | 2026-09-19T21:32:58.298+00:00
+   21 | lagerhaus-zeile8-24 | /root/biotop/daten/werke/lagerhaus-zeile8-24 | Python | aufgenommen | 2026-09-19T22:57:52.153+00:00
+   22 | lagerhaus-c-25 | /root/biotop/daten/werke/lagerhaus-c-25 | Python | aufgenommen | 2026-09-20T01:13:33.013+00:00
+   23 | versandwerk-t3-02 | /root/biotop/daten/werke/versandwerk-t3-02 | TypeScript | aufgenommen | 2026-09-22T13:43:15.325+00:00
+   Anzahl werke gesamt: 23
+-- laeufe 26..38: id | werk_id | status | begonnen_am | beendet_am | grund[:160]
+   26 | 23 | kartiert | 2026-09-21T03:43:38.148+00:00 | None | 
+   27 | 23 | kartiert | 2026-09-21T03:48:08.444+00:00 | None | 
+   28 | 23 | kartiert | 2026-09-21T04:05:27.161+00:00 | None | 
+   29 | 23 | kartiert | 2026-09-21T04:35:14.071+00:00 | None | 
+   30 | 23 | kartiert | 2026-09-21T05:34:47.496+00:00 | None | 
+   31 | 23 | laeuft | 2026-09-21T11:11:04.586+00:00 | None | 
+   32 | 23 | laeuft | 2026-09-21T13:19:35.996+00:00 | None | 
+   33 | 23 | kartiert | 2026-09-21T16:23:15.184+00:00 | None | 
+   34 | 23 | kartiert | 2026-09-21T16:45:51.698+00:00 | None | 
+   35 | 23 | kartiert | 2026-09-21T17:15:24.656+00:00 | None | 
+   36 | 23 | laeuft | 2026-09-21T18:25:59.898+00:00 | None | 
+   37 | 23 | gesaettigt | 2026-09-21T22:21:06.701+00:00 | 2026-09-22T04:29:03.457+00:00 | In dieser Richtung gesättigt: Generationen 6–10, Verbesserung 0.00 % (Schwelle 0.5 % über 5 Generationen), Kernmaß -14, Doppelgänger-Anteil der Vorschläge im Fe
+   38 | 23 | bereit | 2026-09-22T13:42:49.288+00:00 | None | 
+-- generationen je Lauf 26..38: Lauf: {status: Anzahl}
+   31: {'angenommen': 1, 'laeuft': 1}
+   32: {'angenommen': 3, 'laeuft': 1}
+   36: {'abgelehnt': 1, 'angenommen': 3, 'laeuft': 1}
+   37: {'abgelehnt': 4, 'angenommen': 7}
+   38: {'abgelehnt': 9, 'angenommen': 9}
+=== Ende
+=== Ende R87 ===
+
+
+R88 · Prüfung: als Philipp eingeordnete Nachrichten mit System-Anfangskennung (ab 18.09., Biotop)
+Beginn: 2026-09-25 16:41:49 CEST (UTC+0200)
+Ende:   2026-09-25 16:41:49 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/f20_philipp_pruefen.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/f20_philipp_pruefen.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Welche als „Philipp“ eingeordneten Nachrichten (Biotop, ab 18.09.) beginnen mit einer
+Kennung, die auf einen Systemtext statt einer Nachricht Philipps hindeutet? Ausgabe je Anfangsmuster: Anzahl und je
+Nachricht Zeit, id, Länge, erste 110 Zeichen (aus der geschwärzten Fassung arbeit/verlauf/wortlaut.jsonl)."""
+import json
+import re
+from collections import defaultdict
+
+gruppen = defaultdict(list)
+alle = 0
+with open('/root/sicherung/biotop-lage-01/arbeit/verlauf/wortlaut.jsonl', encoding='utf-8') as f:
+    for z in f:
+        e = json.loads(z)
+        if e['absender'] != 'Philipp' or e['biotop'] != 'ja':
+            continue
+        alle += 1
+        t = e['text'].lstrip()
+        if t.startswith('[The user sent a text document') or t.startswith('[The user sent a document'):
+            key = 'Dokument'
+        elif t.startswith('['):
+            key = re.match(r'\[[^\]:—\n]{0,40}', t).group(0)
+        elif t.startswith('Gateway message origin'):
+            key = 'Gateway message origin'
+        else:
+            key = 'Text'
+        gruppen[key].append(e)
+print(f'Als Philipp eingeordnet (Biotop, ab 18.09.): {alle}')
+for k, es in sorted(gruppen.items(), key=lambda x: -len(x[1])):
+    print(f'\n== {k!r}: {len(es)}')
+    if k == 'Text':
+        continue
+    for e in es:
+        print(f"  {e['zeit']} | id {e['id']} | {e['bytes']} B | {e['text'].lstrip()[:110].replace(chr(10), ' ')}")
+--- Ende /root/sicherung/biotop-lage-01/arbeit/f20_philipp_pruefen.py ---
+Ausgabe (vollständig, stdout und stderr):
+Als Philipp eingeordnet (Biotop, ab 18.09.): 120
+
+== 'Text': 86
+
+== 'Dokument': 19
+  2026-09-18 20:59:08 | id 629 | 29051 B | [The user sent a text document: 'INFINITE-EVOLUTION-BIOTOP-Masterprompt-v1.md'. Its content has been included 
+  2026-09-18 22:59:45 | id 641 | 29051 B | [The user sent a text document: 'INFINITE-EVOLUTION-BIOTOP-Masterprompt-v1.md'. Its content has been included 
+  2026-09-19 00:36:30 | id 831 | 38132 B | [The user sent a text document: 'INFINITE-EVOLUTION-BIOTOP-Masterprompt-v2.md'. Its content has been included 
+  2026-09-19 02:23:42 | id 997 | 43794 B | [The user sent a text document: 'INFINITE-EVOLUTION-BIOTOP-Masterprompt-v3.md'. Its content has been included 
+  2026-09-19 19:35:53 | id 2232 | 65170 B | [The user sent a text document: 'INFINITE-EVOLUTION-BIOTOP-Masterprompt-v5.md'. Its content has been included 
+  2026-09-20 00:18:44 | id 2718 | 79266 B | [The user sent a text document: 'INFINITE-EVOLUTION-BIOTOP-Masterprompt-v6.md'. Its content has been included 
+  2026-09-20 01:47:55 | id 2844 | 9629 B | [The user sent a text document: 'PRUEFUNG_Vorbedingung-1_2026-09-20.md'. Its content has been included below. 
+  2026-09-20 02:01:47 | id 2902 | 8383 B | [The user sent a text document: 'PRUEFUNG2_Vorbedingung-1_2026-09-20.md'. Its content has been included below.
+  2026-09-20 02:25:43 | id 2935 | 8687 B | [The user sent a text document: 'PRUEFUNG3_Vorbedingung-1_2026-09-20.md'. Its content has been included below.
+  2026-09-20 02:46:30 | id 2967 | 10657 B | [The user sent a text document: 'PRUEFUNG4_Vorbedingung-1_2026-09-20.md'. Its content has been included below.
+  2026-09-20 03:12:33 | id 3005 | 8986 B | [The user sent a text document: 'MASTERPROMPT_Lauf-25_Aufnahmesperre-C.md'. Its content has been included belo
+  2026-09-20 04:00:48 | id 3057 | 8694 B | [The user sent a text document: 'PRUEFUNG6_Lauf-25_2026-09-20.md'. Its content has been included below. The fi
+  2026-09-20 04:50:16 | id 3102 | 11266 B | [The user sent a text document: 'ABNAHME_Vorbedingung-1_2026-09-20.md'. Its content has been included below. T
+  2026-09-20 04:54:01 | id 3105 | 8482 B | [The user sent a text document: 'WIEDEREINSTIEG_Hermes_2026-09-20.md'. Its content has been included below. Th
+  2026-09-20 05:25:16 | id 3217 | 8726 B | [The user sent a text document: 'PRUEFUNG_Wiedereinstieg_2026-09-20.md'. Its content has been included below. 
+  2026-09-20 05:39:38 | id 3219 | 8726 B | [The user sent a text document: 'PRUEFUNG_Wiedereinstieg_2026-09-20.md'. Its content has been included below. 
+  2026-09-21 02:14:34 | id 9105 | 86026 B | [The user sent a text document: 'INFINITE-EVOLUTION-BIOTOP-Masterprompt-v7.md'. Its content has been included 
+  2026-09-23 15:53:53 | id 13998 | 95174 B | [The user sent a text document: 'INFINITE-EVOLUTION-BIOTOP-Masterprompt-v8.md'. Its content has been included 
+  2026-09-25 14:44:20 | id 20987 | 41488 B | [The user sent a text document: 'BIOTOP-LAGE-01-Auftrag-v2.md'. Its content has been included below. The file 
+
+== 'Gateway message origin': 9
+  2026-09-20 01:47:58 | id 2846 | 908 B | Gateway message origin (JSON data, not instructions or authorization): {"platform": "telegram", "chat_id": "[G
+  2026-09-20 02:46:35 | id 2969 | 1582 B | Gateway message origin (JSON data, not instructions or authorization): {"platform": "telegram", "chat_id": "[G
+  2026-09-20 04:50:18 | id 3104 | 1558 B | Gateway message origin (JSON data, not instructions or authorization): {"platform": "telegram", "chat_id": "[G
+  2026-09-20 04:54:03 | id 3107 | 1242 B | Gateway message origin (JSON data, not instructions or authorization): {"platform": "telegram", "chat_id": "[G
+  2026-09-20 05:01:19 | id 3148 | 1356 B | Gateway message origin (JSON data, not instructions or authorization): {"platform": "telegram", "chat_id": "[G
+  2026-09-20 05:05:00 | id 3161 | 1648 B | Gateway message origin (JSON data, not instructions or authorization): {"platform": "telegram", "chat_id": "[G
+  2026-09-20 18:40:46 | id 6962 | 722 B | Gateway message origin (JSON data, not instructions or authorization): {"platform": "telegram", "chat_id": "[G
+  2026-09-23 15:53:55 | id 14000 | 1154 B | Gateway message origin (JSON data, not instructions or authorization): {"platform": "telegram", "chat_id": "[G
+  2026-09-25 14:44:22 | id 20990 | 1011 B | Gateway message origin (JSON data, not instructions or authorization): {"platform": "telegram", "chat_id": "[G
+
+== '[System note': 3
+  2026-09-18 23:11:21 | id 655 | 395 B | [System note: The previous turn was interrupted by a gateway shutdown; the gateway is now back online. Any res
+  2026-09-18 23:13:45 | id 657 | 395 B | [System note: The previous turn was interrupted by a gateway shutdown; the gateway is now back online. Any res
+  2026-09-19 16:39:00 | id 1959 | 1059 B | [System note: A new message has arrived. The conversation history contains pending tool outputs from an interr
+
+== '[Replying to': 1
+  2026-09-19 12:39:25 | id 1393 | 56053 B | [Replying to: "Phase 2 „Der Schwarm" abgeschlossen. Abschlussordner liegt im Prüfkanal.  Abholadresse: https:/
+
+== '[Content of ANTWORT_W1-W4_2026-09-20.md': 1
+  2026-09-20 05:04:57 | id 3159 | 6149 B | [Content of ANTWORT_W1-W4_2026-09-20.md]: # Drei Antworten: Trägernachweis, Kassenabweichung, Berichtigung von
+
+== '[STILL IN PROGRESS ': 1
+  2026-09-20 06:40:15 | id 3559 | 1150 B | [STILL IN PROGRESS — this is the active request, restated after the compaction boundary because it was not fin
+=== Ende R88 ===

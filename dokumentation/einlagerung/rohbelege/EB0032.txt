@@ -1,0 +1,147 @@
+EB32 · Schritt 4: Masterprompt v1–v8, Änderungsverzeichnisse, Dokumente, Aufträge, Verfassungen
+Beginn: 2026-09-26 00:31:55 CEST (UTC+0200)
+Ende:   2026-09-26 00:31:55 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/biotop-einlagerung/arbeit/d_quellen.py
+--- Inhalt von /root/biotop-einlagerung/arbeit/d_quellen.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-EINLAGERUNG-01 · Schritt 4: Masterprompt v1–v8 mit Änderungsverzeichnissen, weitere Biotop-Dokumente aus der
+Sitzungsdatenbank, Aufträge und alle Verfassungen im Wortlaut nach paket/dokumentation/.
+Quellen:
+- Wortlaut v1–v8: /root/sicherung/biotop-lage-01/arbeit/dokumente/ (aus state.db, BIOTOP-LAGE-01 R15/R17). Volle
+  Fassungen ≥ 10.000 B nach masterprompt/, Bruchstücke (< 10.000 B, aus Verdichtungen) nach masterprompt/bruchstuecke/.
+  Abgleich je Fassung mit INVENTAR-TEIL2-01 §5 (SHA-256 ohne abschließenden Zeilenumbruch).
+- Änderungsverzeichnisse: …/arbeit/fassungen/aenderungen-v1..v8.md (BIOTOP-LAGE-01, FK15).
+- übrige Dokumente dieses Ordners mit „biotop“ im Inhalt → dokumente/ (andere Vorhaben bleiben draußen).
+- Aufträge: BIOTOP-EINLAGERUNG-01, BIOTOP-LAGE-01 (…/auftrag/) → auftraege/.
+- Verfassungen: /root/biotop/verfassungen/ (ganzer Ordner), /root/biotop-t3/VERFASSUNG-T3-*.md, dazu die
+  zusammengestellten Wortlaute VERFASSUNGEN-TEIL1–4-01.md aus BIOTOP-LAGE-01 → verfassungen/.
+Jede Kopie bytegleich (SHA-256 verglichen), exklusiv angelegt."""
+import hashlib
+import os
+import re
+import shutil
+from pathlib import Path
+
+D = Path('/root/biotop-einlagerung/paket/dokumentation')
+L1 = Path('/root/sicherung/biotop-lage-01')
+I4 = {'v1': '93d358cdda6473f91fda795392e509212f75f1f9678bef31593cad9104fe1ea8',
+      'v2': 'acc42ad73f6111a3922993aaadb94ebb12aaeeb995f445f3fe7e8abaab1b4b9d',
+      'v3': 'ca74ed53c33fd68f1ce1a5b172262197a173c118b1099a991a7dac0f350373a2',
+      'v4': 'ff1cda438d09c1b440d32700d1723b8e8df0daf6f45a7e2251372e035042e886',
+      'v5': 'a34d7e1ad4532fc1ea11fb805b3ef56d2ec09b0b1febad3dc3af1854f9f5035e',
+      'v6': '3f63dec2a7d6f82e932699907dab42d71148fe84ba907a13c505fa2c010bd483',
+      'v7': '0d3a07327b05da232adc49d56cf98e1369f04693c9e857b9e8199d558d38c6c1',
+      'v8': '4168a35ede38c31fe4fad21844105a148da5b5aa0d69d2672f29b774b7a67cc9'}
+sha = lambda b: hashlib.sha256(b).hexdigest()
+n_kopien = {'gleich': 0, 'gesamt': 0}
+
+
+def kopie(q: Path, z: Path) -> None:
+    z.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(z, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+    os.close(fd)
+    shutil.copyfile(q, z)
+    shutil.copystat(q, z)
+    os.chmod(z, 0o644)
+    n_kopien['gesamt'] += 1
+    n_kopien['gleich'] += sha(q.read_bytes()) == sha(z.read_bytes())
+
+
+print('== Masterprompt')
+for q in sorted((L1 / 'arbeit' / 'dokumente').glob('*_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v*.md')):
+    v = re.search(r'-(v\d)\.md$', q.name).group(1)
+    b = q.read_bytes()
+    voll = len(b) >= 10_000
+    z = D / 'masterprompt' / ('' if voll else 'bruchstuecke') / q.name
+    kopie(q, z)
+    ohne = sha(b.rstrip(b'\n'))
+    print(f'{v} · {q.name} · {len(b)} B · SHA-256 {sha(b)} · ohne abschl. NL {ohne} · '
+          + (f'gleich INVENTAR I4: {ohne == I4[v] or sha(b) == I4[v]}' if voll else 'Bruchstück (< 10.000 B)'))
+for n in range(1, 9):
+    q = L1 / 'arbeit' / 'fassungen' / f'aenderungen-v{n}.md'
+    kopie(q, D / 'masterprompt' / f'AENDERUNGEN-v{n}.md')
+    print(f'Änderungsverzeichnis v{n}: {q.stat().st_size} B · SHA-256 {sha(q.read_bytes())}')
+print('== weitere Dokumente aus der Sitzungsdatenbank')
+for q in sorted((L1 / 'arbeit' / 'dokumente').glob('*.md')):
+    if 'Masterprompt-v' in q.name and 'INFINITE-EVOLUTION' in q.name:
+        continue
+    b = q.read_bytes()
+    if b'biotop' not in b.lower():
+        print(f'ausgelassen (kein Biotop-Bezug im Inhalt, anderes Vorhaben): {len(b)} B')
+        continue
+    kopie(q, D / 'dokumente' / q.name)
+    print(f'{q.name} · {len(b)} B · SHA-256 {sha(b)}')
+print('== Aufträge')
+for q in [Path('/root/biotop-einlagerung/auftrag/BIOTOP-EINLAGERUNG-01-Auftrag.md')] + sorted((L1 / 'auftrag').iterdir()):
+    kopie(q, D / 'auftraege' / q.name)
+    print(f'{q.name} · {q.stat().st_size} B · SHA-256 {sha(q.read_bytes())}')
+print('== Verfassungen')
+for q in sorted(p for p in Path('/root/biotop/verfassungen').rglob('*') if p.is_file()):
+    kopie(q, D / 'verfassungen' / 'biotop-verfassungen' / q.relative_to('/root/biotop/verfassungen'))
+    print(f'/root/biotop/verfassungen/{q.relative_to("/root/biotop/verfassungen")} · {q.stat().st_size} B · SHA-256 {sha(q.read_bytes())}')
+for q in sorted(Path('/root/biotop-t3').glob('VERFASSUNG-T3-*.md')) + sorted((L1 / 'ausgabe').glob('VERFASSUNGEN-TEIL*-01.md')):
+    kopie(q, D / 'verfassungen' / q.name)
+    print(f'{q} · {q.stat().st_size} B · SHA-256 {sha(q.read_bytes())}')
+print(f"Kopien: {n_kopien['gesamt']} · bytegleich {n_kopien['gleich']} von {n_kopien['gesamt']}")
+--- Ende /root/biotop-einlagerung/arbeit/d_quellen.py ---
+Ausgabe (vollständig, stdout und stderr):
+== Masterprompt
+v1 · 2026-09-18_205908_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v1.md · 28754 B · SHA-256 93d358cdda6473f91fda795392e509212f75f1f9678bef31593cad9104fe1ea8 · ohne abschl. NL 93d358cdda6473f91fda795392e509212f75f1f9678bef31593cad9104fe1ea8 · gleich INVENTAR I4: True
+v2 · 2026-09-19_003630_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v2.md · 37835 B · SHA-256 acc42ad73f6111a3922993aaadb94ebb12aaeeb995f445f3fe7e8abaab1b4b9d · ohne abschl. NL acc42ad73f6111a3922993aaadb94ebb12aaeeb995f445f3fe7e8abaab1b4b9d · gleich INVENTAR I4: True
+v3 · 2026-09-19_022342_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v3.md · 43497 B · SHA-256 ca74ed53c33fd68f1ce1a5b172262197a173c118b1099a991a7dac0f350373a2 · ohne abschl. NL ca74ed53c33fd68f1ce1a5b172262197a173c118b1099a991a7dac0f350373a2 · gleich INVENTAR I4: True
+v4 · 2026-09-19_123925_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v4.md · 53416 B · SHA-256 ff1cda438d09c1b440d32700d1723b8e8df0daf6f45a7e2251372e035042e886 · ohne abschl. NL ff1cda438d09c1b440d32700d1723b8e8df0daf6f45a7e2251372e035042e886 · gleich INVENTAR I4: True
+v1 · 2026-09-19_140146_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v1.md · 4672 B · SHA-256 9f931fca28205438d9e2557a6be48b708a4af7d3c0747c04b4ae3cfeacfc84f9 · ohne abschl. NL 9f931fca28205438d9e2557a6be48b708a4af7d3c0747c04b4ae3cfeacfc84f9 · Bruchstück (< 10.000 B)
+v4 · 2026-09-19_140146_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v4.md · 1500 B · SHA-256 31ebecd20f1776ff8cdf321ea996c0f6c57ab3e26c126b57fa155aed886153ed · ohne abschl. NL 31ebecd20f1776ff8cdf321ea996c0f6c57ab3e26c126b57fa155aed886153ed · Bruchstück (< 10.000 B)
+v5 · 2026-09-19_193553_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v5.md · 64873 B · SHA-256 a34d7e1ad4532fc1ea11fb805b3ef56d2ec09b0b1febad3dc3af1854f9f5035e · ohne abschl. NL a34d7e1ad4532fc1ea11fb805b3ef56d2ec09b0b1febad3dc3af1854f9f5035e · gleich INVENTAR I4: True
+v6 · 2026-09-20_001844_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v6.md · 78968 B · SHA-256 3f63dec2a7d6f82e932699907dab42d71148fe84ba907a13c505fa2c010bd483 · ohne abschl. NL 3f63dec2a7d6f82e932699907dab42d71148fe84ba907a13c505fa2c010bd483 · gleich INVENTAR I4: True
+v7 · 2026-09-21_021434_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v7.md · 85728 B · SHA-256 0d3a07327b05da232adc49d56cf98e1369f04693c9e857b9e8199d558d38c6c1 · ohne abschl. NL 0d3a07327b05da232adc49d56cf98e1369f04693c9e857b9e8199d558d38c6c1 · gleich INVENTAR I4: True
+v8 · 2026-09-23_155353_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v8.md · 94876 B · SHA-256 4168a35ede38c31fe4fad21844105a148da5b5aa0d69d2672f29b774b7a67cc9 · ohne abschl. NL 4168a35ede38c31fe4fad21844105a148da5b5aa0d69d2672f29b774b7a67cc9 · gleich INVENTAR I4: True
+Änderungsverzeichnis v1: 1 B · SHA-256 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
+Änderungsverzeichnis v2: 1185 B · SHA-256 e117f4f13816c2b201f5cc84823a4a11a706e3f15a50dd5340fdf1a1f126cbe1
+Änderungsverzeichnis v3: 1847 B · SHA-256 6e182f97a347235b0f85e93bfda528c354e1b8c093a1c9c6c969b6a0d86b683e
+Änderungsverzeichnis v4: 2952 B · SHA-256 6f489d525300230cdfbe15da24df5af9155eb4563430caac518934b098e3858a
+Änderungsverzeichnis v5: 3519 B · SHA-256 2f5a3a6345a4150f469a7f004bea65c5cd36b1a3d9abb7dbd18a9c9feac661d5
+Änderungsverzeichnis v6: 2624 B · SHA-256 30aa093f6039eca85569c49a47efacc423cb00ac5f17c9ba1df740f5fcc9094e
+Änderungsverzeichnis v7: 1563 B · SHA-256 e752fa904f0194c1a80332f1a6d19c045cd5fe4986e54169d142e49970c16fd3
+Änderungsverzeichnis v8: 1608 B · SHA-256 75a62b55c5aec69e4c6dd3a3d3538b12210efa550446b31b1c92f336d22180bf
+== weitere Dokumente aus der Sitzungsdatenbank
+ausgelassen (kein Biotop-Bezug im Inhalt, anderes Vorhaben): 20480 B
+ausgelassen (kein Biotop-Bezug im Inhalt, anderes Vorhaben): 4519 B
+ausgelassen (kein Biotop-Bezug im Inhalt, anderes Vorhaben): 4519 B
+ausgelassen (kein Biotop-Bezug im Inhalt, anderes Vorhaben): 4519 B
+2026-09-20_014755_PRUEFUNG_Vorbedingung-1_2026-09-20.md · 9352 B · SHA-256 842383d1c08e1ab260058aa9769351f1512311a11f0395c9da00970fb03ae0e2
+2026-09-20_020147_PRUEFUNG2_Vorbedingung-1_2026-09-20.md · 8103 B · SHA-256 ad26f5ff6b2761019809e7679ac5a535a096a49af3b9b9884a699c50962a06a0
+2026-09-20_022543_PRUEFUNG3_Vorbedingung-1_2026-09-20.md · 8407 B · SHA-256 a7ac16861fc2982b81d3c2075e28c44ffaa639ad45cf0ec4bf360401d9db0b5f
+2026-09-20_024630_PRUEFUNG4_Vorbedingung-1_2026-09-20.md · 10377 B · SHA-256 d899daffa7a9fef20fd4b0b46739d752b22961056098c1dd1cb584e8c2a28cb1
+ausgelassen (kein Biotop-Bezug im Inhalt, anderes Vorhaben): 8700 B
+2026-09-20_040048_PRUEFUNG6_Lauf-25_2026-09-20.md · 8435 B · SHA-256 060090b0631b0903c4cbec6811098591366e396540d6b6a089acea935ad3856f
+2026-09-20_045016_ABNAHME_Vorbedingung-1_2026-09-20.md · 10992 B · SHA-256 8a5a470f5a5ddac5704a5892d72fbc1be25e9e18c732697a7e1824869371f7d9
+2026-09-20_045401_WIEDEREINSTIEG_Hermes_2026-09-20.md · 8211 B · SHA-256 a70abb8b962cb93984502e0fda77aec14e605f1b824a20df18f331f970f3de90
+2026-09-20_052516_PRUEFUNG_Wiedereinstieg_2026-09-20.md · 8449 B · SHA-256 55b23bc0c9a191e11a6f61c248f1bc063bcd140c6b306dd7a817736d85311408
+2026-09-25_144420_BIOTOP-LAGE-01-Auftrag-v2.md · 41238 B · SHA-256 7d55e3e2143ab87daee706b558579dbb3dade49c4fb1f8456e2062ee74c529df
+== Aufträge
+BIOTOP-EINLAGERUNG-01-Auftrag.md · 24789 B · SHA-256 0579bf1da1dc19391349eead8f73839de4f4a308bcc0702ddaa0e7d4823db07b
+BIOTOP-LAGE-01-Auftrag-v2.md · 41239 B · SHA-256 58ba8834b8c3ec08f8da2e18d3db056150c91c2841ed9aac349bcf2eba216b98
+== Verfassungen
+/root/biotop/verfassungen/lagerhaus.md · 1506 B · SHA-256 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14
+/root/biotop/verfassungen/lagerhaus.regeln.json · 806 B · SHA-256 34d67f36719395b6cff4c9bed88b8b506ae525943aa7c84682b7c0167ad27abc
+/root/biotop/verfassungen/logmuehle.md · 1841 B · SHA-256 0ce7f8651ae70ad0783cb6caa8f54b9ebbcf789b5e6b116d6df6fb63242bc803
+/root/biotop/verfassungen/logmuehle.regeln.json · 691 B · SHA-256 bce33200a57d77e5a9254e0da271c38c9ce23404506cc6cfb0bf902e5051b0c8
+/root/biotop/verfassungen/vertraege-lagerhaus/test_vertrag_bericht_lager.py · 2059 B · SHA-256 b69270558c12328906acf851cc12a66f617c0fc27b4818d52432671538a4bc6c
+/root/biotop/verfassungen/vertraege-lagerhaus/test_vertrag_bericht_preise.py · 1613 B · SHA-256 e5aecb66e462650f5dd019ecdff7fe09b6995fd4afa2590a32f077c3892768e2
+/root/biotop/verfassungen/vertraege-lagerhaus/test_vertrag_preise_formeln.py · 1490 B · SHA-256 14ce158ceb1b5b0625baca85e85592252403977601e99251b12a6da86ac0abe1
+/root/biotop/verfassungen/vertraege-logmuehle/test_vertrag_ausgabe_filtern.py · 2049 B · SHA-256 57f1da1f52a8ce6194aa9fc2963cd592effd78d35cec5a05290f40eb4ca0064f
+/root/biotop/verfassungen/vertraege-logmuehle/test_vertrag_ausgabe_zaehlen.py · 1446 B · SHA-256 667b67d923b400b15c5901ad58fca65e53807a5fddf3ccbe97d2ecd9e3a5e91f
+/root/biotop/verfassungen/vertraege-logmuehle/test_vertrag_filtern_lesen.py · 1561 B · SHA-256 be37bcf30373e45b032737e61159f0c63cbbd89b569d18ec5cc629ebb20aaff8
+/root/biotop/verfassungen/vertraege-logmuehle/test_vertrag_zaehlen_lesen.py · 859 B · SHA-256 21b172574770f174931f5c458008d1558139eef97e1530ba79b2260408af33ec
+/root/biotop-t3/VERFASSUNG-T3-02.md · 4418 B · SHA-256 5ece12d93dc760d6bfb834d7d1cd53e29065bd54d673e2381a23d50234f78a28
+/root/biotop-t3/VERFASSUNG-T3-ENTWURF.md · 2498 B · SHA-256 d048a77e9faf2e24ae1a8145510d1b8c2f2957747b519d100c14e0ed0a4e0ac0
+/root/sicherung/biotop-lage-01/ausgabe/VERFASSUNGEN-TEIL1-01.md · 30717 B · SHA-256 d415d5a53eb849d7d9bfdfb8b5a3054d557bbee129f81b9d12650810de3cdfff
+/root/sicherung/biotop-lage-01/ausgabe/VERFASSUNGEN-TEIL2-01.md · 30603 B · SHA-256 109b852d3f5b986fe79b71e10850bc0420e9e06750e82fc62c5b30d46ea41174
+/root/sicherung/biotop-lage-01/ausgabe/VERFASSUNGEN-TEIL3-01.md · 9704 B · SHA-256 430d9d8fe5dd72b1c8722009936e77c5960a5a138d59636b1d410a9e85d4af2b
+/root/sicherung/biotop-lage-01/ausgabe/VERFASSUNGEN-TEIL4-01.md · 34325 B · SHA-256 e0573e05a58408147560efdc1446263b8a991f2306f703dedfde2b435f3ab149
+Kopien: 46 · bytegleich 46 von 46
+=== Ende EB32 ===

@@ -1,0 +1,846 @@
+commit 330b4ec7355a5829aad872fb57691f54c82cbc6b
+Author: Hermes (Biotop) <hermes@biotop.local>
+Date:   Wed Sep 23 21:39:51 2026 +0200
+
+    Vor T4: Review-Befunde eingearbeitet (ein Reviewdurchgang zu 58bd9f9)
+    
+    Nr. 1  Verhaltensvergleich: „entfernt“ aus den Randfall-Beobachtungen beider Seiten bestimmt (nicht aus `eingewickelt`,
+           das nur `export function` erfasst); y aus eingewickelten UND aus den Signaturen gelesenen Funktionen.
+    Nr. 2  TS-Anhängen: Importe nach Bindungen zusammengeführt; doppelte Bindung oder Namenskonflikt → neutral
+           „zusammenfuegen_gescheitert“, nichts angehängt.
+    Nr. 3  Zurückgestellte zählen nicht als abgelehnt: überwiegen sie (oder überlebt keiner), wird die Generation
+           „abgebrochen“ (nicht gemessen) statt „abgelehnt“; zweimal in Folge → Lauf „angehalten“.
+    Nr. 8c Generation 0 (Python): pytest-rc außer 0/1 (Sammelfehler, keine Tests …) ist neutral, kein Fang.
+    Nr. 9  Typbau zwischen den Runden als eigene Funktion (G0.rundenpruefung), am Laufweg lauf.generation0 geprüft.
+    Nr. 10b Dauer der gepaarten Laufzeitmessung protokolliert (dauer_s).
+    Nr. 11 Gedächtnissperre auch beim Lesen: ältere Laufzeitrisse der Klasse „grenzmass“ sperren nur berührt + gepaart.
+    Nr. 12 Kammerausfall beim Anhängen ist kein Syntaxfehler: wird weitergereicht, der Kandidat zurückgestellt.
+    Nr. 13 TS-Kammertests überspringen ohne biotop-kammer:ts1 mit Grund (Vorrichtung ts_kammer), nie still rot.
+    Nr. 15 Unerreichbare Zeile in generation0._testlauf_urteil entfernt.
+    Tests (tests/test_vor_t4.py): je Befund Probe und Gegenprobe, Nr. 4 und Nr. 5 durch aegis.pruefen, lauf._verhandeln,
+    anbieter.aufrufen→nischen.waehlen und eichung.rauschmessung. Kein Modellaufruf.
+
+diff --git a/biotop/kern/messgeraet.py b/biotop/kern/messgeraet.py
+index 98f2818..35f704b 100644
+--- a/biotop/kern/messgeraet.py
++++ b/biotop/kern/messgeraet.py
+@@ -660,7 +660,9 @@ def laufzeit_gepaart(werk: Path, bereiche: list[str], paket: str, referenzlast:
+     Messungen, Median je Seite. Scheitert eine Messung, ist das ein Messgerätausfall (`gueltig` False, `seite`) —
+     keine Aussage über den Kandidaten; beide Seiten wurden unmittelbar davor schon gültig gemessen.
+     Rückgabe {"gueltig", "n", "bereiche": {b: {"basis", "kandidat", "basis_werte", "kandidat_werte"}}, "grund", "seite"}."""
++    import time as _time
+     n = n or LAUFZEIT_PAAR
++    t0 = _time.monotonic()
+     werte = {b: {"basis": [], "kandidat": []} for b in bereiche}
+     for i in range(n):
+         folge = (("basis", dateien_basis), ("kandidat", dateien_kandidat))
+@@ -679,7 +681,7 @@ def laufzeit_gepaart(werk: Path, bereiche: list[str], paket: str, referenzlast:
+         out[b] = {"basis": wb[len(wb) // 2] if len(wb) == n else None, "kandidat": wk[len(wk) // 2] if len(wk) == n else None,
+                   "basis_werte": [round(x, 4) for x in werte[b]["basis"]],
+                   "kandidat_werte": [round(x, 4) for x in werte[b]["kandidat"]]}
+-    return {"gueltig": True, "n": n, "bereiche": out, "grund": "",
++    return {"gueltig": True, "n": n, "bereiche": out, "grund": "", "dauer_s": round(_time.monotonic() - t0, 1),
+             "regel": f"Grundsatz 14: abwechselnd in derselben Sitzung, je Seite Median aus {n} Messungen"}
+ 
+ 
+diff --git a/biotop/lauf.py b/biotop/lauf.py
+index 17d4f29..e9bbcc0 100644
+--- a/biotop/lauf.py
++++ b/biotop/lauf.py
+@@ -339,6 +339,17 @@ def _generation_koerper(con, lauf_id, nummer, werk, mass, paket, bereiche, pfad,
+     zusammenfassung = {b: [{"kandidat": u["kandidat"], "status": u["status"], "grund": u["grund"][:200], "nische": con.execute("SELECT nische FROM kandidaten WHERE id=?", (u["kandidat"],)).fetchone()[0]} for u in us] for b, us in urteile.items()}
+     zusammenfassung["_gewaehlt"] = gewaehlt
+     zusammenfassung["_bandit"] = nischen.gewichte(con, lauf_id)
++    # Review vor T4 Nr. 3 (Grundsatz 13): Zurückgestellte (Messgerätausfall) sind kein Urteil. Überwiegen sie unter den
++    # beurteilbaren Kandidaten — oder überlebt keiner, während welche zurückgestellt sind —, ist die Generation „nicht
++    # gemessen“: abgebrochen, nicht „abgelehnt“, und damit nicht mit 0 % Verbesserung in Entropie und Sättigung.
++    zurueck = [u["kandidat"] for us in urteile.values() for u in us if u["status"] == aegis.ZURUECKGESTELLT]
++    beurteilt = sum(1 for us in urteile.values() for u in us if u["status"] in ("ueberlebt", "abgelehnt"))
++    zusammenfassung["_zurueckgestellt"] = zurueck
++    if zurueck and (not gewaehlt or len(zurueck) * 2 > len(zurueck) + beurteilt):
++        return _messgeraet_ausfall(con, lauf_id, nummer, abschluss, zusammenfassung,
++                                   f"Messgerätausfall: {len(zurueck)} von {len(zurueck) + beurteilt} beurteilbaren Kandidaten "
++                                   f"zurückgestellt ({len(gewaehlt)} Bereich(e) mit Überlebendem) — nicht gemessen, keine "
++                                   f"Entscheidung (Grundsatz 13)")
+     if not gewaehlt:
+         return abschluss("abgelehnt", "kein Kandidat hat den Ankläger überlebt (0 von %d)" % sum(len(u) for u in urteile.values()), None, zusammenfassung)
+ 
+@@ -377,7 +388,8 @@ def _generation_koerper(con, lauf_id, nummer, werk, mass, paket, bereiche, pfad,
+                 for b, kid in gewaehlt.items():
+                     con.execute("UPDATE kandidaten SET status=?, grund=? WHERE id=?",
+                                 (aegis.ZURUECKGESTELLT, "Generalprobe: Messgerätausfall (Laufzeit gepaart) — " + lz["grund"][:300], kid))
+-            return abschluss("abgebrochen", "Generalprobe: Messgerätausfall (Laufzeit gepaart) — " + lz["grund"], mess, zusammenfassung)
++            return _messgeraet_ausfall(con, lauf_id, nummer, abschluss, zusammenfassung,
++                                       "Generalprobe: Messgerätausfall (Laufzeit gepaart) — " + lz["grund"], mess)
+         basis_paar, mess = messgeraet.laufzeit_einsetzen(basis_paar, mess, lz)
+     mess["kernmass_f2"] = messgeraet.kernmass_f2(mess)
+     mess["_basis_paar"] = {"kernmass_f2": messgeraet.kernmass_f2(basis_paar), "bereiche": {b: messgeraet.bereich_masse(basis_paar, b) for b in bereiche}}
+@@ -657,6 +669,21 @@ def _verhandeln(con, lauf_id, werk, nummer, pfad, paket, bereiche, bstrassen, ba
+     return u
+ 
+ 
++def _messgeraet_ausfall(con, lauf_id, nummer, abschluss, zusammenfassung, grund, mess=None):
++    """Generation wegen Messgerätausfall abgebrochen (Lauf bleibt bereit). War schon die Vorgeneration aus demselben
++    Grund abgebrochen, hält der Lauf an ('angehalten') — ein anhaltender Ausfall darf weder Generation um Generation
++    Modellgeld kosten noch als Sättigung enden (Review vor T4 Nr. 3)."""
++    r = abschluss("abgebrochen", grund, mess, zusammenfassung)
++    vorige = con.execute("SELECT status, grund FROM generationen WHERE lauf_id=? AND nummer=?", (lauf_id, nummer - 1)).fetchone()
++    if vorige and vorige["status"] == "abgebrochen" and "Messgerätausfall" in (vorige["grund"] or ""):
++        g = f"Zwei Generationen in Folge ({nummer - 1}, {nummer}) wegen Messgerätausfall abgebrochen — Messgerät prüfen"
++        with transaktion(con):
++            con.execute("UPDATE laeufe SET status='angehalten', grund=? WHERE id=?", (g, lauf_id))
++        protokoll.schreiben(con, "lauf.angehalten", lauf_id=lauf_id, generation=nummer, grund=g)
++        r["angehalten"] = g
++    return r
++
++
+ def paar_bestanden(u: dict) -> bool:
+     """Verhandlung bestanden (3.8 Schritt 2): Das Paar verletzt keinen Vertrag, keine Pareto-Regel, kein Grenzmaß —
+     und (Vorbedingung 4, T4) der Verhaltensvergleich fand keine ungedeckte Abweichung. Ob das Paar dann auch einen
+@@ -730,18 +757,12 @@ def generation0(con: sqlite3.Connection, lauf_id: int, mutanten_json: str | None
+         # Gegenprobe: neuer Testbestand am unmutierten Werk grün?
+         if sprachprofil.ist_typescript(pfad):
+             from .kern import typescript
+-            pruefung = typescript.testlauf(pfad)
+-            if not pruefung.get("gueltig") or not pruefung.get("faelle") or not all(x["ok"] for x in pruefung["faelle"].values()):
+-                for p in r["neue_tests"]:
+-                    (pfad / p).unlink(missing_ok=True); neue_gesamt.pop(p, None)
+-                raise LaufFehler("Generation 0: neuer Testbestand am Original nicht vollständig grün; Ergänzung zurückgenommen")
+-            # Vorbedingung 6 (T4): die Prüfung zwischen den Runden baut den Typbau mit (tsc über src und tests).
+-            bau = typescript.baulauf(pfad)
+-            if not (bau.get("gueltig") and bau.get("baut")):
++            # Vorbedingung 6 (T4): Vitest am unmutierten Werk UND Typbau (tsc über src und tests).
++            rp = G0.rundenpruefung(pfad)
++            if not rp["ok"]:
+                 for p in r["neue_tests"]:
+                     (pfad / p).unlink(missing_ok=True); neue_gesamt.pop(p, None)
+-                raise LaufFehler("Generation 0: neuer Testbestand bricht den Typbau; Ergänzung zurückgenommen: "
+-                                 + G0._tsc_meldung(bau))
++                raise LaufFehler("Generation 0: " + rp["grund"] + "; Ergänzung zurückgenommen")
+         else:
+             e = kammer.ausfuehren(pfad, ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider", "--tb=line"], zeitlimit_s=120)
+             if e.rc != 0:
+diff --git a/biotop/organe/aegis.py b/biotop/organe/aegis.py
+index 21dfbe3..e0a2530 100644
+--- a/biotop/organe/aegis.py
++++ b/biotop/organe/aegis.py
+@@ -218,15 +218,82 @@ def _anhaengen(alt: str, neu: str, behalten: set[str]) -> str | None:
+     return alt.rstrip("\n") + "\n\n\n" + ast.unparse(ast.Module(body=zusatz, type_ignores=[])) + "\n"
+ 
+ 
+-_IMPORT_TS = re.compile(r"^import\b[\s\S]*?\bfrom\s*['\"][^'\"]+['\"]\s*;?[ \t]*$|^import\s*['\"][^'\"]+['\"]\s*;?[ \t]*$", re.M)
++_IMPORT_DEKL = re.compile(
++    r"^[ \t]*import[ \t]+(?:(?P<typ>type)[ \t]+)?(?P<klausel>[^'\";]*?)[ \t]*\bfrom[ \t]*(?P<q>['\"])(?P<modul>[^'\"]+)(?P=q)[ \t]*;?[ \t]*$"
++    r"|^[ \t]*import[ \t]*(?P<q2>['\"])(?P<modul2>[^'\"]+)(?P=q2)[ \t]*;?[ \t]*$", re.M)
++_TOP_DEKL = re.compile(r"^(?:export[ \t]+)?(?:declare[ \t]+)?(?:async[ \t]+)?(?:const|let|var|function\*?|class|enum|interface|type)[ \t]+([A-Za-z_$][\w$]*)", re.M)
++
++
++def _importbindungen(klausel: str, nur_typ_dekl: bool) -> list[tuple[str, str, str, bool]] | None:
++    """(art, importiert, lokal, nur_typ) je Bindung einer Importklausel; None, wenn die Form nicht verstanden wird."""
++    out = []
++    k = " ".join(klausel.split())
++    benannt = re.search(r"\{([^}]*)\}", k)
++    rest = re.sub(r"\{[^}]*\}", "", k)
++    for teil in [x.strip() for x in rest.split(",") if x.strip()]:
++        m = re.fullmatch(r"\*\s*as\s+([A-Za-z_$][\w$]*)", teil)
++        if m:
++            out.append(("namespace", "*", m.group(1), nur_typ_dekl))
++        elif re.fullmatch(r"[A-Za-z_$][\w$]*", teil):
++            out.append(("default", "default", teil, nur_typ_dekl))
++        else:
++            return None
++    if benannt:
++        for spez in [x.strip() for x in benannt.group(1).split(",") if x.strip()]:
++            typ = nur_typ_dekl or spez.startswith("type ")
++            spez = spez[5:].strip() if spez.startswith("type ") else spez
++            m = re.fullmatch(r"([A-Za-z_$][\w$]*)(?:\s+as\s+([A-Za-z_$][\w$]*))?", spez)
++            if not m:
++                return None
++            out.append(("named", m.group(1), m.group(2) or m.group(1), typ))
++    return out
++
++
++def _importe(code: str) -> list[dict] | None:
++    aus = []
++    for m in _IMPORT_DEKL.finditer(code):
++        if m.group("modul2"):
++            aus.append({"modul": m.group("modul2"), "bindungen": [], "text": m.group(0), "ende": m.end()})
++            continue
++        bi = _importbindungen(m.group("klausel"), bool(m.group("typ")))
++        if bi is None:
++            return None
++        aus.append({"modul": m.group("modul"), "bindungen": bi, "text": m.group(0), "ende": m.end()})
++    return aus
++
++
++def _importzeilen(modul: str, bindungen: list[tuple[str, str, str, bool]]) -> list[str]:
++    zeilen = []
++    for art, imp, lokal, typ in bindungen:
++        if art == "default":
++            zeilen.append(f"import {'type ' if typ else ''}{lokal} from '{modul}';")
++        elif art == "namespace":
++            zeilen.append(f"import {'type ' if typ else ''}* as {lokal} from '{modul}';")
++    benannt = [(imp, lokal, typ) for art, imp, lokal, typ in bindungen if art == "named"]
++    if benannt:
++        teile = [("type " if typ else "") + (imp if imp == lokal else f"{imp} as {lokal}") for imp, lokal, typ in benannt]
++        zeilen.append("import { " + ", ".join(teile) + f" }} from '{modul}';")
++    return zeilen
++
++
++def _gebundene_namen(code: str) -> list[str] | None:
++    """Alle auf oberster Ebene gebundenen Namen (Importe und Deklarationen) — mit Wiederholungen."""
++    im = _importe(code)
++    if im is None:
++        return None
++    return [b[2] for d in im for b in d["bindungen"]] + _TOP_DEKL.findall(_IMPORT_DEKL.sub("", code))
+ 
+ 
+ def _anhaengen_ts(con, lauf_id, alt: str, neu: str, behalten: set[str]) -> str | None:
++    """Vorbedingung 9 (T4): alte Datei unverändert, dazu die neuen Importe und die gültigen neuen test()-Blöcke.
++
++    Importe werden nach BINDUNGEN zusammengeführt, nicht nach Zeilen (Review vor T4 Nr. 2: `import { plus, halb }`
++    neben vorhandenem `import { plus }` ergab eine doppelte Bindung — „Identifier 'plus' has already been declared“ —,
++    und die kaputte Datei wurde als geurteilt gezählt). Eine Bindung, die schon aus derselben Quelle besteht, entfällt;
++    ein Name, der schon anders gebunden ist, ist ein Konflikt → neutral 'zusammenfuegen_gescheitert', nichts angehängt.
++    Ein Kammerausfall beim Lesen der Tests wird weitergereicht, nicht als Syntaxfehler gezählt (Review Nr. 12)."""
+     from ..kern import typescript
+-    try:
+-        alt_namen = {t["name"] for t in typescript.testfunktionen(alt)}
+-    except typescript.TypeScriptFehler:
+-        alt_namen = set()
++    alt_namen = {t["name"] for t in typescript.testfunktionen(alt)}
+     neu_namen = sorted(set(behalten) - alt_namen)
+     if not alt_namen and alt.strip():
+         neutralzaehler.neutral(con, lauf_id, "aegis._anhaengen", "syntaxfehler")
+@@ -235,19 +302,45 @@ def _anhaengen_ts(con, lauf_id, alt: str, neu: str, behalten: set[str]) -> str |
+     if not nur:
+         neutralzaehler.neutral(con, lauf_id, "aegis._anhaengen", "nichts_anzuhaengen")
+         return None
+-    alt_imports = {" ".join(m.group(0).split()) for m in _IMPORT_TS.finditer(alt)}
+-    neue_imports = [m.group(0) for m in _IMPORT_TS.finditer(nur) if " ".join(m.group(0).split()) not in alt_imports]
+-    rumpf = _IMPORT_TS.sub("", nur).strip()
+-    kopf_ende = max((m.end() for m in _IMPORT_TS.finditer(alt)), default=0)
+-    ergebnis = (alt[:kopf_ende] + ("\n" if kopf_ende else "") + "\n".join(neue_imports) + "\n" + alt[kopf_ende:].rstrip()
+-                + "\n\n" + rumpf + "\n")
+-    try:
+-        namen = {t["name"] for t in typescript.testfunktionen(ergebnis)}
+-    except typescript.TypeScriptFehler:
+-        namen = set()
+-    if namen != alt_namen | set(neu_namen):
+-        # Zusammenfügen gescheitert (z. B. doppelte Bindung) — nie eine halbe Datei ins Werk
+-        neutralzaehler.neutral(con, lauf_id, "aegis._anhaengen", "zusammenfuegen_gescheitert")
++    alt_im, nur_im = _importe(alt), _importe(nur)
++    alt_top = _TOP_DEKL.findall(_IMPORT_DEKL.sub("", alt))
++    if alt_im is None or nur_im is None:
++        neutralzaehler.neutral(con, lauf_id, "aegis._anhaengen", "zusammenfuegen_gescheitert", "Importform unbekannt")
++        return None
++    gebunden = {lokal: (d["modul"], art, imp) for d in alt_im for art, imp, lokal, _ in d["bindungen"]}
++    for name in alt_top:
++        gebunden.setdefault(name, ("<deklaration>", "", name))
++    seiteneffekte = {d["modul"] for d in alt_im if not d["bindungen"]}
++    zeilen = []
++    for d in nur_im:
++        if not d["bindungen"]:
++            if d["modul"] not in seiteneffekte:
++                seiteneffekte.add(d["modul"])
++                zeilen.append(f"import '{d['modul']}';")
++            continue
++        behalten_b = []
++        for art, imp, lokal, typ in d["bindungen"]:
++            schon = gebunden.get(lokal)
++            if schon == (d["modul"], art, imp):
++                continue                                # dieselbe Bindung aus derselben Quelle besteht schon
++            if schon is not None:
++                neutralzaehler.neutral(con, lauf_id, "aegis._anhaengen", "zusammenfuegen_gescheitert",
++                                       f"Name {lokal} schon gebunden als {schon}")
++                return None
++            gebunden[lokal] = (d["modul"], art, imp)
++            behalten_b.append((art, imp, lokal, typ))
++        zeilen += _importzeilen(d["modul"], behalten_b)
++    rumpf = _IMPORT_DEKL.sub("", nur).strip()
++    kopf_ende = max((d["ende"] for d in alt_im), default=0)
++    ergebnis = (alt[:kopf_ende] + ("\n" if kopf_ende else "") + "\n".join(zeilen) + ("\n" if zeilen else "")
++                + alt[kopf_ende:].rstrip() + "\n\n" + rumpf + "\n")
++    namen_gebunden = _gebundene_namen(ergebnis)
++    doppelt = sorted({x for x in (namen_gebunden or []) if namen_gebunden.count(x) > 1})
++    namen = {t["name"] for t in typescript.testfunktionen(ergebnis)}
++    if namen_gebunden is None or doppelt or namen != alt_namen | set(neu_namen):
++        # nie eine halbe oder doppelt gebundene Datei ins Werk
++        neutralzaehler.neutral(con, lauf_id, "aegis._anhaengen", "zusammenfuegen_gescheitert",
++                               f"doppelt gebunden {doppelt}" if doppelt else "Testnamen stimmen nicht")
+         return None
+     neutralzaehler.geurteilt(con, lauf_id, "aegis._anhaengen", ", ".join(neu_namen[:3]))
+     return ergebnis
+@@ -765,7 +858,11 @@ def pruefen(con: sqlite3.Connection, lauf_id: int, werk_id: int, kandidat_id: in
+                 fehlend = _fehlende_oder_geaenderte_tests(alt_code, inhalt)
+                 if fehlend:
+                     return fertig("abgelehnt", f"Verfassung verletzt: entfernt oder ändert vorhandene Tests in {p}: {fehlend[:5]} (Anhang A Satz 6)")
+-                g = _anhaengen(alt_code, inhalt, gueltig) if gueltig else None
++                from ..kern.typescript import TypeScriptFehler
++                try:
++                    g = _anhaengen(alt_code, inhalt, gueltig) if gueltig else None
++                except TypeScriptFehler as e:
++                    return _zurueckstellen(fertig, kandidat_id, f"Kammer beim Anhängen der Tests: {str(e)[:300]}")
+             else:
+                 g = nur_funktionen(inhalt, gueltig) if gueltig else None
+             if g:
+diff --git a/biotop/organe/gedaechtnis.py b/biotop/organe/gedaechtnis.py
+index 907d5bc..429496c 100644
+--- a/biotop/organe/gedaechtnis.py
++++ b/biotop/organe/gedaechtnis.py
+@@ -197,7 +197,7 @@ def _beruehrte_bereiche(diff: str) -> set[str]:
+             if (m := re.match(r"[^/]+/([^/]+)/", d)) and not d.startswith("tests/")}
+ 
+ 
+-def laufzeit_sperrt(grund: str, diff: str) -> bool:
++def laufzeit_sperrt(grund: str, diff: str | None = None, beruehrt: set[str] | None = None) -> bool:
+     """Vorbedingung 10 (T4): Ein Laufzeit-Grenzmaß sperrt einen Weg nur, wenn der Kandidat den Bereich berührt hat
+     UND die gepaarte Messung die Verschlechterung bestätigt. Risse in unberührten Bereichen sperren nie.
+     Befund T3: 17 von 207 Ablehnungen in Lauf 38 waren Sperren über das Gedächtnis, deren Ursprung ein Laufzeitriss
+@@ -205,13 +205,25 @@ def laufzeit_sperrt(grund: str, diff: str) -> bool:
+     risse = re.findall(r"(\w+)\.laufzeit_ms: [^;]*", grund or "")
+     if not risse:
+         return True
+-    beruehrt = _beruehrte_bereiche(diff)
++    if beruehrt is None:
++        beruehrt = _beruehrte_bereiche(diff)
+     for m in re.finditer(r"(\w+)\.laufzeit_ms: ([^;]*)", grund):
+         if m.group(1) in beruehrt and "gepaart" in m.group(2):
+             return True
+     return False
+ 
+ 
++def _sperrt(w) -> bool:
++    """Lese-Seite der Regel (Review vor T4 Nr. 11): auch ältere Einträge der Klasse 'grenzmass' mit Laufzeitriss sperren
++    nur, wenn der Weg den Bereich berührt hat und die Verschlechterung gepaart bestätigt ist. Gemessen im T3-Schnappschuss:
++    141 solche Einträge (versandwerk 75, lagerhaus 56, logmuehle 10), 141 von 141 unbestätigt. Nur gelesen, nicht
++    umgeschrieben — der Bestand bleibt, wie er entstand."""
++    if w["grundklasse"] != "grenzmass":
++        return True
++    beruehrt = {m.group(1) for d in (lj(w["dateien"]) or []) if (m := re.match(r"[^/]+/([^/]+)/", d)) and not d.startswith("tests/")}
++    return laufzeit_sperrt(w["grund"], beruehrt=beruehrt)
++
++
+ def projekt_merken(con, werk_id: int, lauf_id: int, kandidat_id: int, werk_pfad, dateien_neu: dict | None = None) -> None:
+     """Nach einer Ablehnung: den gescheiterten Weg aufnehmen. Probenkandidaten NICHT (Fassung 6)."""
+     tabellen(con)
+@@ -240,11 +252,12 @@ def gescheiterte_wege(con, werk_id: int, bereich: str, limit: int = 15) -> list[
+     gemessen, das als falsch erkannt wurde (Lauf 18 Gen 2/3: 12 Kandidaten wurden als Wiederholung von Lauf-16-Wegen
+     verworfen, obwohl Lauf 16 genau wegen des fehlerhaften Anklägers verworfen worden war)."""
+     tabellen(con)
+-    return [dict(z) for z in con.execute(
++    wege = [dict(z) for z in con.execute(
+         "SELECT p.* FROM projektgedaechtnis p JOIN laeufe l ON l.id = p.lauf_id "
+         "WHERE p.werk=? AND p.bereich=? AND p.grundklasse NOT IN ('technisch','laufzeit_unbestaetigt') "
+-        "AND l.status != 'verworfen' ORDER BY p.id DESC LIMIT ?",
+-        (werkname(con, werk_id), bereich, limit))]
++        "AND l.status != 'verworfen' ORDER BY p.id DESC",
++        (werkname(con, werk_id), bereich)) if _sperrt(z)]
++    return wege[:limit]
+ 
+ 
+ def gescheiterte_wege_text(con, werk_id: int, bereich: str) -> str:
+@@ -264,6 +277,8 @@ def wiederholung(con, werk_id: int, bereich: str, werk_pfad, diff: str, dateien_
+                          "WHERE p.werk=? AND p.bereich=? AND p.grundklasse NOT IN ('technisch','laufzeit_unbestaetigt') "
+                          "AND l.status != 'verworfen'",
+                          (werkname(con, werk_id), bereich)):
++        if not _sperrt(w):
++            continue
+         wf, wd, wa = set(lj(w["funktionen"]) or []), set(lj(w["dateien"]) or []), lj(w["ansatz"]) or []
+         ziel_gleich = bool(wf & set(funktionen)) or (not wf and not funktionen and bool(wd & set(dateien)))
+         if not ziel_gleich:
+diff --git a/biotop/organe/generation0.py b/biotop/organe/generation0.py
+index 76575f9..03e9623 100644
+--- a/biotop/organe/generation0.py
++++ b/biotop/organe/generation0.py
+@@ -181,10 +181,33 @@ def _testlauf_urteil(werk: Path, dateien: dict[str, str]) -> dict:
+         return {"gefangen": bool(fallen), "neutral": False, "grund": None, "von": ", ".join(fallen)}
+     e = kammer.ausfuehren(werk, ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider", "--tb=no", "-x", "-q"], zeitlimit_s=90, dateien=dateien)
+     fallen = re.findall(r"^FAILED (\S+)", e.stdout, re.M)
+-    gefangen = e.rc != 0
++    if not e.zeitlimit and e.rc not in (0, 1):
++        # Review vor T4 Nr. 8c: pytest rc 2 (Sammel-/Abbruchfehler), 3 (intern), 4 (Aufruf), 5 (keine Tests) und das
++        # Ausgabelimit (70) sind kein Verhaltensfang, sondern ein nicht auswertbarer Lauf — bisher zählten sie als
++        # „gefangen“. Eine kaputte neue Testdatei hätte so JEDEN Mutanten als gefangen gemeldet (T3-Muster, Python).
++        grund = f"pytest_rc_{e.rc}"
++        neutralzaehler.neutral(con, lauf_id, "generation0._testlauf", grund, (e.stdout or e.stderr or "")[-300:])
++        return {"gefangen": False, "neutral": True, "grund": grund,
++                "von": f"pytest rc {e.rc} (kein Verhaltensfang): " + (e.stdout or e.stderr or "")[-160:]}
++    gefangen = e.zeitlimit or e.rc == 1
++    neutralzaehler.geurteilt(con, lauf_id, "generation0._testlauf", ", ".join(fallen[:3]))
+     return {"gefangen": gefangen, "neutral": False, "grund": None,
+             "von": ", ".join(fallen[:3]) or ("Zeitlimit/Absturz" if gefangen and not fallen else "")}
+-    return gefangen, ", ".join(fallen[:3]) or ("Zeitlimit/Absturz" if gefangen and not fallen else "")
++
++
++def rundenpruefung(werk: Path) -> dict:
++    """Prüfung zwischen den Runden der Generation 0 (TypeScript): der neue Testbestand am unmutierten Werk ist
++    vollständig grün UND besteht den Typbau (tsc über src und tests). Vitest prüft keine Typen — in T3 brach eine
++    unter Vitest grüne Testdatei den Typbau und machte zwei Durchläufe „nicht gemessen“ (Vorbedingung 6, T4).
++    Rückgabe {"ok", "grund"}."""
++    from ..kern import typescript
++    pruefung = typescript.testlauf(werk)
++    if not pruefung.get("gueltig") or not pruefung.get("faelle") or not all(x["ok"] for x in pruefung["faelle"].values()):
++        return {"ok": False, "grund": "neuer Testbestand am Original nicht vollständig grün"}
++    bau = typescript.baulauf(werk)
++    if not (bau.get("gueltig") and bau.get("baut")):
++        return {"ok": False, "grund": "neuer Testbestand bricht den Typbau (" + _tsc_meldung(bau) + ")"}
++    return {"ok": True, "grund": ""}
+ 
+ 
+ _AEQUIVALENZ_SKRIPT = """
+diff --git a/biotop/organe/verhaltensvergleich.py b/biotop/organe/verhaltensvergleich.py
+index 6637659..358bd79 100644
+--- a/biotop/organe/verhaltensvergleich.py
++++ b/biotop/organe/verhaltensvergleich.py
+@@ -111,6 +111,11 @@ def _modul_funktion(beobachtung: str) -> tuple[str, str] | None:
+     return (m.group(1), m.group(2)) if m else None
+ 
+ 
++def _funktionen_in(beob: dict, nur_rand: bool = False) -> set[str]:
++    """'modul:funktion' aller Funktionen mit mindestens einer Beobachtung (nur Randfälle: nur_rand)."""
++    return {f"{mf[0]}:{mf[1]}" for k in beob if (not nur_rand or "~rand#" in k) and (mf := _modul_funktion(k))}
++
++
+ def deckung(abweichungen: list[str], deckende_tests: dict[str, str]) -> dict[str, list[str]]:
+     """{beobachtung: [test]} — ein Test deckt eine Abweichung, wenn er an der Vorgeneration fällt,
+     am Kandidaten besteht (das stellt der Aufrufer sicher) und die abweichende Funktion aufruft."""
+@@ -238,11 +243,14 @@ def pruefen(werk: Path, code: dict[str, str], referenzlast: str | None, bereiche
+                 "grund_art": "sonde_kandidat_inhalt",
+                 "grund": f"Sonde am Kandidaten nicht ausführbar ({neu.get('art')}): {str(neu.get('grund'))[:300]}"}
+     a, n = dict(alt["beobachtungen"]), dict(neu["beobachtungen"])
++    beobachtet = _funktionen_in(a) | _funktionen_in(n)
+     # Randfälle einer Funktion, die der Kandidat nicht mehr exportiert (entfernt/umbenannt), sind kein Verhalten
+     # des verbliebenen Codes: sie werden getrennt ausgewiesen; ob die Entfernung zulässig ist, entscheiden Tests,
+-    # Verträge und das Maß (tote Funktion), nicht diese Sonde.
+-    neu_exporte = {(m, f) for m, fs in (neu.get("eingewickelt") or {}).items() for f in (fs or [])}
+-    entfernt = sorted({f"{mf[0]}:{mf[1]}" for k in a if "~rand#" in k and (mf := _modul_funktion(k)) and mf not in neu_exporte})
++    # Verträge und das Maß (tote Funktion), nicht diese Sonde. „Entfernt“ heißt: an der Vorgeneration gibt es
++    # Randfall-Beobachtungen, am Kandidaten keine — auf BEIDEN Seiten aus den Beobachtungen bestimmt (Review vor T4
++    # Nr. 1: bisher aus `eingewickelt`, das nur `export function` erfasst; ein `export const f = () =>` galt dann am
++    # Kandidaten als entfernt und seine Randfälle standen einseitig als ungedeckte Abweichung).
++    entfernt = sorted(_funktionen_in(a, nur_rand=True) - _funktionen_in(n, nur_rand=True))
+     for k in [k for k in a if "~rand#" in k and (mf := _modul_funktion(k)) and f"{mf[0]}:{mf[1]}" in entfernt]:
+         a.pop(k)
+     roh = vergleichen(a, n, gedeckt=set())
+@@ -253,9 +261,13 @@ def pruefen(werk: Path, code: dict[str, str], referenzlast: str | None, bereiche
+         decke = deckung(roh["abweichungen"], tests)
+     r = vergleichen(a, n, gedeckt=set(decke))
+     eingewickelt = alt.get("eingewickelt") or {}
+-    gerufen = (set(alt.get("aufgerufen") or {}) | set(neu.get("aufgerufen") or {})
++    gerufen = (beobachtet | set(alt.get("aufgerufen") or {}) | set(neu.get("aufgerufen") or {})
+                | set(alt.get("aufgerufen_rand") or {}) | set(neu.get("aufgerufen_rand") or {}))
+-    alle = [f"{m}:{f}" for m, fs in eingewickelt.items() for f in (fs or [])]
++    # y = alle exportierten Funktionen der geänderten Module: eingewickelte UND aus den Signaturen gelesene (auch
++    # `export const f = () =>`), ohne die vom Kandidaten entfernten.
++    alle = sorted(({f"{m}:{f}" for m, fs in eingewickelt.items() for f in (fs or [])}
++                   | {f"{m}:{f}" for m, fs in (alt.get("signaturen") or {}).items() for f in (fs or {})})
++                  - set(entfernt))
+     unbeobachtet = sorted(x for x in alle if x not in gerufen)
+     x_von_y = f"{len(alle) - len(unbeobachtet)} von {len(alle)}"
+     unbeobachtete_module = sorted(m for m, fs in eingewickelt.items() if fs and not any(f"{m}:{f}" in gerufen for f in fs))
+diff --git a/tests/conftest.py b/tests/conftest.py
+index 6a2f409..e5de103 100644
+--- a/tests/conftest.py
++++ b/tests/conftest.py
+@@ -26,6 +26,20 @@ def keine_bezahlten_aufrufe(monkeypatch, tmp_path):
+     monkeypatch.setattr(socket.socket, "connect", gesperrt)
+     monkeypatch.setattr(socket, "create_connection", gesperrt)
+ 
++@pytest.fixture
++def ts_kammer():
++    """Review vor T4 Nr. 13: Tests, die TypeScript in der Kammer parsen, brauchen das Kammerimage mit node
++    (biotop-kammer:ts1). Ohne es scheiterten sie mit „executable file not found“ ohne Hinweis. Jetzt übersprungen mit
++    Grund — sichtbar im Bericht der Regression, nie still."""
++    import os
++    from biotop.organe import kammer
++    image = os.environ.get("BIOTOP_KAMMER_IMAGE") or kammer.IMAGE
++    if "ts" not in image.split(":")[-1]:
++        pytest.skip(f"TypeScript-Kammer nötig: BIOTOP_KAMMER_IMAGE=biotop-kammer:ts1 setzen (aktuell {image})")
++    kammer.IMAGE = image
++    return image
++
++
+ @pytest.fixture
+ def messung():
+     def bauen(**werte):
+diff --git a/tests/test_vor_t4.py b/tests/test_vor_t4.py
+index d3a13d7..2e28e70 100644
+--- a/tests/test_vor_t4.py
++++ b/tests/test_vor_t4.py
+@@ -154,7 +154,7 @@ def _gedaechtnis_werk(tmp_path):
+     # Gegenprobe: eine andere Ablehnungsart sperrt wie bisher
+     ("Kernmaß unverändert (0 → 0); bestandene Tests zählen nicht", True),
+ ])
+-def test_10_sperre_am_laufweg_projekt_merken_und_wiederholung(tmp_path, grund, sperrt):
++def test_10_sperre_am_laufweg_projekt_merken_und_wiederholung(tmp_path, grund, sperrt, ts_kammer):
+     """Durch projekt_merken + wiederholung, die Funktionen, die der Lauf ruft (lauf._generation_koerper)."""
+     con = _gedaechtnis_werk(tmp_path)
+     neu = {"src/planung/pruefen.ts": PRUEFEN_NEU}
+@@ -282,7 +282,7 @@ NEU_TS = ("import { test, expect } from 'vitest';\nimport { plus } from '../src/
+           "test('test_alt', () => {\n  expect(plus(1, 1)).toBe(2);\n});\n\ntest('test_neu', () => {\n  expect(halb(4)).toBe(2);\n});\n")
+ 
+ 
+-def test_9_anhaengen_auf_dem_typescript_pfad_haengt_an_und_zaehlt(tmp_path, monkeypatch):
++def test_9_anhaengen_auf_dem_typescript_pfad_haengt_an_und_zaehlt(tmp_path, monkeypatch, ts_kammer):
+     """T3: 0 von 0 Fällen, jeder TS-Aufruf endete neutral 'typescript_eigene_datei'. Jetzt echt angehängt (Kammer)."""
+     from biotop.kern import typescript
+     from biotop.organe import neutralzaehler
+@@ -332,7 +332,7 @@ def test_befundklassen_tests_fuer_jeden_geaenderten_bereich(monkeypatch):
+ 
+ 
+ # ================================================================ 3. Sondenausfall am Laufweg (aegis.pruefen)
+-def _pruefen_bis_zur_sonde(tmp_path, monkeypatch, beobachtung):
++def _pruefen_bis_zur_sonde(tmp_path, monkeypatch, beobachtung, basis_gueltig=True, laufzeit_gueltig=True):
+     """aegis.pruefen — die Funktion, die ein Lauf zur Annahme ruft — mit gestellten Außenwirkungen: Modell (kein
+     Angriff), Messgerät (beide Seiten gültig, Kernmaß +1), Kammer der Verhaltenssonde (`beobachten`). Gestellt ist die
+     GRENZE, die das Organ überquert (Kammer), nie das Organ selbst."""
+@@ -353,6 +353,8 @@ def _pruefen_bis_zur_sonde(tmp_path, monkeypatch, beobachtung):
+ 
+     def messen(werk, bereiche, paket, ref, dateien=None, **k):
+         kand = any(p.startswith("src/") for p in (dateien or {}))
++        if not kand and not basis_gueltig and dateien is not None:
++            return {"gueltig": False, "grund": "Kammer abgebrochen (rc=137)", "rc": 137}
+         return {"gueltig": True, "kernmass": 0, "werk": {"baut": True, "zyklen": 0, "bauzeit_ms": 100,
+                 "tests_fehlgeschlagen_liste": [], "tests_fehlgeschlagen_ids": []},
+                 "bereiche": {"alpha": {"tests_bestanden": 1, "tests_fehlgeschlagen": 0, "sicherheit_punkte": 0,
+@@ -361,7 +363,8 @@ def _pruefen_bis_zur_sonde(tmp_path, monkeypatch, beobachtung):
+     monkeypatch.setattr(aegis.messgeraet, "messen", messen)
+     # Grenze Kammer auch für die gepaarte Laufzeit: beide Seiten gleich schnell (die Laufzeit entscheidet hier nichts)
+     monkeypatch.setattr(aegis.messgeraet, "laufzeit_messen",
+-                        lambda *a, **k: {"gueltig": True, "grund": "", "bereiche": {"alpha": {"laufzeit_ms": 10.0}}})
++                        lambda *a, **k: ({"gueltig": True, "grund": "", "bereiche": {"alpha": {"laufzeit_ms": 10.0}}} if laufzeit_gueltig
++                                         else {"gueltig": False, "grund": "Zeitlimit", "bereiche": {}}))
+     monkeypatch.setattr(vv, "beobachten", beobachtung)
+     basis = messen(w, ["alpha"], "src", None)
+     u = aegis.pruefen(con, 1, 1, 7, w, "src", ["alpha"], [], basis, basis, "// last", {})
+@@ -381,3 +384,329 @@ def test_3_gegenprobe_inhaltsbefund_am_kandidaten_bleibt_ablehnung(tmp_path, mon
+                    {"gueltig": False, "art": "inhalt", "grund": "Modul lädt nicht"}])
+     con, u = _pruefen_bis_zur_sonde(tmp_path, monkeypatch, lambda *a, **k: next(seiten))
+     assert u["status"] == "abgelehnt" and u["grund"].startswith("Verhaltensvergleich:"), u["grund"]
++
++
++
++# ================================================================ Review vor T4 — Nachbesserungen mit Gegenprobe
++def test_review1_pfeil_export_gilt_nicht_als_entfernt(tmp_path, monkeypatch):
++    """Review Nr. 1: `export const f = () =>` wird nicht eingewickelt; bisher galt f am Kandidaten als entfernt und
++    seine Randfälle standen einseitig als ungedeckte Abweichung. Jetzt aus den Beobachtungen beider Seiten bestimmt.
++    Gestellt ist nur die Kammer (`beobachten`), `verhaltensvergleich.pruefen` läuft unverändert."""
++    from biotop.organe import verhaltensvergleich as vv
++    w = tmp_path / "w"
++    (w / "src" / "alpha").mkdir(parents=True)
++    (w / "package.json").write_text('{"type":"module"}')
++    (w / "src" / "alpha" / "a.ts").write_text("export const f = (x: number): number => x;\nexport function g(x: number): number { return x; }\n")
++    rand = {"alpha/a:f~rand#0": "1", "alpha/a:f~rand#0@alias": "1", "alpha/a:g~rand#0": "2"}
++    seite = {"gueltig": True, "beobachtungen": rand, "eingewickelt": {"alpha/a": ["g"]},
++             "signaturen": {"alpha/a": {"f": ["number"], "g": ["number"]}}, "aufgerufen": {}}
++    seiten = iter([dict(seite), dict(seite)])
++    monkeypatch.setattr(vv, "beobachten", lambda *a, **k: next(seiten))
++    r = vv.pruefen(w, {"src/alpha/a.ts": "x"}, "last", ["alpha"], {})
++    assert r["tragfaehig"] is True and r["entfernte_funktionen"] == [] and r["beobachtete_funktionen"] == "2 von 2", r
++
++
++def test_review1_gegenprobe_wirklich_entfernte_funktion_wird_ausgewiesen_nicht_abgelehnt(tmp_path, monkeypatch):
++    from biotop.organe import verhaltensvergleich as vv
++    w = tmp_path / "w"
++    (w / "src" / "alpha").mkdir(parents=True)
++    (w / "package.json").write_text('{"type":"module"}')
++    (w / "src" / "alpha" / "a.ts").write_text("export function f(x: number): number { return x; }\nexport function g(x: number): number { return x; }\n")
++    alt = {"gueltig": True, "beobachtungen": {"alpha/a:f~rand#0": "1", "alpha/a:g~rand#0": "2"},
++           "eingewickelt": {"alpha/a": ["f", "g"]}, "signaturen": {"alpha/a": {"f": ["number"], "g": ["number"]}}}
++    neu = {"gueltig": True, "beobachtungen": {"alpha/a:g~rand#0": "2"}, "eingewickelt": {"alpha/a": ["g"]}}
++    seiten = iter([alt, neu])
++    monkeypatch.setattr(vv, "beobachten", lambda *a, **k: next(seiten))
++    r = vv.pruefen(w, {"src/alpha/a.ts": "x"}, "last", ["alpha"], {})
++    assert r["tragfaehig"] is True and r["entfernte_funktionen"] == ["alpha/a:f"] and r["beobachtete_funktionen"] == "1 von 1", r
++    # und eine echte Änderung an g bleibt eine ungedeckte Abweichung
++    neu2 = dict(neu, beobachtungen={"alpha/a:g~rand#0": "3"})
++    seiten = iter([alt, neu2])
++    monkeypatch.setattr(vv, "beobachten", lambda *a, **k: next(seiten))
++    assert vv.pruefen(w, {"src/alpha/a.ts": "x"}, "last", ["alpha"], {})["tragfaehig"] is False
++
++
++ALT_PLUS = "import { test, expect } from 'vitest';\nimport { plus } from '../src/beta/wert.js';\n\ntest('test_alt', () => {\n  expect(plus(1, 1)).toBe(2);\n});\n"
++
++
++def test_review2_erweiterte_importzeile_ohne_doppelte_bindung(tmp_path, monkeypatch, ts_kammer):
++    """Review Nr. 2: `import { plus, halb }` neben vorhandenem `import { plus }` ergab eine doppelte Bindung und wurde als
++    geurteilt gezählt. Jetzt: nur halb kommt hinzu, die Datei hat jede Bindung genau einmal (Kammer-Parsing)."""
++    from biotop.kern import typescript
++    from biotop.organe import neutralzaehler
++    con = datenbank.verbinden(tmp_path / "a.db")
++    monkeypatch.setattr(aegis, "_zaehlkontext", lambda: (con, 9))
++    neu = ("import { test, expect } from 'vitest';\nimport { plus, halb } from '../src/beta/wert.js';\n\n"
++           "test('test_alt', () => {\n  expect(plus(1, 1)).toBe(2);\n});\n\ntest('test_neu', () => {\n  expect(halb(plus(2, 2))).toBe(2);\n});\n")
++    g = aegis._anhaengen(ALT_PLUS, neu, {"test_neu"})
++    assert g is not None, neutralzaehler.stand(con, 9)
++    gebunden = aegis._gebundene_namen(g)
++    assert sorted(gebunden) == sorted(set(gebunden)), gebunden            # keine Bindung doppelt
++    assert {"plus", "halb", "test", "expect"} <= set(gebunden)
++    assert {t["name"] for t in typescript.testfunktionen(g)} == {"test_alt", "test_neu"}
++    assert neutralzaehler.stand(con, 9)["aegis._anhaengen"]["geurteilt"] == 1
++
++
++def test_review2_gegenprobe_namenskonflikt_wird_nicht_angehaengt(tmp_path, monkeypatch, ts_kammer):
++    """Derselbe Name aus einer anderen Quelle ist ein Konflikt: nichts angehängt, neutral gezählt."""
++    from biotop.organe import neutralzaehler
++    con = datenbank.verbinden(tmp_path / "a.db")
++    monkeypatch.setattr(aegis, "_zaehlkontext", lambda: (con, 9))
++    neu = ("import { test, expect } from 'vitest';\nimport { plus } from '../src/alpha/liste.js';\n\n"
++           "test('test_neu', () => {\n  expect(plus(1, 1)).toBe(2);\n});\n")
++    assert aegis._anhaengen(ALT_PLUS, neu, {"test_neu"}) is None
++    assert neutralzaehler.stand(con, 9)["aegis._anhaengen"]["gruende"] == {"zusammenfuegen_gescheitert": 1}
++
++
++def test_review12_kammerausfall_beim_anhaengen_ist_kein_syntaxfehler(tmp_path, monkeypatch):
++    from biotop.kern import typescript
++    con = datenbank.verbinden(tmp_path / "a.db")
++    monkeypatch.setattr(aegis, "_zaehlkontext", lambda: (con, 9))
++
++    def kaputt(code):
++        raise typescript.TypeScriptFehler("Kammerabbruch: Zeitlimit")
++    monkeypatch.setattr(typescript, "testfunktionen", kaputt)
++    with pytest.raises(typescript.TypeScriptFehler, match="Kammerabbruch"):
++        aegis._anhaengen(ALT_PLUS, ALT_PLUS, {"test_neu"})
++    from biotop.organe import neutralzaehler
++    assert "aegis._anhaengen" not in neutralzaehler.stand(con, 9)            # weder syntaxfehler noch sonst gezählt
++
++
++# ---------------------------------------------------------------- Review Nr. 3: Zurückgestellte in der Generation
++def _generation_mit(tmp_path, monkeypatch, status_je_kandidat):
++    """lauf._generation_koerper — gestellt sind Schwarm (genesis.erzeugen) und Ankläger (aegis.pruefen) mit festen
++    Urteilen; alles danach (Zusammenfassung, Entropie, Laufstatus) ist der echte Laufweg."""
++    from biotop.organe import genesis
++    con = datenbank.verbinden(tmp_path / "gen.db")
++    (tmp_path / "werk").mkdir()
++    con.execute("INSERT INTO werke(id,name,pfad,bericht,status) VALUES(1,'w',?,?,?)", (str(tmp_path / "werk"), datenbank.j({"paket": "src"}), "x"))
++    con.execute("INSERT INTO laeufe(id,werk_id,budget_eur,status) VALUES(1,1,1,'laeuft')")
++    zaehler = iter(range(1, 100))
++    ids = []
++
++    def erzeugen(*a, **k):
++        kid = next(zaehler)
++        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,modell,diff,status) VALUES(?,1,?,?,?,?,?,'erzeugt')",
++                    (kid, a[3], a[6], k.get("nische"), "qwen/qwen3.8-flash", ""))
++        ids.append(kid)
++        return [kid] if kid <= len(status_je_kandidat) else []
++    monkeypatch.setattr(genesis, "erzeugen", erzeugen)
++
++    def pruefen(con_, lauf_id, werk_id, kid, *a, **k):
++        st = status_je_kandidat[kid - 1]
++        con.execute("UPDATE kandidaten SET status=?, grund=? WHERE id=?", (st, "gestellt: " + st, kid))
++        return {"kandidat": kid, "status": st, "grund": "gestellt: " + st, "mass": {"zuwachs": 0}, "vertraege_benannt": ""}
++    monkeypatch.setattr(aegis, "pruefen", pruefen)
++    monkeypatch.setattr(L.gedaechtnis, "projekt_merken", lambda *a, **k: None)
++    monkeypatch.setattr(L.gedaechtnis, "art_merken", lambda *a, **k: None)
++    monkeypatch.setattr(L.gedaechtnis, "wiederholung", lambda *a, **k: None)
++    basis = {"bereiche": {"alpha": {"sicherheit_befunde": [], "tests_bestanden": 1, "tests_fehlgeschlagen": 0,
++                                    "sicherheit_punkte": 0, "tote_funktionen": 0, "laufzeit_ms": 1.0, "groesste_funktion": 1}}}
++    for nummer in (1, 2):
++        con.execute("INSERT INTO generationen(lauf_id,nummer,status,erstellt_am) VALUES(1,?,'laeuft','x')", (nummer,))
++        r = L._generation_koerper(con, 1, nummer, {"id": 1, "name": "w"}, {"nischen": ["sicher"]}, "src", ["alpha"],
++                                  tmp_path / "werk", None, basis, [], basis, {}, None)
++        zaehler = iter(range(1, 100))                     # dieselben Urteile in der zweiten Generation
++        ids.clear()
++        con.execute("DELETE FROM kandidaten")
++        if nummer == 1:
++            erste = r
++    return con, erste, r
++
++
++def test_review3_ueberwiegend_zurueckgestellt_heisst_abgebrochen_und_danach_angehalten(tmp_path, monkeypatch):
++    con, r1, r2 = _generation_mit(tmp_path, monkeypatch, [aegis.ZURUECKGESTELLT])
++    assert r1["status"] == "abgebrochen" and "nicht gemessen" in r1["grund"], r1["grund"]
++    assert "entropie" not in r1                                               # nicht mit 0 % in die Sättigung
++    assert r2["status"] == "abgebrochen" and r2.get("angehalten")
++    assert con.execute("SELECT status FROM laeufe WHERE id=1").fetchone()[0] == "angehalten"
++    assert con.execute("SELECT COUNT(*) FROM bandit").fetchone()[0] == 0                         # kein Bandit
++
++
++def test_review3_gegenprobe_echte_ablehnung_bleibt_abgelehnt(tmp_path, monkeypatch):
++    con, r1, r2 = _generation_mit(tmp_path, monkeypatch, ["abgelehnt"])
++    assert r1["status"] == "abgelehnt" and r1["grund"].startswith("kein Kandidat hat den Ankläger überlebt (0 von 1)")
++    assert con.execute("SELECT status FROM laeufe WHERE id=1").fetchone()[0] in ("bereit", "gesaettigt")
++
++
++# ---------------------------------------------------------------- Review Nr. 8c: Generation 0 Python
++@pytest.mark.parametrize("rc,zeitlimit,neutral,gefangen", [(2, False, True, False), (5, False, True, False),
++                                                          (1, False, False, True), (0, False, False, False),
++                                                          (124, True, False, True)])
++def test_review8c_python_pytest_rc_ausser_0_1_ist_neutral(tmp_path, monkeypatch, rc, zeitlimit, neutral, gefangen):
++    from biotop.organe import generation0 as G0, kammer
++    from biotop.kern import sprachprofil
++    con = datenbank.verbinden(tmp_path / "g.db")
++    G0.zaehlkontext_setzen(con, 1)
++    monkeypatch.setattr(sprachprofil, "ist_typescript", lambda w: False)
++    monkeypatch.setattr(kammer, "ausfuehren", lambda *a, **k: kammer.Ergebnis(rc, "", "", 1.0, zeitlimit, "x"))
++    r = G0._testlauf_urteil(tmp_path, {})
++    assert r["neutral"] is neutral and r["gefangen"] is gefangen, r
++
++
++# ---------------------------------------------------------------- Review Nr. 9: Typbau zwischen den Runden (Laufweg)
++@pytest.mark.parametrize("baut,erwartet_fehler", [(False, True), (True, False)])
++def test_review9_rundenpruefung_in_lauf_generation0(tmp_path, monkeypatch, baut, erwartet_fehler):
++    """Durch lauf.generation0 (Laufweg): Runde 1 schreibt einen neuen Test; bricht er den Typbau, wird die Ergänzung
++    zurückgenommen und der Lauf hält mit Grund an; baut er, geht es weiter. Gestellt: Mutanten, Testbau (Modell),
++    die Kammer (typescript.testlauf/baulauf) und die Mutantenmessung."""
++    from biotop.organe import generation0 as G0
++    from biotop.kern import typescript, sprachprofil
++    con = datenbank.verbinden(tmp_path / "g.db")
++    werk = tmp_path / "werk"
++    (werk / "src" / "a").mkdir(parents=True)
++    (werk / "tests").mkdir()
++    con.execute("INSERT INTO werke(id,name,pfad,bericht,status) VALUES(1,'w',?,?,?)", (str(werk), datenbank.j({"paket": "src"}), "x"))
++    con.execute("INSERT INTO laeufe(id,werk_id,budget_eur,status) VALUES(1,1,1,'bereit')")
++    monkeypatch.setattr(L, "_vorspann_verlangen", lambda *a: {})
++    monkeypatch.setattr(L.landkarte, "bereiche_finden", lambda *a: ["a"])
++    monkeypatch.setattr(L, "_referenzlast", lambda *a: "// last")
++    monkeypatch.setattr(sprachprofil, "ist_typescript", lambda w: True)
++    m = {"datei": "src/a/x.ts", "zeile": 1, "art": "z", "beschreibung": "1 → 2", "code": "c"}
++    mutanten = [m]
++    monkeypatch.setattr(G0, "erzeugen", lambda *a, **k: mutanten)
++    monkeypatch.setattr(G0, "aequivalenz_pruefen", lambda *a, **k: None)
++    runden = iter([{"blind": [m], "gefangen": 0, "gesamt": 1, "nicht_aequivalent": 1, "neutral": 0}] +
++                  [{"blind": [], "gefangen": 1, "gesamt": 1, "nicht_aequivalent": 1, "neutral": 0}] * 3)
++    monkeypatch.setattr(G0, "messen", lambda *a, **k: next(runden))
++    monkeypatch.setattr(G0, "tests_evolutionieren", lambda *a, **k: {"neue_tests": {"tests/test_a_gen0_m1.test.ts": "t"}})
++    monkeypatch.setattr(typescript, "testlauf", lambda *a, **k: {"gueltig": True, "faelle": {"t::x": {"ok": True}}})
++    monkeypatch.setattr(typescript, "baulauf", lambda *a, **k: {"gueltig": True, "baut": baut, "prozess": {"stdout": "x.test.ts(1,1): error TS2322: Typ"}})
++    monkeypatch.setattr(L.lazarus, "sicherstellen_repo", lambda *a: None)
++    monkeypatch.setattr(L.lazarus, "_git", lambda *a: "")
++    if erwartet_fehler:
++        with pytest.raises(L.LaufFehler, match="bricht den Typbau.*TS2322"):
++            L.generation0(con, 1, None, 0.8)
++        assert not (werk / "tests" / "test_a_gen0_m1.test.ts").exists()            # zurückgenommen
++    else:
++        r = L.generation0(con, 1, None, 0.8)
++        assert r["neue_tests"] == ["tests/test_a_gen0_m1.test.ts"] and (werk / "tests" / "test_a_gen0_m1.test.ts").exists()
++
++
++# ---------------------------------------------------------------- Review Nr. 11: Gedächtnissperre beim Lesen (Altbestand)
++def test_review11_altbestand_grenzmass_laufzeit_sperrt_beim_lesen_nicht(tmp_path):
++    """Durch gescheiterte_wege (Leseweg des Schwarms; wiederholung nutzt denselben Filter). Werkname = Paket (werkname())."""
++    con = datenbank.verbinden(tmp_path / "g.db")
++    con.execute("INSERT INTO werke(id,name,pfad,bericht,status) VALUES(1,'w',?,?,?)", (str(tmp_path), datenbank.j({"paket": "src"}), "x"))
++    con.execute("INSERT INTO laeufe(id,werk_id,budget_eur,status) VALUES(1,1,1,'beendet')")
++    gedaechtnis.tabellen(con)
++    for kid, grund in ((1, "Grenzmaß gerissen: tarife.laufzeit_ms: 6.414 > Grenze 5.945 (Bestwert 5.169 × 1.150)"),   # Altbestand, unbestätigt
++                       (2, "Grenzmaß gerissen: planung.groesste_funktion: 80 > Grenze 60")):                          # Gegenprobe: sperrt
++        con.execute("INSERT INTO projektgedaechtnis(werk, werk_id, lauf_id, generation, kandidat_id, bereich, nische, dateien, "
++                    "funktionen, ansatz, grund, grundklasse, begruendung, erstellt_am) VALUES('src',1,1,1,?,'planung','schnell',?,?,?,?,"
++                    "'grenzmass','',?)", (kid, datenbank.j(["src/planung/pruefen.ts"]), datenbank.j(["src/planung/pruefen.ts::pruefe"]),
++                                          datenbank.j(["gesehen", "set"]), grund, "x"))
++    wege = gedaechtnis.gescheiterte_wege(con, 1, "planung")
++    assert [w["grund"][:40] for w in wege] == ["Grenzmaß gerissen: planung.groesste_funk"]
++
++
++
++# ---------------------------------------------------------------- Review Nr. 4: alle drei Ausfallarten durch aegis.pruefen
++@pytest.mark.parametrize("art", ["vorgeneration", "laufzeit"])
++def test_review4_messausfall_vorgeneration_und_laufzeit_zurueckgestellt(tmp_path, monkeypatch, art):
++    ok = {"gueltig": True, "beobachtungen": {"alpha/a:a#0": "1"}, "eingewickelt": {"alpha/a": ["a"]}, "aufgerufen": {"alpha/a:a": 1}}
++    con, u = _pruefen_bis_zur_sonde(tmp_path, monkeypatch, lambda *a, **k: dict(ok),
++                                    basis_gueltig=(art != "vorgeneration"), laufzeit_gueltig=(art != "laufzeit"))
++    assert u["status"] == aegis.ZURUECKGESTELLT, u["grund"]
++    assert ("Kammer (Vorgeneration)" if art == "vorgeneration" else "Laufzeitmessung gepaart") in u["grund"], u["grund"]
++
++
++def test_review4_gegenprobe_alles_gueltig_wird_geurteilt(tmp_path, monkeypatch):
++    ok = {"gueltig": True, "beobachtungen": {"alpha/a:a#0": "1"}, "eingewickelt": {"alpha/a": ["a"]}, "aufgerufen": {"alpha/a:a": 1}}
++    con, u = _pruefen_bis_zur_sonde(tmp_path, monkeypatch, lambda *a, **k: dict(ok))
++    assert u["status"] == "ueberlebt", u["grund"]
++
++
++# ---------------------------------------------------------------- Review Nr. 5: Nr. 4 durch lauf._verhandeln
++@pytest.mark.parametrize("tragfaehig,bestanden", [(False, False), (True, True)])
++def test_review5_verhandlung_am_laufweg(db_lauf, tmp_path, monkeypatch, messung, tragfaehig, bestanden):
++    from biotop.organe import genesis, vertraege
++    vertraege.einlegen(db_lauf, 1, tmp_path, {("alpha", "beta"): "def test_vertrag():\n assert True\n"}, "Unit")
++    kid = db_lauf.execute("INSERT INTO kandidaten(lauf_id,generation,bereich,nische,status,diff,begruendung,vertraege) "
++                          "VALUES(1,1,'alpha','wild','abgelehnt','d','b','test_vertrag_alpha_beta')").lastrowid
++    aid = db_lauf.execute("INSERT INTO kandidaten(lauf_id,generation,bereich,nische,status,diff,begruendung,vertraege) "
++                          "VALUES(1,1,'beta','sicher','erzeugt','e','b','test_vertrag_alpha_beta')").lastrowid
++    monkeypatch.setattr(genesis, "erzeugen", lambda *a, **k: [aid])
++    monkeypatch.setattr(L.aegis, "kandidat_dateien", lambda pfad, diff: {"paket/beta/x.py": "y = 1\n"})
++    mass = {"ok": True, "grund": "Kernmaß -1 → 0 (+1)", "kern_basis": -1, "kern_kandidat": 0, "zuwachs": 1,
++            "pareto_schlechter": [], "grenzen_gerissen": []}
++    u2 = {"status": "ueberlebt" if tragfaehig else "abgelehnt", "grund": "gestellt", "mass": mass, "vertrag_verletzt": [],
++          "verhalten": {"tragfaehig": tragfaehig, "geurteilt": True}}
++    monkeypatch.setattr(L.aegis, "pruefen", lambda *a, **k: dict(u2))
++    u = {"status": "abgelehnt", "grund": "Vertrag verletzt", "vertrag_verletzt": [],
++         "vertrag_dateien": ["tests/vertraege/test_vertrag_alpha_beta.py"]}
++    r = L._verhandeln(db_lauf, 1, {"id": 1}, 1, tmp_path, "paket", ["alpha", "beta"], [], messung(), messung(), None, {}, "alpha", kid, u)
++    arten = [z[0] for z in db_lauf.execute("SELECT art FROM protokoll WHERE art LIKE 'verhandlung.%'")]
++    assert ("verhandlung.bestanden" in arten) is bestanden and ("verhandlung.gescheitert" in arten) is (not bestanden), arten
++    assert (r["status"] == "abgelehnt") is (not bestanden)
++
++
++# ---------------------------------------------------------------- Review Nr. 5: Nr. 9 Behauptungen aller Angriffstests (aegis.pruefen)
++def test_review5_behauptungen_aller_angriffstests_am_laufweg(tmp_path, monkeypatch):
++    import sqlite3 as _sql
++    from types import SimpleNamespace
++    con = _sql.connect(":memory:", isolation_level=None)
++    con.row_factory = _sql.Row
++    con.executescript(datenbank.SCHEMA)
++    p = tmp_path / "paket" / "bereich" / "quelle.py"
++    p.parent.mkdir(parents=True)
++    p.write_text("def wert():\n    return 1\n")
++    diff = "--- a/paket/bereich/quelle.py\n+++ b/paket/bereich/quelle.py\n@@ -1,2 +1,2 @@\n def wert():\n-    return 1\n+    return 2\n"
++    con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'bereich','test','erzeugt',?)", (diff,))
++    code = ("from paket.bereich.quelle import wert\n\ndef test_a():\n    assert wert() == 1\n\n"
++            "def test_b():\n    assert wert() > 0\n")
++    replies = iter(["wert|Eq:zahl", f"```python\n{code}```"])
++    monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text=next(replies)))
++
++    def junit(werk, paket, dateien, testdateien):
++        kand = "paket/bereich/quelle.py" in dateien
++        out = {}
++        for t in testdateien:
++            out[f"{t}::test_a"] = ({"ok": False, "bestaetigt": True, "ort": "paket/bereich/quelle.py", "meldung": "ValueError"}
++                                   if kand else {"ok": True, "bestaetigt": False, "ort": "", "meldung": ""})
++            out[f"{t}::test_b"] = {"ok": True, "bestaetigt": False, "ort": "", "meldung": ""}
++        return out
++    monkeypatch.setattr(aegis, "junit_lauf", junit)
++    monkeypatch.setattr(aegis.messgeraet, "messen", lambda *a, **k: {"gueltig": False, "grund": "Test-Endpunkt"})
++    aegis.pruefen(con, 1, 1, 7, tmp_path, "paket", ["bereich"], [], {"bereiche": {"bereich": {}}}, {}, None, None)
++    import json as _j
++    u = _j.loads(con.execute("SELECT inhalt FROM protokoll WHERE art='aegis.urteil' ORDER BY nr DESC LIMIT 1").fetchone()[0])
++    assert sorted(u["behauptungen"]) == ["test_a", "test_b"], u["behauptungen"]         # ALLE erzeugten Tests
++    assert u["behauptungen_treffer"] == ["test_a"]                                         # Gegenprobe: Treffer getrennt
++
++
++# ---------------------------------------------------------------- Review Nr. 5: Nr. 11 Schreiber und Leser zusammen
++@pytest.mark.parametrize("fehler,ausgesetzt", [("qwen/qwen3.8-flash: HTTP 429 b'temporarily rate-limited upstream'", True),
++                                              ("qwen/qwen3.8-flash: ablehnung — kein nutzbarer Beitrag", False)])
++def test_review5_drosselung_von_aufrufen_bis_waehlen(tmp_path, monkeypatch, fehler, ausgesetzt):
++    """anbieter.aufrufen (Schreiber, gestellt ist nur der Adapter und die Kasse) → nischen.ausgesetzt/waehlen (Leser)."""
++    from biotop import anbieter
++    from biotop.kern import kasse
++    con = datenbank.verbinden(tmp_path / "d.db")
++
++    class Adapter:
++        _melder = None
++
++        def senden(self, *a, **k):
++            raise AnbieterFehler(fehler, ausfallart="ablehnung" if "ablehnung" in fehler else "infrastruktur")
++    monkeypatch.setattr(anbieter, "adapter", lambda name: Adapter())
++    monkeypatch.setattr(kasse, "vorpruefung", lambda *a, **k: 0.0)
++    for _ in range(nischen.AUSSETZEN_NACH):
++        with pytest.raises(AnbieterFehler):
++            anbieter.aufrufen(con, 5, "openrouter", "qwen/qwen3.8-flash", "s", "n", zweck="schwarm.sicher.alpha.gen1")
++    assert ("qwen" in nischen.ausgesetzt(con, 5)) is ausgesetzt
++    gewaehlt = {h for _ in range(15) for h, _m in nischen.waehlen(con, 5, "sicher")}
++    assert ("qwen" not in gewaehlt) is ausgesetzt
++
++
++# ---------------------------------------------------------------- Review Nr. 5: Nr. 11 Rohwerte der Rauschmessung
++def test_review5_rauschmessung_speichert_rohwerte_in_messreihenfolge(db_lauf, monkeypatch):
++    from biotop.organe import eichung
++    folge = [1.0, 1.2, 0.9, 1.1, 1.05]
++    werte = iter(folge)
++    monkeypatch.setattr(eichung, "_messen_einmal", lambda *a: {"alpha": next(werte)})
++    eichung.rauschmessung(db_lauf, 1, 1, __import__("pathlib").Path("."), ["alpha"], "paket", "# Last")
++    import json as _j
++    z = _j.loads(db_lauf.execute("SELECT inhalt FROM protokoll WHERE art='eichung.rauschmessung'").fetchone()[0])
++    assert z["rohwerte"]["alpha"] == folge                                        # ungerundet, in Messreihenfolge
++    assert z["bereiche"]["alpha"]["werte"] != folge                               # Gegenprobe: `werte` ist sortiert

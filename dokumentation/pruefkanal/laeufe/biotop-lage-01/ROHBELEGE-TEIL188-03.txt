@@ -1,0 +1,647 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 03 · Teil 188 (Teile 166–239 dieses Stands) · enthält R196 bis R196
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+[R196 · Fortsetzung, Stück 6 von 22]
+E           biotop.kern.typescript.TypeScriptFehler: Kammerabbruch: {"rc": 1, "stdout": "", "stderr": "failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n", "dauer_s": 0.020807419903576374, "zeitlimit": false, "container": "biotop-c13df82f36e3"}
+
+biotop/kern/typescript.py:43: TypeScriptFehler
+_____________ test_aegis_nennt_vertrag_bei_kaputtem_ts_ist_falsch ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_aegis_nennt_vertrag_bei_k0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240bff38bf0>
+
+    def test_aegis_nennt_vertrag_bei_kaputtem_ts_ist_falsch(tmp_path, monkeypatch):
+        from biotop.kern import datenbank
+        monkeypatch.setattr(datenbank, 'DB_PFAD', tmp_path / 'p.db')
+        con = datenbank.verbinden()
+>       assert aegis._nennt_vertrag(KAPUTTER_TEST, 'x', None, con, 1, 'alpha') is False
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_t3_kaputter_modellcode.py:61: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/aegis.py:459: in _nennt_vertrag
+    fn = next((t for t in typescript.testfunktionen(code) if t["name"] == testname), None)
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/kern/typescript.py:144: in testfunktionen
+    d, _ = _aufruf(Path(tmp), "testfunktionen", code=code)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/ts-parser-9j_6e3n7'), aktion = 'testfunktionen'
+dateien = None, zeitlimit_s = 150
+daten = {'code': "import {test} from 'vitest';\ntest('x', () => { expect(1)"}
+
+    def _aufruf(werk, aktion, dateien=None, zeitlimit_s=150, **daten):
+        extra = dict(dateien or {})
+        for rel in extra:
+            p = Path(rel)
+            if p.is_absolute() or ".." in p.parts or p.parts[0] in ("_messgeraet", "node_modules"):
+                raise TypeScriptFehler("Unzulässiger Ersatzpfad: " + rel)
+        extra.update({"_messgeraet/ts/" + p.name: p.read_text() for p in SKRIPTE.iterdir() if p.is_file()})
+        extra["_messgeraet/ts/anfrage.json"] = json.dumps({"aktion": aktion, **daten})
+        e = kammer.ausfuehren(Path(werk), ["node", "_messgeraet/ts/main.mjs"],
+                              zeitlimit_s=zeitlimit_s, dateien=extra)
+        roh = asdict(e)
+        if e.zeitlimit or e.rc != 0:
+>           raise TypeScriptFehler("Kammerabbruch: " + json.dumps(roh, ensure_ascii=False))
+E           biotop.kern.typescript.TypeScriptFehler: Kammerabbruch: {"rc": 1, "stdout": "", "stderr": "failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n", "dauer_s": 0.020030332962051034, "zeitlimit": false, "container": "biotop-e8455ce9d214"}
+
+biotop/kern/typescript.py:43: TypeScriptFehler
+____________ test_aegis_behauptung_bei_kaputtem_ts_gibt_platzhalter ____________
+
+    def test_aegis_behauptung_bei_kaputtem_ts_gibt_platzhalter():
+>       assert aegis.behauptung(KAPUTTER_TEST, 'x', 'src') == '?|x'
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_t3_kaputter_modellcode.py:65: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/aegis.py:525: in behauptung
+    tests = typescript.testfunktionen(code)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/kern/typescript.py:144: in testfunktionen
+    d, _ = _aufruf(Path(tmp), "testfunktionen", code=code)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/ts-parser-k8mdci9c'), aktion = 'testfunktionen'
+dateien = None, zeitlimit_s = 150
+daten = {'code': "import {test} from 'vitest';\ntest('x', () => { expect(1)"}
+
+    def _aufruf(werk, aktion, dateien=None, zeitlimit_s=150, **daten):
+        extra = dict(dateien or {})
+        for rel in extra:
+            p = Path(rel)
+            if p.is_absolute() or ".." in p.parts or p.parts[0] in ("_messgeraet", "node_modules"):
+                raise TypeScriptFehler("Unzulässiger Ersatzpfad: " + rel)
+        extra.update({"_messgeraet/ts/" + p.name: p.read_text() for p in SKRIPTE.iterdir() if p.is_file()})
+        extra["_messgeraet/ts/anfrage.json"] = json.dumps({"aktion": aktion, **daten})
+        e = kammer.ausfuehren(Path(werk), ["node", "_messgeraet/ts/main.mjs"],
+                              zeitlimit_s=zeitlimit_s, dateien=extra)
+        roh = asdict(e)
+        if e.zeitlimit or e.rc != 0:
+>           raise TypeScriptFehler("Kammerabbruch: " + json.dumps(roh, ensure_ascii=False))
+E           biotop.kern.typescript.TypeScriptFehler: Kammerabbruch: {"rc": 1, "stdout": "", "stderr": "failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n", "dauer_s": 0.023228195030242205, "zeitlimit": false, "container": "biotop-46eb36e65289"}
+
+biotop/kern/typescript.py:43: TypeScriptFehler
+___________ test_fundpruefung_testnamen_bei_kaputtem_ts_liefert_leer ___________
+
+    def test_fundpruefung_testnamen_bei_kaputtem_ts_liefert_leer():
+>       assert fundpruefung._testnamen(KAPUTTER_TEST) == []
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_t3_kaputter_modellcode.py:69: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/fundpruefung.py:31: in _testnamen
+    return [t["name"] for t in typescript.testfunktionen(code)]
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/kern/typescript.py:144: in testfunktionen
+    d, _ = _aufruf(Path(tmp), "testfunktionen", code=code)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/ts-parser-1415397s'), aktion = 'testfunktionen'
+dateien = None, zeitlimit_s = 150
+daten = {'code': "import {test} from 'vitest';\ntest('x', () => { expect(1)"}
+
+    def _aufruf(werk, aktion, dateien=None, zeitlimit_s=150, **daten):
+        extra = dict(dateien or {})
+        for rel in extra:
+            p = Path(rel)
+            if p.is_absolute() or ".." in p.parts or p.parts[0] in ("_messgeraet", "node_modules"):
+                raise TypeScriptFehler("Unzulässiger Ersatzpfad: " + rel)
+        extra.update({"_messgeraet/ts/" + p.name: p.read_text() for p in SKRIPTE.iterdir() if p.is_file()})
+        extra["_messgeraet/ts/anfrage.json"] = json.dumps({"aktion": aktion, **daten})
+        e = kammer.ausfuehren(Path(werk), ["node", "_messgeraet/ts/main.mjs"],
+                              zeitlimit_s=zeitlimit_s, dateien=extra)
+        roh = asdict(e)
+        if e.zeitlimit or e.rc != 0:
+>           raise TypeScriptFehler("Kammerabbruch: " + json.dumps(roh, ensure_ascii=False))
+E           biotop.kern.typescript.TypeScriptFehler: Kammerabbruch: {"rc": 1, "stdout": "", "stderr": "failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n", "dauer_s": 0.019772777101024985, "zeitlimit": false, "container": "biotop-51706e3a1a3f"}
+
+biotop/kern/typescript.py:43: TypeScriptFehler
+___________ test_generation0_erzeugen_bei_kaputtem_werk_liefert_leer ___________
+
+werk = PosixPath('/tmp/pytest-of-root/pytest-0/test_generation0_erzeugen_bei_0')
+
+    def test_generation0_erzeugen_bei_kaputtem_werk_liefert_leer(werk):
+        """Ein Werk, dessen Quelle nicht parst, liefert keine Mutanten — kein Absturz."""
+        (werk / 'src/alpha/a.ts').write_text(KAPUTT)
+>       assert generation0.erzeugen(werk, 'src', ['alpha'], max_je_datei=3) == []
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_t3_kaputter_modellcode.py:75: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/generation0.py:42: in erzeugen
+    return typescript.mutanten(werk, max_je_datei)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/kern/typescript.py:71: in mutanten
+    d, _ = _aufruf(werk, "mutanten", max_je_datei=max_je_datei)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/pytest-of-root/pytest-0/test_generation0_erzeugen_bei_0')
+aktion = 'mutanten', dateien = None, zeitlimit_s = 150
+daten = {'max_je_datei': 3}
+
+    def _aufruf(werk, aktion, dateien=None, zeitlimit_s=150, **daten):
+        extra = dict(dateien or {})
+        for rel in extra:
+            p = Path(rel)
+            if p.is_absolute() or ".." in p.parts or p.parts[0] in ("_messgeraet", "node_modules"):
+                raise TypeScriptFehler("Unzulässiger Ersatzpfad: " + rel)
+        extra.update({"_messgeraet/ts/" + p.name: p.read_text() for p in SKRIPTE.iterdir() if p.is_file()})
+        extra["_messgeraet/ts/anfrage.json"] = json.dumps({"aktion": aktion, **daten})
+        e = kammer.ausfuehren(Path(werk), ["node", "_messgeraet/ts/main.mjs"],
+                              zeitlimit_s=zeitlimit_s, dateien=extra)
+        roh = asdict(e)
+        if e.zeitlimit or e.rc != 0:
+>           raise TypeScriptFehler("Kammerabbruch: " + json.dumps(roh, ensure_ascii=False))
+E           biotop.kern.typescript.TypeScriptFehler: Kammerabbruch: {"rc": 1, "stdout": "", "stderr": "failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n", "dauer_s": 0.0214922649320215, "zeitlimit": false, "container": "biotop-0be88f2adcb0"}
+
+biotop/kern/typescript.py:43: TypeScriptFehler
+___________ test_gegenprobe_gueltiger_ts_code_wird_weiterhin_gelesen ___________
+
+    def test_gegenprobe_gueltiger_ts_code_wird_weiterhin_gelesen():
+        """Sonst wäre die Reparatur ein pauschales Schweigen."""
+        gut = 'export function a(x: number): number { return x + 1; }'
+>       assert 'a' in gedaechtnis._funktionen(gut, 'src/a.ts')
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_t3_kaputter_modellcode.py:93: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/gedaechtnis.py:59: in _funktionen
+    return {f["name"]:code[f["start"]:f["end"]] for f in typescript.quellfunktionen(code)}
+                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/kern/typescript.py:132: in quellfunktionen
+    d, _ = _aufruf(Path(tmp), "quellfunktionen", code=code)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/ts-quellparser-un_d7l6w'), aktion = 'quellfunktionen'
+dateien = None, zeitlimit_s = 150
+daten = {'code': 'export function a(x: number): number { return x + 1; }'}
+
+    def _aufruf(werk, aktion, dateien=None, zeitlimit_s=150, **daten):
+        extra = dict(dateien or {})
+        for rel in extra:
+            p = Path(rel)
+            if p.is_absolute() or ".." in p.parts or p.parts[0] in ("_messgeraet", "node_modules"):
+                raise TypeScriptFehler("Unzulässiger Ersatzpfad: " + rel)
+        extra.update({"_messgeraet/ts/" + p.name: p.read_text() for p in SKRIPTE.iterdir() if p.is_file()})
+        extra["_messgeraet/ts/anfrage.json"] = json.dumps({"aktion": aktion, **daten})
+        e = kammer.ausfuehren(Path(werk), ["node", "_messgeraet/ts/main.mjs"],
+                              zeitlimit_s=zeitlimit_s, dateien=extra)
+        roh = asdict(e)
+        if e.zeitlimit or e.rc != 0:
+>           raise TypeScriptFehler("Kammerabbruch: " + json.dumps(roh, ensure_ascii=False))
+E           biotop.kern.typescript.TypeScriptFehler: Kammerabbruch: {"rc": 1, "stdout": "", "stderr": "failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n", "dauer_s": 0.018252522917464375, "zeitlimit": false, "container": "biotop-c3ee7a8f2caa"}
+
+biotop/kern/typescript.py:43: TypeScriptFehler
+_____________ test_gegenprobe_behauptung_platzhalter_wird_gezaehlt _____________
+
+con = <sqlite3.Connection object at 0x7240c0b9c8b0>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240bff80f20>
+
+    def test_gegenprobe_behauptung_platzhalter_wird_gezaehlt(con, monkeypatch):
+        """Erzwungener Platzhalter muss in der Datenbank landen."""
+        code = "import {test} from 'vitest';\ntest('vorhanden', () => {});\n"
+        monkeypatch.setattr(aegis, '_zaehlkontext', lambda: (con, 35))
+>       schl = aegis.behauptung(code, 'fehlt_hier', 'src')
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_t3_neutralzaehler.py:84: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/aegis.py:525: in behauptung
+    tests = typescript.testfunktionen(code)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/kern/typescript.py:144: in testfunktionen
+    d, _ = _aufruf(Path(tmp), "testfunktionen", code=code)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/ts-parser-bdfpvfkc'), aktion = 'testfunktionen'
+dateien = None, zeitlimit_s = 150
+daten = {'code': "import {test} from 'vitest';\ntest('vorhanden', () => {});\n"}
+
+    def _aufruf(werk, aktion, dateien=None, zeitlimit_s=150, **daten):
+        extra = dict(dateien or {})
+        for rel in extra:
+            p = Path(rel)
+            if p.is_absolute() or ".." in p.parts or p.parts[0] in ("_messgeraet", "node_modules"):
+                raise TypeScriptFehler("Unzulässiger Ersatzpfad: " + rel)
+        extra.update({"_messgeraet/ts/" + p.name: p.read_text() for p in SKRIPTE.iterdir() if p.is_file()})
+        extra["_messgeraet/ts/anfrage.json"] = json.dumps({"aktion": aktion, **daten})
+        e = kammer.ausfuehren(Path(werk), ["node", "_messgeraet/ts/main.mjs"],
+                              zeitlimit_s=zeitlimit_s, dateien=extra)
+        roh = asdict(e)
+        if e.zeitlimit or e.rc != 0:
+>           raise TypeScriptFehler("Kammerabbruch: " + json.dumps(roh, ensure_ascii=False))
+E           biotop.kern.typescript.TypeScriptFehler: Kammerabbruch: {"rc": 1, "stdout": "", "stderr": "failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n", "dauer_s": 0.020867418963462114, "zeitlimit": false, "container": "biotop-cf315aadd6a6"}
+
+biotop/kern/typescript.py:43: TypeScriptFehler
+__________ test_gegenprobe_behauptung_ableitbar_zaehlt_als_geurteilt ___________
+
+con = <sqlite3.Connection object at 0x7240bff231f0>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240bff83b60>
+
+    def test_gegenprobe_behauptung_ableitbar_zaehlt_als_geurteilt(con, monkeypatch):
+        code = ("import {test, expect} from 'vitest';\n"
+                "import {a} from '../src/alpha/a.js';\n"
+                "test('test_a_zahl', () => { expect(a(1)).toBe(2); });\n")
+        monkeypatch.setattr(aegis, '_zaehlkontext', lambda: (con, 35))
+>       schl = aegis.behauptung(code, 'test_a_zahl', 'src')
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_t3_neutralzaehler.py:96: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/aegis.py:525: in behauptung
+    tests = typescript.testfunktionen(code)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/kern/typescript.py:144: in testfunktionen
+    d, _ = _aufruf(Path(tmp), "testfunktionen", code=code)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/ts-parser-23bflfs8'), aktion = 'testfunktionen'
+dateien = None, zeitlimit_s = 150
+daten = {'code': "import {test, expect} from 'vitest';\nimport {a} from '../src/alpha/a.js';\ntest('test_a_zahl', () => { expect(a(1)).toBe(2); });\n"}
+
+    def _aufruf(werk, aktion, dateien=None, zeitlimit_s=150, **daten):
+        extra = dict(dateien or {})
+        for rel in extra:
+            p = Path(rel)
+            if p.is_absolute() or ".." in p.parts or p.parts[0] in ("_messgeraet", "node_modules"):
+                raise TypeScriptFehler("Unzulässiger Ersatzpfad: " + rel)
+        extra.update({"_messgeraet/ts/" + p.name: p.read_text() for p in SKRIPTE.iterdir() if p.is_file()})
+        extra["_messgeraet/ts/anfrage.json"] = json.dumps({"aktion": aktion, **daten})
+        e = kammer.ausfuehren(Path(werk), ["node", "_messgeraet/ts/main.mjs"],
+                              zeitlimit_s=zeitlimit_s, dateien=extra)
+        roh = asdict(e)
+        if e.zeitlimit or e.rc != 0:
+>           raise TypeScriptFehler("Kammerabbruch: " + json.dumps(roh, ensure_ascii=False))
+E           biotop.kern.typescript.TypeScriptFehler: Kammerabbruch: {"rc": 1, "stdout": "", "stderr": "failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n", "dauer_s": 0.020934418076649308, "zeitlimit": false, "container": "biotop-6c8088e2efc7"}
+
+biotop/kern/typescript.py:43: TypeScriptFehler
+_________________ test_gegenprobe_anhaengen_none_wird_gezaehlt _________________
+
+con = <sqlite3.Connection object at 0x7240c0977100>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240bff83410>
+
+    def test_gegenprobe_anhaengen_none_wird_gezaehlt(con, monkeypatch):
+        # Geändert mit Vorbedingung 9 (T4): TypeScript hängt jetzt an (bis T3 immer None, 'typescript_eigene_datei').
+        # Ein neutraler Fall ist weiterhin gezählt — wenn nichts Neues zu behalten ist.
+        alt = "import {test, expect} from 'vitest';\ntest('a', () => expect(1).toBe(1));\n"
+        neu = "import {test, expect} from 'vitest';\ntest('b', () => expect(2).toBe(2));\n"
+        monkeypatch.setattr(aegis, '_zaehlkontext', lambda: (con, 35))
+>       assert aegis._anhaengen(alt, neu, {'a'}) is None
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_t3_neutralzaehler.py:109: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/aegis.py:204: in _anhaengen
+    return _anhaengen_ts(con, lauf_id, alt, neu, behalten)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/organe/aegis.py:296: in _anhaengen_ts
+    alt_namen = {t["name"] for t in typescript.testfunktionen(alt)}
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/kern/typescript.py:144: in testfunktionen
+    d, _ = _aufruf(Path(tmp), "testfunktionen", code=code)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/ts-parser-1zas7naa'), aktion = 'testfunktionen'
+dateien = None, zeitlimit_s = 150
+daten = {'code': "import {test, expect} from 'vitest';\ntest('a', () => expect(1).toBe(1));\n"}
+
+    def _aufruf(werk, aktion, dateien=None, zeitlimit_s=150, **daten):
+        extra = dict(dateien or {})
+        for rel in extra:
+            p = Path(rel)
+            if p.is_absolute() or ".." in p.parts or p.parts[0] in ("_messgeraet", "node_modules"):
+                raise TypeScriptFehler("Unzulässiger Ersatzpfad: " + rel)
+        extra.update({"_messgeraet/ts/" + p.name: p.read_text() for p in SKRIPTE.iterdir() if p.is_file()})
+        extra["_messgeraet/ts/anfrage.json"] = json.dumps({"aktion": aktion, **daten})
+        e = kammer.ausfuehren(Path(werk), ["node", "_messgeraet/ts/main.mjs"],
+                              zeitlimit_s=zeitlimit_s, dateien=extra)
+        roh = asdict(e)
+        if e.zeitlimit or e.rc != 0:
+>           raise TypeScriptFehler("Kammerabbruch: " + json.dumps(roh, ensure_ascii=False))
+E           biotop.kern.typescript.TypeScriptFehler: Kammerabbruch: {"rc": 1, "stdout": "", "stderr": "failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n", "dauer_s": 0.020822173915803432, "zeitlimit": false, "container": "biotop-3f0c9f54026e"}
+
+biotop/kern/typescript.py:43: TypeScriptFehler
+_________ test_gegenprobe_wiederholung_anwendbar_zaehlt_als_geurteilt __________
+
+con = <sqlite3.Connection object at 0x7240c09776a0>
+werk = PosixPath('/tmp/pytest-of-root/pytest-0/test_gegenprobe_wiederholung_a0/w')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0d652e0>
+
+    def test_gegenprobe_wiederholung_anwendbar_zaehlt_als_geurteilt(con, werk, monkeypatch):
+        from biotop.organe import gedaechtnis
+        monkeypatch.setattr(gedaechtnis, '_zaehlkontext', lambda: (con, 35))
+        neu = {'src/alpha/a.ts': 'export function a(x:number):number{return x+2;}'}
+        diff = '--- a/src/alpha/a.ts\n+++ b/src/alpha/a.ts\n@@ -1 +1 @@\n-x+1\n+x+2\n'
+>       _, funktionen, _ = gedaechtnis.aenderungsziel(werk, diff, neu)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_t3_neutralzaehler.py:176: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/gedaechtnis.py:108: in aenderungsziel
+    alt_f = _funktionen(alt.read_text(), d) if alt.exists() else {}
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/organe/gedaechtnis.py:59: in _funktionen
+    return {f["name"]:code[f["start"]:f["end"]] for f in typescript.quellfunktionen(code)}
+                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/kern/typescript.py:132: in quellfunktionen
+    d, _ = _aufruf(Path(tmp), "quellfunktionen", code=code)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/ts-quellparser-9m2c5z_w'), aktion = 'quellfunktionen'
+dateien = None, zeitlimit_s = 150
+daten = {'code': 'export function a(x:number):number{return x+1;}'}
+
+    def _aufruf(werk, aktion, dateien=None, zeitlimit_s=150, **daten):
+        extra = dict(dateien or {})
+        for rel in extra:
+            p = Path(rel)
+            if p.is_absolute() or ".." in p.parts or p.parts[0] in ("_messgeraet", "node_modules"):
+                raise TypeScriptFehler("Unzulässiger Ersatzpfad: " + rel)
+        extra.update({"_messgeraet/ts/" + p.name: p.read_text() for p in SKRIPTE.iterdir() if p.is_file()})
+        extra["_messgeraet/ts/anfrage.json"] = json.dumps({"aktion": aktion, **daten})
+        e = kammer.ausfuehren(Path(werk), ["node", "_messgeraet/ts/main.mjs"],
+                              zeitlimit_s=zeitlimit_s, dateien=extra)
+        roh = asdict(e)
+        if e.zeitlimit or e.rc != 0:
+>           raise TypeScriptFehler("Kammerabbruch: " + json.dumps(roh, ensure_ascii=False))
+E           biotop.kern.typescript.TypeScriptFehler: Kammerabbruch: {"rc": 1, "stdout": "", "stderr": "failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n", "dauer_s": 0.024242341984063387, "zeitlimit": false, "container": "biotop-1796905c53b9"}
+
+biotop/kern/typescript.py:43: TypeScriptFehler
+__ test_http_erfolg_ohne_beitrag_ist_ausfall_und_wird_abgerechnet[-stop-None] __
+
+db = <sqlite3.Connection object at 0x7240c0b9c4f0>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0d66f00>
+inhalt = '', grund = 'stop', refusal = None
+
+    @pytest.mark.parametrize('inhalt,grund,refusal', [('', 'stop', None), ('  ', 'stop', None),
+        ('', 'refusal', 'cyber'), ('Resttext', 'content_filter', 'refused')])
+    def test_http_erfolg_ohne_beitrag_ist_ausfall_und_wird_abgerechnet(db,monkeypatch,inhalt,grund,refusal):
+        antwort(monkeypatch,inhalt,grund,refusal)
+        with pytest.raises(anbieter.AnbieterFehler):
+>           aufrufen(db)
+
+tests/test_t3_verbundausfall.py:35: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_t3_verbundausfall.py:26: in aufrufen
+    return anbieter.aufrufen(db,1,'openrouter','openai/gpt-5.6-luna','Prüfung','gestellte Antwort',
+biotop/anbieter/__init__.py:198: in aufrufen
+    schaetzung = kasse.vorpruefung(con, lauf_id, modell, geschaetzt, max_tokens, zweck)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/kern/kasse.py:123: in vorpruefung
+    auftragsgrenze_verlangen()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def auftragsgrenze_verlangen() -> tuple[int, float]:
+        """Gibt (lauf_ab, budget_eur) zurück oder verweigert den Start.
+    
+        Beide Werte müssen gesetzt und größer null sein. Das Setzen der
+        Umgebungsvariablen behebt nur den Einzelfall; diese Sperre behebt die Klasse.
+        """
+        fehlend = []
+        if not AUFTRAG_LAUF_AB:
+            fehlend.append("BIOTOP_AUFTRAG_LAUF_AB")
+        if not AUFTRAG_BUDGET_EUR:
+            fehlend.append("BIOTOP_AUFTRAG_BUDGET_EUR")
+        if fehlend:
+>           raise AuftragsgrenzeFehlt(
+                "Auftragsgrenze nicht scharf: " + " und ".join(fehlend) + " fehlt oder ist null. "
+                "Null ist keine Grenze, sondern eine fehlende Grenze — ohne sie startet kein Lauf "
+                "(Verfassungssatz 8, hartes Auftragsbudget).")
+E           biotop.kern.kasse.AuftragsgrenzeFehlt: Auftragsgrenze nicht scharf: BIOTOP_AUFTRAG_LAUF_AB und BIOTOP_AUFTRAG_BUDGET_EUR fehlt oder ist null. Null ist keine Grenze, sondern eine fehlende Grenze — ohne sie startet kein Lauf (Verfassungssatz 8, hartes Auftragsbudget).
+
+biotop/kern/kasse.py:82: AuftragsgrenzeFehlt
+_ test_http_erfolg_ohne_beitrag_ist_ausfall_und_wird_abgerechnet[  -stop-None] _
+
+db = <sqlite3.Connection object at 0x7240c0977790>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0d65be0>
+inhalt = '  ', grund = 'stop', refusal = None
+
+    @pytest.mark.parametrize('inhalt,grund,refusal', [('', 'stop', None), ('  ', 'stop', None),
+        ('', 'refusal', 'cyber'), ('Resttext', 'content_filter', 'refused')])
+    def test_http_erfolg_ohne_beitrag_ist_ausfall_und_wird_abgerechnet(db,monkeypatch,inhalt,grund,refusal):
+        antwort(monkeypatch,inhalt,grund,refusal)
+        with pytest.raises(anbieter.AnbieterFehler):
+>           aufrufen(db)
+
+tests/test_t3_verbundausfall.py:35: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_t3_verbundausfall.py:26: in aufrufen
+    return anbieter.aufrufen(db,1,'openrouter','openai/gpt-5.6-luna','Prüfung','gestellte Antwort',
+biotop/anbieter/__init__.py:198: in aufrufen
+    schaetzung = kasse.vorpruefung(con, lauf_id, modell, geschaetzt, max_tokens, zweck)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/kern/kasse.py:123: in vorpruefung
+    auftragsgrenze_verlangen()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def auftragsgrenze_verlangen() -> tuple[int, float]:
+        """Gibt (lauf_ab, budget_eur) zurück oder verweigert den Start.
+    
+        Beide Werte müssen gesetzt und größer null sein. Das Setzen der
+        Umgebungsvariablen behebt nur den Einzelfall; diese Sperre behebt die Klasse.
+        """
+        fehlend = []
+        if not AUFTRAG_LAUF_AB:
+            fehlend.append("BIOTOP_AUFTRAG_LAUF_AB")
+        if not AUFTRAG_BUDGET_EUR:
+            fehlend.append("BIOTOP_AUFTRAG_BUDGET_EUR")
+        if fehlend:
+>           raise AuftragsgrenzeFehlt(
+                "Auftragsgrenze nicht scharf: " + " und ".join(fehlend) + " fehlt oder ist null. "
+                "Null ist keine Grenze, sondern eine fehlende Grenze — ohne sie startet kein Lauf "
+                "(Verfassungssatz 8, hartes Auftragsbudget).")
+E           biotop.kern.kasse.AuftragsgrenzeFehlt: Auftragsgrenze nicht scharf: BIOTOP_AUFTRAG_LAUF_AB und BIOTOP_AUFTRAG_BUDGET_EUR fehlt oder ist null. Null ist keine Grenze, sondern eine fehlende Grenze — ohne sie startet kein Lauf (Verfassungssatz 8, hartes Auftragsbudget).
+
+biotop/kern/kasse.py:82: AuftragsgrenzeFehlt
+_ test_http_erfolg_ohne_beitrag_ist_ausfall_und_wird_abgerechnet[-refusal-cyber] _
+
+db = <sqlite3.Connection object at 0x7240c09774c0>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0d64a10>
+inhalt = '', grund = 'refusal', refusal = 'cyber'
+
+    @pytest.mark.parametrize('inhalt,grund,refusal', [('', 'stop', None), ('  ', 'stop', None),
+        ('', 'refusal', 'cyber'), ('Resttext', 'content_filter', 'refused')])
+    def test_http_erfolg_ohne_beitrag_ist_ausfall_und_wird_abgerechnet(db,monkeypatch,inhalt,grund,refusal):
+        antwort(monkeypatch,inhalt,grund,refusal)
+        with pytest.raises(anbieter.AnbieterFehler):
+>           aufrufen(db)
+
+tests/test_t3_verbundausfall.py:35: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_t3_verbundausfall.py:26: in aufrufen
+    return anbieter.aufrufen(db,1,'openrouter','openai/gpt-5.6-luna','Prüfung','gestellte Antwort',
+biotop/anbieter/__init__.py:198: in aufrufen
+    schaetzung = kasse.vorpruefung(con, lauf_id, modell, geschaetzt, max_tokens, zweck)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/kern/kasse.py:123: in vorpruefung
+    auftragsgrenze_verlangen()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def auftragsgrenze_verlangen() -> tuple[int, float]:
+        """Gibt (lauf_ab, budget_eur) zurück oder verweigert den Start.
+    
+        Beide Werte müssen gesetzt und größer null sein. Das Setzen der
+        Umgebungsvariablen behebt nur den Einzelfall; diese Sperre behebt die Klasse.
+        """
+        fehlend = []
+        if not AUFTRAG_LAUF_AB:
+            fehlend.append("BIOTOP_AUFTRAG_LAUF_AB")
+        if not AUFTRAG_BUDGET_EUR:
+            fehlend.append("BIOTOP_AUFTRAG_BUDGET_EUR")
+        if fehlend:
+>           raise AuftragsgrenzeFehlt(
+                "Auftragsgrenze nicht scharf: " + " und ".join(fehlend) + " fehlt oder ist null. "
+                "Null ist keine Grenze, sondern eine fehlende Grenze — ohne sie startet kein Lauf "
+                "(Verfassungssatz 8, hartes Auftragsbudget).")
+E           biotop.kern.kasse.AuftragsgrenzeFehlt: Auftragsgrenze nicht scharf: BIOTOP_AUFTRAG_LAUF_AB und BIOTOP_AUFTRAG_BUDGET_EUR fehlt oder ist null. Null ist keine Grenze, sondern eine fehlende Grenze — ohne sie startet kein Lauf (Verfassungssatz 8, hartes Auftragsbudget).
+
+biotop/kern/kasse.py:82: AuftragsgrenzeFehlt
+_ test_http_erfolg_ohne_beitrag_ist_ausfall_und_wird_abgerechnet[Resttext-content_filter-refused] _
+
+db = <sqlite3.Connection object at 0x7240c09764d0>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0d64fb0>
+inhalt = 'Resttext', grund = 'content_filter', refusal = 'refused'
+
+    @pytest.mark.parametrize('inhalt,grund,refusal', [('', 'stop', None), ('  ', 'stop', None),
+        ('', 'refusal', 'cyber'), ('Resttext', 'content_filter', 'refused')])
+    def test_http_erfolg_ohne_beitrag_ist_ausfall_und_wird_abgerechnet(db,monkeypatch,inhalt,grund,refusal):
+        antwort(monkeypatch,inhalt,grund,refusal)
+        with pytest.raises(anbieter.AnbieterFehler):
+>           aufrufen(db)
+
+tests/test_t3_verbundausfall.py:35: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_t3_verbundausfall.py:26: in aufrufen
+    return anbieter.aufrufen(db,1,'openrouter','openai/gpt-5.6-luna','Prüfung','gestellte Antwort',
+biotop/anbieter/__init__.py:198: in aufrufen
+    schaetzung = kasse.vorpruefung(con, lauf_id, modell, geschaetzt, max_tokens, zweck)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/kern/kasse.py:123: in vorpruefung
+    auftragsgrenze_verlangen()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def auftragsgrenze_verlangen() -> tuple[int, float]:
+        """Gibt (lauf_ab, budget_eur) zurück oder verweigert den Start.
+    
+        Beide Werte müssen gesetzt und größer null sein. Das Setzen der
+        Umgebungsvariablen behebt nur den Einzelfall; diese Sperre behebt die Klasse.
+        """
+        fehlend = []
+        if not AUFTRAG_LAUF_AB:
+            fehlend.append("BIOTOP_AUFTRAG_LAUF_AB")
+        if not AUFTRAG_BUDGET_EUR:
+            fehlend.append("BIOTOP_AUFTRAG_BUDGET_EUR")
+        if fehlend:
+>           raise AuftragsgrenzeFehlt(
+                "Auftragsgrenze nicht scharf: " + " und ".join(fehlend) + " fehlt oder ist null. "
+                "Null ist keine Grenze, sondern eine fehlende Grenze — ohne sie startet kein Lauf "
+                "(Verfassungssatz 8, hartes Auftragsbudget).")
+E           biotop.kern.kasse.AuftragsgrenzeFehlt: Auftragsgrenze nicht scharf: BIOTOP_AUFTRAG_LAUF_AB und BIOTOP_AUFTRAG_BUDGET_EUR fehlt oder ist null. Null ist keine Grenze, sondern eine fehlende Grenze — ohne sie startet kein Lauf (Verfassungssatz 8, hartes Auftragsbudget).
+
+biotop/kern/kasse.py:82: AuftragsgrenzeFehlt
+_ test_nutzbare_antwort_erreicht_konsument_kein_vorschlag_kein_ausfall[KEIN VORSCHLAG \u2014 nichts gefunden] _
+
+db = <sqlite3.Connection object at 0x7240c0976c50>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0cd7aa0>
+text = 'KEIN VORSCHLAG — nichts gefunden'
+
+    @pytest.mark.parametrize('text',['KEIN VORSCHLAG — nichts gefunden','BEGRÜNDUNG: gültiger Text'])
+    def test_nutzbare_antwort_erreicht_konsument_kein_vorschlag_kein_ausfall(db,monkeypatch,text):
+        antwort(monkeypatch,text)
+>       r=aufrufen(db)
+          ^^^^^^^^^^^^
+
+tests/test_t3_verbundausfall.py:47: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_t3_verbundausfall.py:26: in aufrufen
+    return anbieter.aufrufen(db,1,'openrouter','openai/gpt-5.6-luna','Prüfung','gestellte Antwort',
+biotop/anbieter/__init__.py:198: in aufrufen
+    schaetzung = kasse.vorpruefung(con, lauf_id, modell, geschaetzt, max_tokens, zweck)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/kern/kasse.py:123: in vorpruefung
+    auftragsgrenze_verlangen()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def auftragsgrenze_verlangen() -> tuple[int, float]:
+        """Gibt (lauf_ab, budget_eur) zurück oder verweigert den Start.
+    
+        Beide Werte müssen gesetzt und größer null sein. Das Setzen der
+        Umgebungsvariablen behebt nur den Einzelfall; diese Sperre behebt die Klasse.
+        """
+        fehlend = []
+        if not AUFTRAG_LAUF_AB:
+            fehlend.append("BIOTOP_AUFTRAG_LAUF_AB")
+        if not AUFTRAG_BUDGET_EUR:
+            fehlend.append("BIOTOP_AUFTRAG_BUDGET_EUR")
+        if fehlend:
+>           raise AuftragsgrenzeFehlt(
+                "Auftragsgrenze nicht scharf: " + " und ".join(fehlend) + " fehlt oder ist null. "
+                "Null ist keine Grenze, sondern eine fehlende Grenze — ohne sie startet kein Lauf "
+                "(Verfassungssatz 8, hartes Auftragsbudget).")
+E           biotop.kern.kasse.AuftragsgrenzeFehlt: Auftragsgrenze nicht scharf: BIOTOP_AUFTRAG_LAUF_AB und BIOTOP_AUFTRAG_BUDGET_EUR fehlt oder ist null. Null ist keine Grenze, sondern eine fehlende Grenze — ohne sie startet kein Lauf (Verfassungssatz 8, hartes Auftragsbudget).
+
+biotop/kern/kasse.py:82: AuftragsgrenzeFehlt
+_ test_nutzbare_antwort_erreicht_konsument_kein_vorschlag_kein_ausfall[BEGR\xdcNDUNG: g\xfcltiger Text] _
+
+db = <sqlite3.Connection object at 0x7240bff23970>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c08afcb0>
+text = 'BEGRÜNDUNG: gültiger Text'
+
+    @pytest.mark.parametrize('text',['KEIN VORSCHLAG — nichts gefunden','BEGRÜNDUNG: gültiger Text'])
+    def test_nutzbare_antwort_erreicht_konsument_kein_vorschlag_kein_ausfall(db,monkeypatch,text):
+        antwort(monkeypatch,text)
+>       r=aufrufen(db)
+          ^^^^^^^^^^^^
+
+tests/test_t3_verbundausfall.py:47: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_t3_verbundausfall.py:26: in aufrufen
+    return anbieter.aufrufen(db,1,'openrouter','openai/gpt-5.6-luna','Prüfung','gestellte Antwort',
+biotop/anbieter/__init__.py:198: in aufrufen
+    schaetzung = kasse.vorpruefung(con, lauf_id, modell, geschaetzt, max_tokens, zweck)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/kern/kasse.py:123: in vorpruefung
+    auftragsgrenze_verlangen()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def auftragsgrenze_verlangen() -> tuple[int, float]:
+        """Gibt (lauf_ab, budget_eur) zurück oder verweigert den Start.
+    
+        Beide Werte müssen gesetzt und größer null sein. Das Setzen der
+        Umgebungsvariablen behebt nur den Einzelfall; diese Sperre behebt die Klasse.
+        """
+        fehlend = []
+        if not AUFTRAG_LAUF_AB:
+            fehlend.append("BIOTOP_AUFTRAG_LAUF_AB")
+        if not AUFTRAG_BUDGET_EUR:
+            fehlend.append("BIOTOP_AUFTRAG_BUDGET_EUR")
+        if fehlend:
+>           raise AuftragsgrenzeFehlt(
+                "Auftragsgrenze nicht scharf: " + " und ".join(fehlend) + " fehlt oder ist null. "
+                "Null ist keine Grenze, sondern eine fehlende Grenze — ohne sie startet kein Lauf "
+                "(Verfassungssatz 8, hartes Auftragsbudget).")
+E           biotop.kern.kasse.AuftragsgrenzeFehlt: Auftragsgrenze nicht scharf: BIOTOP_AUFTRAG_LAUF_AB und BIOTOP_AUFTRAG_BUDGET_EUR fehlt oder ist null. Null ist keine Grenze, sondern eine fehlende Grenze — ohne sie startet kein Lauf (Verfassungssatz 8, hartes Auftragsbudget).
+
+biotop/kern/kasse.py:82: AuftragsgrenzeFehlt
+__________ test_timeout_ist_ausfall_keine_freigabe_unbekannter_kosten __________
+
+db = <sqlite3.Connection object at 0x7240c0b9c130>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240bff3bb90>
+
+    def test_timeout_ist_ausfall_keine_freigabe_unbekannter_kosten(db,monkeypatch):
+        """Ein Timeout ist Ausfall mit null Beitrag; sein Verbrauch bleibt unbekannt.
+    
+        Die Behandlung des unbekannten Verbrauchs hat sich geändert (Festlegung Chat-Claude):
+        Statt jeden weiteren Aufruf dauerhaft zu sperren, klärt `vorpruefung` den Ausfall
+        mechanisch mit dem HÖCHSTFALL — volle Reservierung gegen das Budget. Was hier

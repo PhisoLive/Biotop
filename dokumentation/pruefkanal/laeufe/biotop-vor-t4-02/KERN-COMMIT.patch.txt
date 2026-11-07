@@ -1,0 +1,2279 @@
+commit 624337782ad904a26921b5dd7076c2ddde7b6fc1
+Author: Hermes (Biotop) <hermes@biotop.local>
+Date:   Thu Sep 24 00:30:17 2026 +0200
+
+    Vor T4, Runde 2: Python-Sonde, Deckung je Abweichung, Formvarianten, bestätigte Laufzeitrisse
+    
+    Entscheidungen Chat-Claude (23.09.2026) zu den offenen Fragen der Behebungsrunde vor T4:
+    (2) Python-Sonde des Verhaltensvergleichs (kern/py/verhalten.py) im Umfang der TypeScript-Sonde: einzeln, Folge
+        (#0…#7), Alias, Mutation, Rücksetzung; Randfälle aus den Typannotationen der Vorgeneration. Python enthält sich
+        nicht mehr („sprache_ohne_sonde“ entfällt) — Grundsatz 11 gilt für jede Sprache.
+        Korpus erweitert um Formvarianten (~form#j, TS und Python): Weißraum (Tab, Zeilenumbruch, doppelt, CRLF, NBSP, am
+        Rand), Groß/Klein, Zahlform im Text, Schlüsselfolge; Python zusätzlich Zahltyp und Behälter. Befund: Die
+        Weißraumlücke von K2868 lag in keinem Randwert.
+    (3) Jeder Laufzeitriss wird vor der Ablehnung einmal gepaart nachgemessen; nur ein bestätigter lehnt ab
+        (messgeraet.laufzeit_bestaetigen), im Annahmepfad und in der Generalprobe. Eine ungültige Nachmessung stellt zurück.
+        Eine gepaarte Messung mit fehlendem Wert ist ungültig (vorher still übergangen). Gesperrte Bereiche werden nicht
+        angefordert.
+    (4) Deckung je Abweichung: ein Test deckt eine Abweichung nur, wenn er (an der Vorgeneration fallend, am Kandidaten
+        bestehend) die Funktion am Kandidaten mit derselben Eingabe ruft und dasselbe Ergebnis bekommt, das die Sonde sah.
+        Beleg ist der aufgezeichnete Aufruf (TS: Vite-Plugin + deck-setup.mjs; Python: Einwickler + pytest-Plugin), nicht
+        der Quelltext. Ein deckender Test, der im Aufzeichnerlauf nicht besteht, ist ein Messgerätausfall.
+    Tests: tests/test_vor_t4_02.py (Python-Prüfwerk speicherwerk durch aegis.pruefen in der Kammer: Zwischenspeicher-Fehler
+    abgelehnt, Speicher am Inhalt überlebt, Weißraum an Formvariante abgelehnt, toter Code allein überlebt; Deckung je
+    Abweichung am Organ und in der Kammer für TS und Python; Nachmessung bestätigt/nicht bestätigt/ungültig/kein Riss;
+    Teilausfall ungültig). tests/conftest.py: TS-Kammertests ohne Image rot statt übersprungen.
+    Geänderte ältere Tests (Spezifikation geändert): test_t3_verhaltensvergleich (Python urteilt; Deckung per Aufruf),
+    test_eichproben (Referenzlast für die Python-Eichproben), test_vorspann (gepaarte Laufzeit gestellt),
+    test_t3_python_annahmen (Ausnahmen für die Kammersonde mit Zeilennachweis der Weiche). Kein Modellaufruf.
+
+diff --git a/biotop/kern/messgeraet.py b/biotop/kern/messgeraet.py
+index 35f704b..7c36245 100644
+--- a/biotop/kern/messgeraet.py
++++ b/biotop/kern/messgeraet.py
+@@ -494,7 +494,7 @@ def bestwerte(angenommene: list[dict], bereiche: list[str]) -> dict:
+ def grenzen_f2(ausgang: dict, kandidat: dict, bereiche: list[str], tausch: dict | None = None,
+                sicherheit_gesunken: set[str] = frozenset(), kernmassgewinn: bool = True,
+                rauschtoleranz: dict | None = None, laufzeit_bezug: dict | None = None,
+-               laufzeit_pruefen: bool = True) -> list[str]:
++               laufzeit_pruefen: bool = True, laufzeit_ausnehmen: list[str] | tuple = ()) -> list[str]:
+     """Grenzmaße gegen den Bezug `ausgang` — seit F4 der Bestwert des Laufs (bestwerte()), nicht der Ausgang allein.
+     F4-Regel: ohne Kernmaßgewinn nur Rauschtoleranz; mit Kernmaßgewinn Tauschregel der Verfassung
+     (Vorgabe Laufzeit × 2, Speicher/Bauzeit/Zyklen +25 %). `tausch` z. B. {"laufzeit_faktor": 2,
+@@ -526,7 +526,7 @@ def grenzen_f2(ausgang: dict, kandidat: dict, bereiche: list[str], tausch: dict
+             quelle = f"gemessene Rauschtoleranz {b_lf:.2f}" if gemessen else f"Rückfallwert {RAUSCH_F4} (keine Rauschmessung)"
+         lz_a = ((laufzeit_bezug or {}).get("bereiche", {}).get(b) or {}) if laufzeit_bezug else a
+         lz_name = f"Vorgeneration gepaart, Median aus {laufzeit_bezug.get('_paar_n')}" if laufzeit_bezug else bezug
+-        if laufzeit_pruefen and b not in gesperrt and lz_a.get("laufzeit_ms") and k.get("laufzeit_ms"):
++        if laufzeit_pruefen and b not in gesperrt and b not in laufzeit_ausnehmen and lz_a.get("laufzeit_ms") and k.get("laufzeit_ms"):
+             faktor = b_lf_s if b in sicherheit_gesunken else b_lf
+             grenze = lz_a["laufzeit_ms"] * faktor
+             if k["laufzeit_ms"] > grenze:
+@@ -549,8 +549,10 @@ def grenzen_f2(ausgang: dict, kandidat: dict, bereiche: list[str], tausch: dict
+ 
+ 
+ def urteil_f2(basis: dict, kandidat: dict, ausgang: dict, bereiche: list[str], wirkungskreis: list[str],
+-              tausch: dict | None = None, nische: str | None = None, laufzeit_pruefen: bool = True) -> dict:
+-    """Vollständiges Maß-Urteil Fassung 2. Rückgabe mit 'ok', 'zuwachs', 'grund', Belegen."""
++              tausch: dict | None = None, nische: str | None = None, laufzeit_pruefen: bool = True,
++              laufzeit_ausnehmen: list[str] | tuple = ()) -> dict:
++    """Vollständiges Maß-Urteil Fassung 2. Rückgabe mit 'ok', 'zuwachs', 'grund', Belegen.
++    `laufzeit_ausnehmen`: Bereiche, deren Laufzeitriss die gepaarte Nachmessung nicht bestätigt hat (laufzeit_bestaetigen)."""
+     schlechter, besser = pareto_f2(basis, kandidat, bereiche)
+     sich = {b for b in bereiche if kandidat["bereiche"][b]["sicherheit_punkte"] < basis["bereiche"][b]["sicherheit_punkte"]}
+     k0, k1 = kernmass_f2(basis), kernmass_f2(kandidat)
+@@ -559,7 +561,7 @@ def urteil_f2(basis: dict, kandidat: dict, ausgang: dict, bereiche: list[str], w
+     gerissen = grenzen_f2(ausgang, kandidat, bereiche, tausch, sich, kernmassgewinn=(k1 - k0) > 0,
+                          rauschtoleranz=(tausch or {}).get("_rauschtoleranz"),
+                          laufzeit_bezug=({"_paar_n": gepaart.get("n"), "bereiche": basis["bereiche"]} if gepaart else None),
+-                         laufzeit_pruefen=laufzeit_pruefen)
++                         laufzeit_pruefen=laufzeit_pruefen, laufzeit_ausnehmen=laufzeit_ausnehmen)
+     r = {"kern_basis": k0, "kern_kandidat": k1, "zuwachs": k1 - k0, "pareto_schlechter": schlechter,
+          "pareto_besser": besser, "grenzen_gerissen": gerissen, "sicherheit_gesunken_in": sorted(sich),
+          "laufzeit_bezug": (f"gepaart, Median aus {gepaart.get('n')} je Seite" if gepaart
+@@ -659,7 +661,12 @@ def laufzeit_gepaart(werk: Path, bereiche: list[str], paket: str, referenzlast:
+     """Grundsatz 14: Vorgeneration und Kandidat abwechselnd (B K, K B, B K …) in derselben Sitzung, je Seite `n`
+     Messungen, Median je Seite. Scheitert eine Messung, ist das ein Messgerätausfall (`gueltig` False, `seite`) —
+     keine Aussage über den Kandidaten; beide Seiten wurden unmittelbar davor schon gültig gemessen.
+-    Rückgabe {"gueltig", "n", "bereiche": {b: {"basis", "kandidat", "basis_werte", "kandidat_werte"}}, "grund", "seite"}."""
++    Rückgabe {"gueltig", "n", "bereiche": {b: {"basis", "kandidat", "basis_werte", "kandidat_werte"}}, "grund", "seite"}.
++    Behebungsrunde 2 vor T4: Fehlt in einer Messung der Wert eines angeforderten Bereichs (z. B. `last_<b>` wirft am
++    Kandidaten), ist die gepaarte Messung UNGÜLTIG (`seite`, `bereich`) — bisher blieb sie gültig mit `kandidat: None`,
++    und `laufzeit_einsetzen` überging den Bereich still (gemessen an 330b4ec: Python-Kandidat mit Syntaxfehler, 3 von 4
++    Bereichen ohne Wert, `gueltig True`). Bereiche, deren Laufzeit gar nicht geprüft wird (von der Rauschmessung
++    gesperrt), fordert der Aufrufer nicht an."""
+     import time as _time
+     n = n or LAUFZEIT_PAAR
+     t0 = _time.monotonic()
+@@ -672,9 +679,13 @@ def laufzeit_gepaart(werk: Path, bereiche: list[str], paket: str, referenzlast:
+                 return {"gueltig": False, "n": n, "bereiche": {}, "seite": seite,
+                         "grund": f"Laufzeitmessung {seite}, Durchgang {i + 1} von {n}: {r['grund']}"}
+             for b in bereiche:
+-                v = (r["bereiche"].get(b) or {}).get("laufzeit_ms")
+-                if v is not None:
+-                    werte[b][seite].append(float(v))
++                x = r["bereiche"].get(b) or {}
++                v = x.get("laufzeit_ms")
++                if v is None or not isinstance(v, (int, float)) or v != v or v <= 0:
++                    return {"gueltig": False, "n": n, "bereiche": {}, "seite": seite, "bereich": b,
++                            "grund": f"Laufzeitmessung {seite}, Durchgang {i + 1} von {n}: kein Wert für {b} "
++                                     f"({str(x.get('laufzeit_fehler') or 'fehlt')[:300]})"}
++                werte[b][seite].append(float(v))
+     out = {}
+     for b in bereiche:
+         wb, wk = sorted(werte[b]["basis"]), sorted(werte[b]["kandidat"])
+@@ -702,6 +713,52 @@ def laufzeit_einsetzen(basis: dict, kandidat: dict, gepaart: dict) -> tuple[dict
+     return b2, k2
+ 
+ 
++def laufzeitrisse(u: dict) -> list[str]:
++    """Bereiche, deren Laufzeitgrenze im Urteil `u` gerissen ist (aus `grenzen_gerissen`)."""
++    import re as _re
++    return sorted({m.group(1) for g in (u.get("grenzen_gerissen") or []) if (m := _re.match(r"(\w+)\.laufzeit_ms:", g))})
++
++
++def laufzeit_bestaetigen(werk: Path, bereiche: list[str], paket: str, referenzlast: str | None,
++                         dateien_basis: dict | None, dateien_kandidat: dict | None, basis: dict, kandidat: dict,
++                         urteilen, n: int | None = None) -> dict:
++    """Entscheidung Chat-Claude (23.09.2026): Jeder Laufzeitriss wird vor der Ablehnung einmal GEPAART NACHGEMESSEN;
++    nur ein bestätigter Riss lehnt ab. Befund vor T4: K2904 (S2-Behebung, ändert nur `planung`) wurde in 1 von 3
++    Durchgängen an `eingang` ×1,224 abgelehnt, in den beiden anderen ×1,096 und ×1,012 — dieselbe Änderung, verschieden
++    entschieden (Grundsatz 14).
++    `urteilen(basis, kandidat, ausnehmen)` bildet das Urteil (urteil_f2) mit gepaarten Laufzeiten; `ausnehmen` =
++    Bereiche, deren Riss die Nachmessung nicht bestätigt hat. Rückgabe {"urteil", "basis", "kandidat", "nachmessung"}:
++    `nachmessung` None (kein Riss), sonst {"risse", "bestaetigt", "nicht_bestaetigt", "messung"}; ist die Nachmessung
++    selbst ungültig, steht `ungueltig` darin (Messgerätausfall — der Aufrufer stellt zurück, er lehnt nicht ab)."""
++    u = urteilen(basis, kandidat, [])
++    risse = laufzeitrisse(u)
++    if not risse:
++        return {"urteil": u, "basis": basis, "kandidat": kandidat, "nachmessung": None}
++    nm = laufzeit_gepaart(werk, risse, paket, referenzlast, dateien_basis, dateien_kandidat, n=n)
++    if not nm["gueltig"]:
++        return {"urteil": u, "basis": basis, "kandidat": kandidat,
++                "nachmessung": {"risse": risse, "ungueltig": True, "grund": nm["grund"], "messung": nm}}
++    b2, k2 = laufzeit_einsetzen(basis, kandidat, nm)
++    u2 = urteilen(b2, k2, [])
++    bestaetigt = sorted(set(risse) & set(laufzeitrisse(u2)))
++    nicht = sorted(set(risse) - set(bestaetigt))
++    if bestaetigt:
++        # Bestätigt: Ablehnung mit den Werten beider Messungen; nicht bestätigte Risse zählen nicht mit.
++        u3 = urteilen(b2, k2, nicht)
++    else:
++        # Nicht bestätigt: die erste gepaarte Messung bleibt Grundlage des übrigen Urteils (Gewinne, Nischenmaß), nur
++        # die Laufzeitgrenze der nicht bestätigten Bereiche entfällt.
++        b2, k2 = basis, kandidat
++        u3 = urteilen(basis, kandidat, nicht)
++    return {"urteil": u3, "basis": b2, "kandidat": k2,
++            "nachmessung": {"risse": risse, "bestaetigt": bestaetigt, "nicht_bestaetigt": nicht,
++                            "erste": {b: (kandidat["bereiche"][b].get("laufzeit_ms"), basis["bereiche"][b].get("laufzeit_ms"))
++                                      for b in risse},
++                            "zweite": {b: ((nm["bereiche"].get(b) or {}).get("kandidat"), (nm["bereiche"].get(b) or {}).get("basis"))
++                                       for b in risse},
++                            "messung": {k: v for k, v in nm.items() if k != "regel"}}}
++
++
+ def laufzeit_entscheidet(u: dict, nische: str | None) -> bool:
+     """Kann die Laufzeit das Urteil `u` (gebildet mit laufzeit_pruefen=False) noch ändern?
+     Nein, wenn es schon an deterministischen Maßen scheitert (Pareto, Bau, gesperrter Wirkungskreis, ein anderes
+diff --git a/biotop/kern/py/verhalten.py b/biotop/kern/py/verhalten.py
+new file mode 100644
+index 0000000..6e46eb1
+--- /dev/null
++++ b/biotop/kern/py/verhalten.py
+@@ -0,0 +1,701 @@
++"""Verhaltenssonde für Python-Werke (T4, Grundsatz 11). Läuft in der netzlosen Kammer (cwd /werk):
++    python _messgeraet/verhalten.py _messgeraet/anfrage.json
++Gegenstück zu kern/ts/verhalten.mjs + verhalten-runner.mjs, im selben Umfang:
++- Jede öffentliche Funktion (Modulebene, Name ohne '_') der geänderten Module wird eingewickelt, auch dort, wo andere
++  Module des Pakets sie schon gebunden haben (Re-Export, `from … import`). Dann läuft die Referenzlast
++  (`beobachten()`, `last_<bereich>()`). Je Funktion werden die ersten KAPPE äußeren Aufrufe beobachtet (Folge #0…#7),
++  jeder in vier Mustern: der Aufruf selbst; @alias (dieselben Referenzen sofort noch einmal); @mutation (Zahlenblätter
++  der Eingaben an Ort und Stelle geändert — gleiche Referenzen, gleiche Längen); @nach_ruecksetzung (zurückgesetzt,
++  erneut). Vor jedem Zusatzaufruf wird der Zustand der Eingaben festgehalten und danach wiederhergestellt.
++- Randfall-Korpus (~rand#i) aus der deklarierten Signatur (Typannotationen) der Vorgeneration und beobachteten
++  Beispielen; Formvarianten (~form#j) derselben Eingaben (Weißraum, Groß/Klein, Zahlform, Zahltyp, Behälter,
++  Schlüsselfolge) — die Weißraumlücke aus T3 (K2868) zeigt, dass Randwerte allein nicht reichen.
++- Modus 'deckung': führt Tests (pytest) mit Aufzeichnern aus und hält je Test jeden Aufruf fest (Funktion, kanonische
++  Argumente, Identität und Inhalt veränderlicher Argumente) — Grundlage der Deckung je Abweichung.
++Ausgabe: eine Zeile @@VV@@<json>@@ENDE@@ auf stdout."""
++import ast
++import dataclasses
++import enum
++import hashlib
++import importlib
++import inspect
++import json
++import math
++import os
++import re
++import sys
++import traceback
++import types
++
++REQ = {}
++KAPPE, RAND_KAPPE, FORM_KAPPE = 8, 16, 16
++beob, argtext, zaehler, zaehler_rand, zaehler_form, beispiele = {}, {}, {}, {}, {}, {}
++aufrufe = []
++AKTUELL = ['']
++TIEFE = [0]
++_FEHLT = object()
++
++
++# ---------------------------------------------------------------- kanonische Form (Vergleich beider Stände)
++def kan(x, anc=None, t=0):
++    anc = set() if anc is None else anc
++    if x is None or isinstance(x, (bool, str, int)):
++        return x
++    if isinstance(x, float):
++        if math.isnan(x):
++            return '__NaN'
++        if math.isinf(x):
++            return '__Inf' if x > 0 else '__-Inf'
++        return '__-0' if x == 0 and math.copysign(1, x) < 0 else x
++    if isinstance(x, (bytes, bytearray)):
++        return {'__bytes': x.hex()[:400], 'typ': type(x).__name__}
++    if isinstance(x, enum.Enum):
++        return {'__enum': type(x).__qualname__ + '.' + x.name}
++    if id(x) in anc:
++        return '__zyklus'
++    if t > 12:
++        return '__tief'
++    anc.add(id(x))
++    try:
++        if isinstance(x, list):
++            return [kan(v, anc, t + 1) for v in x]
++        if isinstance(x, tuple):
++            r = {'__tupel': [kan(v, anc, t + 1) for v in x]}
++            if type(x) is not tuple:
++                r['typ'] = type(x).__qualname__
++            return r
++        if isinstance(x, dict):
++            if all(isinstance(k, str) for k in x):
++                return {'__dict': {k: kan(v, anc, t + 1) for k, v in x.items()}}
++            paare = [[kan(k, anc, t + 1), kan(v, anc, t + 1)] for k, v in x.items()]
++            return {'__dictk': sorted(paare, key=lambda p: json.dumps(p[0], sort_keys=True, default=str))}
++        if isinstance(x, (set, frozenset)):
++            return {'__set': sorted((kan(v, anc, t + 1) for v in x), key=lambda v: json.dumps(v, sort_keys=True, default=str))}
++        if isinstance(x, BaseException):
++            return {'__fehler': type(x).__name__, 'meldung': str(x)[:200]}
++        if isinstance(x, (types.FunctionType, types.BuiltinFunctionType, types.MethodType, type, types.ModuleType)):
++            return '__fn'
++        if dataclasses.is_dataclass(x):
++            return {'__klasse': type(x).__qualname__,
++                    'felder': {f.name: kan(getattr(x, f.name, None), anc, t + 1) for f in dataclasses.fields(x)}}
++        if hasattr(x, '__dict__'):
++            return {'__klasse': type(x).__qualname__, 'felder': {k: kan(v, anc, t + 1) for k, v in sorted(vars(x).items())}}
++        if hasattr(type(x), '__slots__'):
++            return {'__klasse': type(x).__qualname__,
++                    'felder': {s: kan(getattr(x, s, None), anc, t + 1) for s in getattr(type(x), '__slots__', ())}}
++        return {'__objekt': type(x).__qualname__, 'repr': repr(x)[:200]}
++    finally:
++        anc.discard(id(x))
++
++
++def text_von(x):
++    return json.dumps(kan(x), sort_keys=True, ensure_ascii=False, default=str)
++
++
++def eingabe_text(args, kwargs):
++    try:
++        return knapp(text_von([list(args), kwargs]))
++    except Exception:  # noqa: BLE001
++        return '__unkanonisch'
++
++
++def knapp(t):
++    if len(t) <= 200:
++        return t
++    return t[:120] + '…#' + hashlib.sha256(t.encode('utf-8', 'surrogatepass')).hexdigest()[:16]
++
++
++def wert(f):
++    try:
++        v = f()
++    except BaseException as e:  # noqa: B902 — jede Ausnahme ist ein beobachtetes Verhalten
++        return {'text': 'Fehler:' + type(e).__name__, 'fehler': e}
++    if inspect.isgenerator(v) or inspect.iscoroutine(v) or inspect.isasyncgen(v) or (
++            hasattr(v, '__next__') and not isinstance(v, (str, bytes, list, tuple, dict, set))):
++        return {'text': '__iterator', 'roh': v}
++    try:
++        return {'text': text_von(v), 'roh': v}
++    except Exception as e:  # noqa: BLE001
++        return {'text': '__unkanonisch:' + type(e).__name__, 'roh': v}
++
++
++# ---------------------------------------------------------------- Zustand der Eingaben
++def _instanz(x):
++    return hasattr(x, '__dict__') and not isinstance(
++        x, (type, types.ModuleType, types.FunctionType, types.MethodType, types.BuiltinFunctionType, enum.Enum))
++
++
++def _veraenderlich(v):
++    return isinstance(v, (list, dict, set, bytearray)) or _instanz(v)
++
++
++def _zahl(v):
++    return isinstance(v, (int, float)) and not isinstance(v, bool) and (not isinstance(v, float) or math.isfinite(v))
++
++
++def schnappschuss(werte):
++    log, seen = [], set()
++
++    def geh(x, t):
++        if t > 4 or id(x) in seen:
++            return
++        if isinstance(x, list):
++            seen.add(id(x)); log.append((x, list(x), 'list'))
++            for v in x:
++                geh(v, t + 1)
++        elif isinstance(x, dict):
++            seen.add(id(x)); log.append((x, dict(x), 'dict'))
++            for v in list(x.values()):
++                geh(v, t + 1)
++        elif isinstance(x, set):
++            seen.add(id(x)); log.append((x, set(x), 'set'))
++        elif isinstance(x, tuple):
++            for v in x:
++                geh(v, t + 1)
++        elif _instanz(x):
++            seen.add(id(x)); log.append((x, dict(vars(x)), 'obj'))
++            for v in list(vars(x).values()):
++                geh(v, t + 1)
++    for a in werte:
++        geh(a, 0)
++    return log
++
++
++def zuruecksetzen(log):
++    for o, kopie, art in log:
++        try:
++            if art == 'list':
++                o[:] = kopie
++            elif art in ('dict', 'set'):
++                o.clear(); o.update(kopie)
++            else:
++                d = vars(o); d.clear(); d.update(kopie)
++        except Exception:  # noqa: BLE001 — eingefroren oder schreibgeschützt: bleibt, wie es ist
++            pass
++
++
++def mutieren(werte):
++    """Zahlenblätter an Ort und Stelle ändern — gleiche Referenzen, gleiche Längen. Rückgabe: Anzahl."""
++    n, seen = 0, set()
++
++    def geh(x, t):
++        nonlocal n
++        if t > 4 or id(x) in seen:
++            return
++        if isinstance(x, list):
++            seen.add(id(x))
++            for i, v in enumerate(x):
++                if _zahl(v):
++                    x[i] = v * 10 + 7; n += 1
++                else:
++                    geh(v, t + 1)
++        elif isinstance(x, dict):
++            seen.add(id(x))
++            for k in list(x):
++                v = x[k]
++                if _zahl(v):
++                    x[k] = v * 10 + 7; n += 1
++                else:
++                    geh(v, t + 1)
++        elif isinstance(x, tuple):
++            for v in x:
++                geh(v, t + 1)
++        elif _instanz(x):
++            seen.add(id(x))
++            for k, v in list(vars(x).items()):
++                if _zahl(v):
++                    try:
++                        setattr(x, k, v * 10 + 7); n += 1
++                    except Exception:  # noqa: BLE001
++                        pass
++                else:
++                    geh(v, t + 1)
++    for a in werte:
++        geh(a, 0)
++    return n
++
++
++def muster(schl, args, kwargs, call):
++    """Ein Aufruf mit den vier Mustern. Rückgabe: das Ergebnis des echten Aufrufs ({roh} oder {fehler})."""
++    TIEFE[0] += 1
++    try:
++        def bei_aufruf(k):          # Eingabe je Aufrufmuster, unmittelbar vor dem Aufruf (Deckung je Abweichung)
++            argtext[k] = eingabe_text(args, kwargs)
++        bei_aufruf(schl)
++        erst = wert(lambda: call(*args, **kwargs))
++        beob[schl] = knapp(erst['text'])
++        werte = list(args) + list(kwargs.values())
++        stand = schnappschuss(werte)
++        bei_aufruf(schl + '@alias')
++        beob[schl + '@alias'] = knapp(wert(lambda: call(*args, **kwargs))['text'])
++        zuruecksetzen(stand)
++        if mutieren(werte) > 0:
++            bei_aufruf(schl + '@mutation')
++            beob[schl + '@mutation'] = knapp(wert(lambda: call(*args, **kwargs))['text'])
++            zuruecksetzen(stand)
++            bei_aufruf(schl + '@nach_ruecksetzung')
++            beob[schl + '@nach_ruecksetzung'] = knapp(wert(lambda: call(*args, **kwargs))['text'])
++            zuruecksetzen(stand)
++        return erst
++    finally:
++        TIEFE[0] -= 1
++
++
++# ---------------------------------------------------------------- Einwickeln
++def _metadaten(w, orig):
++    for a in ('__name__', '__qualname__', '__doc__', '__module__'):
++        try:
++            setattr(w, a, getattr(orig, a))
++        except Exception:  # noqa: BLE001
++            pass
++    w.__wrapped__ = orig
++    return w
++
++
++def wickeln(name, orig):
++    def w(*args, **kwargs):
++        if TIEFE[0] > 0:
++            return orig(*args, **kwargs)
++        i = zaehler[name] = zaehler.get(name, -1) + 1
++        if i == 0 and name not in beispiele:
++            try:
++                beispiele[name] = [[pack(a) for a in args], {k: pack(v) for k, v in kwargs.items()}]
++            except Exception:  # noqa: BLE001 — nicht packbar: ohne Beispiel
++                beispiele[name] = None
++        if i >= KAPPE:
++            return orig(*args, **kwargs)
++        erst = muster(f'{name}#{i}', args, kwargs, orig)
++        if 'fehler' in erst:
++            raise erst['fehler']
++        return erst['roh']
++    return _metadaten(w, orig)
++
++
++_GESEHEN = set()
++ZUSTAND = {}
++
++
++def deck_wickeln(name, orig):
++    """Aufzeichner der deckenden Tests: je Aufruf Test, Funktion, Eingabe (vor dem Aufruf) und Ergebnis — genau so
++    geschrieben, wie die Sonde Beobachtungen schreibt (wert/knapp). Ausnahmen gehen unverändert an den Test."""
++    def w(*args, **kwargs):
++        eintrag = {'test': AKTUELL[0], 'f': name, 'args': eingabe_text(args, kwargs), 'erg': None}
++
++        def merken():
++            s = json.dumps(eintrag, sort_keys=True)
++            if s not in _GESEHEN:
++                _GESEHEN.add(s)
++                aufrufe.append(eintrag)
++        try:
++            v = orig(*args, **kwargs)
++        except BaseException as e:  # noqa: B902
++            eintrag['erg'] = 'Fehler:' + type(e).__name__
++            merken()
++            raise
++        try:
++            eintrag['erg'] = knapp(text_von(v)) if not (inspect.isgenerator(v) or inspect.iscoroutine(v)) else '__iterator'
++        except Exception:  # noqa: BLE001
++            eintrag['erg'] = '__unkanonisch'
++        merken()
++        return v
++    return _metadaten(w, orig)
++
++
++def alle_wickeln(module, fabrik):
++    eingewickelt, nicht, ersatz = {}, {}, {}
++    for m in module:
++        mod = sys.modules[m]
++        namen = []
++        for name, obj in list(vars(mod).items()):
++            if name.startswith('_') or not inspect.isfunction(obj) or obj.__module__ != mod.__name__:
++                continue
++            w = fabrik(f'{m}:{name}', obj)
++            setattr(mod, name, w)
++            ersatz[id(obj)] = (obj, w)
++            namen.append(name)
++        eingewickelt[m] = sorted(namen)
++        andere = sorted(n for n, o in vars(mod).items() if not n.startswith('_') and inspect.isclass(o)
++                        and o.__module__ == mod.__name__)
++        if andere:
++            nicht[m] = ['class ' + n for n in andere]
++    wurzeln = {m.split('.')[0] for m in module}
++    for mn, mod in list(sys.modules.items()):
++        if mod is None or mn.split('.')[0] not in wurzeln:
++            continue
++        for name, obj in list(vars(mod).items()):
++            if id(obj) in ersatz and ersatz[id(obj)][0] is obj:
++                try:
++                    setattr(mod, name, ersatz[id(obj)][1])
++                except Exception:  # noqa: BLE001
++                    pass
++    return eingewickelt, nicht
++
++
++def signaturen_lesen(mod):
++    """Öffentliche Funktionen der Modulebene → Liste der Annotationen ihrer positionalen Parameter (Quelltext)."""
++    out = {}
++    try:
++        baum = ast.parse(inspect.getsource(mod))
++    except Exception:  # noqa: BLE001
++        return out
++    for k in baum.body:
++        if isinstance(k, (ast.FunctionDef, ast.AsyncFunctionDef)) and not k.name.startswith('_'):
++            if any(d is None for d in k.args.kw_defaults):
++                continue            # Pflicht-Schlüsselwortparameter: keine positionalen Randfälle
++            params = list(k.args.posonlyargs) + list(k.args.args)
++            out[k.name] = [ast.unparse(p.annotation) if p.annotation is not None else '' for p in params]
++    return out
++
++
++# ---------------------------------------------------------------- Beispiele packen (reisen über den Wirt zur zweiten Kammer)
++def pack(x, t=0):
++    if t > 6:
++        raise ValueError('zu tief')
++    if x is None or isinstance(x, (bool, str, int)):
++        return x
++    if isinstance(x, float):
++        return x if math.isfinite(x) else {'__num': repr(x)}
++    if isinstance(x, list):
++        return [pack(v, t + 1) for v in x[:20]]
++    if isinstance(x, tuple) and type(x) is tuple:
++        return {'__tupel': [pack(v, t + 1) for v in x[:20]]}
++    if isinstance(x, (set, frozenset)):
++        return {'__set': [pack(v, t + 1) for v in list(x)[:20]], 'fest': isinstance(x, frozenset)}
++    if isinstance(x, dict):
++        return {'__dict': [[pack(k, t + 1), pack(v, t + 1)] for k, v in list(x.items())[:20]]}
++    if isinstance(x, enum.Enum):
++        return {'__enum': f'{type(x).__module__}:{type(x).__qualname__}', 'n': x.name}
++    if dataclasses.is_dataclass(x) and not isinstance(x, type) and all(f.init for f in dataclasses.fields(x)):
++        return {'__dc': f'{type(x).__module__}:{type(x).__qualname__}',
++                'f': {f.name: pack(getattr(x, f.name), t + 1) for f in dataclasses.fields(x)}}
++    raise ValueError('nicht packbar: ' + type(x).__name__)
++
++
++def _klasse(pfad):
++    modul, _, qual = pfad.partition(':')
++    obj = importlib.import_module(modul)
++    for teil in qual.split('.'):
++        obj = getattr(obj, teil)
++    return obj
++
++
++def unpack(x):
++    if isinstance(x, list):
++        return [unpack(v) for v in x]
++    if not isinstance(x, dict):
++        return x
++    if '__tupel' in x:
++        return tuple(unpack(v) for v in x['__tupel'])
++    if '__set' in x:
++        s = {unpack(v) for v in x['__set']}
++        return frozenset(s) if x.get('fest') else s
++    if '__dict' in x:
++        return {unpack(k): unpack(v) for k, v in x['__dict']}
++    if '__num' in x:
++        return float(x['__num'])
++    if '__enum' in x:
++        return _klasse(x['__enum'])[x['n']]
++    if '__dc' in x:
++        return _klasse(x['__dc'])(**{k: unpack(v) for k, v in x['f'].items()})
++    return x
++
++
++def _blaetter(p, f):
++    if isinstance(p, list):
++        return [_blaetter(v, f) for v in p]
++    if isinstance(p, dict):
++        if '__tupel' in p:
++            return {**p, '__tupel': [_blaetter(v, f) for v in p['__tupel']]}
++        if '__set' in p:
++            return {**p, '__set': [_blaetter(v, f) for v in p['__set']]}
++        if '__dict' in p:
++            return {'__dict': [[k, _blaetter(v, f)] for k, v in p['__dict']]}
++        if '__dc' in p:
++            return {'__dc': p['__dc'], 'f': {k: _blaetter(v, f) for k, v in p['f'].items()}}
++        return p
++    return f(p)
++
++
++def schrumpfen(p):
++    """leer, einzeln, doppelt, Grenzwerte — aus einem beobachteten (gepackten) Wert."""
++    out = [p]
++    if isinstance(p, list):
++        out.append([])
++        if p:
++            out += [[p[0]], [p[0], p[0]], [_blaetter(p[0], lambda v: 0 if _zahl(v) else ('' if isinstance(v, str) else v))]]
++    elif isinstance(p, dict) and ('__dc' in p or '__dict' in p or '__tupel' in p):
++        out += [_blaetter(p, lambda v: (0.0 if isinstance(v, float) else 0) if _zahl(v) else v),
++                _blaetter(p, lambda v: '' if isinstance(v, str) else v),
++                _blaetter(p, lambda v: (-1.0 if isinstance(v, float) else -1) if _zahl(v) else v)]
++    elif isinstance(p, bool):
++        out.append(not p)
++    elif isinstance(p, float):
++        out += [0.0, -1.0, 1.0]
++    elif isinstance(p, int):
++        out += [0, -1, 1]
++    elif isinstance(p, str):
++        out += ['', ' ']
++    return out
++
++
++def teilen(t, zeichen):
++    teile, tiefe, start = [], 0, 0
++    for i, c in enumerate(t):
++        if c in '[(':
++            tiefe += 1
++        elif c in '])':
++            tiefe -= 1
++        elif c == zeichen and tiefe == 0:
++            teile.append(t[start:i].strip()); start = i + 1
++    teile.append(t[start:].strip())
++    return [x for x in teile if x]
++
++
++def _elemente(b):
++    if isinstance(b, list):
++        return b
++    if isinstance(b, dict) and '__tupel' in b:
++        return b['__tupel']
++    if isinstance(b, dict) and '__set' in b:
++        return b['__set']
++    return None
++
++
++def typ_kandidaten(t, b, stufe=0):
++    t = (t or '').strip().strip('"\'')
++    t = re.sub(r'^(?:typing|t|collections\.abc)\.', '', t)
++    if not t or stufe > 3:
++        return schrumpfen(b) if b is not None else []
++    m = re.fullmatch(r'Optional\[(.+)\]', t)
++    teile = [m.group(1), 'None'] if m else teilen(t, '|')
++    m = re.fullmatch(r'Union\[(.+)\]', t)
++    if m:
++        teile = teilen(m.group(1), ',')
++    if len(teile) > 1:
++        ohne = [s for s in teile if s not in ('None', 'NoneType')]
++        rest = [v for s in ohne for v in typ_kandidaten(s, b, stufe + 1)][:6]
++        return rest + ([None] if len(ohne) < len(teile) else [])
++    m = re.fullmatch(r'Literal\[(.+)\]', t)
++    if m:
++        out = []
++        for s in teilen(m.group(1), ','):
++            try:
++                out.append(ast.literal_eval(s))
++            except Exception:  # noqa: BLE001
++                pass
++        return [v for v in out if v is None or isinstance(v, (str, int, float, bool))]
++    if t == 'int':
++        return [0, 1, -1, 2, 100]
++    if t == 'float':
++        return [0.0, 1.0, -1.0, 0.5, 100.0]
++    if t == 'bool':
++        return [False, True]
++    if t == 'str':
++        return ['', 'a', ' ', 'Ä-1', 'x' * 40]
++    if t in ('None', 'NoneType'):
++        return [None]
++    m = re.fullmatch(r'(list|List|Sequence|MutableSequence|Iterable|Collection|set|Set|frozenset|FrozenSet|tuple|Tuple)\[(.+)\]', t)
++    if m:
++        art, innen = m.group(1).lower(), m.group(2)
++        glieder = teilen(innen, ',')
++        if art == 'tuple' and not (len(glieder) == 2 and glieder[1] == '...'):
++            eb = _elemente(b) or []
++            kand = [typ_kandidaten(g, eb[i] if i < len(eb) else None, stufe + 1) or [None] for i, g in enumerate(glieder)]
++            grund = [k[0] for k in kand]
++            return [{'__tupel': grund}] + [{'__tupel': grund[:i] + [v] + grund[i + 1:]} for i, k in enumerate(kand) for v in k[1:3]]
++        if art == 'tuple':
++            innen = glieder[0]
++        elemente = _elemente(b)
++        eb = elemente[0] if elemente else None
++        e = typ_kandidaten(innen, eb, stufe + 1)
++        if not e and eb is not None:
++            e = schrumpfen(eb)
++        listen = [[]]
++        if e:
++            listen += [[e[0]], [e[0], e[0]]] + [[v] for v in e[1:4]]
++            if len(e) >= 3:
++                listen.append([e[0], e[1], e[2]])
++        if elemente:
++            listen.append(elemente[:20])
++        if art == 'tuple':
++            return [{'__tupel': l} for l in listen]
++        if art in ('set', 'frozenset'):
++            return [{'__set': l, 'fest': art == 'frozenset'} for l in listen]
++        return listen
++    m = re.fullmatch(r'(dict|Dict|Mapping|MutableMapping)\[(.+)\]', t)
++    if m:
++        out = [{'__dict': []}]
++        if isinstance(b, dict) and '__dict' in b:
++            out += [b, {'__dict': b['__dict'][:1]}]
++        return out
++    return schrumpfen(b) if b is not None else []
++
++
++def _eindeutig(listen, kappe):
++    gesehen, out = set(), []
++    for l in listen:
++        s = json.dumps(l, sort_keys=True, default=str)
++        if s not in gesehen:
++            gesehen.add(s); out.append(l)
++    return out[:kappe]
++
++
++def argumentlisten(typen, beispiel):
++    if not typen:
++        return [[]]
++    k = []
++    for j, typ in enumerate(typen):
++        b = beispiel[j] if beispiel and j < len(beispiel) else None
++        c = typ_kandidaten(typ, b)
++        if b is not None:
++            c = [b] + c
++        if not c:
++            c = [None, []]
++        k.append(_eindeutig(c, 64))
++    grund = [c[0] for c in k]
++    listen = [grund] + [grund[:j] + [v] + grund[j + 1:] for j in range(len(k)) for v in k[j][1:]]
++    return _eindeutig(listen, RAND_KAPPE)
++
++
++def _text_formen(s):
++    out = []
++    if ' ' in s:
++        out += [s.replace(' ', r) for r in ('\t', '\n', '  ', '\r\n', '\u00a0')]
++    out += [' ' + s, s + ' ', '\t' + s + '\n']
++    if s.upper() != s:
++        out.append(s.upper())
++    if s.lower() != s:
++        out.append(s.lower())
++    m = re.search(r'\d+(?:\.\d+)?', s)
++    if m:
++        z, a, e = m.group(0), s[:m.start()], s[m.end():]
++        out += [a + '0' + z + e, a + z + ('0' if '.' in z else '.0') + e]
++    return out
++
++
++def form_werte(p):
++    """Dieselbe Eingabe in anderer Form (Weißraum, Groß/Klein, Zahlform im Text, Zahltyp, Behälter, Schlüsselfolge)."""
++    out = []
++    if isinstance(p, str) and p:
++        out += _text_formen(p)
++    elif isinstance(p, bool) or p is None:
++        pass
++    elif isinstance(p, int):
++        out.append(float(p))
++    elif isinstance(p, float) and p.is_integer() and abs(p) < 2 ** 53:
++        out.append(int(p))
++    elif isinstance(p, list):
++        out.append({'__tupel': p})
++    elif isinstance(p, dict) and ('__dict' in p or '__dc' in p):
++        if '__dict' in p and len(p['__dict']) > 1:
++            out.append({'__dict': list(reversed(p['__dict']))})
++        felder = p['__dict'] if '__dict' in p else list(p['f'].items())
++        n = 0
++        for i, (k, v) in enumerate(felder):
++            if isinstance(v, str) and v and n < 2:
++                n += 1
++                for w in _text_formen(v)[:6]:
++                    if '__dict' in p:
++                        d = [list(x) for x in p['__dict']]; d[i] = [k, w]; out.append({'__dict': d})
++                    else:
++                        out.append({'__dc': p['__dc'], 'f': {**p['f'], k: w}})
++    return [v for v in out if json.dumps(v, sort_keys=True, default=str) != json.dumps(p, sort_keys=True, default=str)]
++
++
++def formvarianten(grund):
++    listen = []
++    for j, p in enumerate(grund):
++        for v in form_werte(p):
++            listen.append(grund[:j] + [v] + grund[j + 1:])
++    return _eindeutig(listen, FORM_KAPPE)
++
++
++# ---------------------------------------------------------------- Ablauf
++def korpus_randfaelle(module, signaturen):
++    quelle = REQ.get('beispiele') if REQ.get('beispiele') is not None else beispiele
++    for m in module:
++        mod = sys.modules[m]
++        for f, typen in (signaturen.get(m) or {}).items():
++            fn = getattr(mod, f, None)
++            if not callable(fn):
++                continue                      # vom Kandidaten entfernt: Python weist das getrennt aus
++            name = f'{m}:{f}'
++            bsp = (quelle or {}).get(name)
++            listen = argumentlisten(typen or [], bsp[0] if isinstance(bsp, list) and bsp else None)
++            for art, ls, zz in (('rand', listen, zaehler_rand), ('form', formvarianten(listen[0] if listen else []), zaehler_form)):
++                for i, liste in enumerate(ls):
++                    try:
++                        args = [unpack(v) for v in liste]
++                    except Exception:  # noqa: BLE001 — Beispiel am Kandidaten nicht herstellbar
++                        continue
++                    erst = muster(f'{name}~{art}#{i}', args, {}, fn)
++                    if 'fehler' not in erst:
++                        zz[name] = zz.get(name, 0) + 1
++
++
++def main():
++    global KAPPE, RAND_KAPPE, FORM_KAPPE
++    REQ.clear()
++    REQ.update(json.load(open(sys.argv[1], encoding='utf-8')))
++    KAPPE, RAND_KAPPE, FORM_KAPPE = REQ.get('kappe') or 8, REQ.get('rand_kappe') or 16, REQ.get('form_kappe') or 16
++    if '/werk' not in sys.path:
++        sys.path.insert(0, '/werk')
++    modus = REQ.get('modus', 'beobachten')
++    module = REQ.get('module') or []
++    try:
++        for m in module:
++            importlib.import_module(m)
++    except BaseException as e:  # noqa: B902
++        return {'gueltig': False, 'art': 'inhalt',
++                'grund': 'Modul lädt nicht: ' + ''.join(traceback.format_exception_only(type(e), e))[-1500:]}
++    signaturen = REQ.get('signaturen') or {m: signaturen_lesen(sys.modules[m]) for m in module}
++    if modus == 'deckung':
++        eingewickelt, _ = alle_wickeln(module, deck_wickeln)
++        import pytest
++
++        class Plugin:
++            def pytest_runtest_setup(self, item):
++                datei, _, rest = item.nodeid.partition('::')
++                AKTUELL[0] = os.path.basename(datei) + '::' + rest
++
++            def pytest_runtest_logreport(self, report):
++                datei, _, rest = report.nodeid.partition('::')
++                tid = os.path.basename(datei) + '::' + rest
++                if report.when == 'call' or report.outcome != 'passed':
++                    ZUSTAND[tid] = 'pass' if report.outcome == 'passed' and ZUSTAND.get(tid, 'pass') == 'pass' else 'fail'
++        rc = pytest.main(['-q', '-p', 'no:cacheprovider', '--tb=no', *(REQ.get('testdateien') or [])], plugins=[Plugin()])
++        ueberlauf = len(aufrufe) > 20000        # laut statt abgeschnitten
++        return {'gueltig': int(rc) in (0, 1) and not ueberlauf, 'rc': int(rc), 'aufrufe': [] if ueberlauf else aufrufe,
++                'zustand': ZUSTAND, 'ueberlauf': ueberlauf, 'eingewickelt': eingewickelt,
++                'grund': 'Aufzeichnung über 20000 eindeutige Aufrufe — verworfen, nicht abgeschnitten' if ueberlauf else ''}
++    eingewickelt, nicht = alle_wickeln(module, wickeln)
++    ns = {}
++    try:
++        with open('_messgeraet/referenzlast.py', encoding='utf-8') as f:
++            exec(compile(f.read(), '_messgeraet/referenzlast.py', 'exec'), ns)
++    except BaseException as e:  # noqa: B902
++        return {'gueltig': False, 'art': 'infrastruktur', 'grund': 'Referenzlast nicht ladbar: ' + repr(e)[:500]}
++    korpus = [k for k in ['beobachten'] + ['last_' + b for b in REQ.get('bereiche') or []] if callable(ns.get(k))]
++    for k in korpus:
++        try:
++            ns[k]()
++            beob['korpus:' + k] = 'ok'
++        except BaseException as e:  # noqa: B902
++            beob['korpus:' + k] = 'Fehler:' + type(e).__name__
++    korpus_randfaelle(module, signaturen)
++    if module:
++        korpus += ['randfaelle', 'formvarianten']
++    out = {'gueltig': True, 'beobachtungen': beob, 'argumente': argtext, 'korpus': korpus, 'aufgerufen': zaehler,
++           'aufgerufen_rand': zaehler_rand, 'aufgerufen_form': zaehler_form, 'kappe': KAPPE, 'rand_kappe': RAND_KAPPE,
++           'form_kappe': FORM_KAPPE, 'signaturen': signaturen, 'eingewickelt': eingewickelt, 'nicht_eingewickelt': nicht}
++    if REQ.get('beispiele') is None:
++        out['beispiele'] = beispiele
++    return out
++
++
++if __name__ == '__main__':
++    try:
++        ergebnis = main()
++    except BaseException as e:  # noqa: B902 — die Sonde selbst ist gescheitert: Messgerätausfall
++        ergebnis = {'gueltig': False, 'art': 'infrastruktur', 'grund': 'Sondenfehler: ' + traceback.format_exc()[-1500:]}
++    sys.stdout.write('\n@@VV@@' + json.dumps(ergebnis, ensure_ascii=False, default=str) + '@@ENDE@@\n')
+diff --git a/biotop/kern/ts/deck-setup.mjs b/biotop/kern/ts/deck-setup.mjs
+new file mode 100644
+index 0000000..9781430
+--- /dev/null
++++ b/biotop/kern/ts/deck-setup.mjs
+@@ -0,0 +1,31 @@
++import {beforeEach, afterAll} from 'vitest';
++import fs from 'node:fs';
++import path from 'node:path';
++import {ergebnisText, fehlerText, eingabeText} from './kanon.mjs';
++const aufrufe = [], gesehen = new Set();
++let aktuell = '';
++// Je Aufruf: Test, Funktion, Eingabe (kanonisch, vor dem Aufruf) und Ergebnis (wie die Sonde es schreibt).
++globalThis.__vvDeck = (name, args, call) => {
++  const eintrag = {test: aktuell, f: name, args: eingabeText(args), erg: null};
++  const merken = () => { const s = JSON.stringify(eintrag); if (!gesehen.has(s)) { gesehen.add(s); aufrufe.push(eintrag); } };
++  try {
++    const v = call(...args);
++    eintrag.erg = ergebnisText(v);
++    merken();
++    return v;
++  } catch (e) {
++    eintrag.erg = fehlerText(e);
++    merken();
++    throw e;
++  }
++};
++beforeEach((ctx) => {
++  const t = ctx.task, namen = [];
++  let s = t.suite;
++  while (s && !('filepath' in s)) { if (s.name) namen.unshift(s.name); s = s.suite; }
++  aktuell = path.basename(t.file?.name ?? t.file?.filepath ?? '') + '::' + [...namen, t.name].join(' > ');
++});
++afterAll(() => {
++  if (aufrufe.length) fs.appendFileSync('/tmp/ts-deck.jsonl', aufrufe.map(a => JSON.stringify(a)).join('\n') + '\n');
++  aufrufe.length = 0;
++});
+diff --git a/biotop/kern/ts/deckung.mjs b/biotop/kern/ts/deckung.mjs
+new file mode 100644
+index 0000000..1a0dce5
+--- /dev/null
++++ b/biotop/kern/ts/deckung.mjs
+@@ -0,0 +1,25 @@
++// Deckung je Abweichung (Grundsatz 11, Entscheidung Chat-Claude 23.09.): die deckenden Tests am Kandidaten mit einem
++// Aufzeichner ausführen. Das Vite-Plugin in vitest.deck.config.mjs wickelt die exportierten Funktionen der geänderten
++// Module ein; deck-setup.mjs hält je Test jeden Aufruf fest (Funktion, kanonische Argumente, Identität und Inhalt
++// der Objektargumente). Die Zuordnung Abweichung → Test macht Python (verhaltensvergleich.deckung_je_abweichung).
++import fs from 'node:fs';
++import path from 'node:path';
++import {lauf} from './testlauf.mjs';
++export function deckung(req) {
++  fs.rmSync('/tmp/ts-deck.jsonl', {force: true});
++  const p = lauf('node', ['/opt/biotop-ts/node_modules/vitest/vitest.mjs', 'run', '--config', '_messgeraet/ts/vitest.deck.config.mjs']);
++  const aufrufe = fs.existsSync('/tmp/ts-deck.jsonl')
++    ? fs.readFileSync('/tmp/ts-deck.jsonl', 'utf8').split('\n').filter(Boolean).map(z => JSON.parse(z)) : [];
++  // Zustand je Test aus demselben Lauf (Nachweis-Reporter): der Wirt verlangt, dass jeder deckende Test auch hier besteht.
++  let zustand = {};
++  try {
++    const n = JSON.parse(fs.readFileSync('/tmp/ts-nachweis.json', 'utf8'));
++    for (const t of n.tests ?? []) zustand[path.basename(t.id.split('::')[0]) + '::' + t.id.split('::').slice(1).join('::')] = t.state;
++  } catch { zustand = null; }
++  const ueberlauf = aufrufe.length > 20000;       // laut statt abgeschnitten
++  return {gueltig: !p.fehler && !p.signal && [0, 1].includes(p.rc) && zustand !== null && !ueberlauf, rc: p.rc,
++          aufrufe: ueberlauf ? [] : aufrufe, zustand: zustand ?? {}, ueberlauf,
++          grund: ueberlauf ? 'Aufzeichnung über 20000 eindeutige Aufrufe — nicht abgeschnitten, sondern verworfen'
++               : zustand === null ? 'Nachweis des Aufzeichnerlaufs fehlt'
++               : p.rc === 0 || p.rc === 1 ? '' : 'Vitest-Abbruch rc=' + p.rc + ' ' + String(p.stderr).slice(-600)};
++}
+diff --git a/biotop/kern/ts/kanon.mjs b/biotop/kern/ts/kanon.mjs
+new file mode 100644
+index 0000000..33edccd
+--- /dev/null
++++ b/biotop/kern/ts/kanon.mjs
+@@ -0,0 +1,44 @@
++// Kanonische Form beobachteter Werte — gemeinsam für die Verhaltenssonde (verhalten-runner.mjs) und den
++// Aufzeichner der deckenden Tests (deck-setup.mjs), damit beide Seiten Argumente gleich schreiben.
++import {createHash} from 'node:crypto';
++
++export function kan(x, anc) {
++  if (x === null) return null;
++  switch (typeof x) {
++    case 'number':
++      if (Number.isNaN(x)) return '__NaN';
++      if (!Number.isFinite(x)) return x > 0 ? '__Inf' : '__-Inf';
++      return Object.is(x, -0) ? '__-0' : x;
++    case 'string': case 'boolean': return x;
++    case 'undefined': return '__undefined';
++    case 'bigint': return '__big:' + x;
++    case 'function': return '__fn';
++    case 'symbol': return '__sym';
++  }
++  if (anc.has(x)) return '__zyklus';
++  anc.add(x);
++  let r;
++  if (Array.isArray(x)) r = x.map(v => kan(v, anc));
++  else if (x instanceof Map) r = {__map: [...x.entries()].map(([k, v]) => [kan(k, anc), kan(v, anc)])};
++  else if (x instanceof Set) r = {__set: [...x.values()].map(v => kan(v, anc))};
++  else if (x instanceof Error) r = {__fehler: x.constructor?.name ?? 'Error', meldung: String(x.message)};
++  else if (x instanceof Date) r = {__datum: x.getTime()};
++  else { r = {}; for (const k of Object.keys(x).sort()) r[k] = kan(x[k], anc); }
++  anc.delete(x);
++  return r;
++}
++
++export function knapp(t) {
++  if (t.length <= 200) return t;
++  return t.slice(0, 120) + '…#' + createHash('sha256').update(t).digest('hex').slice(0, 16);
++}
++
++// Ergebnistext eines Aufrufs — genau wie verhalten-runner.mjs/wert() ihn für die Beobachtung bildet.
++export function ergebnisText(v) {
++  if (v && typeof v.then === 'function') return '__promise';
++  try { return knapp(JSON.stringify(kan(v, new Set()))); } catch { return '__unkanonisch'; }
++}
++export function fehlerText(e) { return 'Fehler:' + (e?.constructor?.name ?? 'unbekannt'); }
++export function eingabeText(args) {
++  try { return knapp(JSON.stringify(kan(args, new Set()))); } catch { return '__unkanonisch'; }
++}
+diff --git a/biotop/kern/ts/main.mjs b/biotop/kern/ts/main.mjs
+index 213e297..d6bcb16 100644
+--- a/biotop/kern/ts/main.mjs
++++ b/biotop/kern/ts/main.mjs
+@@ -9,6 +9,7 @@ import {mutanten} from './mutanten.mjs';
+ import {referenz} from './referenz.mjs';
+ import {messen} from './messen.mjs';
+ import {verhalten} from './verhalten.mjs';
++import {deckung} from './deckung.mjs';
+ 
+ let result;
+ try {
+@@ -26,6 +27,7 @@ try {
+   else if(req.aktion==='ref_laufzeit') result={ergebnis:(({prozess,...r})=>r)(referenz(req.referenzlast,'laufzeit',req.bereiche))};
+   else if(req.aktion==='messen') result={ergebnis:messen(req)};
+   else if(req.aktion==='verhalten') result={ergebnis:verhalten(req)};
++  else if(req.aktion==='deckung') result={ergebnis:deckung(req)};
+   else throw Error('Unbekannte Adapteraktion: '+req.aktion);
+ } catch(e) {result={fehler:e.stack||String(e)};}
+ const text=JSON.stringify(result), sum=createHash('sha256').update(text).digest('hex');
+diff --git a/biotop/kern/ts/verhalten-runner.mjs b/biotop/kern/ts/verhalten-runner.mjs
+index 7f9e2b9..72e3c03 100644
+--- a/biotop/kern/ts/verhalten-runner.mjs
++++ b/biotop/kern/ts/verhalten-runner.mjs
+@@ -10,40 +10,15 @@
+ //   @mutation            Zahlenblätter an Ort und Stelle geändert (gleiche Referenzen, gleiche Längen)
+ //   @nach_ruecksetzung   wieder auf den Zustand nach dem echten Aufruf gesetzt, erneut aufgerufen
+ import fs from 'node:fs';
+-import {createHash} from 'node:crypto';
++import {kan, knapp, eingabeText} from './kanon.mjs';
+ 
+ const req = JSON.parse(fs.readFileSync('/tmp/ts-vv-anfrage.json', 'utf8'));
+ const KAPPE = req.kappe ?? 8;
+ const RAND_KAPPE = req.rand_kappe ?? 16;
+-const beob = {}, zaehler = {}, zaehlerRand = {}, beispiele = {};
++const beob = {}, argtext = {}, zaehler = {}, zaehlerRand = {}, zaehlerForm = {}, beispiele = {};
++const FORM_KAPPE = req.form_kappe ?? 16;
+ let tiefe = 0;
+ 
+-function kan(x, anc) {
+-  if (x === null) return null;
+-  switch (typeof x) {
+-    case 'number':
+-      if (Number.isNaN(x)) return '__NaN';
+-      if (!Number.isFinite(x)) return x > 0 ? '__Inf' : '__-Inf';
+-      return Object.is(x, -0) ? '__-0' : x;
+-    case 'string': case 'boolean': return x;
+-    case 'undefined': return '__undefined';
+-    case 'bigint': return '__big:' + x;
+-    case 'function': return '__fn';
+-    case 'symbol': return '__sym';
+-  }
+-  if (anc.has(x)) return '__zyklus';
+-  anc.add(x);
+-  let r;
+-  if (Array.isArray(x)) r = x.map(v => kan(v, anc));
+-  else if (x instanceof Map) r = {__map: [...x.entries()].map(([k, v]) => [kan(k, anc), kan(v, anc)])};
+-  else if (x instanceof Set) r = {__set: [...x.values()].map(v => kan(v, anc))};
+-  else if (x instanceof Error) r = {__fehler: x.constructor?.name ?? 'Error', meldung: String(x.message)};
+-  else if (x instanceof Date) r = {__datum: x.getTime()};
+-  else { r = {}; for (const k of Object.keys(x).sort()) r[k] = kan(x[k], anc); }
+-  anc.delete(x);
+-  return r;
+-}
+-
+ function wert(f) {
+   try {
+     const v = f();
+@@ -54,11 +29,6 @@ function wert(f) {
+   }
+ }
+ 
+-function knapp(t) {
+-  if (t.length <= 200) return t;
+-  return t.slice(0, 120) + '…#' + createHash('sha256').update(t).digest('hex').slice(0, 16);
+-}
+-
+ function schlicht(x) {
+   return x !== null && typeof x === 'object'
+     && (Array.isArray(x) || Object.getPrototypeOf(x) === Object.prototype || Object.getPrototypeOf(x) === null);
+@@ -111,14 +81,21 @@ function mutieren(args) {
+ function muster(schluessel, args, call) {
+   tiefe++;
+   try {
++    // Eingabe JE AUFRUFMUSTER, unmittelbar vor dem Aufruf (nach Mutation bzw. Rücksetzung) — Grundlage der Deckung je
++    // Abweichung: ein deckender Test muss dieselbe Eingabe mit demselben Ergebnis gerufen haben.
++    const beiAufruf = k => { argtext[k] = eingabeText(args); };
++    beiAufruf(schluessel);
+     const erst = wert(() => call(...args));
+     beob[schluessel] = knapp(erst.text);
+     const stand = schnappschuss(args);
++    beiAufruf(`${schluessel}@alias`);
+     beob[`${schluessel}@alias`] = knapp(wert(() => call(...args)).text);
+     zuruecksetzen(stand);
+     if (mutieren(args) > 0) {
++      beiAufruf(`${schluessel}@mutation`);
+       beob[`${schluessel}@mutation`] = knapp(wert(() => call(...args)).text);
+       zuruecksetzen(stand);
++      beiAufruf(`${schluessel}@nach_ruecksetzung`);
+       beob[`${schluessel}@nach_ruecksetzung`] = knapp(wert(() => call(...args)).text);
+       zuruecksetzen(stand);
+     }
+@@ -232,6 +209,40 @@ function typKandidaten(t, b, stufe = 0) {
+   if (/^-?\d+(\.\d+)?$/.test(t)) return [Number(t)];
+   return b !== undefined ? schrumpfen(b) : [];
+ }
++// Dieselbe Eingabe in anderer Form: Weißraum (Tab, Zeilenumbruch, doppelt, CRLF, NBSP, am Rand), Groß/Klein,
++// Zahlform im Text (führende Null, nachgestellte Null), Schlüsselfolge und Textfelder von Objekten.
++function textFormen(s) {
++  const out = [];
++  if (s.includes(' ')) for (const r of ['\t', '\n', '  ', '\r\n', '\u00a0']) out.push(s.split(' ').join(r));
++  out.push(' ' + s, s + ' ', '\t' + s + '\n');
++  if (s.toUpperCase() !== s) out.push(s.toUpperCase());
++  if (s.toLowerCase() !== s) out.push(s.toLowerCase());
++  const m = s.match(/\d+(?:\.\d+)?/);
++  if (m) { const z = m[0], a = s.slice(0, m.index), e = s.slice(m.index + z.length); out.push(a + '0' + z + e, a + z + (z.includes('.') ? '0' : '.0') + e); }
++  return out;
++}
++function formWerte(p) {
++  const out = [];
++  if (typeof p === 'string' && p.length) out.push(...textFormen(p));
++  else if (p && typeof p === 'object' && '__obj' in p) {
++    const keys = Object.keys(p.__obj);
++    if (keys.length > 1) { const o = {}; for (const k of [...keys].reverse()) o[k] = p.__obj[k]; out.push({__obj: o}); }
++    let n = 0;
++    for (const k of keys) {
++      const v = p.__obj[k];
++      if (typeof v === 'string' && v.length && n < 2) { n++; for (const w of textFormen(v).slice(0, 6)) out.push({__obj: {...p.__obj, [k]: w}}); }
++    }
++  }
++  const s0 = JSON.stringify(p);
++  return out.filter(v => JSON.stringify(v) !== s0 || (p && typeof p === 'object' && '__obj' in p));
++}
++function formvarianten(grund) {
++  const listen = [];
++  grund.forEach((p, j) => { for (const v of formWerte(p)) { const l = grund.slice(); l[j] = v; listen.push(l); } });
++  const gesehen = new Set();
++  return listen.filter(l => { const s = JSON.stringify(l) + '|' + JSON.stringify(l.map(x => x && x.__obj ? Object.keys(x.__obj) : null));
++                              if (gesehen.has(s)) return false; gesehen.add(s); return true; }).slice(0, FORM_KAPPE);
++}
+ function argumentlisten(typen, beispiel) {
+   const k = typen.map((typ, j) => {
+     const b = beispiel ? beispiel[j] : undefined;
+@@ -279,15 +290,20 @@ try {
+       const fn = mod[f];
+       if (typeof fn !== 'function') continue;       // vom Kandidaten entfernt: Python weist das getrennt aus
+       const name = `${m}:${f}`;
+-      argumentlisten(typen ?? [], (quelleBeispiele ?? {})[name] ?? undefined).forEach((liste, i) => {
++      const listen = argumentlisten(typen ?? [], (quelleBeispiele ?? {})[name] ?? undefined);
++      listen.forEach((liste, i) => {
+         const erst = muster(`${name}~rand#${i}`, unpack(liste), (...a) => fn(...a));
+         if (!erst.fehler) zaehlerRand[name] = (zaehlerRand[name] ?? 0) + 1;
+       });
++      formvarianten(listen[0] ?? []).forEach((liste, j) => {
++        const erst = muster(`${name}~form#${j}`, unpack(liste), (...a) => fn(...a));
++        if (!erst.fehler) zaehlerForm[name] = (zaehlerForm[name] ?? 0) + 1;
++      });
+     }
+   }
+-  if (req.module?.length) korpus.push('randfaelle');
+-  out = {gueltig: true, beobachtungen: beob, korpus, aufgerufen: zaehler, aufgerufen_rand: zaehlerRand,
+-         kappe: KAPPE, rand_kappe: RAND_KAPPE, ...(req.beispiele ? {} : {beispiele})};
++  if (req.module?.length) korpus.push('randfaelle', 'formvarianten');
++  out = {gueltig: true, beobachtungen: beob, argumente: argtext, korpus, aufgerufen: zaehler, aufgerufen_rand: zaehlerRand,
++         aufgerufen_form: zaehlerForm, kappe: KAPPE, rand_kappe: RAND_KAPPE, form_kappe: FORM_KAPPE, ...(req.beispiele ? {} : {beispiele})};
+ } catch (e) {
+   // Die Referenzlast lädt die eingewickelten Module; scheitert der Import, ist das ein Befund
+   // über den gebauten Stand (z. B. Laufzeitfehler beim Modulladen), kein totes Messgerät.
+diff --git a/biotop/kern/ts/verhalten.mjs b/biotop/kern/ts/verhalten.mjs
+index 5674046..ee6a3f7 100644
+--- a/biotop/kern/ts/verhalten.mjs
++++ b/biotop/kern/ts/verhalten.mjs
+@@ -64,7 +64,7 @@ export function verhalten(req) {
+     if (e.nicht_eingewickelt.length) nicht_eingewickelt[m] = e.nicht_eingewickelt;
+   }
+   fs.writeFileSync('_biotop_referenz.ts', req.referenzlast);
+-  fs.writeFileSync('/tmp/ts-vv-anfrage.json', JSON.stringify({bereiche: req.bereiche, kappe: req.kappe ?? 8,
++  fs.writeFileSync('/tmp/ts-vv-anfrage.json', JSON.stringify({bereiche: req.bereiche, kappe: req.kappe ?? 8, form_kappe: req.form_kappe ?? 16,
+                                                               module: req.module, signaturen, eingewickelt,
+                                                               beispiele: req.beispiele ?? null}));
+   fs.rmSync('/tmp/ts-vv-ergebnis.json', {force: true});
+diff --git a/biotop/kern/ts/vitest.deck.config.mjs b/biotop/kern/ts/vitest.deck.config.mjs
+new file mode 100644
+index 0000000..d87a785
+--- /dev/null
++++ b/biotop/kern/ts/vitest.deck.config.mjs
+@@ -0,0 +1,30 @@
++import fs from 'node:fs';
++import Nachweis from './reporter.mjs';
++const req = JSON.parse(fs.readFileSync(new URL('./anfrage.json', import.meta.url), 'utf8'));
++const module = new Set((req.module ?? []).map(m => '/werk/src/' + m + '.ts'));
++// Wie verhalten.mjs/einwickeln, aber am TypeScript-Quelltext (vor esbuild): `export (async) function f<…>(` wird
++// umbenannt und durch einen gleichnamigen Export ersetzt, der über globalThis.__vvDeck aufzeichnet.
++function einwickeln(code, modul) {
++  const namen = [];
++  const neu = code.replace(/^export (async )?function (\w+)\s*(<[^>()]*>)?\s*\(/gm, (m, asy, name, gen) => {
++    if (!namen.includes(name)) namen.push(name);      // überladene Signaturen: ein Einwickler je Name
++    return `${asy || ''}function __vv_orig_${name}${gen || ''}(`;
++  });
++  let anhang = '\n// --- Deckungsaufzeichner (nur in der Kammer) ---\n';
++  for (const n of namen) {
++    anhang += `export function ${n}(...a: any[]): any { return (globalThis as any).__vvDeck(${JSON.stringify(modul + ':' + n)}, a, (...b: any[]) => (__vv_orig_${n} as any)(...b)); }\n`;
++  }
++  return neu + anhang;
++}
++export default {
++  root: '/werk', cacheDir: '/tmp/ts-vite-deck',
++  plugins: [{name: 'vv-deck', enforce: 'pre', transform(code, id) {
++    const p = id.split('?')[0];
++    if (!module.has(p)) return null;
++    return {code: einwickeln(code, p.slice('/werk/src/'.length, -3)), map: null};
++  }}],
++  test: {include: req.testdateien ?? [], exclude: [], globals: false, environment: 'node', pool: 'forks',
++    poolOptions: {forks: {singleFork: true}}, fileParallelism: false, allowOnly: false, bail: 0, testTimeout: 8000,
++    hookTimeout: 8000, setupFiles: ['/werk/_messgeraet/ts/deck-setup.mjs'], reporters: [new Nachweis()], watch: false,
++    passWithNoTests: false, cache: false},
++};
+diff --git a/biotop/lauf.py b/biotop/lauf.py
+index e9bbcc0..88d8084 100644
+--- a/biotop/lauf.py
++++ b/biotop/lauf.py
+@@ -380,9 +380,11 @@ def _generation_koerper(con, lauf_id, nummer, werk, mass, paket, bereiche, pfad,
+     # Einzelwert gegen das Minimum aller angenommenen Generationen.
+     u0 = messgeraet.urteil_f2(basis_paar, mess, ausgang, bereiche, wirkungskreis, tausch, laufzeit_pruefen=False)
+     lz = None
++    lz_code = {p: i for p, i in dateien.items() if not p.startswith("tests/")}
++    lz_bereiche = [b for b in bereiche if b not in set(tausch.get("_gesperrte_bereiche") or [])]
++    nachmessung = None
+     if ref and messgeraet.laufzeit_entscheidet(u0, "werk"):
+-        lz = messgeraet.laufzeit_gepaart(pfad, bereiche, paket, ref, {},
+-                                         {p: i for p, i in dateien.items() if not p.startswith("tests/")})
++        lz = messgeraet.laufzeit_gepaart(pfad, lz_bereiche, paket, ref, {}, lz_code)
+         if not lz["gueltig"]:
+             with transaktion(con):
+                 for b, kid in gewaehlt.items():
+@@ -391,12 +393,27 @@ def _generation_koerper(con, lauf_id, nummer, werk, mass, paket, bereiche, pfad,
+             return _messgeraet_ausfall(con, lauf_id, nummer, abschluss, zusammenfassung,
+                                        "Generalprobe: Messgerätausfall (Laufzeit gepaart) — " + lz["grund"], mess)
+         basis_paar, mess = messgeraet.laufzeit_einsetzen(basis_paar, mess, lz)
++        # Entscheidung Chat-Claude (23.09.): auch in der Generalprobe lehnt nur ein gepaart bestätigter Laufzeitriss ab.
++        best = messgeraet.laufzeit_bestaetigen(
++            pfad, lz_bereiche, paket, ref, {}, lz_code, basis_paar, mess,
++            lambda b_, k_, aus_: messgeraet.urteil_f2(b_, k_, ausgang, bereiche, wirkungskreis, tausch, laufzeit_ausnehmen=aus_))
++        nachmessung = best["nachmessung"]
++        zusammenfassung["_laufzeit_nachmessung"] = nachmessung
++        if nachmessung and nachmessung.get("ungueltig"):
++            with transaktion(con):
++                for b, kid in gewaehlt.items():
++                    con.execute("UPDATE kandidaten SET status=?, grund=? WHERE id=?",
++                                (aegis.ZURUECKGESTELLT, "Generalprobe: Messgerätausfall (Laufzeit-Nachmessung) — " + nachmessung["grund"][:300], kid))
++            return _messgeraet_ausfall(con, lauf_id, nummer, abschluss, zusammenfassung,
++                                       "Generalprobe: Messgerätausfall (Laufzeit-Nachmessung) — " + nachmessung["grund"], mess)
++        basis_paar, mess = best["basis"], best["kandidat"]
+     mess["kernmass_f2"] = messgeraet.kernmass_f2(mess)
+     mess["_basis_paar"] = {"kernmass_f2": messgeraet.kernmass_f2(basis_paar), "bereiche": {b: messgeraet.bereich_masse(basis_paar, b) for b in bereiche}}
+     mess["_testbestand"] = sorted(testbestand)
+ 
+     # 6. Pareto + Grenzen + Zuwachs (F2)
+-    u = messgeraet.urteil_f2(basis_paar, mess, ausgang, bereiche, wirkungskreis, tausch, laufzeit_pruefen=lz is not None)
++    u = messgeraet.urteil_f2(basis_paar, mess, ausgang, bereiche, wirkungskreis, tausch, laufzeit_pruefen=lz is not None,
++                             laufzeit_ausnehmen=(nachmessung or {}).get("nicht_bestaetigt") or ())
+     # Nischenmaß auf Werkebene: Gesamtkandidat mit reinem Laufzeitgewinn (Kernmaß gleich) ist zulässig
+     if not u["ok"] and u["grund"].startswith("Kernmaß unverändert"):
+         gew = [f"{b}: {basis_paar['bereiche'][b]['laufzeit_ms']} → {mess['bereiche'][b]['laufzeit_ms']}" for b in wirkungskreis
+diff --git a/biotop/organe/aegis.py b/biotop/organe/aegis.py
+index e0a2530..37e93d3 100644
+--- a/biotop/organe/aegis.py
++++ b/biotop/organe/aegis.py
+@@ -997,12 +997,23 @@ def pruefen(con: sqlite3.Connection, lauf_id: int, werk_id: int, kandidat_id: in
+     u = messgeraet.urteil_f2(basis_paar, mess, ausgang, bereiche, urteil["wirkungskreis"], tausch, nische=k["nische"],
+                              laufzeit_pruefen=False)
+     if referenzlast and messgeraet.laufzeit_entscheidet(u, k["nische"]):
+-        lz = messgeraet.laufzeit_gepaart(werk, bereiche, paket, referenzlast, {}, code)
++        # Nur Bereiche, deren Laufzeit geprüft wird: von der Rauschmessung gesperrte nie (grenzen_f2) — eine fehlende
++        # Messung dort macht die gepaarte Messung nicht ungültig.
++        lz_bereiche = [b for b in bereiche if b not in set((tausch or {}).get("_gesperrte_bereiche") or [])]
++        lz = messgeraet.laufzeit_gepaart(werk, lz_bereiche, paket, referenzlast, {}, code)
+         urteil["laufzeit_gepaart"] = lz
+         if not lz["gueltig"]:
+             return _zurueckstellen(fertig, kandidat_id, "Laufzeitmessung gepaart: " + lz["grund"])
+         basis_paar, mess = messgeraet.laufzeit_einsetzen(basis_paar, mess, lz)
+-        u = messgeraet.urteil_f2(basis_paar, mess, ausgang, bereiche, urteil["wirkungskreis"], tausch, nische=k["nische"])
++        # Entscheidung Chat-Claude (23.09.): jeder Laufzeitriss wird einmal gepaart nachgemessen; nur ein bestätigter lehnt ab.
++        best = messgeraet.laufzeit_bestaetigen(
++            werk, lz_bereiche, paket, referenzlast, {}, code, basis_paar, mess,
++            lambda b_, k_, aus_: messgeraet.urteil_f2(b_, k_, ausgang, bereiche, urteil["wirkungskreis"], tausch,
++                                                      nische=k["nische"], laufzeit_ausnehmen=aus_))
++        urteil["laufzeit_nachmessung"] = best["nachmessung"]
++        if best["nachmessung"] and best["nachmessung"].get("ungueltig"):
++            return _zurueckstellen(fertig, kandidat_id, "Laufzeit-Nachmessung gepaart: " + best["nachmessung"]["grund"])
++        u, basis_paar, mess = best["urteil"], best["basis"], best["kandidat"]
+     urteil["mass"] = u
+     fb = set(basis_paar["werk"]["tests_fehlgeschlagen_liste"]); fk = set(mess["werk"]["tests_fehlgeschlagen_liste"])
+     urteil["vertrag_verletzt"] = vertraege.verletzt(fb, fk)
+@@ -1028,9 +1039,11 @@ def pruefen(con: sqlite3.Connection, lauf_id: int, werk_id: int, kandidat_id: in
+     # einen Test, der an der Vorgeneration fällt, am Kandidaten besteht und die Funktion aufruft.
+     behoben = fb - fk
+     try:
++        # Deckung je Abweichung (Grundsatz 11): die Tests aus `behoben` laufen am Kandidaten mit Aufzeichner; eine
++        # Abweichung ist gedeckt, wenn einer von ihnen die Funktion mit derselben Eingabe (und im selben Muster) ruft.
+         vv = verhaltensvergleich.pruefen(
+             werk, code, referenzlast, bereiche,
+-            lambda: verhaltensvergleich.deckende_tests(werk, testbestand_mit_vertraegen, behoben))
++            lambda abw: verhaltensvergleich.deckende_aufrufe(werk, code, testbestand_mit_vertraegen, behoben))
+     except verhaltensvergleich.SondeAusgefallen as e:
+         # Vorbedingung 3 (T4): Ein Sondenausfall ist ein Messgerätausfall — keine Ablehnung, kein Gedächtniseintrag.
+         z_con, z_lauf = _zaehlkontext()
+diff --git a/biotop/organe/verhaltensvergleich.py b/biotop/organe/verhaltensvergleich.py
+index 358bd79..5db8f57 100644
+--- a/biotop/organe/verhaltensvergleich.py
++++ b/biotop/organe/verhaltensvergleich.py
+@@ -24,8 +24,9 @@ sein, den die Vorgeneration NICHT besteht, der Kandidat besteht und der die abwe
+ Funktion aufruft. Eine Abweichung ohne solchen Test ist eine unbelegte Verhaltensänderung —
+ der Kandidat wird abgelehnt. Reine Beschleunigung bei identischen Ausgaben bleibt zulässig.
+ 
+-Die Sonde gibt es bisher nur für TypeScript. Für andere Sprachen enthält sich das Organ —
+-gezählt im Neutralzähler, so dass keine Torzeile auf einem schweigenden Organ ruht.
++Sonden: TypeScript (kern/ts/verhalten.mjs) und — seit der Behebungsrunde 2 vor T4 — Python (kern/py/verhalten.py),
++im selben Umfang: einzeln, Folge (#0…#7), Alias, Mutation, Rücksetzung, Randfälle und Formvarianten. Entscheidung
++Chat-Claude (23.09.): Grundsatz 11 gilt für jede Sprache; T4 ist Python.
+ 
+ Fassung 8 (Grundsatz 11, Vorbedingungen 2 und 3 für T4):
+ - Korpus: Zusätzlich zur Referenzlast ruft die Sonde JEDE exportierte Funktion der geänderten Module mit Randfällen
+@@ -35,6 +36,15 @@ Fassung 8 (Grundsatz 11, Vorbedingungen 2 und 3 für T4):
+   des Moduls — das Organ urteilte trotzdem „keine Abweichung“.
+ - Eine Funktion, die der Vergleich nicht erreicht hat, ist eine Enthaltung, kein bestandenes Urteil: jedes Urteil
+   trägt „x von y Funktionen beobachtet“; ohne eine einzige beobachtete Funktion enthält sich das Organ (gezählt).
++- Formvarianten (~form#j, Behebungsrunde 2): dieselben Eingaben in anderer Form — Weißraum (Tab, Zeilenumbruch,
++  doppelt, CRLF, geschütztes Leerzeichen, am Rand), Groß/Klein, Zahlform im Text, Schlüsselfolge, in Python auch
++  Zahltyp und Behälter. Befund: Die Weißraumlücke von K2868 (T3) lag in keinem Randwert.
++- Deckung je Abweichung (Grundsatz 11, Entscheidung Chat-Claude): Eine Abweichung ist gedeckt, wenn ein Test, der an
++  der Vorgeneration fällt und am Kandidaten besteht, die abweichende Funktion mit DERSELBEN Eingabe ruft (kanonische
++  Form) und dasselbe Ergebnis bekommt, das die Sonde am Kandidaten sah. Beweis ist der aufgezeichnete Aufruf am
++  Kandidaten, nicht der Quelltext des Tests:
++  Bisher deckte jeder Test, der `f(` enthielt, JEDE Abweichung von f (T3/K2868: 3 Befundklassen-Tests deckten 12
++  Abweichungen, auch eine konstruierte Weißraum-Abweichung).
+ - Ein Sondenausfall (Kammerabbruch, Zeitlimit, beschädigter Transport — `art` 'infrastruktur'; fehlende Referenzlast)
+   ist ein Messgerätausfall: `SondeAusgefallen` wird geworfen, der Aufrufer stellt den Kandidaten zurück. Keine
+   Ablehnung, kein Gedächtniseintrag. Scheitert die Sonde mit Inhalt an der VORGENERATION, betrifft das den Kandidaten
+@@ -94,94 +104,137 @@ class _Fehlt:
+ _FEHLT = _Fehlt()
+ 
+ 
+-def geaenderte_module(code: dict[str, str]) -> list[str]:
+-    """Quellmodule des Kandidaten als Pfade unter dist/ ohne Endung (src/zahlen/x.ts → zahlen/x)."""
++def geaenderte_module(code: dict[str, str], python: bool = False) -> list[str]:
++    """Quellmodule des Kandidaten. TypeScript: Pfade unter dist/ ohne Endung (src/zahlen/x.ts → zahlen/x).
++    Python: Importnamen (paket/zahlen/x.py → paket.zahlen.x, paket/zahlen/__init__.py → paket.zahlen)."""
++    if python:
++        out = set()
++        for p in code:
++            if not p.endswith(".py") or p.startswith(("tests/", "_messgeraet/")) or "/" not in p:
++                continue
++            teile = p[:-3].split("/")
++            if teile[-1] == "__init__":
++                teile = teile[:-1]
++            if teile and all(t.isidentifier() for t in teile):
++                out.add(".".join(teile))
++        return sorted(out)
+     return sorted(p[len("src/"):-len(".ts")] for p in code
+                   if p.startswith("src/") and p.endswith(".ts") and not p.endswith(".d.ts"))
+ 
+ 
+ def funktion_von(beobachtung: str) -> str | None:
+-    """'zahlen/statistik:quantil#0@mutation' → 'quantil' (auch Randfälle 'quantil~rand#3'); Korpuszeilen haben keine."""
+-    m = re.match(r"^[^:]+:([A-Za-z_$][\w$]*)(?:~rand)?#\d+", beobachtung)
++    """'zahlen/statistik:quantil#0@mutation' → 'quantil' (auch Randfälle 'quantil~rand#3' und Formvarianten
++    'quantil~form#1'); Korpuszeilen haben keine."""
++    m = re.match(r"^[^:]+:([A-Za-z_$][\w$]*)(?:~rand|~form)?#\d+", beobachtung)
+     return m.group(1) if m else None
+ 
+ 
+ def _modul_funktion(beobachtung: str) -> tuple[str, str] | None:
+-    m = re.match(r"^([^:]+):([A-Za-z_$][\w$]*)(?:~rand)?#\d+", beobachtung)
++    m = re.match(r"^([^:]+):([A-Za-z_$][\w$]*)(?:~rand|~form)?#\d+", beobachtung)
+     return (m.group(1), m.group(2)) if m else None
+ 
+ 
+ def _funktionen_in(beob: dict, nur_rand: bool = False) -> set[str]:
+     """'modul:funktion' aller Funktionen mit mindestens einer Beobachtung (nur Randfälle: nur_rand)."""
+-    return {f"{mf[0]}:{mf[1]}" for k in beob if (not nur_rand or "~rand#" in k) and (mf := _modul_funktion(k))}
+-
+-
+-def deckung(abweichungen: list[str], deckende_tests: dict[str, str]) -> dict[str, list[str]]:
+-    """{beobachtung: [test]} — ein Test deckt eine Abweichung, wenn er an der Vorgeneration fällt,
+-    am Kandidaten besteht (das stellt der Aufrufer sicher) und die abweichende Funktion aufruft."""
++    return {f"{mf[0]}:{mf[1]}" for k in beob if (not nur_rand or "~rand#" in k or "~form#" in k) and (mf := _modul_funktion(k))}
++
++
++def deckung(abweichungen: list[str], aufrufe: list[dict], argumente: dict[str, str],
++            neu: dict[str, str]) -> dict[str, list[str]]:
++    """{abweichung: [test]} — Deckung JE ABWEICHUNG (Grundsatz 11, Entscheidung Chat-Claude 23.09.2026).
++
++    Ein Test deckt eine Abweichung, wenn er an der Vorgeneration fällt und am Kandidaten besteht (das stellt der
++    Aufrufer sicher: `aufrufe` stammen nur von solchen Tests, aufgezeichnet AM KANDIDATEN) und die abweichende Funktion
++    mit DERSELBEN EINGABE gerufen und DASSELBE ERGEBNIS bekommen hat, das die Sonde am Kandidaten für diese Beobachtung
++    sah — `argumente[k]` ist die Eingabe unmittelbar vor dem Aufruf des Musters (nach Mutation bzw. Rücksetzung),
++    `neu[k]` das Ergebnis (kanonisch, auch Fehlerklasse). Damit hält der Test genau das neue Verhalten fest, das die
++    Abweichung zeigt. Ein Zwischenspeicher, der nach einer Mutation das alte Ergebnis liefert, ist so nicht deckbar: ein
++    frischer Aufruf mit der mutierten Eingabe bekommt am Kandidaten das richtige Ergebnis, nicht das veraltete.
++    Bisher (Deckung je Funktion) deckte jeder Test, der `f(` enthielt, JEDE Abweichung von f."""
++    je_test: dict[str, dict[str, set[tuple[str, str]]]] = {}
++    for c in aufrufe or []:
++        je_test.setdefault(c.get("test", ""), {}).setdefault(c.get("f", ""), set()).add((c.get("args"), c.get("erg")))
+     out: dict[str, list[str]] = {}
+-    for b in abweichungen:
+-        f = funktion_von(b)
+-        if not f:
++    for k in abweichungen:
++        mf = _modul_funktion(k)
++        x, y = argumente.get(k), neu.get(k, _FEHLT)
++        if not mf or x is None or y is _FEHLT:
+             continue
+-        muster = re.compile(r"(?<![\w$])" + re.escape(f) + r"\s*\(")
+-        treffer = sorted(n for n, c in deckende_tests.items() if muster.search(c or ""))
++        f = f"{mf[0]}:{mf[1]}"
++        treffer = sorted(t for t, fs in je_test.items() if (x, y) in fs.get(f, set()))
+         if treffer:
+-            out[b] = treffer
++            out[k] = treffer
+     return out
+ 
+ 
+-def _einzeltest(datei: str, code: str, name: str, ts_cache: dict) -> str | None:
+-    """Code genau eines Tests; None, wenn er sich nicht sicher herauslösen lässt (dann deckt er nichts)."""
+-    if datei.endswith((".ts", ".mts", ".tsx")):
+-        if datei not in ts_cache:
+-            from ..kern import typescript
+-            try:
+-                ts_cache[datei] = typescript.testfunktionen(code) or []
+-            except typescript.TypeScriptFehler:
+-                ts_cache[datei] = []
+-        return next((t.get("code") for t in ts_cache[datei] if t.get("name") == name), None)
+-    try:
+-        baum = ast.parse(code)
+-    except SyntaxError:
+-        return None
+-    kurz = name.split("[")[0]
+-    for k in ast.walk(baum):
+-        if isinstance(k, (ast.FunctionDef, ast.AsyncFunctionDef)) and k.name == kurz:
+-            return ast.get_source_segment(code, k)
+-    return None
+-
+-
+-def deckende_tests(werk: Path, testbestand: dict[str, str], behoben: set[str]) -> dict[str, str]:
+-    """{test_id: Code des einzelnen Tests} für Tests, die an der Vorgeneration fielen und am Kandidaten bestehen.
+-
+-    `behoben`: IDs 'datei::name' mit Basisnamen, wie tests_fehlgeschlagen_liste sie führt. Der Code
+-    kommt aus dem gemessenen Testbestand, sonst aus dem Werk. Lässt sich ein Test nicht sicher
+-    herauslösen, deckt er nichts — eine Datei, die irgendwo die Funktion ruft, ist kein Beleg.
+-    """
++def _testdatei_pfade(werk: Path, testbestand: dict[str, str], behoben: set[str]) -> list[str]:
++    """Pfade (relativ zum Werk) der Dateien, in denen die Tests aus `behoben` ('datei::name', Basisname) stehen."""
+     werk = Path(werk)
+-    quellen: dict[str, str] = {}
+-    for p, c in (testbestand or {}).items():
+-        if c is not None:
+-            quellen.setdefault(Path(p).name, c)
++    bekannt = {Path(p).name: p for p in (testbestand or {}) if p.startswith("tests/")}
+     if (werk / "tests").is_dir():
+         for f in sorted((werk / "tests").rglob("*")):
+-            if f.is_file() and f.name not in quellen:
+-                try:
+-                    quellen[f.name] = f.read_text()
+-                except (OSError, UnicodeDecodeError):
+-                    pass
+-    out: dict[str, str] = {}
+-    ts_cache: dict = {}
+-    for tid in sorted(behoben):
+-        datei, _, name = tid.partition("::")
+-        code = quellen.get(Path(datei).name)
+-        if not code or not name:
+-            continue
+-        einzel = _einzeltest(Path(datei).name, code, name, ts_cache)
+-        if einzel:
+-            out[tid] = einzel
+-    return out
++            if f.is_file():
++                bekannt.setdefault(f.name, str(f.relative_to(werk)))
++    return sorted({bekannt[d] for d in {t.partition("::")[0] for t in behoben} if d in bekannt})
++
++
++def deckende_aufrufe(werk: Path, code: dict[str, str], testbestand: dict[str, str], behoben: set[str],
++                     module: list[str] | None = None) -> dict:
++    """Die Tests aus `behoben` (fallen an der Vorgeneration, bestehen am Kandidaten) AM KANDIDATEN mit Aufzeichner
++    ausführen. Rückgabe {"tests", "aufrufe"}; ein Aufzeichnerausfall ist ein Messgerätausfall (SondeAusgefallen)."""
++    from ..kern import sprachprofil
++    behoben = set(behoben or ())
++    if not behoben:
++        return {"tests": [], "aufrufe": []}
++    dateien = {**{p: c for p, c in (code or {}).items() if c is not None}, **{p: c for p, c in (testbestand or {}).items() if c is not None}}
++    if module is None:
++        module = geaenderte_module(code or {}, python=not sprachprofil.ist_typescript(Path(werk)))
++    pfade = _testdatei_pfade(werk, testbestand, behoben)
++    if not pfade:
++        return {"tests": sorted(behoben), "aufrufe": [], "hinweis": "Testdateien der deckenden Tests nicht gefunden"}
++    if sprachprofil.ist_typescript(Path(werk)):
++        from ..kern import typescript
++        try:
++            d, _ = typescript._aufruf(Path(werk), "deckung", dateien=dateien, zeitlimit_s=240, module=module,
++                                      testdateien=pfade)
++        except typescript.TypeScriptFehler as e:
++            raise SondeAusgefallen(f"Deckungsaufzeichner ausgefallen: {str(e)[:300]}") from e
++    else:
++        d = _python_sonde(Path(werk), dateien, {"modus": "deckung", "module": module, "testdateien": pfade}, None)
++    if not d.get("gueltig"):
++        raise SondeAusgefallen(f"Deckungsaufzeichner ausgefallen: {str(d.get('grund') or d.get('rc'))[:300]}")
++    # Jeder deckende Test muss auch im Aufzeichnerlauf bestehen — sonst hat das Instrument das Verhalten verändert
++    # (Messgerätausfall, kein Urteil über den Kandidaten).
++    zustand = d.get("zustand") or {}
++    anders = sorted(t for t in behoben if zustand.get(t) != "pass")
++    if anders:
++        raise SondeAusgefallen(f"Deckungsaufzeichner: {len(anders)} von {len(behoben)} deckenden Tests bestehen im "
++                               f"Aufzeichnerlauf nicht ({anders[:3]} → {[zustand.get(t) for t in anders[:3]]})")
++    aufrufe = [c for c in d.get("aufrufe") or [] if c.get("test") in behoben]
++    return {"tests": sorted(behoben), "aufrufe": aufrufe, "gelaufen": sum(1 for t in behoben if zustand.get(t) == "pass")}
++
++
++def _python_sonde(werk: Path, dateien: dict[str, str], anfrage: dict, referenzlast: str | None) -> dict:
++    """Ein Kammerlauf der Python-Sonde (kern/py/verhalten.py). Infrastruktur (Zeitlimit, Kammer, fehlende Ausgabe)
++    → art 'infrastruktur'; die Sonde meldet Inhaltsbefunde (Modul lädt nicht) selbst."""
++    import json as _json
++    from . import kammer
++    sonde = (Path(__file__).resolve().parent.parent / "kern" / "py" / "verhalten.py").read_text()
++    extra = {**(dateien or {}), "_messgeraet/verhalten.py": sonde,
++             "_messgeraet/anfrage.json": _json.dumps(anfrage, ensure_ascii=False, default=str)}
++    if referenzlast is not None:
++        extra["_messgeraet/referenzlast.py"] = referenzlast
++    e = kammer.ausfuehren(Path(werk), ["python", "_messgeraet/verhalten.py", "_messgeraet/anfrage.json"],
++                          zeitlimit_s=240, dateien=extra)
++    m = re.search(r"@@VV@@(.*)@@ENDE@@", e.stdout or "", re.S)
++    if e.zeitlimit or not m:
++        return {"gueltig": False, "art": "infrastruktur",
++                "grund": ("Zeitlimit" if e.zeitlimit else f"Python-Sonde ohne Ergebnis (rc={e.rc})") + ": "
++                         + (e.stderr or e.stdout or "")[-600:]}
++    try:
++        return _json.loads(m.group(1))
++    except ValueError:
++        return {"gueltig": False, "art": "infrastruktur", "grund": "Python-Sonde: Ergebnis nicht lesbar"}
+ 
+ 
+ def beobachten(werk: Path, dateien: dict[str, str], referenzlast: str, module: list[str],
+@@ -189,7 +242,11 @@ def beobachten(werk: Path, dateien: dict[str, str], referenzlast: str, module: l
+     """Ein Kammerlauf: Stand bauen, Module einwickeln, Referenzlast und Randfall-Korpus ausführen.
+     `signaturen` (von der Vorgeneration): welche Funktionen mit welchen Parametertypen Randfälle bekommen —
+     beide Seiten erhalten dieselben Aufrufe. Ohne Angabe liest die Sonde sie aus dem Quelltext dieses Stands."""
+-    from ..kern import typescript
++    from ..kern import sprachprofil, typescript
++    if not sprachprofil.ist_typescript(Path(werk)):
++        return _python_sonde(Path(werk), dateien, {"modus": "beobachten", "module": module, "bereiche": list(bereiche),
++                                                   "kappe": KAPPE, "signaturen": signaturen, "beispiele": beispiele},
++                             referenzlast)
+     try:
+         d, _ = typescript._aufruf(Path(werk), "verhalten", dateien=dateien, zeitlimit_s=240,
+                                   referenzlast=referenzlast, module=module, bereiche=list(bereiche),
+@@ -200,23 +257,21 @@ def beobachten(werk: Path, dateien: dict[str, str], referenzlast: str, module: l
+ 
+ 
+ def pruefen(werk: Path, code: dict[str, str], referenzlast: str | None, bereiche: list[str],
+-            deckende: dict[str, str] | Callable[[], dict[str, str]]) -> dict:
++            deckende: dict | Callable[[list[str]], dict]) -> dict:
+     """Vorgeneration (Werk wie es ist) gegen Kandidat (Werk + `code`), dieselbe Sonde, dieselbe Last.
+ 
+-    `deckende`: Tests, die an der Vorgeneration fallen und am Kandidaten bestehen — als dict oder als
+-    Aufruf, der erst ausgewertet wird, wenn es Abweichungen gibt (spart Kammerläufe).
++    `deckende`: {"tests": [...], "aufrufe": [...]} — die Tests, die an der Vorgeneration fallen und am Kandidaten
++    bestehen, und ihre am Kandidaten aufgezeichneten Aufrufe (deckende_aufrufe) — oder ein Aufruf (Abweichungen →
++    dieses dict), der erst ausgewertet wird, wenn es Abweichungen gibt (spart Kammerläufe).
+     Rückgabe mit `ausgefuehrt` (beide Stände beobachtet), `geurteilt` (das Organ hat entschieden — auch
+     „keine Quelländerung" ist ein sicheres Urteil), `tragfaehig`, `grund` und `grund_art` (für den
+     Neutralzähler). Fehlt eine Seite, ist das kein Beleg für Gleichheit: `tragfaehig` ist dann False —
+     außer bei einer Sprache ohne Sonde, dort enthält sich das Organ (gezählt).
+     """
+     from ..kern import sprachprofil
+-    module = geaenderte_module(code)
+-    basis = {"module": module, "bereiche": sorted(bereiche), "kappe": KAPPE}
+-    if not sprachprofil.ist_typescript(Path(werk)):
+-        return {**basis, "ausgefuehrt": False, "geurteilt": False, "tragfaehig": True,
+-                "grund_art": "sprache_ohne_sonde",
+-                "grund": "Verhaltenssonde gibt es bisher nur für TypeScript — Enthaltung, gezählt"}
++    python = not sprachprofil.ist_typescript(Path(werk))
++    module = geaenderte_module(code, python=python)
++    basis = {"module": module, "bereiche": sorted(bereiche), "kappe": KAPPE, "sprache": "python" if python else "typescript"}
+     if not module:
+         return {**basis, "ausgefuehrt": False, "geurteilt": True, "tragfaehig": True,
+                 "grund_art": "keine_quellaenderung",
+@@ -255,10 +310,13 @@ def pruefen(werk: Path, code: dict[str, str], referenzlast: str | None, bereiche
+         a.pop(k)
+     roh = vergleichen(a, n, gedeckt=set())
+     decke: dict[str, list[str]] = {}
+-    tests: dict[str, str] = {}
++    tests: list[str] = []
++    deckung_zaehlung = {"tests": 0, "aufrufe": 0}
+     if roh["abweichungen"]:
+-        tests = deckende() if callable(deckende) else dict(deckende or {})
+-        decke = deckung(roh["abweichungen"], tests)
++        d = deckende(roh["abweichungen"]) if callable(deckende) else dict(deckende or {})
++        tests = sorted(d.get("tests") or [])
++        deckung_zaehlung = {"tests": len(tests), "aufrufe": len(d.get("aufrufe") or [])}
++        decke = deckung(roh["abweichungen"], d.get("aufrufe") or [], neu.get("argumente") or {}, n)
+     r = vergleichen(a, n, gedeckt=set(decke))
+     eingewickelt = alt.get("eingewickelt") or {}
+     gerufen = (beobachtet | set(alt.get("aufgerufen") or {}) | set(neu.get("aufgerufen") or {})
+@@ -272,7 +330,8 @@ def pruefen(werk: Path, code: dict[str, str], referenzlast: str | None, bereiche
+     x_von_y = f"{len(alle) - len(unbeobachtet)} von {len(alle)}"
+     unbeobachtete_module = sorted(m for m, fs in eingewickelt.items() if fs and not any(f"{m}:{f}" in gerufen for f in fs))
+     extra = {"beobachtete_funktionen": x_von_y, "unbeobachtet": unbeobachtet, "unbeobachtete_module": unbeobachtete_module,
+-             "entfernte_funktionen": entfernt, "randfaelle": len([k for k in n if "~rand#" in k and "@" not in k])}
++             "entfernte_funktionen": entfernt, "randfaelle": len([k for k in n if "~rand#" in k and "@" not in k]),
++             "formvarianten": len([k for k in n if "~form#" in k and "@" not in k])}
+     if r["tragfaehig"] and len(alle) - len(unbeobachtet) == 0:
+         # Keine Abweichung, aber auch keine einzige Funktion erreicht: das ist kein bestandenes Urteil.
+         return {**basis, **extra, "ausgefuehrt": True, "geurteilt": False, "tragfaehig": True, "grund_art": "unbeobachtet",
+@@ -286,9 +345,10 @@ def pruefen(werk: Path, code: dict[str, str], referenzlast: str | None, bereiche
+             "ungedeckt": r["ungedeckt"][:20], "gedeckt": decke,
+             "werte": {k: [a.get(k, "<nicht beobachtet>"), n.get(k, "<nicht beobachtet>")]
+                       for k in r["abweichungen"][:10]},
++            "eingaben": {k: (neu.get("argumente") or {}).get(k) for k in r["ungedeckt"][:10]},
+             "korpus": alt.get("korpus"), "eingewickelt": eingewickelt,
+             "nicht_eingewickelt": alt.get("nicht_eingewickelt") or {},
+-            "unbeobachtet": unbeobachtet, "deckende_tests": sorted(tests)}
++            "unbeobachtet": unbeobachtet, "deckende_tests": tests, "deckung_zaehlung": deckung_zaehlung}
+ 
+ 
+ def kurz(e: dict) -> dict:
+@@ -296,5 +356,5 @@ def kurz(e: dict) -> dict:
+     schluessel = ("ausgefuehrt", "geurteilt", "tragfaehig", "grund", "grund_art", "module", "bereiche", "beobachtungen",
+                   "anzahl_abweichungen", "abweichungen", "ungedeckt", "gedeckt", "werte", "korpus",
+                   "eingewickelt", "unbeobachtet", "deckende_tests", "beobachtete_funktionen", "unbeobachtete_module",
+-                  "entfernte_funktionen", "randfaelle")
++                  "entfernte_funktionen", "randfaelle", "formvarianten", "sprache", "eingaben", "deckung_zaehlung")
+     return {k: e[k] for k in schluessel if k in e}
+diff --git a/tests/conftest.py b/tests/conftest.py
+index e5de103..e8d3bf8 100644
+--- a/tests/conftest.py
++++ b/tests/conftest.py
+@@ -28,14 +28,15 @@ def keine_bezahlten_aufrufe(monkeypatch, tmp_path):
+ 
+ @pytest.fixture
+ def ts_kammer():
+-    """Review vor T4 Nr. 13: Tests, die TypeScript in der Kammer parsen, brauchen das Kammerimage mit node
+-    (biotop-kammer:ts1). Ohne es scheiterten sie mit „executable file not found“ ohne Hinweis. Jetzt übersprungen mit
+-    Grund — sichtbar im Bericht der Regression, nie still."""
++    """Tests, die TypeScript in der Kammer ausführen, brauchen das Kammerimage mit node (biotop-kammer:ts1).
++    Review vor T4 Nr. 13 hatte sie ohne Image überspringen lassen; Entscheidung Chat-Claude (23.09.): ROT statt
++    übersprungen — ein übersprungener Test prüft nichts (Grundsatz 7). Die Meldung nennt die Ursache."""
+     import os
+     from biotop.organe import kammer
+     image = os.environ.get("BIOTOP_KAMMER_IMAGE") or kammer.IMAGE
+     if "ts" not in image.split(":")[-1]:
+-        pytest.skip(f"TypeScript-Kammer nötig: BIOTOP_KAMMER_IMAGE=biotop-kammer:ts1 setzen (aktuell {image})")
++        pytest.fail(f"TypeScript-Kammer nötig: BIOTOP_KAMMER_IMAGE=biotop-kammer:ts1 setzen (aktuell {image}) — "
++                    f"ohne sie prüft dieser Test nichts; übersprungen gilt als rot (Grundsatz 7)", pytrace=False)
+     kammer.IMAGE = image
+     return image
+ 
+diff --git a/tests/speicherwerk.py b/tests/speicherwerk.py
+new file mode 100644
+index 0000000..291456e
+--- /dev/null
++++ b/tests/speicherwerk.py
+@@ -0,0 +1,187 @@
++"""Python-Prüfwerk „speicherwerk“ (Behebungsrunde 2 vor T4): kleinstes Python-Werk, an dem die Python-Sonde des
++Verhaltensvergleichs durch den Annahmepfad (aegis.pruefen) geprüft wird — Gegenprobe des Auftrags: „an einem
++Python-Prüfwerk scheitert ein eingebauter Zwischenspeicher-Fehler“.
++
++- speicherwerk/zahlen/statistik.py: `summe(werte)`, `spannweite(werte)` — rein, sortieren eine Kopie.
++- speicherwerk/text/format.py: `normieren(text)` — Weißraumfolgen (auch Tab/Zeilenumbruch) zu einem Leerzeichen.
++- Referenzlast: last_zahlen/last_text (Arbeit im Bereich einiger Millisekunden), beobachten() als Raster.
++- Kandidat ZWISCHENSPEICHER (Nische schnell): `spannweite` merkt sich das Ergebnis an der REFERENZ der Liste
++  (id(werte)) — nach einer Änderung an Ort und Stelle liefert sie das alte Ergebnis (T3-Muster K2934/K3121: 8 statt 80).
++  Gegenprobe: derselbe Speicher, aber am INHALT (tuple(werte)) — verhaltensgleich.
++- Kandidat WEISSRAUM: `normieren` nur noch für Leerzeichen — Tab und Zeilenumbruch bleiben stehen (T3-Muster K2868).
++  Kein Test und keine Referenzlast nutzt Tab: nur die Formvarianten des Korpus sehen es.
++Kein Modell, keine Netzwirkung; die Kammer ist das Python-Image biotop-kammer:1.
++"""
++from __future__ import annotations
++
++import difflib
++
++PAKET = "speicherwerk"
++STATISTIK = '''"""Kleine Statistik über Zahlenlisten."""
++
++
++def summe(werte: list[float]) -> float:
++    """Summe aller Werte (leere Liste: 0)."""
++    s = 0.0
++    for w in werte:
++        s += w
++    return s
++
++
++def spannweite(werte: list[float]) -> float:
++    """Größter minus kleinster Wert (leere Liste: 0). Die Eingabe bleibt unverändert."""
++    if not werte:
++        return 0.0
++    geordnet = sorted(werte)
++    return geordnet[-1] - geordnet[0]
++'''
++FORMAT = '''"""Textnormierung."""
++
++
++def normieren(text: str) -> str:
++    """Weißraumfolgen (Leerzeichen, Tab, Zeilenumbruch) werden zu einem Leerzeichen, Ränder entfernt."""
++    return " ".join(text.split())
++
++
++def _alt_normieren(text: str) -> str:
++    """Frühere Fassung, nirgends mehr aufgerufen (toter Code — Vulture zählt ihn)."""
++    return text.strip()
++'''
++TESTS_ZAHLEN = '''from speicherwerk.zahlen.statistik import spannweite, summe
++
++
++def test_zahlen_summe():
++    assert summe([1.0, 2.0, 3.5]) == 6.5
++
++
++def test_zahlen_spannweite():
++    assert spannweite([4.0, 1.0, 9.0]) == 8.0
++'''
++TESTS_TEXT = '''from speicherwerk.text.format import normieren
++
++
++def test_text_normieren():
++    assert normieren("  a   b  ") == "a b"
++'''
++REFERENZLAST = '''# Referenzlast für das Prüfwerk „speicherwerk“ (Kern, Messgerät).
++import sys
++sys.path.insert(0, "/werk")
++
++
++def last_zahlen():
++    from speicherwerk.zahlen.statistik import spannweite, summe
++    werte = [float((i * 37) % 101) for i in range(400)]
++    for _ in range(40):
++        summe(werte)
++        spannweite(werte)
++
++
++def last_text():
++    from speicherwerk.text.format import normieren
++    for i in range(400):
++        normieren("  wort   " * (1 + i % 5))
++
++
++def beobachten():
++    from speicherwerk.zahlen.statistik import spannweite, summe
++    from speicherwerk.text.format import normieren
++    return {"summe": summe([1.0, 2.0]), "spannweite": spannweite([3.0, 1.0]), "normieren": normieren(" a  b ")}
++'''
++DATEIEN = {
++    "pyproject.toml": '[project]\nname = "speicherwerk"\nversion = "0.1.0"\n',
++    "README.md": "# speicherwerk\n\nPrüfwerk ohne Betriebszweck für den Verhaltensvergleich (Python).\n",
++    "speicherwerk/__init__.py": "",
++    "speicherwerk/zahlen/__init__.py": "",
++    "speicherwerk/zahlen/statistik.py": STATISTIK,
++    "speicherwerk/text/__init__.py": "",
++    "speicherwerk/text/format.py": FORMAT,
++    "tests/test_zahlen.py": TESTS_ZAHLEN,
++    "tests/test_text.py": TESTS_TEXT,
++}
++
++
++def _diff(rel: str, alt: str, neu: str) -> str:
++    return "".join(difflib.unified_diff(alt.splitlines(True), neu.splitlines(True), f"a/{rel}", f"b/{rel}"))
++
++
++def zwischenspeicher_falsch() -> str:
++    """spannweite merkt sich das Ergebnis an der Referenz der Liste — veraltet nach Änderung an Ort und Stelle."""
++    neu = STATISTIK.replace('''def spannweite(werte: list[float]) -> float:
++    """Größter minus kleinster Wert (leere Liste: 0). Die Eingabe bleibt unverändert."""
++    if not werte:
++        return 0.0
++    geordnet = sorted(werte)
++    return geordnet[-1] - geordnet[0]
++''', '''_SPEICHER: dict[int, float] = {}
++
++
++def spannweite(werte: list[float]) -> float:
++    """Größter minus kleinster Wert (leere Liste: 0). Die Eingabe bleibt unverändert."""
++    schluessel = id(werte)
++    if schluessel in _SPEICHER:
++        return _SPEICHER[schluessel]
++    if not werte:
++        return 0.0
++    ergebnis = max(werte) - min(werte)
++    _SPEICHER[schluessel] = ergebnis
++    return ergebnis
++''')
++    assert neu != STATISTIK
++    return _diff("speicherwerk/zahlen/statistik.py", STATISTIK, neu)
++
++
++def zwischenspeicher_richtig() -> str:
++    """Gegenprobe: Speicher am INHALT der Liste — verhaltensgleich."""
++    neu = STATISTIK.replace('''def spannweite(werte: list[float]) -> float:
++    """Größter minus kleinster Wert (leere Liste: 0). Die Eingabe bleibt unverändert."""
++    if not werte:
++        return 0.0
++    geordnet = sorted(werte)
++    return geordnet[-1] - geordnet[0]
++''', '''_SPEICHER: dict[tuple, float] = {}
++
++
++def spannweite(werte: list[float]) -> float:
++    """Größter minus kleinster Wert (leere Liste: 0). Die Eingabe bleibt unverändert."""
++    schluessel = tuple(werte)
++    if schluessel in _SPEICHER:
++        return _SPEICHER[schluessel]
++    ergebnis = (max(werte) - min(werte)) if werte else 0.0
++    _SPEICHER[schluessel] = ergebnis
++    return ergebnis
++''')
++    assert neu != STATISTIK
++    return _diff("speicherwerk/zahlen/statistik.py", STATISTIK, neu)
++
++
++_TOT = '''
++
++def _alt_normieren(text: str) -> str:
++    """Frühere Fassung, nirgends mehr aufgerufen (toter Code — Vulture zählt ihn)."""
++    return text.strip()
++'''
++
++
++def toter_code_entfernt() -> str:
++    """Nur der tote Code entfällt (Kernmaß +1) — verhaltensgleich (Gegenprobe)."""
++    neu = FORMAT.replace(_TOT, "\n")
++    assert neu != FORMAT
++    return _diff("speicherwerk/text/format.py", FORMAT, neu)
++
++
++def weissraum_falsch() -> str:
++    """Toten Code entfernt (Kernmaß +1) UND normieren nur noch für Leerzeichen — Tab und Zeilenumbruch bleiben stehen
++    (T3-Muster K2868). Kein Test und keine Referenzlast nutzt Tab; nur die Formvarianten des Korpus sehen es."""
++    neu = FORMAT.replace(_TOT, "\n").replace('    return " ".join(text.split())\n',
++                                             '    return " ".join(t for t in text.split(" ") if t)\n')
++    assert neu != FORMAT and "_alt_normieren" not in neu
++    return _diff("speicherwerk/text/format.py", FORMAT, neu)
++
++
++def anlegen(ziel) -> None:
++    from pathlib import Path
++    ziel = Path(ziel)
++    for rel, inhalt in DATEIEN.items():
++        p = ziel / rel
++        p.parent.mkdir(parents=True, exist_ok=True)
++        p.write_text(inhalt)
+diff --git a/tests/test_eichproben.py b/tests/test_eichproben.py
+index 4286dc9..a58ef6e 100644
+--- a/tests/test_eichproben.py
++++ b/tests/test_eichproben.py
+@@ -39,6 +39,22 @@ def werk(tmp_path):
+     return pfad
+ 
+ 
++# Geändert in der Behebungsrunde 2 vor T4: Der Verhaltensvergleich urteilt jetzt auch für Python (Entscheidung
++# Chat-Claude, Grundsatz 11) und braucht dafür — wie die TypeScript-Sonde — eine Referenzlast; ohne sie ist er ein
++# Messgerätausfall (Vorbedingung 3), und eine Probe, deren Kandidat das Maß besteht, wäre nicht prüfbar. Im Lauf
++# reicht der Vorspann die Referenzlast des Werks durch (vorspann.py: eichproben.proben(…, ref, …)).
++# `last_abnehmer` ruft `bericht` NICHT: Die Vertragsprobe setzt in die erste Funktion von A (`bericht`) eine
++# Zusicherung, die am nicht angepassten Lieferanten wirft; eine Last, die `bericht` ruft, machte aus der Probe einen
++# Messausfall („angeforderter Laufzeitnachweis fehlt“) — dieselbe Überlegung wie die Sammlungsregel in
++# eichproben._vertrag_vorbereiten. Der Verhaltensvergleich erreicht `bericht` über den Randfall-Korpus.
++REF_PAAR = (
++    "import sys\nsys.path.insert(0, '/werk')\n\n"
++    "def last_abnehmer():\n    import beispiel.abnehmer\n    s = 0\n    for i in range(20000):\n        s += i % 7\n    return s\n\n"
++    "def last_lieferant():\n    from beispiel.lieferant import wert\n    for i in range(200):\n        wert(float(i))\n\n"
++    "def beobachten():\n    from beispiel.lieferant import wert\n"
++    "    return {'wert': wert(2.0)}\n")
++
++
+ @pytest.fixture
+ def paar(werk, tmp_path):
+     dateien = {
+@@ -77,7 +93,7 @@ def paar(werk, tmp_path):
+ @pytest.mark.parametrize("gegenprobe", [False, True])
+ def test_nebenwirkung_braucht_gewinn_a_und_verlust_b(paar, gegenprobe):
+     con, werk, bereiche, basis, g = paar
+-    e = eichproben._einzelprobe(con, 1, 1, werk, "beispiel", bereiche, [], basis, basis, None, {}, 0,
++    e = eichproben._einzelprobe(con, 1, 1, werk, "beispiel", bereiche, [], basis, basis, REF_PAAR, {}, 0,
+                                g, "nebenwirkung", gegenprobe)
+     print("NEBENWIRKUNG", gegenprobe, e["bestanden"], e["grund"])
+     assert e["ausgefuehrt"] is True and e["pruefbar"] is True
+@@ -114,7 +130,7 @@ def test_nebenwirkung_gewinnt_auch_bei_rueckwirkung_von_b_auf_a(paar):
+ @pytest.mark.parametrize("gegenprobe", [False, True])
+ def test_regression_nennt_einzeltest_trotz_ausgefuehrter_gruener_tests(paar, gegenprobe):
+     con, werk, bereiche, basis, g = paar
+-    e = eichproben._einzelprobe(con, 1, 1, werk, "beispiel", bereiche, [], basis, basis, None, {}, 0,
++    e = eichproben._einzelprobe(con, 1, 1, werk, "beispiel", bereiche, [], basis, basis, REF_PAAR, {}, 0,
+                                g, "regression", gegenprobe)
+     print("REGRESSION", gegenprobe, e["bestanden"], e["grund"])
+     assert e["ausgefuehrt"] is True and e["pruefbar"] is True
+@@ -172,7 +188,7 @@ def test_vier_paare_ohne_freeze_und_ohne_spuren_im_original(paar):
+     vor_db = list(con.iterdump())
+     vor_werk = {p.relative_to(werk).as_posix(): p.read_bytes() for p in werk.rglob("*") if p.is_file()}
+     with kammer.zaehlung() as zaehler:
+-        e = eichproben.proben(con, 1, 1, werk, "beispiel", bereiche, [], basis, basis, None, {})
++        e = eichproben.proben(con, 1, 1, werk, "beispiel", bereiche, [], basis, basis, REF_PAAR, {})
+     assert set(e["proben"]) == set(e["gegenproben"]) == set(eichproben.PROBEN)
+     assert e["bestanden"] is True
+     for name in eichproben.PROBEN:
+diff --git a/tests/test_t3_python_annahmen.py b/tests/test_t3_python_annahmen.py
+index 7bf8ad9..4c61bcd 100644
+--- a/tests/test_t3_python_annahmen.py
++++ b/tests/test_t3_python_annahmen.py
+@@ -44,6 +44,15 @@ GEPRUEFT = {
+         'Gerufen nur von immuntest_code (befundklassen.py:74). immuntest_code wird in '
+         'aegis.py:216 im else-Zweig gerufen; aegis.py:213 nimmt für TypeScript '
+         'immuntest_typescript. Die Weiche steht damit zwei Ebenen höher.',
++    'biotop/kern/py/verhalten.py::signaturen_lesen':
++        'Teil der Python-Verhaltenssonde, die nur IN DER KAMMER eines Python-Werks läuft: verhaltensvergleich.py '
++        'liest die Datei als Text (_python_sonde, verhaltensvergleich.py:209) und ruft sie nur hinter der Weiche '
++        'verhaltensvergleich.py:238 (beobachten: if not ist_typescript) bzw. :195 (deckende_aufrufe: '
++        'ist_typescript → TS-Aufzeichner, sonst Python). Der Aufruf in verhalten.py:main ist sondeninterner Ablauf.',
++    'biotop/kern/py/verhalten.py::main':
++        'Einstieg der Python-Verhaltenssonde in der Kammer (python _messgeraet/verhalten.py). Gestartet nur über '
++        '_python_sonde (verhaltensvergleich.py:209) hinter den Weichen verhaltensvergleich.py:238 '
++        '(beobachten) und :195 (deckende_aufrufe); die Aufrufe in verhalten.py sind der __main__-Block.',
+     'biotop/organe/eichproben.py::_funktionen':
+         'Die Treffer in eichproben_ts.py:32 und :113 gelten dessen EIGENEM _funktionen '
+         '(eichproben_ts.py:6), nicht diesem — Namensgleichheit. Die echten Aufrufer in '
+diff --git a/tests/test_t3_verhaltensvergleich.py b/tests/test_t3_verhaltensvergleich.py
+index 1036aed..77926b5 100644
+--- a/tests/test_t3_verhaltensvergleich.py
++++ b/tests/test_t3_verhaltensvergleich.py
+@@ -94,17 +94,22 @@ def test_funktion_wird_aus_der_beobachtung_gelesen():
+ 
+ 
+ def test_deckung_verlangt_aufruf_der_abweichenden_funktion():
+-    """Ein Test deckt nur, was er aufruft — ein Test auf median deckt quantil nicht."""
++    """Ein Test deckt nur, was er aufruft — ein Test auf median deckt quantil nicht.
++    Geändert in der Behebungsrunde 2 vor T4 (Deckung je Abweichung, Entscheidung Chat-Claude 23.09.): Beleg ist der am
++    Kandidaten aufgezeichnete Aufruf mit Eingabe und Ergebnis, nicht mehr der Quelltext des Tests."""
+     abw = ['zahlen/statistik:quantil#0@mutation', 'zahlen/statistik:spannweite#1']
+-    tests = {'test_zahlen.test.ts::median neu': "expect(median([1,2,3])).toBe(2)",
+-             'test_zahlen.test.ts::spannweite frisch': "expect(spannweite(w)).toBe(80)"}
+-    d = vv.deckung(abw, tests)
+-    assert d == {'zahlen/statistik:spannweite#1': ['test_zahlen.test.ts::spannweite frisch']}
++    arg = {'zahlen/statistik:quantil#0@mutation': '[[17,27]]', 'zahlen/statistik:spannweite#1': '[[1,9]]'}
++    neu = {'zahlen/statistik:quantil#0@mutation': '27', 'zahlen/statistik:spannweite#1': '8'}
++    aufrufe = [{'test': 'test_zahlen.test.ts::median neu', 'f': 'zahlen/statistik:median', 'args': '[[1,2,3]]', 'erg': '2'},
++               {'test': 'test_zahlen.test.ts::spannweite frisch', 'f': 'zahlen/statistik:spannweite', 'args': '[[1,9]]', 'erg': '8'}]
++    assert vv.deckung(abw, aufrufe, arg, neu) == {'zahlen/statistik:spannweite#1': ['test_zahlen.test.ts::spannweite frisch']}
+ 
+ 
+ def test_gegenprobe_deckung_ohne_passenden_test_bleibt_leer():
+     """Ohne diese Probe würde eine Deckung, die jede Abweichung als gedeckt meldet, ebenso bestehen."""
+-    d = vv.deckung(['zahlen/statistik:quantil#0@alias'], {'t::x': "expect(quantilen(w)).toBe(1)"})
++    d = vv.deckung(['zahlen/statistik:quantil#0@alias'],
++                   [{'test': 't::x', 'f': 'zahlen/statistik:quantilen', 'args': '[[1]]', 'erg': '1'}],
++                   {'zahlen/statistik:quantil#0@alias': '[[1]]'}, {'zahlen/statistik:quantil#0@alias': '1'})
+     assert d == {}
+ 
+ 
+@@ -120,12 +125,17 @@ def ts_werk(tmp_path):
+     return w
+ 
+ 
+-def test_python_werk_enthaelt_sich_gezaehlt(tmp_path):
+-    """Gegenprobe zum TS-Zweig: ohne Sonde für die Sprache kein Urteil — aber eine benannte Enthaltung."""
++def test_python_werk_wird_geurteilt(tmp_path, monkeypatch):
++    """Geändert in der Behebungsrunde 2 vor T4 (Entscheidung Chat-Claude: Python-Sonde vor T4, Grundsatz 11 für jede
++    Sprache): früher enthielt sich das Organ für Python immer ('sprache_ohne_sonde'). Jetzt urteilt es — gestellt ist nur
++    die Kammer (`beobachten`); eine ungedeckte Abweichung lehnt ab."""
+     (tmp_path / 'paket').mkdir()
++    seiten = iter([{'gueltig': True, 'beobachtungen': {'paket.a:f#0': '1'}, 'eingewickelt': {'paket.a': ['f']}},
++                   {'gueltig': True, 'beobachtungen': {'paket.a:f#0': '2'}, 'eingewickelt': {'paket.a': ['f']}}])
++    monkeypatch.setattr(vv, 'beobachten', lambda *a, **k: next(seiten))
+     r = vv.pruefen(tmp_path, {'paket/a.py': 'x'}, 'last', ['paket'], {})
+-    assert r['geurteilt'] is False and r['tragfaehig'] is True
+-    assert r['grund_art'] == 'sprache_ohne_sonde'
++    assert r['sprache'] == 'python' and r['module'] == ['paket.a'] and r['geurteilt'] is True
++    assert r['tragfaehig'] is False and r['ungedeckt'] == ['paket.a:f#0']
+ 
+ 
+ def test_ohne_quellaenderung_nichts_zu_vergleichen(ts_werk):
+@@ -153,10 +163,13 @@ def test_unausfuehrbare_sonde_ist_kein_beleg_fuer_gleichheit(ts_werk, monkeypatc
+ def test_abweichung_mit_deckendem_test_ist_tragfaehig(ts_werk, monkeypatch):
+     alt = {'m/a:f#0': '1', 'm/a:f#0@alias': '1'}
+     neu = {'m/a:f#0': '2', 'm/a:f#0@alias': '2'}
+-    seiten = iter([{'gueltig': True, 'beobachtungen': alt, 'eingewickelt': {'m/a': ['f']}, 'aufgerufen': {'m/a:f': 0}},
+-                   {'gueltig': True, 'beobachtungen': neu, 'eingewickelt': {'m/a': ['f']}, 'aufgerufen': {'m/a:f': 0}}])
++    # Geändert (Behebungsrunde 2, Deckung je Abweichung): der deckende Test ist ein aufgezeichneter Aufruf f(1) → 2
++    arg = {'m/a:f#0': '[1]', 'm/a:f#0@alias': '[1]'}
++    seiten = iter([{'gueltig': True, 'beobachtungen': alt, 'argumente': arg, 'eingewickelt': {'m/a': ['f']}, 'aufgerufen': {'m/a:f': 0}},
++                   {'gueltig': True, 'beobachtungen': neu, 'argumente': arg, 'eingewickelt': {'m/a': ['f']}, 'aufgerufen': {'m/a:f': 0}}])
+     monkeypatch.setattr(vv, 'beobachten', lambda *a, **k: next(seiten))
+-    r = vv.pruefen(ts_werk, {'src/m/a.ts': 'x'}, 'last', ['m'], {'t.test.ts::f neu': 'expect(f(1)).toBe(2)'})
++    r = vv.pruefen(ts_werk, {'src/m/a.ts': 'x'}, 'last', ['m'],
++                   {'tests': ['t.test.ts::f neu'], 'aufrufe': [{'test': 't.test.ts::f neu', 'f': 'm/a:f', 'args': '[1]', 'erg': '2'}]})
+     assert r['tragfaehig'] is True and r['anzahl_abweichungen'] == 2 and r['ungedeckt'] == []
+ 
+ 
+diff --git a/tests/test_vor_t4_02.py b/tests/test_vor_t4_02.py
+new file mode 100644
+index 0000000..a25e6ba
+--- /dev/null
++++ b/tests/test_vor_t4_02.py
+@@ -0,0 +1,268 @@
++"""Behebungsrunde 2 vor T4 — Laufweg-Tests (tests/test_vor_t4_02.py). Probe und Gegenprobe je Punkt des Auftrags.
++
++1. Python-Sonde am Python-Prüfwerk (speicherwerk) DURCH aegis.pruefen, echte Kammer (biotop-kammer:1):
++   eingebauter Zwischenspeicher-Fehler scheitert („Verhaltensvergleich: … @mutation …“); derselbe Speicher am Inhalt
++   überlebt; die Weißraum-Änderung scheitert an einer Formvariante (~form). Gestellt: Modell (KEIN ANGRIFF), sonst nichts.
++2. Deckung je Abweichung durch verhaltensvergleich.pruefen: ein Test, der die Funktion mit derselben Eingabe ruft und
++   dasselbe Ergebnis bekommt, deckt genau diese Abweichung — nicht die Nachbarabweichung derselben Funktion.
++3. Bestätigungsmessung vor jeder Laufzeitablehnung durch aegis.pruefen: ein Riss, den die Nachmessung nicht bestätigt,
++   lehnt nicht ab; ein bestätigter lehnt ab; eine ungültige Nachmessung stellt zurück.
++4. Gepaarte Messung mit fehlenden Werten ist ungültig (die rote Spezifikation aus laeufe/biotop-vor-t4/spez/, übernommen).
++"""
++import json
++import sqlite3
++import sys
++from pathlib import Path
++from types import SimpleNamespace
++
++import pytest
++
++from biotop.kern import datenbank, messgeraet
++from biotop.organe import aegis, kammer
++from biotop.organe import verhaltensvergleich as vv
++
++sys.path.insert(0, str(Path(__file__).parent))
++import speicherwerk as SW  # noqa: E402
++
++
++# ================================================================ 4. Rote Spezifikation Teilausfall (übernommen, jetzt grün)
++def test_teilausfall_kandidat_ist_messgeraetausfall(monkeypatch):
++    """Aus laeufe/biotop-vor-t4/spez/test_spez_laufzeit_gepaart_teilausfall.py (an 330b4ec rot)."""
++    def messen(werk, bereiche, paket, ref, dateien, zeitlimit_s=150):
++        kand = dateien is not None
++        return {"gueltig": True, "grund": "", "bereiche": {
++            "a": {"laufzeit_ms": 1.0}, "b": ({"laufzeit_ms": None, "laufzeit_fehler": "SyntaxError"} if kand else {"laufzeit_ms": 2.0})}}
++    monkeypatch.setattr(messgeraet, "laufzeit_messen", messen)
++    r = messgeraet.laufzeit_gepaart(".", ["a", "b"], "p", "last", None, {"x": "y"}, n=3)
++    assert r["gueltig"] is False and r.get("seite") == "kandidat", r
++    assert r.get("bereich") == "b" and "SyntaxError" in r["grund"], r
++
++
++def test_gegenprobe_vollstaendige_messung_bleibt_gueltig(monkeypatch):
++    monkeypatch.setattr(messgeraet, "laufzeit_messen", lambda *a, **k: {"gueltig": True, "grund": "", "bereiche": {
++        "a": {"laufzeit_ms": 1.0}, "b": {"laufzeit_ms": 2.0}}})
++    r = messgeraet.laufzeit_gepaart(".", ["a", "b"], "p", "last", None, {"x": "y"}, n=3)
++    assert r["gueltig"] is True and r["bereiche"]["b"]["kandidat"] == 2.0, r
++
++
++# ================================================================ 2. Deckung je Abweichung
++def _ts_werk(tmp_path):
++    w = tmp_path / "werk"
++    (w / "src" / "m").mkdir(parents=True)
++    (w / "package.json").write_text('{"type":"module"}')
++    (w / "src" / "m" / "a.ts").write_text("export function f(x: string): string { return x; }\n")
++    return w
++
++
++@pytest.mark.parametrize("aufrufe,gedeckt", [
++    # der Test ruft f("a") und bekommt am Kandidaten "A": deckt genau f~rand#2 (Eingabe "a"), nicht f~form#0 ("\t")
++    ([{"test": "t::a", "f": "m/a:f", "args": '["a"]', "erg": '"A"'}], {"m/a:f~rand#2": ["t::a"]}),
++    # Gegenprobe: dieselbe Funktion, andere Eingabe — deckt nichts (früher, je Funktion: alles)
++    ([{"test": "t::b", "f": "m/a:f", "args": '["b"]', "erg": '"B"'}], {}),
++    # Gegenprobe: dieselbe Eingabe, anderes Ergebnis (der Test sah am Kandidaten etwas anderes als die Sonde) — nichts
++    ([{"test": "t::a", "f": "m/a:f", "args": '["a"]', "erg": '"a"'}], {}),
++])
++def test_deckung_je_abweichung_am_organ(tmp_path, monkeypatch, aufrufe, gedeckt):
++    w = _ts_werk(tmp_path)
++    alt = {"m/a:f~rand#2": '"a"', "m/a:f~form#0": '"\\t"'}
++    neu = {"m/a:f~rand#2": '"A"', "m/a:f~form#0": '"\\t!"'}
++    arg = {"m/a:f~rand#2": '["a"]', "m/a:f~form#0": '["\\t"]'}
++    seiten = iter([{"gueltig": True, "beobachtungen": alt, "argumente": arg, "eingewickelt": {"m/a": ["f"]}},
++                   {"gueltig": True, "beobachtungen": neu, "argumente": arg, "eingewickelt": {"m/a": ["f"]}}])
++    monkeypatch.setattr(vv, "beobachten", lambda *a, **k: next(seiten))
++    r = vv.pruefen(w, {"src/m/a.ts": "x"}, "last", ["m"], {"tests": sorted({c["test"] for c in aufrufe}), "aufrufe": aufrufe})
++    assert r["gedeckt"] == gedeckt, r
++    assert r["tragfaehig"] is False and "m/a:f~form#0" in r["ungedeckt"]         # die Nachbarabweichung bleibt ungedeckt
++
++
++def test_deckung_mutationsmuster_nicht_durch_frischen_aufruf(tmp_path, monkeypatch):
++    """Ein veralteter Zwischenspeicher (@mutation liefert das alte Ergebnis) ist durch einen frischen Aufruf mit der
++    mutierten Eingabe nicht deckbar: der frische Aufruf bekommt am Kandidaten das richtige Ergebnis, nicht das veraltete."""
++    w = _ts_werk(tmp_path)
++    alt = {"m/a:f#0": "3", "m/a:f#0@mutation": "37"}
++    neu = {"m/a:f#0": "3", "m/a:f#0@mutation": "3"}
++    arg = {"m/a:f#0": "[[1,2]]", "m/a:f#0@mutation": "[[17,27]]"}
++    seiten = iter([{"gueltig": True, "beobachtungen": alt, "argumente": arg, "eingewickelt": {"m/a": ["f"]}},
++                   {"gueltig": True, "beobachtungen": neu, "argumente": arg, "eingewickelt": {"m/a": ["f"]}}])
++    monkeypatch.setattr(vv, "beobachten", lambda *a, **k: next(seiten))
++    frisch = [{"test": "t::frisch", "f": "m/a:f", "args": "[[17,27]]", "erg": "37"}]
++    r = vv.pruefen(w, {"src/m/a.ts": "x"}, "last", ["m"], {"tests": ["t::frisch"], "aufrufe": frisch})
++    assert r["tragfaehig"] is False and r["ungedeckt"] == ["m/a:f#0@mutation"], r
++
++
++# ================================================================ 1. Python-Sonde durch aegis.pruefen (echte Kammer)
++def _python_pruefen(tmp_path, monkeypatch, diff, nische="schnell"):
++    """aegis.pruefen am Python-Prüfwerk, echte Kammer (Messgerät, Bandit, Vulture, pytest, Python-Sonde). Gestellt sind
++    das Modell (KEIN ANGRIFF) und die Laufzeitmessung: der Kandidat ist in `zahlen` 20 % schneller (so erreicht ein
++    „schneller“-Kandidat den Verhaltensvergleich — wie K2934/K3121 in T3), `text` gleich schnell."""
++    monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
++    w = tmp_path / "werk"
++    SW.anlegen(w)
++    con = sqlite3.connect(":memory:", isolation_level=None)
++    con.row_factory = sqlite3.Row
++    con.executescript(datenbank.SCHEMA)
++    con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,?,?,'erzeugt',?)",
++                ("zahlen" if "statistik" in diff else "text", nische, diff))
++    monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
++    basis = messgeraet.messen(w, ["zahlen", "text"], SW.PAKET, SW.REFERENZLAST)
++    assert basis["gueltig"], basis.get("grund")
++    def laufzeit(werk, bereiche, paket, ref, dateien=None, zeitlimit_s=150):
++        kand = bool(dateien)
++        return {"gueltig": True, "grund": "", "bereiche": {
++            "zahlen": {"laufzeit_ms": 4.0 if kand else 5.0}, "text": {"laufzeit_ms": 5.0}}}
++    monkeypatch.setattr(messgeraet, "laufzeit_messen", laufzeit)
++    tausch = {"_rauschtoleranz": {"zahlen": 1.2, "text": 1.2}}
++    u = aegis.pruefen(con, 1, 1, 7, w, SW.PAKET, ["zahlen", "text"], [], basis, basis, SW.REFERENZLAST, tausch)
++    return con, u
++
++
++def _verhalten(con):
++    z = con.execute("SELECT inhalt FROM protokoll WHERE art='aegis.urteil' ORDER BY nr DESC LIMIT 1").fetchone()
++    return json.loads(z[0]).get("verhalten") or {}
++
++
++def test_py_zwischenspeicher_fehler_scheitert_am_laufweg(tmp_path, monkeypatch):
++    con, u = _python_pruefen(tmp_path, monkeypatch, SW.zwischenspeicher_falsch())
++    v = _verhalten(con)
++    assert u["status"] == "abgelehnt" and u["grund"].startswith("Verhaltensvergleich:"), u["grund"]
++    assert v["sprache"] == "python" and v["geurteilt"] is True
++    assert any(k.startswith("speicherwerk.zahlen.statistik:spannweite#") and k.endswith("@mutation") for k in v["ungedeckt"]), v
++
++
++def test_py_gegenprobe_speicher_am_inhalt_ueberlebt(tmp_path, monkeypatch):
++    con, u = _python_pruefen(tmp_path, monkeypatch, SW.zwischenspeicher_richtig())
++    v = _verhalten(con)
++    assert v["sprache"] == "python" and v["geurteilt"] is True and v["anzahl_abweichungen"] == 0, v
++    assert v["beobachtete_funktionen"] == "2 von 2", v
++    assert not u["grund"].startswith("Verhaltensvergleich:"), u["grund"]
++
++
++def test_py_weissraum_scheitert_an_formvariante(tmp_path, monkeypatch):
++    """Der Kandidat entfernt toten Code (Kernmaß +1, besteht das Maß) und ändert nebenbei `normieren` für Tab und
++    Zeilenumbruch — kein Test, keine Last nutzt das. Nur die Formvarianten des Korpus sehen es (T3-Muster K2868)."""
++    con, u = _python_pruefen(tmp_path, monkeypatch, SW.weissraum_falsch(), nische="sicher")
++    v = _verhalten(con)
++    assert u["status"] == "abgelehnt" and u["grund"].startswith("Verhaltensvergleich:"), u["grund"]
++    assert v["ungedeckt"] and all("~form#" in k for k in v["ungedeckt"]), v["ungedeckt"]
++
++
++def test_py_gegenprobe_nur_toter_code_entfernt_ueberlebt(tmp_path, monkeypatch):
++    con, u = _python_pruefen(tmp_path, monkeypatch, SW.toter_code_entfernt(), nische="sicher")
++    v = _verhalten(con)
++    assert u["status"] == "ueberlebt" and v["anzahl_abweichungen"] == 0 and v["geurteilt"] is True, (u["grund"], v)
++
++
++# ================================================================ 3. Bestätigungsmessung vor der Laufzeitablehnung (aegis.pruefen)
++def pruefen_mit_laufzeit(tmp_path, monkeypatch, erste, zweite):
++    """aegis.pruefen (TS-Werk, Kernmaß +1, Tauschfaktor Laufzeit 1,1) mit gestellter Kammer: Messgerät, Sonde, Modell
++    und Laufzeitmessung. `erste`/`zweite` = (Kandidat, Vorgeneration) in ms für `alpha` in der ersten gepaarten Messung
++    bzw. der Nachmessung; zweite None = Nachmessung ungültig (Zeitlimit). Gezählt: Aufrufe von laufzeit_gepaart."""
++    con = sqlite3.connect(":memory:", isolation_level=None)
++    con.row_factory = sqlite3.Row
++    con.executescript(datenbank.SCHEMA)
++    w = tmp_path / "w"
++    (w / "src" / "alpha").mkdir(parents=True)
++    (w / "package.json").write_text('{"type":"module"}')
++    (w / "src" / "alpha" / "a.ts").write_text("export function a(x: number): number {\n  return x;\n}\n")
++    diff = ("--- a/src/alpha/a.ts\n+++ b/src/alpha/a.ts\n@@ -1,3 +1,3 @@\n export function a(x: number): number {\n"
++            "-  return x;\n+  return x + 0;\n }\n")
++    con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'alpha','sicher','erzeugt',?)", (diff,))
++    monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
++
++    def messen(werk, bereiche, paket, ref, dateien=None, **k):
++        kand = any(p.startswith("src/") for p in (dateien or {}))
++        return {"gueltig": True, "kernmass": 0, "werk": {"baut": True, "zyklen": 0, "bauzeit_ms": 100,
++                "tests_fehlgeschlagen_liste": [], "tests_fehlgeschlagen_ids": []},
++                "bereiche": {"alpha": {"tests_bestanden": 1, "tests_fehlgeschlagen": 0, "sicherheit_punkte": 0,
++                                       "sicherheit_befunde": [], "tote_funktionen": 0 if kand else 1,
++                                       "laufzeit_ms": None, "groesste_funktion": 3}}}
++    monkeypatch.setattr(aegis.messgeraet, "messen", messen)
++    zaehl = {"paare": 0}
++    original = messgeraet.laufzeit_gepaart
++
++    def gepaart(*a, **k):
++        zaehl["paare"] += 1
++        return original(*a, **k)
++    monkeypatch.setattr(messgeraet, "laufzeit_gepaart", gepaart)
++
++    def laufzeit(werk, bereiche, paket, ref, dateien=None, zeitlimit_s=150):
++        werte = erste if zaehl["paare"] == 1 else zweite
++        if werte is None:
++            return {"gueltig": False, "grund": "Zeitlimit", "bereiche": {}}
++        return {"gueltig": True, "grund": "", "bereiche": {"alpha": {"laufzeit_ms": werte[0] if dateien else werte[1]}}}
++    monkeypatch.setattr(messgeraet, "laufzeit_messen", laufzeit)
++    ok = {"gueltig": True, "beobachtungen": {"alpha/a:a#0": "1"}, "eingewickelt": {"alpha/a": ["a"]}, "aufgerufen": {"alpha/a:a": 1}}
++    monkeypatch.setattr(vv, "beobachten", lambda *a, **k: dict(ok))
++    basis = messen(w, ["alpha"], "src", None)
++    u = aegis.pruefen(con, 1, 1, 7, w, "src", ["alpha"], [], basis, basis, "// last", {"laufzeit_faktor": 1.1})
++    return u, zaehl
++
++
++@pytest.mark.parametrize("zweite,erwartet", [
++    ((12.0, 10.0), "abgelehnt"),        # Nachmessung bestätigt den Riss (×1,2 > Toleranz 1,15) → Ablehnung
++    ((10.1, 10.0), "ueberlebt"),        # Nachmessung bestätigt ihn nicht → keine Ablehnung (Gegenprobe)
++    (None, "zurueckgestellt"),          # Nachmessung ungültig → Messgerätausfall, zurückgestellt
++])
++def test_laufzeitriss_wird_vor_der_ablehnung_nachgemessen(tmp_path, monkeypatch, zweite, erwartet):
++    u, messungen = pruefen_mit_laufzeit(tmp_path, monkeypatch, erste=(12.0, 10.0), zweite=zweite)
++    assert u["status"] == (aegis.ZURUECKGESTELLT if erwartet == "zurueckgestellt" else erwartet), u["grund"]
++    assert messungen["paare"] == 2                                    # erste Messung + genau eine Nachmessung
++    if erwartet == "abgelehnt":
++        assert "alpha.laufzeit_ms" in u["grund"], u["grund"]
++    if erwartet == "ueberlebt":
++        assert "laufzeit" not in u["grund"].lower() or "Nische" in u["grund"], u["grund"]
++
++
++def test_gegenprobe_ohne_riss_keine_nachmessung(tmp_path, monkeypatch):
++    u, messungen = pruefen_mit_laufzeit(tmp_path, monkeypatch, erste=(10.0, 10.0), zweite=(99.0, 10.0))
++    assert u["status"] == "ueberlebt" and messungen["paare"] == 1, (u["grund"], messungen)
++
++
++# ================================================================ Deckungsaufzeichner in der echten Kammer (TS und Python)
++# Probe: ein Test, der die Funktion mit genau der Eingabe der Sonde ruft und am Kandidaten das neue Ergebnis bekommt,
++# deckt GENAU diese Abweichung (und ihr Alias-Muster). Gegenprobe: ohne diesen Test ist sie ungedeckt. Beide Richtungen
++# zeigen, dass der Aufzeichner wirklich aufzeichnet — ein leerer Aufzeichner ergäbe in beiden Fällen „ungedeckt“.
++TS_QUELLE = "export function f(x: string): string {\n  return x;\n}\n"
++TS_NEU = "export function f(x: string): string {\n  return x.toUpperCase();\n}\n"
++TS_TEST = ("import { test, expect } from 'vitest';\nimport { f } from '../src/m/a.js';\n\n"
++           "test('test_m_deckt_a', () => {\n  expect(f('a')).toBe('A');\n});\n")
++PY_QUELLE = "def f(x: str) -> str:\n    return x\n"
++PY_NEU = "def f(x: str) -> str:\n    return x.upper()\n"
++PY_TEST = "from paket.m.a import f\n\n\ndef test_m_deckt_a():\n    assert f('a') == 'A'\n"
++
++
++def _deckungswerk(tmp_path, sprache):
++    w = tmp_path / f"werk_{sprache}"
++    if sprache == "ts":
++        (w / "src" / "m").mkdir(parents=True)
++        (w / "tests").mkdir()
++        (w / "package.json").write_text('{"type":"module"}')
++        (w / "src" / "m" / "a.ts").write_text(TS_QUELLE)
++        ref = "import { f } from './dist/m/a.js';\nexport function last_m() { for (let i = 0; i < 100; i++) f('z'); }\n"
++        return w, {"src/m/a.ts": TS_NEU}, {"tests/test_m_deckung.test.ts": TS_TEST}, ref, "biotop-kammer:ts1"
++    for d in ("paket/m", "tests"):
++        (w / d).mkdir(parents=True)
++    (w / "paket" / "__init__.py").write_text("")
++    (w / "paket" / "m" / "__init__.py").write_text("")
++    (w / "paket" / "m" / "a.py").write_text(PY_QUELLE)
++    ref = "import sys\nsys.path.insert(0, '/werk')\n\ndef last_m():\n    from paket.m.a import f\n    for _ in range(100):\n        f('z')\n"
++    return w, {"paket/m/a.py": PY_NEU}, {"tests/test_m_deckung.py": PY_TEST}, ref, "biotop-kammer:1"
++
++
++@pytest.mark.parametrize("mit_test", [True, False])
++@pytest.mark.parametrize("sprache", ["ts", "py"])
++def test_deckungsaufzeichner_in_der_kammer_je_abweichung(tmp_path, monkeypatch, sprache, mit_test, ts_kammer):
++    w, code, tests, ref, image = _deckungswerk(tmp_path, sprache)
++    monkeypatch.setattr(kammer, "IMAGE", image)
++    behoben = {("test_m_deckung.test.ts" if sprache == "ts" else "test_m_deckung.py") + "::test_m_deckt_a"} if mit_test else set()
++    r = vv.pruefen(w, code, ref, ["m"], lambda abw: vv.deckende_aufrufe(w, code, tests, behoben))
++    gedeckt = sorted((r.get("gedeckt") or {}))
++    y = r["anzahl_abweichungen"]
++    assert r["geurteilt"] is True and r["tragfaehig"] is False and y > 2, r      # 'x'×40, Formvarianten u. a. bleiben ungedeckt
++    # `ungedeckt` im Urteil ist auf 20 gekürzt; die Zahl steht vollständig im Grund („x von y Abweichung(en) ungedeckt“).
++    if mit_test:
++        assert r["deckung_zaehlung"]["aufrufe"] >= 1, r["deckung_zaehlung"]     # der Aufzeichner hat aufgezeichnet
++        assert gedeckt and all(k.split("@")[0].endswith("~rand#2") for k in gedeckt), r["gedeckt"]   # genau f('a')
++        assert r["grund"].startswith(f"{y - len(gedeckt)} von {y} Abweichung(en) ungedeckt"), r["grund"]
++    else:
++        assert gedeckt == [] and r["grund"].startswith(f"{y} von {y} Abweichung(en) ungedeckt"), r["grund"]
+diff --git a/tests/test_vorspann.py b/tests/test_vorspann.py
+index 05ad4cf..a68a5bf 100644
+--- a/tests/test_vorspann.py
++++ b/tests/test_vorspann.py
+@@ -341,6 +341,15 @@ def test_unit_generalprobe_nimmt_wirkungskreisunion_aber_pareto_alle_bereiche(un
+         basis = messung(); kandidat = messung(); kandidat['bereiche']['beta']['laufzeit_ms'] = 50
+     paar = iter([basis, kandidat])
+     monkeypatch.setattr(L.messgeraet, 'messen', lambda *a,**kw: next(paar))
++    # Geändert in der Behebungsrunde 2 vor T4: Die gepaarte Laufzeit lief hier ungestellt in einer echten Kammer gegen
++    # die Unit-Referenzlast ohne last_alpha — der fehlende Wert wurde still übergangen (der Befund, den die Runde
++    # behebt). Jetzt ist ein fehlender Wert ein Messgerätausfall; gestellt ist deshalb die Kammergrenze der Laufzeit
++    # (alpha gleich schnell; beta ist gesperrt und wird nicht angefordert).
++    lz_angefordert = []
++    def laufzeit(werk, bereiche, *a, **kw):
++        lz_angefordert.append(list(bereiche))
++        return {'gueltig': True, 'grund': '', 'bereiche': {b: {'laufzeit_ms': 10.0} for b in bereiche}}
++    monkeypatch.setattr(L.messgeraet, 'laufzeit_messen', laufzeit)
+     gesehen = []
+     echt = L.messgeraet.urteil_f2
+     def urteil(*a, **kw):
+@@ -351,6 +360,7 @@ def test_unit_generalprobe_nimmt_wirkungskreisunion_aber_pareto_alle_bereiche(un
+     assert gesehen[0][4] == ['alpha'], 'nicht pauschal alle Bereiche als Wirkungskreis'
+     assert r['status'] == 'abgelehnt'
+     assert ('beta.tests_fehlgeschlagen' if fall == 'nachbarfehler' else 'Kernmaß unverändert') in r['grund']
++    assert all(b == ['alpha'] for b in lz_angefordert), lz_angefordert       # gesperrtes beta nie angefordert
+     assert con.execute("SELECT count(*) FROM kandidaten WHERE bereich='beta'").fetchone()[0] == 0
+ 
+ 

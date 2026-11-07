@@ -1,0 +1,58 @@
+#!/bin/bash
+# Kette der Behebungsrunde 5 (ein Hintergrundjob): Teillauf 3 (Verdrahtung + Wächter + neue Datei) → nur wenn grün:
+# Commit auf 43b8fad → volle Regression samt Verdrahtung → Nachspiele N1–N3 (K2904/K3091 je 3, K2868 in N1) →
+# Vorher/Nachher → T4-Größe (Entscheidung 4). Nacheinander, kein Modellaufruf.
+set -u
+A=/root/biotop-vor-t4-05
+PY=/root/biotop-t3/venv/bin/python
+cd /root/biotop
+export BIOTOP_KAMMER_IMAGE=biotop-kammer:ts1 BIOTOP_AUFTRAG_LAUF_AB=26 BIOTOP_AUFTRAG_BUDGET_EUR=10
+echo "=== start $(date -Is) HEAD=$(git rev-parse --short HEAD)"
+git status --short
+echo "=== Signatur-/Importzeilen im Diff gegen HEAD"
+git diff HEAD | grep -E '^[-+](def |async def |class |import |from )'
+export T3_VERDRAHTUNG_BELEG=$A/VERDRAHTUNG-BELEG-TEILLAUF3.json
+$PY -m pytest tests/test_verdrahtung.py -q -p no:cacheprovider --tb=short -rfE > $A/bau/TEILLAUF-3a.txt 2>&1
+r1=$?
+$PY -m pytest tests/test_vor_t4_05.py tests/test_vor_t4_04.py tests/test_t3_python_annahmen.py tests/test_vorspann.py \
+  -q -p no:cacheprovider --tb=short -rfE > $A/bau/TEILLAUF-3b.txt 2>&1
+r2=$?
+echo "teillauf3a rc=$r1 $(tail -1 $A/bau/TEILLAUF-3a.txt)"
+echo "teillauf3b rc=$r2 $(tail -1 $A/bau/TEILLAUF-3b.txt)"
+if [ $r1 -ne 0 ] || [ $r2 -ne 0 ]; then echo "Teillauf 3 rot — kein Commit"; exit 3; fi
+# Vorprobe am Arbeitsbaum: EIN Nachspiel K2904 (TypeScript-Werk des T3) — die Kanon-Vollständigkeitsprüfung darf die
+# Gegenprobe von Entscheidung 1 nicht in eine Enthaltung kippen. Nur wenn es überlebt: Commit.
+mkdir -p $A/nachspiel/vorprobe
+NACHSPIEL_AUS=$A/nachspiel/vorprobe $PY $A/nachspiel/nachspiel_vor_t4_05.py s2_k2904 > $A/nachspiel/VORPROBE-ARBEITSBAUM.txt 2>&1
+echo "vorprobe rc=$? $(cut -c1-160 $A/nachspiel/VORPROBE-ARBEITSBAUM.txt | head -1)"
+if ! grep -q "status=ueberlebt" $A/nachspiel/VORPROBE-ARBEITSBAUM.txt; then echo "Vorprobe K2904 nicht überlebt — kein Commit"; exit 4; fi
+git add -A biotop tests
+git status --short
+git commit -q -F $A/COMMIT-NACHRICHT.txt
+echo "commit-rc=$?"
+git log --oneline -3
+git show --stat HEAD | tail -25 > $A/COMMIT-STAT.txt
+git show HEAD > $A/KERN-COMMIT.patch.txt
+echo "patch $(wc -l < $A/KERN-COMMIT.patch.txt) Zeilen"
+export T3_VERDRAHTUNG_BELEG=$A/VERDRAHTUNG-BELEG-REGRESSION.json
+echo "regression start $(date -Is) HEAD=$(git rev-parse --short HEAD) fremde_container=$(docker ps -q | wc -l)"
+$PY -m pytest tests/ -q -m "not integration" -p no:cacheprovider -rfEs --durations=8 \
+  --junitxml=$A/REGRESSION.junit.xml > $A/REGRESSION.txt 2>&1
+echo "regression pytest-rc=$? $(tail -1 $A/REGRESSION.txt)"
+git status --short -- biotop tests; echo "(Ende Status nach Regression)"
+for d in 1 2 3; do
+  mkdir -p $A/nachspiel/n$d
+  echo "nachspiel n$d start $(date -Is) HEAD=$(git rev-parse --short HEAD) fremde_container=$(docker ps -q | wc -l)"
+  if [ $d -eq 1 ]; then FAELLE="s2_k2904 s2_k3091 k2868"; else FAELLE="s2_k2904 s2_k3091"; fi
+  NACHSPIEL_AUS=$A/nachspiel/n$d $PY $A/nachspiel/nachspiel_vor_t4_05.py $FAELLE > $A/nachspiel/NACHSPIEL-N$d.txt 2>&1
+  echo "nachspiel n$d rc=$?"
+done
+echo "vorher/nachher start $(date -Is)"
+$PY $A/proben/vorher_nachher.py $A/proben > $A/proben/VORHER-NACHHER.txt 2>&1
+echo "vorher/nachher rc=$?"
+echo "t4-groesse start $(date -Is)"
+K=/tmp/r5-baum-head; rm -rf $K; mkdir -p $K; git archive HEAD | tar -x -C $K
+$PY -B $A/proben/t4_groesse.py $K > $A/proben/T4-GROESSE.txt 2>&1
+echo "t4-groesse rc=$?"
+git status --short -- biotop tests; echo "(Ende Status)"
+echo "ende $(date -Is)"

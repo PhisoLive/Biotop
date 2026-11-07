@@ -1,0 +1,395 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 63 (Teile 4–165 dieses Stands) · enthält R58 bis R59
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R58 · Teil C: Schema der Datenbankzweige STAMM/VB1/R02/T3 (nur lesend)
+Beginn: 2026-09-25 16:18:13 CEST (UTC+0200)
+Ende:   2026-09-25 16:18:14 CEST (UTC+0200)
+Dauer:  0.4 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/tore/c3_schema.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/tore/c3_schema.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil C (nur lesend): Schema der Datenbankzweige für FK28/FK29.
+Regeln: STAMM (/root/biotop/daten/biotop.db) nur mit ?mode=ro&immutable=1 und nur, wenn die -wal-Datei 0 Bytes hat
+(sonst NICHT geöffnet, Vermerk). Alle anderen Zweige mit ?mode=ro.
+Ausgabe je Zweig: Größe von DB, -wal, -shm; Tabellen mit Zeilenzahl; Spalten der Tabellen, deren Name 'gedaechtnis',
+'immun', 'protokoll', 'muster', 'art', 'projekt' oder 'behauptung' enthält."""
+import os
+import sqlite3
+
+ZWEIGE = [
+    ('STAMM', '/root/biotop/daten/biotop.db', 'immutable'),
+    ('VB1', '/root/phase-4-vorbedingung-1/privat/biotop.db', 'ro'),
+    ('R02', '/root/reparatur-02/privat-cli/privat.db', 'ro'),
+    ('T3', '/root/biotop-t3/t3.db', 'ro'),
+]
+
+
+def groesse(p):
+    return os.path.getsize(p) if os.path.exists(p) else None
+
+
+for name, pfad, art in ZWEIGE:
+    g, w, s = groesse(pfad), groesse(pfad + '-wal'), groesse(pfad + '-shm')
+    print(f'== {name}: {pfad} | db {g} B | wal {w} | shm {s}')
+    if g is None:
+        print('   NICHT GEFUNDEN')
+        continue
+    if art == 'immutable':
+        if w not in (None, 0):
+            print(f'   NICHT GEÖFFNET: -wal hat {w} Bytes (Regel: nur bei 0 Bytes)')
+            continue
+        uri = f'file:{pfad}?mode=ro&immutable=1'
+    else:
+        uri = f'file:{pfad}?mode=ro'
+    print(f'   URI: {uri}')
+    try:
+        c = sqlite3.connect(uri, uri=True)
+        tabellen = [r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")]
+        for t in tabellen:
+            n = c.execute(f'SELECT count(*) FROM "{t}"').fetchone()[0]
+            spalten = [r[1] for r in c.execute(f'PRAGMA table_info("{t}")')]
+            merk = any(k in t for k in ('gedaechtnis', 'immun', 'protokoll', 'muster', 'art', 'projekt', 'behauptung'))
+            print(f'   {t}: {n} Zeilen' + (f' | Spalten {spalten}' if merk else ''))
+        c.close()
+    except Exception as e:  # laut scheitern
+        print(f'   FEHLER beim Lesen: {type(e).__name__}: {e}')
+    print(f'   danach: wal {groesse(pfad + "-wal")} | shm {groesse(pfad + "-shm")}')
+--- Ende /root/sicherung/biotop-lage-01/entwurf/tore/c3_schema.py ---
+Ausgabe (vollständig, stdout und stderr):
+== STAMM: /root/biotop/daten/biotop.db | db 29659136 B | wal 0 | shm 32768
+   URI: file:/root/biotop/daten/biotop.db?mode=ro&immutable=1
+   artgedaechtnis: 699 Zeilen | Spalten ['id', 'werk', 'werkklasse', 'lauf_id', 'generation', 'kandidat_id', 'bereich', 'bereichsrolle', 'nische', 'kategorie', 'ergebnis', 'zuwachs', 'laufzeit_prozent', 'beschreibung', 'erstellt_am', 'muster', 'muster_von']
+   bandit: 158 Zeilen
+   benutzer: 1 Zeilen
+   eichgegenstand: 2 Zeilen
+   eichkosten: 11 Zeilen
+   eichung: 25 Zeilen
+   eliten: 34 Zeilen
+   entropie: 43 Zeilen
+   generationen: 144 Zeilen
+   geschmack: 35 Zeilen
+   immunsystem: 379 Zeilen | Spalten ['id', 'werk_id', 'lauf_id', 'bereich', 'name', 'code', 'ursprung', 'status', 'erstellt_am', 'generation']
+   jury: 7 Zeilen
+   kandidaten: 2679 Zeilen
+   kasse: 4070 Zeilen
+   laeufe: 25 Zeilen
+   landkarte: 567 Zeilen | Spalten ['id', 'werk_id', 'stufe', 'schluessel', 'inhalt', 'pruefsumme', 'erstellt_am', 'herkunft']
+   lazarus: 70 Zeilen
+   mentor: 13 Zeilen
+   mutanten: 162 Zeilen
+   projektgedaechtnis: 686 Zeilen | Spalten ['id', 'werk', 'werk_id', 'lauf_id', 'generation', 'kandidat_id', 'bereich', 'nische', 'dateien', 'funktionen', 'ansatz', 'grund', 'grundklasse', 'begruendung', 'erstellt_am']
+   protokoll: 16030 Zeilen | Spalten ['nr', 'zeit', 'art', 'inhalt', 'hash_vor', 'hash']
+   strassen: 279 Zeilen
+   tokens: 4 Zeilen
+   verfassung_werk: 18 Zeilen
+   vertraege: 1222 Zeilen
+   vertraege_explizit: 37 Zeilen
+   werke: 22 Zeilen
+   danach: wal 0 | shm 32768
+== VB1: /root/phase-4-vorbedingung-1/privat/biotop.db | db 31748096 B | wal 4140632 | shm 32768
+   URI: file:/root/phase-4-vorbedingung-1/privat/biotop.db?mode=ro
+   artgedaechtnis: 769 Zeilen | Spalten ['id', 'werk', 'werkklasse', 'lauf_id', 'generation', 'kandidat_id', 'bereich', 'bereichsrolle', 'nische', 'kategorie', 'ergebnis', 'zuwachs', 'laufzeit_prozent', 'beschreibung', 'erstellt_am', 'muster', 'muster_von']
+   bandit: 170 Zeilen
+   benutzer: 1 Zeilen
+   eichgegenstand: 3 Zeilen
+   eichkosten: 22 Zeilen
+   eichung: 29 Zeilen
+   eliten: 36 Zeilen
+   entropie: 48 Zeilen
+   generationen: 150 Zeilen
+   geschmack: 38 Zeilen
+   immunsystem: 382 Zeilen | Spalten ['id', 'werk_id', 'lauf_id', 'bereich', 'name', 'code', 'ursprung', 'status', 'erstellt_am', 'generation']
+   jury: 8 Zeilen
+   kandidaten: 2847 Zeilen
+   kasse: 4316 Zeilen
+   laeufe: 26 Zeilen
+   landkarte: 594 Zeilen | Spalten ['id', 'werk_id', 'stufe', 'schluessel', 'inhalt', 'pruefsumme', 'erstellt_am', 'herkunft']
+   lazarus: 73 Zeilen
+   mentor: 14 Zeilen
+   mutanten: 204 Zeilen
+   projektgedaechtnis: 749 Zeilen | Spalten ['id', 'werk', 'werk_id', 'lauf_id', 'generation', 'kandidat_id', 'bereich', 'nische', 'dateien', 'funktionen', 'ansatz', 'grund', 'grundklasse', 'begruendung', 'erstellt_am']
+   protokoll: 17051 Zeilen | Spalten ['nr', 'zeit', 'art', 'inhalt', 'hash_vor', 'hash']
+   strassen: 292 Zeilen
+   tokens: 4 Zeilen
+   verfassung_werk: 19 Zeilen
+   vertraege: 1287 Zeilen
+   vertraege_explizit: 40 Zeilen
+   vorspann_nachweise: 1 Zeilen
+   werke: 23 Zeilen
+   danach: wal 4140632 | shm 32768
+== R02: /root/reparatur-02/privat-cli/privat.db | db 30511104 B | wal 0 | shm 32768
+   URI: file:/root/reparatur-02/privat-cli/privat.db?mode=ro
+   artgedaechtnis: 699 Zeilen | Spalten ['id', 'werk', 'werkklasse', 'lauf_id', 'generation', 'kandidat_id', 'bereich', 'bereichsrolle', 'nische', 'kategorie', 'ergebnis', 'zuwachs', 'laufzeit_prozent', 'beschreibung', 'erstellt_am', 'muster', 'muster_von']
+   bandit: 158 Zeilen
+   benutzer: 1 Zeilen
+   eichgegenstand: 3 Zeilen
+   eichkosten: 22 Zeilen
+   eichung: 29 Zeilen
+   eliten: 34 Zeilen
+   entropie: 43 Zeilen
+   generationen: 144 Zeilen
+   geschmack: 35 Zeilen
+   immunsystem: 379 Zeilen | Spalten ['id', 'werk_id', 'lauf_id', 'bereich', 'name', 'code', 'ursprung', 'status', 'erstellt_am', 'generation']
+   jury: 7 Zeilen
+   kandidaten: 2679 Zeilen
+   kasse: 4070 Zeilen
+   laeufe: 26 Zeilen
+   landkarte: 567 Zeilen | Spalten ['id', 'werk_id', 'stufe', 'schluessel', 'inhalt', 'pruefsumme', 'erstellt_am', 'herkunft']
+   lazarus: 70 Zeilen
+   mentor: 13 Zeilen
+   mutanten: 162 Zeilen
+   projektgedaechtnis: 686 Zeilen | Spalten ['id', 'werk', 'werk_id', 'lauf_id', 'generation', 'kandidat_id', 'bereich', 'nische', 'dateien', 'funktionen', 'ansatz', 'grund', 'grundklasse', 'begruendung', 'erstellt_am']
+   protokoll: 16034 Zeilen | Spalten ['nr', 'zeit', 'art', 'inhalt', 'hash_vor', 'hash']
+   strassen: 279 Zeilen
+   tokens: 4 Zeilen
+   verfassung_werk: 18 Zeilen
+   vertraege: 1222 Zeilen
+   vertraege_explizit: 37 Zeilen
+   vorspann_nachweise: 1 Zeilen
+   werke: 22 Zeilen
+   danach: wal 0 | shm 32768
+== T3: /root/biotop-t3/t3.db | db 276733952 B | wal 13221112 | shm 32768
+   URI: file:/root/biotop-t3/t3.db?mode=ro
+   artgedaechtnis: 1194 Zeilen | Spalten ['id', 'werk', 'werkklasse', 'lauf_id', 'generation', 'kandidat_id', 'bereich', 'bereichsrolle', 'nische', 'kategorie', 'ergebnis', 'zuwachs', 'laufzeit_prozent', 'beschreibung', 'erstellt_am', 'muster', 'muster_von']
+   bandit: 223 Zeilen
+   benutzer: 1 Zeilen
+   eichgegenstand: 3 Zeilen
+   eichkosten: 127 Zeilen
+   eichung: 85 Zeilen
+   eliten: 67 Zeilen
+   entropie: 75 Zeilen
+   generationen: 184 Zeilen
+   geschmack: 65 Zeilen
+   immunsystem: 411 Zeilen | Spalten ['id', 'werk_id', 'lauf_id', 'bereich', 'name', 'code', 'ursprung', 'status', 'erstellt_am', 'generation']
+   jury: 11 Zeilen
+   kandidaten: 3342 Zeilen
+   kasse: 6673 Zeilen
+   laeufe: 38 Zeilen
+   landkarte: 621 Zeilen | Spalten ['id', 'werk_id', 'stufe', 'schluessel', 'inhalt', 'pruefsumme', 'erstellt_am', 'herkunft']
+   lazarus: 93 Zeilen
+   mentor: 13 Zeilen
+   mutanten: 962 Zeilen
+   neutralzaehler: 2613 Zeilen
+   projektgedaechtnis: 1109 Zeilen | Spalten ['id', 'werk', 'werk_id', 'lauf_id', 'generation', 'kandidat_id', 'bereich', 'nische', 'dateien', 'funktionen', 'ansatz', 'grund', 'grundklasse', 'begruendung', 'erstellt_am']
+   protokoll: 26448 Zeilen | Spalten ['nr', 'zeit', 'art', 'inhalt', 'hash_vor', 'hash']
+   strassen: 355 Zeilen
+   tokens: 4 Zeilen
+   verfassung_werk: 19 Zeilen
+   vertraege: 1365 Zeilen
+   vertraege_explizit: 41 Zeilen
+   vorspann_nachweise: 13 Zeilen
+   werke: 23 Zeilen
+   danach: wal 13221112 | shm 32768
+=== Ende R58 ===
+
+
+R59 · Teil A: Freigaben je Datenbankzweig (generationen.freigabe_*, Protokollarten freigabe*/mentor*), nur lesend
+Beginn: 2026-09-25 16:18:34 CEST (UTC+0200)
+Ende:   2026-09-25 16:18:34 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/entscheidungen/a3_freigaben.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/entscheidungen/a3_freigaben.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil A (nur lesend) — FK19: Wie wurde tatsächlich freigegeben?
+Je Datenbankzweig (STAMM nur mit immutable=1 und nur bei leerer WAL-Datei; übrige mode=ro):
+- generationen mit freigabe_am/freigabe_grund, gruppiert nach Werk (über laeufe.werk_id → werke.name) und Freigabeart
+  (Präfix des Grundes bis zum ersten Doppelpunkt), mit Anzahl, frühester und spätester Freigabe;
+- Protokollzeilen, deren Art mit 'freigabe' oder 'mentor' beginnt, je Art gezählt.
+Kein Schreiben, kein Biotop-Import."""
+import os
+import sqlite3
+from pathlib import Path
+
+if Path('/tmp/biotop-kammer-exklusiv').exists():
+    raise SystemExit('ABBRUCH: /tmp/biotop-kammer-exklusiv besteht — keine Datenbankabfragen während Zeitmessungen.')
+ZWEIGE = [
+    ('STAMM', '/root/biotop/daten/biotop.db', True),
+    ('VB1', '/root/phase-4-vorbedingung-1/privat/biotop.db', False),
+    ('R02', '/root/reparatur-02/privat-cli/privat.db', False),
+    ('T3', '/root/biotop-t3/t3.db', False),
+]
+for name, pfad, stamm in ZWEIGE:
+    print(f'\n===== {name}: {pfad}')
+    if not Path(pfad).exists():
+        print('NICHT GEFUNDEN')
+        continue
+    wal = Path(pfad + '-wal')
+    print(f'WAL-Datei: {"vorhanden, " + str(wal.stat().st_size) + " Bytes" if wal.exists() else "nicht vorhanden"}')
+    if stamm:
+        if wal.exists() and wal.stat().st_size > 0:
+            print('NICHT GEÖFFNET: WAL-Datei nicht leer (Regel 2, REGELN-FUER-TEILE).')
+            continue
+        uri = f'file:{pfad}?mode=ro&immutable=1'
+    else:
+        uri = f'file:{pfad}?mode=ro'
+    c = sqlite3.connect(uri, uri=True)
+    tabellen = [r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")]
+    lsp = [r[1] for r in c.execute('PRAGMA table_info(laeufe)')]
+    print('laeufe-Spalten:', lsp)
+    werkspalte = 'werk_id' if 'werk_id' in lsp else None
+    q = f"""SELECT COALESCE(w.name, '?') AS werk,
+                   CASE WHEN g.freigabe_grund IS NULL THEN '(kein Grund)'
+                        ELSE substr(g.freigabe_grund, 1, CASE WHEN instr(g.freigabe_grund, ':') > 0
+                                                              THEN instr(g.freigabe_grund, ':') - 1 ELSE 80 END) END AS art,
+                   count(*), min(g.freigabe_am), max(g.freigabe_am), min(g.lauf_id), max(g.lauf_id)
+            FROM generationen g LEFT JOIN laeufe l ON l.id = g.lauf_id
+            {'LEFT JOIN werke w ON w.id = l.' + werkspalte if werkspalte else 'LEFT JOIN werke w ON 0'}
+            WHERE g.freigabe_am IS NOT NULL OR g.freigabe_grund IS NOT NULL
+            GROUP BY werk, art ORDER BY min(g.freigabe_am)"""
+    gesamt = c.execute('SELECT count(*), sum(freigabe_am IS NOT NULL), sum(freigabe_grund IS NOT NULL) FROM generationen').fetchone()
+    print(f'generationen gesamt {gesamt[0]}, mit freigabe_am {gesamt[1]}, mit freigabe_grund {gesamt[2]}')
+    print('Werk | Freigabeart (Grund bis zum ersten Doppelpunkt) | Anzahl | erste | letzte | Lauf von | Lauf bis')
+    for r in c.execute(q):
+        print('  ', ' | '.join(str(x) for x in r))
+    for t in tabellen:
+        sp = [r[1] for r in c.execute(f'PRAGMA table_info({t})')]
+        if 'protokoll' in t and 'art' in sp:
+            print(f'-- Protokoll ({t}), Arten freigabe*/mentor*:')
+            for r in c.execute(f"SELECT art, count(*) FROM {t} WHERE art LIKE 'freigabe%' OR art LIKE 'mentor%' GROUP BY art ORDER BY art"):
+                print('  ', r)
+    c.close()
+print('\nstat danach (Änderungszeit, Größe) STAMM und WAL/SHM:')
+for p in ('/root/biotop/daten/biotop.db', '/root/biotop/daten/biotop.db-wal', '/root/biotop/daten/biotop.db-shm'):
+    if os.path.exists(p):
+        s = os.stat(p)
+        print(f'   {p}: {s.st_size} Bytes, mtime {s.st_mtime}')
+--- Ende /root/sicherung/biotop-lage-01/entwurf/entscheidungen/a3_freigaben.py ---
+Ausgabe (vollständig, stdout und stderr):
+
+===== STAMM: /root/biotop/daten/biotop.db
+WAL-Datei: vorhanden, 0 Bytes
+laeufe-Spalten: ['id', 'werk_id', 'budget_eur', 'status', 'begonnen_am', 'beendet_am', 'mass', 'grund', 'richtung', 'freigabe']
+generationen gesamt 144, mit freigabe_am 48, mit freigabe_grund 48
+Werk | Freigabeart (Grund bis zum ersten Doppelpunkt) | Anzahl | erste | letzte | Lauf von | Lauf bis
+   lagerhaus | Hermes (stellvertretend, Übungswerk Phase 1 — eigene Entscheidung, im Bericht gekennzeichnet) | 1 | 2026-09-18T21:50:16.504+00:00 | 2026-09-18T21:50:16.504+00:00 | 2 | 2
+   lagerhaus | Hermes (stellvertretend, eigene Entscheidung) | 2 | 2026-09-18T21:55:17.100+00:00 | 2026-09-18T21:58:38.087+00:00 | 2 | 2
+   lagerhaus-kasse | Hermes (Kassenprobe) | 2 | 2026-09-18T22:07:20.536+00:00 | 2026-09-18T22:08:51.164+00:00 | 4 | 4
+   lagerhaus-kasse2 | Hermes (Kassenprobe) | 2 | 2026-09-18T22:14:21.511+00:00 | 2026-09-18T22:16:27.699+00:00 | 5 | 5
+   lagerhaus-nachlauf | Hermes unter Vollmacht Abschnitt 4 F2 (Übungswerk lagerhaus, regeln.uebungswerk=true) | 6 | 2026-09-18T22:54:37.117+00:00 | 2026-09-18T23:12:58.428+00:00 | 6 | 6
+   lagerhaus-nachlauf2 | Hermes unter Vollmacht Abschnitt 4 F2 (Übungswerk lagerhaus, regeln.uebungswerk=true) | 3 | 2026-09-18T23:23:26.011+00:00 | 2026-09-18T23:29:24.645+00:00 | 7 | 7
+   lagerhaus-nachlauf8 | Hermes unter Vollmacht Abschnitt 4 F2 (Übungswerk lagerhaus, regeln.uebungswerk=true) | 3 | 2026-09-18T23:35:47.013+00:00 | 2026-09-18T23:43:11.411+00:00 | 8 | 8
+   lagerhaus-nachlauf9 | Hermes unter Vollmacht Abschnitt 4 F2 (Übungswerk lagerhaus, regeln.uebungswerk=true) | 4 | 2026-09-18T23:56:16.714+00:00 | 2026-09-19T00:08:53.644+00:00 | 9 | 9
+   lagerhaus-kasse3 | Hermes unter Vollmacht Abschnitt 4 F2 (Übungswerk lagerhaus, regeln.uebungswerk=true) | 1 | 2026-09-19T00:12:40.490+00:00 | 2026-09-19T00:12:40.490+00:00 | 10 | 10
+   lagerhaus-p2 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v3; Übungswerk lagerhaus, regeln.uebungswerk=true) | 4 | 2026-09-19T00:54:33.051+00:00 | 2026-09-19T01:22:12.204+00:00 | 12 | 12
+   lagerhaus-p2-13 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v3; Übungswerk lagerhaus, regeln.uebungswerk=true) | 7 | 2026-09-19T01:56:05.542+00:00 | 2026-09-19T03:16:51.358+00:00 | 13 | 13
+   lagerhaus-p3-16 | Hermes (Vollmacht Abschnitt 4, Übungswerk) | 1 | 2026-09-19T11:31:37.450+00:00 | 2026-09-19T11:31:37.450+00:00 | 16 | 16
+   lagerhaus-p3-16 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungswerk, regeln.uebungswerk=true) | 1 | 2026-09-19T13:11:59.377+00:00 | 2026-09-19T13:11:59.377+00:00 | 16 | 16
+   logmuehle-17 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungswerk, regeln.uebungswerk=true) | 4 | 2026-09-19T13:22:12.962+00:00 | 2026-09-19T13:38:38.437+00:00 | 17 | 17
+   lagerhaus-p3-18 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungswerk, regeln.uebungswerk=true) | 1 | 2026-09-19T14:54:01.916+00:00 | 2026-09-19T14:54:01.916+00:00 | 18 | 18
+   lagerhaus-p3-19 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungswerk, regeln.uebungswerk=true) | 1 | 2026-09-19T15:23:54.352+00:00 | 2026-09-19T15:23:54.352+00:00 | 19 | 19
+   lagerhaus-p3-20 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungswerk, regeln.uebungswerk=true) | 1 | 2026-09-19T15:52:28.218+00:00 | 2026-09-19T15:52:28.218+00:00 | 20 | 20
+   logmuehle-23 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungswerk, regeln.uebungswerk=true) | 2 | 2026-09-19T22:25:04.773+00:00 | 2026-09-19T22:39:48.050+00:00 | 23 | 23
+   lagerhaus-zeile8-24 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungswerk, regeln.uebungswerk=true) | 1 | 2026-09-19T23:06:07.220+00:00 | 2026-09-19T23:06:07.220+00:00 | 24 | 24
+   lagerhaus-c-25 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungswerk, regeln.uebungswerk=true) | 1 | 2026-09-20T01:35:50.115+00:00 | 2026-09-20T01:35:50.115+00:00 | 25 | 25
+-- Protokoll (protokoll), Arten freigabe*/mentor*:
+   ('freigabe.frei', 48)
+   ('mentor.fehler', 2)
+   ('mentor.gewaehlt', 11)
+   ('mentor.richtungen', 13)
+
+===== VB1: /root/phase-4-vorbedingung-1/privat/biotop.db
+WAL-Datei: vorhanden, 4140632 Bytes
+laeufe-Spalten: ['id', 'werk_id', 'budget_eur', 'status', 'begonnen_am', 'beendet_am', 'mass', 'grund', 'richtung', 'freigabe']
+generationen gesamt 150, mit freigabe_am 50, mit freigabe_grund 50
+Werk | Freigabeart (Grund bis zum ersten Doppelpunkt) | Anzahl | erste | letzte | Lauf von | Lauf bis
+   lagerhaus | Hermes (stellvertretend, Übungswerk Phase 1 — eigene Entscheidung, im Bericht gekennzeichnet) | 1 | 2026-09-18T21:50:16.504+00:00 | 2026-09-18T21:50:16.504+00:00 | 2 | 2
+   lagerhaus | Hermes (stellvertretend, eigene Entscheidung) | 2 | 2026-09-18T21:55:17.100+00:00 | 2026-09-18T21:58:38.087+00:00 | 2 | 2
+   lagerhaus-kasse | Hermes (Kassenprobe) | 2 | 2026-09-18T22:07:20.536+00:00 | 2026-09-18T22:08:51.164+00:00 | 4 | 4
+   lagerhaus-kasse2 | Hermes (Kassenprobe) | 2 | 2026-09-18T22:14:21.511+00:00 | 2026-09-18T22:16:27.699+00:00 | 5 | 5
+   lagerhaus-nachlauf | Hermes unter Vollmacht Abschnitt 4 F2 (Übungswerk lagerhaus, regeln.uebungswerk=true) | 6 | 2026-09-18T22:54:37.117+00:00 | 2026-09-18T23:12:58.428+00:00 | 6 | 6
+   lagerhaus-nachlauf2 | Hermes unter Vollmacht Abschnitt 4 F2 (Übungswerk lagerhaus, regeln.uebungswerk=true) | 3 | 2026-09-18T23:23:26.011+00:00 | 2026-09-18T23:29:24.645+00:00 | 7 | 7
+   lagerhaus-nachlauf8 | Hermes unter Vollmacht Abschnitt 4 F2 (Übungswerk lagerhaus, regeln.uebungswerk=true) | 3 | 2026-09-18T23:35:47.013+00:00 | 2026-09-18T23:43:11.411+00:00 | 8 | 8
+   lagerhaus-nachlauf9 | Hermes unter Vollmacht Abschnitt 4 F2 (Übungswerk lagerhaus, regeln.uebungswerk=true) | 4 | 2026-09-18T23:56:16.714+00:00 | 2026-09-19T00:08:53.644+00:00 | 9 | 9
+   lagerhaus-kasse3 | Hermes unter Vollmacht Abschnitt 4 F2 (Übungswerk lagerhaus, regeln.uebungswerk=true) | 1 | 2026-09-19T00:12:40.490+00:00 | 2026-09-19T00:12:40.490+00:00 | 10 | 10
+   lagerhaus-p2 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v3; Übungswerk lagerhaus, regeln.uebungswerk=true) | 4 | 2026-09-19T00:54:33.051+00:00 | 2026-09-19T01:22:12.204+00:00 | 12 | 12
+   lagerhaus-p2-13 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v3; Übungswerk lagerhaus, regeln.uebungswerk=true) | 7 | 2026-09-19T01:56:05.542+00:00 | 2026-09-19T03:16:51.358+00:00 | 13 | 13
+   lagerhaus-p3-16 | Hermes (Vollmacht Abschnitt 4, Übungswerk) | 1 | 2026-09-19T11:31:37.450+00:00 | 2026-09-19T11:31:37.450+00:00 | 16 | 16
+   lagerhaus-p3-16 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungswerk, regeln.uebungswerk=true) | 1 | 2026-09-19T13:11:59.377+00:00 | 2026-09-19T13:11:59.377+00:00 | 16 | 16
+   logmuehle-17 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungswerk, regeln.uebungswerk=true) | 4 | 2026-09-19T13:22:12.962+00:00 | 2026-09-19T13:38:38.437+00:00 | 17 | 17
+   lagerhaus-p3-18 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungswerk, regeln.uebungswerk=true) | 1 | 2026-09-19T14:54:01.916+00:00 | 2026-09-19T14:54:01.916+00:00 | 18 | 18
+   lagerhaus-p3-19 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungswerk, regeln.uebungswerk=true) | 1 | 2026-09-19T15:23:54.352+00:00 | 2026-09-19T15:23:54.352+00:00 | 19 | 19
+   lagerhaus-p3-20 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungswerk, regeln.uebungswerk=true) | 1 | 2026-09-19T15:52:28.218+00:00 | 2026-09-19T15:52:28.218+00:00 | 20 | 20
+   logmuehle-23 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungswerk, regeln.uebungswerk=true) | 2 | 2026-09-19T22:25:04.773+00:00 | 2026-09-19T22:39:48.050+00:00 | 23 | 23
+   lagerhaus-zeile8-24 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungswerk, regeln.uebungswerk=true) | 1 | 2026-09-19T23:06:07.220+00:00 | 2026-09-19T23:06:07.220+00:00 | 24 | 24
+   lagerhaus-c-25 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungswerk, regeln.uebungswerk=true) | 1 | 2026-09-20T01:35:50.115+00:00 | 2026-09-20T01:35:50.115+00:00 | 25 | 25
+   lagerhaus-vorbedingung1-26 | Hermes unter Übungswerk-Vollmacht | 2 | 2026-09-20T19:45:15.572+00:00 | 2026-09-20T19:59:11.063+00:00 | 26 | 26
+-- Protokoll (protokoll), Arten freigabe*/mentor*:
+   ('freigabe.frei', 50)
+   ('mentor.fehler', 2)
+   ('mentor.gewaehlt', 12)
+   ('mentor.richtungen', 14)
+
+===== R02: /root/reparatur-02/privat-cli/privat.db
+WAL-Datei: vorhanden, 0 Bytes
+laeufe-Spalten: ['id', 'werk_id', 'budget_eur', 'status', 'begonnen_am', 'beendet_am', 'mass', 'grund', 'richtung', 'freigabe']
+generationen gesamt 144, mit freigabe_am 48, mit freigabe_grund 48
+Werk | Freigabeart (Grund bis zum ersten Doppelpunkt) | Anzahl | erste | letzte | Lauf von | Lauf bis
+   lagerhaus | Hermes (stellvertretend, Übungswerk Phase 1 — eigene Entscheidung, im Bericht gekennzeichnet) | 1 | 2026-09-18T21:50:16.504+00:00 | 2026-09-18T21:50:16.504+00:00 | 2 | 2
+   lagerhaus | Hermes (stellvertretend, eigene Entscheidung) | 2 | 2026-09-18T21:55:17.100+00:00 | 2026-09-18T21:58:38.087+00:00 | 2 | 2
+   lagerhaus-kasse | Hermes (Kassenprobe) | 2 | 2026-09-18T22:07:20.536+00:00 | 2026-09-18T22:08:51.164+00:00 | 4 | 4
+   lagerhaus-kasse2 | Hermes (Kassenprobe) | 2 | 2026-09-18T22:14:21.511+00:00 | 2026-09-18T22:16:27.699+00:00 | 5 | 5
+   lagerhaus-nachlauf | Hermes unter Vollmacht Abschnitt 4 F2 (Übungswerk lagerhaus, regeln.uebungswerk=true) | 6 | 2026-09-18T22:54:37.117+00:00 | 2026-09-18T23:12:58.428+00:00 | 6 | 6
+   lagerhaus-nachlauf2 | Hermes unter Vollmacht Abschnitt 4 F2 (Übungswerk lagerhaus, regeln.uebungswerk=true) | 3 | 2026-09-18T23:23:26.011+00:00 | 2026-09-18T23:29:24.645+00:00 | 7 | 7
+   lagerhaus-nachlauf8 | Hermes unter Vollmacht Abschnitt 4 F2 (Übungswerk lagerhaus, regeln.uebungswerk=true) | 3 | 2026-09-18T23:35:47.013+00:00 | 2026-09-18T23:43:11.411+00:00 | 8 | 8
+   lagerhaus-nachlauf9 | Hermes unter Vollmacht Abschnitt 4 F2 (Übungswerk lagerhaus, regeln.uebungswerk=true) | 4 | 2026-09-18T23:56:16.714+00:00 | 2026-09-19T00:08:53.644+00:00 | 9 | 9
+   lagerhaus-kasse3 | Hermes unter Vollmacht Abschnitt 4 F2 (Übungswerk lagerhaus, regeln.uebungswerk=true) | 1 | 2026-09-19T00:12:40.490+00:00 | 2026-09-19T00:12:40.490+00:00 | 10 | 10
+   lagerhaus-p2 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v3; Übungswerk lagerhaus, regeln.uebungswerk=true) | 4 | 2026-09-19T00:54:33.051+00:00 | 2026-09-19T01:22:12.204+00:00 | 12 | 12
+   lagerhaus-p2-13 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v3; Übungswerk lagerhaus, regeln.uebungswerk=true) | 7 | 2026-09-19T01:56:05.542+00:00 | 2026-09-19T03:16:51.358+00:00 | 13 | 13
+   lagerhaus-p3-16 | Hermes (Vollmacht Abschnitt 4, Übungswerk) | 1 | 2026-09-19T11:31:37.450+00:00 | 2026-09-19T11:31:37.450+00:00 | 16 | 16
+   lagerhaus-p3-16 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungswerk, regeln.uebungswerk=true) | 1 | 2026-09-19T13:11:59.377+00:00 | 2026-09-19T13:11:59.377+00:00 | 16 | 16
+   logmuehle-17 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungswerk, regeln.uebungswerk=true) | 4 | 2026-09-19T13:22:12.962+00:00 | 2026-09-19T13:38:38.437+00:00 | 17 | 17
+   lagerhaus-p3-18 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungswerk, regeln.uebungswerk=true) | 1 | 2026-09-19T14:54:01.916+00:00 | 2026-09-19T14:54:01.916+00:00 | 18 | 18
+   lagerhaus-p3-19 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungswerk, regeln.uebungswerk=true) | 1 | 2026-09-19T15:23:54.352+00:00 | 2026-09-19T15:23:54.352+00:00 | 19 | 19
+   lagerhaus-p3-20 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungswerk, regeln.uebungswerk=true) | 1 | 2026-09-19T15:52:28.218+00:00 | 2026-09-19T15:52:28.218+00:00 | 20 | 20
+   logmuehle-23 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungswerk, regeln.uebungswerk=true) | 2 | 2026-09-19T22:25:04.773+00:00 | 2026-09-19T22:39:48.050+00:00 | 23 | 23
+   lagerhaus-zeile8-24 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungswerk, regeln.uebungswerk=true) | 1 | 2026-09-19T23:06:07.220+00:00 | 2026-09-19T23:06:07.220+00:00 | 24 | 24
+   lagerhaus-c-25 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungswerk, regeln.uebungswerk=true) | 1 | 2026-09-20T01:35:50.115+00:00 | 2026-09-20T01:35:50.115+00:00 | 25 | 25
+-- Protokoll (protokoll), Arten freigabe*/mentor*:
+   ('freigabe.frei', 48)
+   ('mentor.fehler', 2)
+   ('mentor.gewaehlt', 11)
+   ('mentor.richtungen', 13)
+
+===== T3: /root/biotop-t3/t3.db
+WAL-Datei: vorhanden, 13221112 Bytes
+laeufe-Spalten: ['id', 'werk_id', 'budget_eur', 'status', 'begonnen_am', 'beendet_am', 'mass', 'grund', 'richtung', 'freigabe']
+generationen gesamt 184, mit freigabe_am 66, mit freigabe_grund 66
+Werk | Freigabeart (Grund bis zum ersten Doppelpunkt) | Anzahl | erste | letzte | Lauf von | Lauf bis
+   lagerhaus | Hermes (stellvertretend, Übungswerk Phase 1 — eigene Entscheidung, im Bericht gekennzeichnet) | 1 | 2026-09-18T21:50:16.504+00:00 | 2026-09-18T21:50:16.504+00:00 | 2 | 2
+   lagerhaus | Hermes (stellvertretend, eigene Entscheidung) | 2 | 2026-09-18T21:55:17.100+00:00 | 2026-09-18T21:58:38.087+00:00 | 2 | 2
+   lagerhaus-kasse | Hermes (Kassenprobe) | 2 | 2026-09-18T22:07:20.536+00:00 | 2026-09-18T22:08:51.164+00:00 | 4 | 4
+   lagerhaus-kasse2 | Hermes (Kassenprobe) | 2 | 2026-09-18T22:14:21.511+00:00 | 2026-09-18T22:16:27.699+00:00 | 5 | 5
+   lagerhaus-nachlauf | Hermes unter Vollmacht Abschnitt 4 F2 (Übungswerk lagerhaus, regeln.uebungswerk=true) | 6 | 2026-09-18T22:54:37.117+00:00 | 2026-09-18T23:12:58.428+00:00 | 6 | 6
+   lagerhaus-nachlauf2 | Hermes unter Vollmacht Abschnitt 4 F2 (Übungswerk lagerhaus, regeln.uebungswerk=true) | 3 | 2026-09-18T23:23:26.011+00:00 | 2026-09-18T23:29:24.645+00:00 | 7 | 7
+   lagerhaus-nachlauf8 | Hermes unter Vollmacht Abschnitt 4 F2 (Übungswerk lagerhaus, regeln.uebungswerk=true) | 3 | 2026-09-18T23:35:47.013+00:00 | 2026-09-18T23:43:11.411+00:00 | 8 | 8
+   lagerhaus-nachlauf9 | Hermes unter Vollmacht Abschnitt 4 F2 (Übungswerk lagerhaus, regeln.uebungswerk=true) | 4 | 2026-09-18T23:56:16.714+00:00 | 2026-09-19T00:08:53.644+00:00 | 9 | 9
+   lagerhaus-kasse3 | Hermes unter Vollmacht Abschnitt 4 F2 (Übungswerk lagerhaus, regeln.uebungswerk=true) | 1 | 2026-09-19T00:12:40.490+00:00 | 2026-09-19T00:12:40.490+00:00 | 10 | 10
+   lagerhaus-p2 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v3; Übungswerk lagerhaus, regeln.uebungswerk=true) | 4 | 2026-09-19T00:54:33.051+00:00 | 2026-09-19T01:22:12.204+00:00 | 12 | 12
+   lagerhaus-p2-13 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v3; Übungswerk lagerhaus, regeln.uebungswerk=true) | 7 | 2026-09-19T01:56:05.542+00:00 | 2026-09-19T03:16:51.358+00:00 | 13 | 13
+   lagerhaus-p3-16 | Hermes (Vollmacht Abschnitt 4, Übungswerk) | 1 | 2026-09-19T11:31:37.450+00:00 | 2026-09-19T11:31:37.450+00:00 | 16 | 16
+   lagerhaus-p3-16 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungswerk, regeln.uebungswerk=true) | 1 | 2026-09-19T13:11:59.377+00:00 | 2026-09-19T13:11:59.377+00:00 | 16 | 16
+   logmuehle-17 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungswerk, regeln.uebungswerk=true) | 4 | 2026-09-19T13:22:12.962+00:00 | 2026-09-19T13:38:38.437+00:00 | 17 | 17
+   lagerhaus-p3-18 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungswerk, regeln.uebungswerk=true) | 1 | 2026-09-19T14:54:01.916+00:00 | 2026-09-19T14:54:01.916+00:00 | 18 | 18
+   lagerhaus-p3-19 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungswerk, regeln.uebungswerk=true) | 1 | 2026-09-19T15:23:54.352+00:00 | 2026-09-19T15:23:54.352+00:00 | 19 | 19
+   lagerhaus-p3-20 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungswerk, regeln.uebungswerk=true) | 1 | 2026-09-19T15:52:28.218+00:00 | 2026-09-19T15:52:28.218+00:00 | 20 | 20
+   logmuehle-23 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungswerk, regeln.uebungswerk=true) | 2 | 2026-09-19T22:25:04.773+00:00 | 2026-09-19T22:39:48.050+00:00 | 23 | 23
+   lagerhaus-zeile8-24 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungswerk, regeln.uebungswerk=true) | 1 | 2026-09-19T23:06:07.220+00:00 | 2026-09-19T23:06:07.220+00:00 | 24 | 24
+   lagerhaus-c-25 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungswerk, regeln.uebungswerk=true) | 1 | 2026-09-20T01:35:50.115+00:00 | 2026-09-20T01:35:50.115+00:00 | 25 | 25
+   versandwerk-t3-02 | Hermes | 18 | 2026-09-21T15:37:46.427+00:00 | 2026-09-22T19:16:34.506+00:00 | 32 | 38
+-- Protokoll (protokoll), Arten freigabe*/mentor*:
+   ('freigabe.frei', 66)
+   ('mentor.fehler', 2)
+   ('mentor.gewaehlt', 11)
+   ('mentor.richtungen', 13)
+
+stat danach (Änderungszeit, Größe) STAMM und WAL/SHM:
+   /root/biotop/daten/biotop.db: 29659136 Bytes, mtime 1789869913.3270044
+   /root/biotop/daten/biotop.db-wal: 0 Bytes, mtime 1789872898.4841206
+   /root/biotop/daten/biotop.db-shm: 32768 Bytes, mtime 1790344506.7958243
+=== Ende R59 ===

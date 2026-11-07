@@ -1,0 +1,150 @@
+EB59 · Vorschau 5: Grundlagen der Probe (uv-Zwischenspeicher, Testbezüge, Marker, Container)
+Beginn: 2026-09-26 02:04:20 CEST (UTC+0200)
+Ende:   2026-09-26 02:04:20 CEST (UTC+0200)
+Dauer:  0.5 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/biotop-einlagerung/arbeit/v7_probe_vorschau.sh
+--- Inhalt von /root/biotop-einlagerung/arbeit/v7_probe_vorschau.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-EINLAGERUNG-01 (nur lesend): Vorschau 5 für Schritt 6 (Probe) — uv-Zwischenspeicher (Pakete der Test-venv),
+# Tests mit Bezug auf .env/anbieter/node/Netz, Marker, Größe der Testsammlung, laufende Container.
+set -u
+echo "== Zeitpunkt $(date '+%Y-%m-%d %H:%M:%S %Z (UTC%z)')"
+echo "== 1. uv-Zwischenspeicher: Einträge zu den Paketen der Test-venv"
+for p in pytest iniconfig packaging pluggy pygments; do
+  printf '%-10s ' "$p"; find /root/.cache/uv -maxdepth 4 -iname "${p}-*" 2>/dev/null | head -3 | tr '\n' ' '; echo
+done
+echo "== 2. Tests/Code mit Bezug auf .env, anbieter, schluessel_laden, socket, urllib, requests"
+grep -rn -E "\.env\b|anbieter\.|from biotop import anbieter|from biotop.anbieter|schluessel|urllib|requests\.|httpx" /root/biotop/tests/*.py | grep -v -E "^\S+:\s*#" | cut -c1-200 | head -30
+echo "== 3. Testdateien und Testfunktionen (def test_) je Datei, Summe"
+cd /root/biotop/tests && for f in test_*.py; do printf '%5d %s\n' "$(grep -c -E '^(async )?def test_' "$f")" "$f"; done | sort -rn | head -60
+echo "Summe def test_: $(cat /root/biotop/tests/test_*.py | grep -c -E '^(async )?def test_')"
+echo "== 4. Marker integration je Datei"
+grep -l -E "mark.integration|pytestmark" /root/biotop/tests/*.py | xargs -r -n1 basename
+echo "== 5. Container und Kammer-Sperre"
+docker ps -a --format '{{.ID}} {{.Names}} {{.Status}}' | head; echo "Container gesamt: $(docker ps -aq | wc -l)"
+ls -la /tmp/biotop-kammer-exklusiv 2>&1 | head -1
+echo "== 6. unshare/nsenter vorhanden, Kernel erlaubt Mount-Namensräume"
+command -v unshare nsenter; unshare --mount --net --propagation private --fork true && echo "unshare mount+net: ok"
+--- Ende /root/biotop-einlagerung/arbeit/v7_probe_vorschau.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== Zeitpunkt 2026-09-26 02:04:20 CEST (UTC+0200)
+== 1. uv-Zwischenspeicher: Einträge zu den Paketen der Test-venv
+pytest     /root/.cache/uv/simple-v25/pypi/pytest-cov.rkyv /root/.cache/uv/archive-v0/KQXtIoF1TN-9D5IX/pytest-9.1.1.dist-info /root/.cache/uv/wheels-v6/pypi/pytest-cov 
+iniconfig  /root/.cache/uv/archive-v0/tInpNSBPVE_AhvSH/iniconfig-2.3.0.dist-info 
+packaging  /root/.cache/uv/archive-v0/U0SSw9QSo0jFU-0E/packaging-26.0.dist-info /root/.cache/uv/archive-v0/DcC0hVW1rUncjXsA/packaging-26.3.dist-info 
+pluggy     /root/.cache/uv/archive-v0/xtWuGXCKkQny_sSK/pluggy-1.6.0.dist-info 
+pygments   /root/.cache/uv/archive-v0/ALc7J5sw3JmNxKqb/pygments-2.21.0.dist-info /root/.cache/uv/archive-v0/DE0zQJZ9Sppn7TKd/pygments-2.20.0.dist-info 
+== 2. Tests/Code mit Bezug auf .env, anbieter, schluessel_laden, socket, urllib, requests
+/root/biotop/tests/speicherwerk.py:120:    schluessel = id(werte)
+/root/biotop/tests/speicherwerk.py:121:    if schluessel in _SPEICHER:
+/root/biotop/tests/speicherwerk.py:122:        return _SPEICHER[schluessel]
+/root/biotop/tests/speicherwerk.py:126:    _SPEICHER[schluessel] = ergebnis
+/root/biotop/tests/speicherwerk.py:146:    schluessel = tuple(werte)
+/root/biotop/tests/speicherwerk.py:147:    if schluessel in _SPEICHER:
+/root/biotop/tests/speicherwerk.py:148:        return _SPEICHER[schluessel]
+/root/biotop/tests/speicherwerk.py:150:    _SPEICHER[schluessel] = ergebnis
+/root/biotop/tests/test_ansage_aufnahme.py:52:def immun(con, schluessel, name="vorher"):
+/root/biotop/tests/test_ansage_aufnahme.py:54:                (name, f"behauptung={schluessel}"))
+/root/biotop/tests/test_ansage_aufnahme.py:57:def ansage(con, schluessel="wert|Eq:zahl", kandidat=7):
+/root/biotop/tests/test_ansage_aufnahme.py:59:                              kandidat=kandidat, behauptung=schluessel, ausgefuehrt=True)
+/root/biotop/tests/test_ansage_aufnahme.py:88:def test_zweiter_test_selben_schluessels_im_angriff_gesperrt(con):
+/root/biotop/tests/test_ansage_aufnahme.py:155:def test_halbe_gespeicherte_schluessel_sperren_nichts(con):
+/root/biotop/tests/test_doppelungsschluessel.py:17:def test_schluessel_beschreibt_ziel_und_zusicherung(code, name, erwartet):
+/root/biotop/tests/test_nachweis_verbraucher.py:229:    con.execute("INSERT INTO landkarte(werk_id,stufe,schluessel,inhalt) VALUES(1,1,'unit','{}')")
+/root/biotop/tests/test_t3_anbieter_wiederholung.py:18:import urllib.error
+/root/biotop/tests/test_t3_anbieter_wiederholung.py:22:from biotop import anbieter
+/root/biotop/tests/test_t3_anbieter_wiederholung.py:23:from biotop.anbieter import AnbieterFehler
+/root/biotop/tests/test_t3_anbieter_wiederholung.py:39:    monkeypatch.setattr(anbieter.urllib.request, 'urlopen', gesperrt)
+/root/biotop/tests/test_t3_anbieter_wiederholung.py:68:    monkeypatch.setattr(anbieter.time, 'sleep', pausen.append)
+/root/biotop/tests/test_t3_anbieter_wiederholung.py:73:    ad = anbieter.OpenRouterAdapter.__new__(anbieter.OpenRouterAdapter)
+/root/biotop/tests/test_t3_anbieter_wiederholung.py:87:    (`urllib.request.urlopen` in biotop.anbieter) — einmal direkt und einmal über
+/root/biotop/tests/test_t3_anbieter_wiederholung.py:96:        anbieter.urllib.request.urlopen(
+/root/biotop/tests/test_t3_anbieter_wiederholung.py:103:    ad = anbieter.OpenRouterAdapter.__new__(anbieter.OpenRouterAdapter)
+/root/biotop/tests/test_t3_anbieter_wiederholung.py:127:        raise urllib.error.HTTPError('https://openrouter.ai/api/v1/chat/completions',
+/root/biotop/tests/test_t3_anbieter_wiederholung.py:130:    mp.setattr(anbieter.urllib.request, 'urlopen', wie_echtes_401)
+/root/biotop/tests/test_t3_anbieter_wiederholung.py:131:    ad = anbieter.OpenRouterAdapter.__new__(anbieter.OpenRouterAdapter)
+/root/biotop/tests/test_t3_anbieter_wiederholung.py:150:    a = anbieter.aufrufen(con, 31, 'openrouter', 'qwen/qwen3.8-flash', 's', 'n', 'test', 100, 0.2)
+/root/biotop/tests/test_t3_anbieter_wiederholung.py:167:        anbieter.aufrufen(con, 31, 'openrouter', 'qwen/qwen3.8-flash', 's', 'n', 'test', 100, 0.2)
+== 3. Testdateien und Testfunktionen (def test_) je Datei, Summe
+   60 test_tor4_zeilen.py
+   48 test_vor_t4_06.py
+   39 test_vor_t4.py
+   33 test_vor_t4_03.py
+   30 test_vor_t4_06_register.py
+   26 test_vor_t4_04.py
+   25 test_messnachweise.py
+   23 test_vorspann.py
+   23 test_stufe2_eichphase.py
+   22 test_t3_verhaltensvergleich.py
+   20 test_vor_t4_05.py
+   18 test_typescript_adapter.py
+   17 test_eichproben.py
+   12 test_t3_neutralzaehler.py
+   11 test_vor_t4_02.py
+   11 test_t3_masseichung.py
+   11 test_rauschmessung.py
+   11 test_nachweis_verbraucher.py
+   10 test_t3_kaputter_modellcode.py
+   10 test_ansage_aufnahme.py
+    9 test_t3_zweigklasse.py
+    9 test_kernmass_pareto.py
+    8 test_verdrahtung.py
+    8 test_t3_anbieter_wiederholung.py
+    6 test_t3_ausfall_automatisch.py
+    6 test_t3_auftragsgrenze.py
+    6 test_review_vertrag.py
+    5 test_t3_python_annahmen.py
+    5 test_t3_ausfall_klaerung.py
+    4 test_t3_verbundausfall.py
+    4 test_t3_sprachwege.py
+    4 test_t3_integration_dispatch.py
+    4 test_t3_behauptungen_protokoll.py
+    4 test_t3_angriff_unbrauchbar.py
+    4 test_artvorlage.py
+    3 test_vorspann_cli.py
+    3 test_t3_zaehlkontext.py
+    3 test_t3_testoperationen.py
+    3 test_t3_kernsperren.py
+    3 test_t3_generation0.py
+    3 test_t3_bindung.py
+    3 test_t3_aenderungsziel.py
+    2 test_t3_wirkungskreis.py
+    2 test_t3_transport.py
+    2 test_t3_modellvorlagen.py
+    2 test_t3_gedaechtnis.py
+    2 test_t3_ausfall_schwarm.py
+    2 test_junit_zeugen.py
+    2 test_doppelungsschluessel.py
+    1 test_vor_t4_06_hermes.py
+    1 test_testreihenfolge.py
+    1 test_t3_vorfreeze_vertrag.py
+    1 test_t3_statik_luecken.py
+    1 test_t3_referenzwarmup.py
+    1 test_t3_rausch_nachmessung.py
+    1 test_t3_normpraedikat.py
+    1 test_t3_mutantentyp.py
+    1 test_t3_fundpruefung.py
+    1 test_t3_eichpfad.py
+    1 test_t3_budgetgrenze.py
+Summe def test_: 594
+== 4. Marker integration je Datei
+test_messnachweise.py
+test_nachweis_verbraucher.py
+test_t3_angriff_unbrauchbar.py
+test_t3_befundklasse.py
+test_t3_eichpfad.py
+test_t3_gedaechtnis.py
+test_t3_mutantentyp.py
+test_t3_referenzwarmup.py
+test_t3_statik_luecken.py
+test_typescript_adapter.py
+== 5. Container und Kammer-Sperre
+Container gesamt: 0
+ls: cannot access '/tmp/biotop-kammer-exklusiv': No such file or directory
+== 6. unshare/nsenter vorhanden, Kernel erlaubt Mount-Namensräume
+/usr/bin/unshare
+/usr/bin/nsenter
+unshare mount+net: ok
+=== Ende EB59 ===

@@ -1,0 +1,72 @@
+INTENTIONAL_RUNTIME_MUTATION rounded_outlier_identity
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+__________ test_aussetzer_wird_ungekuerzt_entfernt_und_einmal_ersetzt __________
+
+db_lauf = <sqlite3.Connection object at 0x7cc1bb1323e0>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cc1bb12fa40>
+
+    def test_aussetzer_wird_ungekuerzt_entfernt_und_einmal_ersetzt(db_lauf, monkeypatch):
+        werte = iter([1., 1., 1., 1., 9.8765, 1.])
+        aufrufe = []
+        def messen(*args):
+            aufrufe.append(True)
+            return {"alpha": next(werte)}
+        monkeypatch.setattr(eichung, "_messen_einmal", messen)
+        r = eichung.rauschmessung(db_lauf, 1, 1, Path("."), ["alpha"], "paket", "# Last")
+>       assert len(aufrufe) == 6
+E       assert 5 == 6
+E        +  where 5 = len([True, True, True, True, True])
+
+tests/test_rauschmessung.py:29: AssertionError
+___________ test_gescheitertes_nachmessen_sperrt_den_bereich[9.8765] ___________
+
+db_lauf = <sqlite3.Connection object at 0x7cc1bb1322f0>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cc1bb157a40>
+ersatz = 9.8765
+
+    @pytest.mark.parametrize("ersatz", [9.8765, None])
+    def test_gescheitertes_nachmessen_sperrt_den_bereich(db_lauf, monkeypatch, ersatz):
+        werte = iter([1., 1., 1., 1., 9.8765, ersatz])
+        aufrufe = []
+        def messen(*args):
+            aufrufe.append(True)
+            return {"alpha": next(werte)}
+        monkeypatch.setattr(eichung, "_messen_einmal", messen)
+        r = eichung.rauschmessung(db_lauf, 1, 1, Path("."), ["alpha"], "paket", "# Last")
+        assert r["lauf_startet"] is False
+        assert r["gesperrt"] == ["alpha"]
+        assert r["toleranz"] == {}
+>       assert len(aufrufe) == 6
+E       assert 5 == 6
+E        +  where 5 = len([True, True, True, True, True])
+
+tests/test_rauschmessung.py:47: AssertionError
+____________ test_gescheitertes_nachmessen_sperrt_den_bereich[None] ____________
+
+db_lauf = <sqlite3.Connection object at 0x7cc1bb132980>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cc1bb1570b0>
+ersatz = None
+
+    @pytest.mark.parametrize("ersatz", [9.8765, None])
+    def test_gescheitertes_nachmessen_sperrt_den_bereich(db_lauf, monkeypatch, ersatz):
+        werte = iter([1., 1., 1., 1., 9.8765, ersatz])
+        aufrufe = []
+        def messen(*args):
+            aufrufe.append(True)
+            return {"alpha": next(werte)}
+        monkeypatch.setattr(eichung, "_messen_einmal", messen)
+        r = eichung.rauschmessung(db_lauf, 1, 1, Path("."), ["alpha"], "paket", "# Last")
+        assert r["lauf_startet"] is False
+        assert r["gesperrt"] == ["alpha"]
+        assert r["toleranz"] == {}
+>       assert len(aufrufe) == 6
+E       assert 5 == 6
+E        +  where 5 = len([True, True, True, True, True])
+
+tests/test_rauschmessung.py:47: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_rauschmessung.py::test_aussetzer_wird_ungekuerzt_entfernt_und_einmal_ersetzt
+FAILED tests/test_rauschmessung.py::test_gescheitertes_nachmessen_sperrt_den_bereich[9.8765]
+FAILED tests/test_rauschmessung.py::test_gescheitertes_nachmessen_sperrt_den_bereich[None]
+3 failed in 0.13s

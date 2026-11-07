@@ -1,0 +1,30 @@
+# Nachprobe Tor 2 Zeile 7 (v4) — Vorbereitung: Vertragsänderung bericht→preise, die eine Fehlerbehebung ermöglicht
+Zeit: 2026-09-19T11:29:29.406+00:00 | Lauf 16 | Basis Generation 0 | Werk /root/biotop/daten/werke/lagerhaus-p3-16
+
+0. Fehler an der Basis (Kammer, rc=0):
+   lagerwert: 200.0 {'E': 100.0, 'U': 100.0} | 100 USD in EUR laut preise.umrechnen: 92.59 | erwartet gesamt: 192.59
+   Artikel | Bestand | Zugang | Abgang | Wert
+   E | 1 | 1 | 0 | 100.00
+   U | 1 | 1 | 0 | 100.00
+   Summe | 2 | | | 200.00
+
+Kandidat bericht: Diff auswertung.py 21 Zeilen; neuer Immuntest 17 Zeilen; neue Vertragsfassung 24 Zeilen (nur Fall 1a/2)
+Diff auswertung.py (±):
+   -    """Bewertet den Bestand zum Grundpreis des Katalogs.
+   +    """Bewertet den Bestand in EUR über `Katalog.wert` (Grundpreis × Menge, in EUR umgerechnet).
+   -        wert = runde_cent(katalog.holen(nummer).grundpreis * menge)
+   +        # Vertrag test_vertrag_bericht_preise::test_katalog_wert_in_eur: preise liefert den Wert in EUR (Anhang A Satz 5)
+   +        wert = katalog.wert(nummer, menge)
+Vertragsänderung (±):
+   -Zusicherungen: preis_fuer ≥ 0 auf Cent gerundet; Staffel ab Mindestmenge einschließlich; rabatt_anwenden ≥ 0,
+   +Zusicherungen: Katalog.wert(nummer, menge) = Grundpreis × Menge in EUR (umgerechnet, Cent-gerundet); preis_fuer ≥ 0 auf Cent gerundet; Staffel ab Mindestmenge einschließlich; rabatt_anwenden ≥ 0,
+   +
+   +
+   +def test_katalog_wert_in_eur():
+   +    """Vertragsänderung (Anhang A Satz 4/5): bericht rechnet nicht selbst um; preise liefert Katalog.wert(nummer, menge)
+   +    in EUR — Grundpreis × Menge, mit umrechnen(waehrung → EUR), auf Cent gerundet."""
+   +    k = Katalog(); k.aufnehmen(Artikel("E", "e", 100.0)); k.aufnehmen(Artikel("U", "u", 100.0, waehrung="USD"))
+   +    assert k.wert("E", 2) == 200.0
+   +    assert k.wert("U", 1) == runde_cent(100.0 / 1.08)
+   +    with pytest.raises(UnbekannterArtikel):
+   +        k.wert("nix", 1)

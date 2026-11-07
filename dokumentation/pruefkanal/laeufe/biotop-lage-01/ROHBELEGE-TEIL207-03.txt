@@ -1,0 +1,595 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 03 · Teil 207 (Teile 166–239 dieses Stands) · enthält R203 bis R203
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R203 · Ursachen der 203 nicht bestandenen Tests aus R196 nach Signaturen im vollen Fehlertext (berichtigt nach R202) — maßgeblich, ersetzt die Ursachenzählung in R200/R201
+Beginn: 2026-09-25 20:11:49 CEST (UTC+0200)
+Ende:   2026-09-25 20:11:49 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/s9_ursachen.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/s9_ursachen.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Ursachen der 203 nicht bestandenen Tests aus R196, berichtigt nach R202.
+Je Fall wird der VOLLE Fehlertext (message + Text) nach Ursachen-Signaturen durchsucht, in fester Reihenfolge;
+der erste Treffer bestimmt die Ursache. Keine Signatur → „ohne Ursache im Text“. Ausgegeben werden die Zählung je
+Ursache und Testdatei, je Ursache ein Textausschnitt um die Signatur, und für „ohne Ursache“ die letzten 12 Zeilen
+eines Vertreters je Testfunktion (ohne Werte außer Code und Meldungen des Biotops)."""
+import collections
+import re
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+J = Path('/root/sicherung/biotop-lage-01/testlauf/ausgabe/junit.xml')
+w = ET.parse(J).getroot()
+s = w if w.tag == 'testsuite' else w.find('testsuite')
+SIG = [
+    ('S1c: rote Spezifikation test_w_g_*', None),
+    ('Abschottung: Docker-Dienst nicht erreichbar', r'failed to connect to the docker API|Cannot connect to the Docker daemon|docker\.sock'),
+    ('Abschottung: Kammer nicht bereit oder Kammer-Image fehlt', r'Kammer nicht bereit|Kammer-Image|kammer_bereit|KammerFehler|Kammer fehlt'),
+    ('Abschottung: node/tsc nicht im Pfad', r"No such file or directory: '(node|npx|tsc)'"),
+    ('Abschottung: Umgebungsvariable der Auftragsgrenze fehlt', r'AuftragsgrenzeFehlt'),
+    ('Stand: Kernstand seit der Eichphase der Stufe 2 verändert', r'Kernstand seit der Eichphase'),
+    ('Stand: sonstiger Vorspann-Fehler', r'VorspannFehler'),
+    ('Messung ungültig (gueltig False, Grund im Text)', r"'gueltig': False"),
+]
+faelle = []
+for tc in s.iter('testcase'):
+    for art in ('failure', 'error'):
+        e = tc.find(art)
+        if e is None:
+            continue
+        text = f'{e.get("message", "")}\n{e.text or ""}'
+        name = tc.get('name', '')
+        datei = re.sub(r'^.*?(tests/)', r'\1', tc.get('file') or tc.get('classname', '').replace('.', '/') + '.py')
+        ursache, stelle = 'ohne Ursache im Text', ''
+        for u, m in SIG:
+            if m is None:
+                if name.startswith('test_w_g'):
+                    ursache = u; break
+                continue
+            t = re.search(m, text)
+            if t:
+                ursache = u
+                stelle = text[max(0, t.start() - 120):t.end() + 120].replace('\n', ' ⏎ ')
+                break
+        faelle.append((ursache, art, datei, name, text, stelle))
+print(f'Fälle: {len(faelle)}')
+print('== je Ursache (Anzahl · davon failure/error)')
+for u, n in collections.Counter(f[0] for f in faelle).most_common():
+    arten = collections.Counter(f[1] for f in faelle if f[0] == u)
+    print(f'  {n:4d} · {u} · {dict(arten)}')
+print('== je Ursache und Testdatei')
+for (u, d), n in sorted(collections.Counter((f[0], f[2]) for f in faelle).items()):
+    print(f'  {n:3d} · {u[:55]} · {d}')
+print('== je Ursache ein Ausschnitt')
+for u in dict.fromkeys(f[0] for f in faelle):
+    f = next(f for f in faelle if f[0] == u and f[5]) if any(f[0] == u and f[5] for f in faelle) else None
+    if f:
+        print(f'  {u[:55]} · {f[2]}::{f[3][:60]} · …{f[5][:330]}…')
+print('== ohne Ursache im Text: je Testfunktion ein Vertreter, letzte 12 Zeilen')
+gesehen = set()
+for f in faelle:
+    if f[0] != 'ohne Ursache im Text':
+        continue
+    funktion = f[3].split('[')[0]
+    if (f[2], funktion) in gesehen:
+        continue
+    gesehen.add((f[2], funktion))
+    n = sum(1 for g in faelle if g[0] == f[0] and g[2] == f[2] and g[3].split('[')[0] == funktion)
+    print(f'-- {f[2]}::{funktion} ({n} Fälle)')
+    for z in [z for z in f[4].splitlines() if z.strip()][-12:]:
+        print('   | ' + re.sub(r'0x[0-9a-f]{6,}', '0x…', z)[:200])
+--- Ende /root/sicherung/biotop-lage-01/arbeit/s9_ursachen.py ---
+Ausgabe (vollständig, stdout und stderr):
+Fälle: 203
+== je Ursache (Anzahl · davon failure/error)
+    97 · Abschottung: Docker-Dienst nicht erreichbar · {'failure': 92, 'error': 5}
+    83 · ohne Ursache im Text · {'failure': 72, 'error': 11}
+    11 · S1c: rote Spezifikation test_w_g_* · {'failure': 11}
+     8 · Abschottung: Umgebungsvariable der Auftragsgrenze fehlt · {'failure': 8}
+     2 · Stand: Kernstand seit der Eichphase der Stufe 2 verändert · {'failure': 2}
+     1 · Abschottung: Kammer nicht bereit oder Kammer-Image fehlt · {'failure': 1}
+     1 · Abschottung: node/tsc nicht im Pfad · {'failure': 1}
+== je Ursache und Testdatei
+   16 · Abschottung: Docker-Dienst nicht erreichbar · tests/test_eichproben.py
+    1 · Abschottung: Docker-Dienst nicht erreichbar · tests/test_t3_aenderungsziel.py
+    8 · Abschottung: Docker-Dienst nicht erreichbar · tests/test_t3_kaputter_modellcode.py
+    4 · Abschottung: Docker-Dienst nicht erreichbar · tests/test_t3_neutralzaehler.py
+    2 · Abschottung: Docker-Dienst nicht erreichbar · tests/test_t3_zaehlkontext.py
+    3 · Abschottung: Docker-Dienst nicht erreichbar · tests/test_t3_zweigklasse.py
+    7 · Abschottung: Docker-Dienst nicht erreichbar · tests/test_vor_t4.py
+    4 · Abschottung: Docker-Dienst nicht erreichbar · tests/test_vor_t4_02.py
+   12 · Abschottung: Docker-Dienst nicht erreichbar · tests/test_vor_t4_04.py
+   12 · Abschottung: Docker-Dienst nicht erreichbar · tests/test_vor_t4_05.py
+   28 · Abschottung: Docker-Dienst nicht erreichbar · tests/test_vor_t4_06.py
+    1 · Abschottung: Kammer nicht bereit oder Kammer-Image fehl · tests/test_verdrahtung.py
+    8 · Abschottung: Umgebungsvariable der Auftragsgrenze fehlt · tests/test_t3_verbundausfall.py
+    1 · Abschottung: node/tsc nicht im Pfad · tests/test_vor_t4_04.py
+   11 · S1c: rote Spezifikation test_w_g_* · tests/test_vor_t4_06.py
+    2 · Stand: Kernstand seit der Eichphase der Stufe 2 verände · tests/test_t3_bindung.py
+    3 · ohne Ursache im Text · tests/test_eichproben.py
+    4 · ohne Ursache im Text · tests/test_junit_zeugen.py
+   12 · ohne Ursache im Text · tests/test_review_vertrag.py
+    4 · ohne Ursache im Text · tests/test_vor_t4_02.py
+   15 · ohne Ursache im Text · tests/test_vor_t4_03.py
+    7 · ohne Ursache im Text · tests/test_vor_t4_04.py
+    8 · ohne Ursache im Text · tests/test_vor_t4_05.py
+   30 · ohne Ursache im Text · tests/test_vor_t4_06.py
+== je Ursache ein Ausschnitt
+  Abschottung: Docker-Dienst nicht erreichbar · tests/test_eichproben.py::test_nebenwirkung_braucht_gewinn_a_und_verlust_b[False] · …iel', bereiche = ['abnehmer', 'lieferant'], bstrassen = [] ⏎ basis = {'gueltig': False, 'rc': 1, 'stdout': '', 'stderr': 'failed to connect to the docker API at unix:///var/run/docker.soc...th is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no…
+  Stand: Kernstand seit der Eichphase der Stufe 2 verände · tests/test_t3_bindung.py::test_ts_instrumentaenderung_invalidiert_versiegelten_nachwei · …biotop.organe.vorspann.VorspannFehler: Vorspann Lauf 1: Kernstand seit der Eichphase der Stufe 2 verändert (Eichphase 53e95afdaa588722…, jetzt a91cbef507ecc259…) — Satz 2: Messgerätänderung zwischen Eichu…
+  Abschottung: Umgebungsvariable der Auftragsgrenze fehlt · tests/test_t3_verbundausfall.py::test_http_erfolg_ohne_beitrag_ist_ausfall_und_wird_abgerechn · …biotop.kern.kasse.AuftragsgrenzeFehlt: Auftragsgrenze nicht scharf: BIOTOP_AUFTRAG_LAUF_AB und BIOTOP_AUFTRAG_BUDGET_EUR fehlt oder ist null. Null ist keine …
+  Abschottung: Kammer nicht bereit oder Kammer-Image fehl · tests/test_verdrahtung.py::test_jedes_organ_wird_im_lauf_aufgerufen · …Failed: Kammer nicht bereit — der Verdrahtungsnachweis braucht die echte Kammer: Kammer-Image biotop-kammer:ts1 fehlt ⏎ tmp_path = PosixPath('/tmp/py…
+  Abschottung: node/tsc nicht im Pfad · tests/test_vor_t4_04.py::test_merkmale_gleich_in_python_und_typescript · …FileNotFoundError: [Errno 2] No such file or directory: 'node' ⏎ def test_merkmale_gleich_in_python_und_typescript(): ⏎         """kern/py/verhalten.py::_text_merkmale und kern/ts/kanon.…
+== ohne Ursache im Text: je Testfunktion ein Vertreter, letzte 12 Zeilen
+-- tests/test_eichproben.py::test_regression_nennt_einzeltest_trotz_ausgefuehrter_gruener_tests (2 Fälle)
+   |         testdateien = [p.relative_to(werk).as_posix() for p in sprachprofil.testdateien(werk, b)]
+   |         if not testdateien:
+   |             raise RuntimeError(f"Keine Bereichstests für {b}: Regression nicht prüfbar")
+   |         basis_tests = aegis.junit_lauf(werk, paket, gruen, testdateien + list(gruen))
+   |         schaden, _ = _lahmlegen(werk, paket, b)
+   |         schaden_tests = aegis.junit_lauf(werk, paket, aegis.kandidat_dateien(werk, schaden), testdateien)
+   |         faelle = sorted(n for n, x in schaden_tests.items()
+   |                         if not x["ok"] and x["bestaetigt"] and basis_tests.get(n, {}).get("ok"))
+   |         if not faelle:
+   | >           raise RuntimeError(f"Kein bestätigter Einzeltest fällt durch den Eingriff in {b}")
+   | E           RuntimeError: Kein bestätigter Einzeltest fällt durch den Eingriff in lieferant
+   | biotop/organe/eichproben.py:377: RuntimeError
+-- tests/test_eichproben.py::test_norm_aendert_vorhandene_funktion_statt_importfehler (1 Fälle)
+   |     def test_norm_aendert_vorhandene_funktion_statt_importfehler(werk):
+   |         diff, rel_test, _ = eichproben._normtest(werk, "beispiel", "lieferant")
+   |         dateien = aegis.kandidat_dateien(werk, diff)
+   |         assert dateien is not None
+   |         basis = aegis.junit_lauf(werk, "beispiel", {rel_test: dateien[rel_test]}, [rel_test])
+   |         kandidat = aegis.junit_lauf(werk, "beispiel", dateien, [rel_test])
+   |         print("NORM BASIS", basis, "NORM KANDIDAT", kandidat)
+   |         echte_tests = [x for n, x in basis.items() if not n.endswith("::*")]
+   | >       assert len(echte_tests) == 1
+   | E       assert 0 == 1
+   | E        +  where 0 = len([])
+   | tests/test_eichproben.py:338: AssertionError
+-- tests/test_junit_zeugen.py::test_rest_junit_nur_aus_abgeschlossener_kammer_ist_erfolgszeuge (4 Fälle)
+   |                     "    os.write(1, b'@@PYTEST_ABBRUCH_7@@')\n"
+   |                     '    os._exit(7)\n')
+   |             return original(werk, befehl, zeitlimit_s, dateien)
+   |         monkeypatch.setattr(kammer, '_ausfuehren', ausfuehren)
+   |         with kammer.zaehlung() as aufrufe:
+   |             zeugen = aegis.junit_lauf(zeugenwerk, 'beispiel', {}, [TESTDATEI])
+   |         assert len(aufrufe) == 1
+   |         lauf = aufrufe[0]
+   | >       xml = ET.fromstring(re.search(r'@@J@@(.*)@@E@@', lauf['stdout'], re.S).group(1))
+   |                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   | E       AttributeError: 'NoneType' object has no attribute 'group'
+   | tests/test_junit_zeugen.py:54: AttributeError
+-- tests/test_review_vertrag.py::test_contract_countercase_is_not_allowed_to_fail_inside_cloned_test (1 Fälle)
+   |     def test_contract_countercase_is_not_allowed_to_fail_inside_cloned_test(vertragswerk):
+   |         """Review-Repro: EINGABE darf nicht verschwinden; konkreter Vertrag entscheidet."""
+   |         rows = []
+   |         for gegenprobe in (False, True):
+   |             diff, _, belege, _ = eichproben._vertrag_vorbereiten(
+   |                 vertragswerk, 'beispiel', 'abnehmer', 'lieferant', VERTRAG, gegenprobe)
+   |             dateien = aegis.kandidat_dateien(vertragswerk, diff)
+   |             zeugen = aegis.junit_lauf(vertragswerk, 'beispiel', dateien, [VERTRAG])
+   | >           rows.append(zeugen[VERTRAGSTEST])
+   |                         ^^^^^^^^^^^^^^^^^^^^
+   | E           KeyError: 'tests/vertraege/test_vertrag_abnehmer_lieferant.py::test_eichprobe_vertrag_neue_zusicherung'
+   | tests/test_review_vertrag.py:50: KeyError
+-- tests/test_review_vertrag.py::test_normgegenprobe_braucht_ausgefuehrtes_zeugenpaar (4 Fälle)
+   |     @pytest.fixture
+   |     def vertragspruefung(vertragswerk, tmp_path, request):
+   |         db = datenbank.verbinden(tmp_path / 'vertrag.db')
+   |         db.executescript(verfassung.SCHEMA)
+   |         db.execute("INSERT INTO laeufe(id,werk_id,budget_eur,status,mass) VALUES(1,1,0,'angelegt',NULL)")
+   |         vertraege.einlegen(db, 1, vertragswerk, {('abnehmer', 'lieferant'): (vertragswerk / VERTRAG).read_text()},
+   |                           'isoliertes EICH-4-Reviewwerk')
+   |         bereiche = ['abnehmer', 'lieferant']
+   |         basis = messgeraet.messen(vertragswerk, bereiche, 'beispiel', None)
+   | >       assert basis['gueltig']
+   | E       assert False
+   | tests/test_review_vertrag.py:75: AssertionError
+-- tests/test_review_vertrag.py::test_test_eigener_fehler_ist_keine_pruefbare_vertragsgegenprobe (6 Fälle)
+   |     @pytest.fixture
+   |     def vertragspruefung(vertragswerk, tmp_path, request):
+   |         db = datenbank.verbinden(tmp_path / 'vertrag.db')
+   |         db.executescript(verfassung.SCHEMA)
+   |         db.execute("INSERT INTO laeufe(id,werk_id,budget_eur,status,mass) VALUES(1,1,0,'angelegt',NULL)")
+   |         vertraege.einlegen(db, 1, vertragswerk, {('abnehmer', 'lieferant'): (vertragswerk / VERTRAG).read_text()},
+   |                           'isoliertes EICH-4-Reviewwerk')
+   |         bereiche = ['abnehmer', 'lieferant']
+   |         basis = messgeraet.messen(vertragswerk, bereiche, 'beispiel', None)
+   | >       assert basis['gueltig']
+   | E       assert False
+   | tests/test_review_vertrag.py:75: AssertionError
+-- tests/test_review_vertrag.py::test_modulhelfer_und_konstanten_bleiben_im_eigenen_namensraum (1 Fälle)
+   |     @pytest.fixture
+   |     def vertragspruefung(vertragswerk, tmp_path, request):
+   |         db = datenbank.verbinden(tmp_path / 'vertrag.db')
+   |         db.executescript(verfassung.SCHEMA)
+   |         db.execute("INSERT INTO laeufe(id,werk_id,budget_eur,status,mass) VALUES(1,1,0,'angelegt',NULL)")
+   |         vertraege.einlegen(db, 1, vertragswerk, {('abnehmer', 'lieferant'): (vertragswerk / VERTRAG).read_text()},
+   |                           'isoliertes EICH-4-Reviewwerk')
+   |         bereiche = ['abnehmer', 'lieferant']
+   |         basis = messgeraet.messen(vertragswerk, bereiche, 'beispiel', None)
+   | >       assert basis['gueltig']
+   | E       assert False
+   | tests/test_review_vertrag.py:75: AssertionError
+-- tests/test_vor_t4_02.py::test_py_zwischenspeicher_fehler_scheitert_am_laufweg (1 Fälle)
+   |         SW.anlegen(w)
+   |         con = sqlite3.connect(":memory:", isolation_level=None)
+   |         con.row_factory = sqlite3.Row
+   |         con.executescript(datenbank.SCHEMA)
+   |         con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,?,?,'erzeugt',?)",
+   |                     ("zahlen" if "statistik" in diff else "text", nische, diff))
+   |         monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+   |         basis = messgeraet.messen(w, ["zahlen", "text"], SW.PAKET, SW.REFERENZLAST)
+   | >       assert basis["gueltig"], basis.get("grund")
+   | E       AssertionError: Kammer abgebrochen (rc=1)
+   | E       assert False
+   | tests/test_vor_t4_02.py:133: AssertionError
+-- tests/test_vor_t4_02.py::test_py_gegenprobe_speicher_am_inhalt_ueberlebt (1 Fälle)
+   |         SW.anlegen(w)
+   |         con = sqlite3.connect(":memory:", isolation_level=None)
+   |         con.row_factory = sqlite3.Row
+   |         con.executescript(datenbank.SCHEMA)
+   |         con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,?,?,'erzeugt',?)",
+   |                     ("zahlen" if "statistik" in diff else "text", nische, diff))
+   |         monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+   |         basis = messgeraet.messen(w, ["zahlen", "text"], SW.PAKET, SW.REFERENZLAST)
+   | >       assert basis["gueltig"], basis.get("grund")
+   | E       AssertionError: Kammer abgebrochen (rc=1)
+   | E       assert False
+   | tests/test_vor_t4_02.py:133: AssertionError
+-- tests/test_vor_t4_02.py::test_py_weissraum_scheitert_an_formvariante (1 Fälle)
+   |         SW.anlegen(w)
+   |         con = sqlite3.connect(":memory:", isolation_level=None)
+   |         con.row_factory = sqlite3.Row
+   |         con.executescript(datenbank.SCHEMA)
+   |         con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,?,?,'erzeugt',?)",
+   |                     ("zahlen" if "statistik" in diff else "text", nische, diff))
+   |         monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+   |         basis = messgeraet.messen(w, ["zahlen", "text"], SW.PAKET, SW.REFERENZLAST)
+   | >       assert basis["gueltig"], basis.get("grund")
+   | E       AssertionError: Kammer abgebrochen (rc=1)
+   | E       assert False
+   | tests/test_vor_t4_02.py:133: AssertionError
+-- tests/test_vor_t4_02.py::test_py_gegenprobe_nur_toter_code_entfernt_ueberlebt (1 Fälle)
+   |         SW.anlegen(w)
+   |         con = sqlite3.connect(":memory:", isolation_level=None)
+   |         con.row_factory = sqlite3.Row
+   |         con.executescript(datenbank.SCHEMA)
+   |         con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,?,?,'erzeugt',?)",
+   |                     ("zahlen" if "statistik" in diff else "text", nische, diff))
+   |         monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+   |         basis = messgeraet.messen(w, ["zahlen", "text"], SW.PAKET, SW.REFERENZLAST)
+   | >       assert basis["gueltig"], basis.get("grund")
+   | E       AssertionError: Kammer abgebrochen (rc=1)
+   | E       assert False
+   | tests/test_vor_t4_02.py:133: AssertionError
+-- tests/test_vor_t4_03.py::test_a1_generator_ausgabe_geaendert_wird_abgelehnt (1 Fälle)
+   |         _anlegen(w, werk_extra)
+   |         con = sqlite3.connect(":memory:", isolation_level=None)
+   |         con.row_factory = sqlite3.Row
+   |         con.executescript(datenbank.SCHEMA)
+   |         con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+   |                     (nische, diff))
+   |         monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+   |         basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+   | >       assert basis["gueltig"], basis.get("grund")
+   | E       AssertionError: Kammer abgebrochen (rc=1)
+   | E       assert False
+   | tests/test_vor_t4_03.py:173: AssertionError
+-- tests/test_vor_t4_03.py::test_a1_gegenprobe_generator_gleiche_ausgabe_ueberlebt (1 Fälle)
+   |         _anlegen(w, werk_extra)
+   |         con = sqlite3.connect(":memory:", isolation_level=None)
+   |         con.row_factory = sqlite3.Row
+   |         con.executescript(datenbank.SCHEMA)
+   |         con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+   |                     (nische, diff))
+   |         monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+   |         basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+   | >       assert basis["gueltig"], basis.get("grund")
+   | E       AssertionError: Kammer abgebrochen (rc=1)
+   | E       assert False
+   | tests/test_vor_t4_03.py:173: AssertionError
+-- tests/test_vor_t4_03.py::test_a2_inplace_sortierung_umgedreht_wird_abgelehnt (1 Fälle)
+   |         _anlegen(w, werk_extra)
+   |         con = sqlite3.connect(":memory:", isolation_level=None)
+   |         con.row_factory = sqlite3.Row
+   |         con.executescript(datenbank.SCHEMA)
+   |         con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+   |                     (nische, diff))
+   |         monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+   |         basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+   | >       assert basis["gueltig"], basis.get("grund")
+   | E       AssertionError: Kammer abgebrochen (rc=1)
+   | E       assert False
+   | tests/test_vor_t4_03.py:173: AssertionError
+-- tests/test_vor_t4_03.py::test_a2_gegenprobe_gleiche_sortierung_anders_geschrieben_ueberlebt (1 Fälle)
+   |         _anlegen(w, werk_extra)
+   |         con = sqlite3.connect(":memory:", isolation_level=None)
+   |         con.row_factory = sqlite3.Row
+   |         con.executescript(datenbank.SCHEMA)
+   |         con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+   |                     (nische, diff))
+   |         monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+   |         basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+   | >       assert basis["gueltig"], basis.get("grund")
+   | E       AssertionError: Kammer abgebrochen (rc=1)
+   | E       assert False
+   | tests/test_vor_t4_03.py:173: AssertionError
+-- tests/test_vor_t4_03.py::test_a3_funktion_ohne_annotation_wird_mit_tastendem_korpus_gesehen (1 Fälle)
+   |         _anlegen(w, werk_extra)
+   |         con = sqlite3.connect(":memory:", isolation_level=None)
+   |         con.row_factory = sqlite3.Row
+   |         con.executescript(datenbank.SCHEMA)
+   |         con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+   |                     (nische, diff))
+   |         monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+   |         basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+   | >       assert basis["gueltig"], basis.get("grund")
+   | E       AssertionError: Kammer abgebrochen (rc=1)
+   | E       assert False
+   | tests/test_vor_t4_03.py:173: AssertionError
+-- tests/test_vor_t4_03.py::test_a4_mengenreihenfolge_ist_kein_fehlalarm (1 Fälle)
+   |         _anlegen(w, werk_extra)
+   |         con = sqlite3.connect(":memory:", isolation_level=None)
+   |         con.row_factory = sqlite3.Row
+   |         con.executescript(datenbank.SCHEMA)
+   |         con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+   |                     (nische, diff))
+   |         monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+   |         basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+   | >       assert basis["gueltig"], basis.get("grund")
+   | E       AssertionError: Kammer abgebrochen (rc=1)
+   | E       assert False
+   | tests/test_vor_t4_03.py:173: AssertionError
+-- tests/test_vor_t4_03.py::test_a5_lru_cache_auf_reiner_funktion_ist_kein_fehlalarm (1 Fälle)
+   |         _anlegen(w, werk_extra)
+   |         con = sqlite3.connect(":memory:", isolation_level=None)
+   |         con.row_factory = sqlite3.Row
+   |         con.executescript(datenbank.SCHEMA)
+   |         con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+   |                     (nische, diff))
+   |         monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+   |         basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+   | >       assert basis["gueltig"], basis.get("grund")
+   | E       AssertionError: Kammer abgebrochen (rc=1)
+   | E       assert False
+   | tests/test_vor_t4_03.py:173: AssertionError
+-- tests/test_vor_t4_03.py::test_a5_gegenprobe_falscher_cache_wird_abgelehnt (1 Fälle)
+   |         _anlegen(w, werk_extra)
+   |         con = sqlite3.connect(":memory:", isolation_level=None)
+   |         con.row_factory = sqlite3.Row
+   |         con.executescript(datenbank.SCHEMA)
+   |         con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+   |                     (nische, diff))
+   |         monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+   |         basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+   | >       assert basis["gueltig"], basis.get("grund")
+   | E       AssertionError: Kammer abgebrochen (rc=1)
+   | E       assert False
+   | tests/test_vor_t4_03.py:173: AssertionError
+-- tests/test_vor_t4_03.py::test_d_geaenderte_methode_wird_abgelehnt (1 Fälle)
+   |         _anlegen(w, werk_extra)
+   |         con = sqlite3.connect(":memory:", isolation_level=None)
+   |         con.row_factory = sqlite3.Row
+   |         con.executescript(datenbank.SCHEMA)
+   |         con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+   |                     (nische, diff))
+   |         monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+   |         basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+   | >       assert basis["gueltig"], basis.get("grund")
+   | E       AssertionError: Kammer abgebrochen (rc=1)
+   | E       assert False
+   | tests/test_vor_t4_03.py:173: AssertionError
+-- tests/test_vor_t4_03.py::test_d_gegenprobe_methode_umgeschrieben_ueberlebt (1 Fälle)
+   |         _anlegen(w, werk_extra)
+   |         con = sqlite3.connect(":memory:", isolation_level=None)
+   |         con.row_factory = sqlite3.Row
+   |         con.executescript(datenbank.SCHEMA)
+   |         con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+   |                     (nische, diff))
+   |         monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+   |         basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+   | >       assert basis["gueltig"], basis.get("grund")
+   | E       AssertionError: Kammer abgebrochen (rc=1)
+   | E       assert False
+   | tests/test_vor_t4_03.py:173: AssertionError
+-- tests/test_vor_t4_03.py::test_d_zustand_von_self_nach_dem_aufruf_wird_verglichen (1 Fälle)
+   |         _anlegen(w, werk_extra)
+   |         con = sqlite3.connect(":memory:", isolation_level=None)
+   |         con.row_factory = sqlite3.Row
+   |         con.executescript(datenbank.SCHEMA)
+   |         con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+   |                     (nische, diff))
+   |         monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+   |         basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+   | >       assert basis["gueltig"], basis.get("grund")
+   | E       AssertionError: Kammer abgebrochen (rc=1)
+   | E       assert False
+   | tests/test_vor_t4_03.py:173: AssertionError
+-- tests/test_vor_t4_03.py::test_b_richtige_behebung_mit_test_je_muster_kommt_durch (1 Fälle)
+   |         _anlegen(w, werk_extra)
+   |         con = sqlite3.connect(":memory:", isolation_level=None)
+   |         con.row_factory = sqlite3.Row
+   |         con.executescript(datenbank.SCHEMA)
+   |         con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+   |                     (nische, diff))
+   |         monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+   |         basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+   | >       assert basis["gueltig"], basis.get("grund")
+   | E       AssertionError: Kammer abgebrochen (rc=1)
+   | E       assert False
+   | tests/test_vor_t4_03.py:173: AssertionError
+-- tests/test_vor_t4_03.py::test_b_gegenprobe_ohne_test_fuer_das_weissraum_muster_bleibt_abgelehnt (1 Fälle)
+   |         _anlegen(w, werk_extra)
+   |         con = sqlite3.connect(":memory:", isolation_level=None)
+   |         con.row_factory = sqlite3.Row
+   |         con.executescript(datenbank.SCHEMA)
+   |         con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+   |                     (nische, diff))
+   |         monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+   |         basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+   | >       assert basis["gueltig"], basis.get("grund")
+   | E       AssertionError: Kammer abgebrochen (rc=1)
+   | E       assert False
+   | tests/test_vor_t4_03.py:173: AssertionError
+-- tests/test_vor_t4_03.py::test_b_test_der_nur_nebenbei_ruft_deckt_nicht (2 Fälle)
+   |         _anlegen(w, werk_extra)
+   |         con = sqlite3.connect(":memory:", isolation_level=None)
+   |         con.row_factory = sqlite3.Row
+   |         con.executescript(datenbank.SCHEMA)
+   |         con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+   |                     (nische, diff))
+   |         monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+   |         basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+   | >       assert basis["gueltig"], basis.get("grund")
+   | E       AssertionError: Kammer abgebrochen (rc=1)
+   | E       assert False
+   | tests/test_vor_t4_03.py:173: AssertionError
+-- tests/test_vor_t4_04.py::test_h1_doppeltes_leerzeichen_deckt_keinen_tab_rueckschritt (2 Fälle)
+   |         _anlegen(w, werk_extra)
+   |         con = sqlite3.connect(":memory:", isolation_level=None)
+   |         con.row_factory = sqlite3.Row
+   |         con.executescript(datenbank.SCHEMA)
+   |         con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+   |                     (nische, diff))
+   |         monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+   |         basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+   | >       assert basis["gueltig"], basis.get("grund")
+   | E       AssertionError: Kammer abgebrochen (rc=1)
+   | E       assert False
+   | tests/test_vor_t4_03.py:173: AssertionError
+-- tests/test_vor_t4_04.py::test_h1_gegenprobe_tests_je_formvariante_decken_den_rueckschritt_nicht_und_die_behebung_schon (1 Fälle)
+   |         _anlegen(w, werk_extra)
+   |         con = sqlite3.connect(":memory:", isolation_level=None)
+   |         con.row_factory = sqlite3.Row
+   |         con.executescript(datenbank.SCHEMA)
+   |         con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+   |                     (nische, diff))
+   |         monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+   |         basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+   | >       assert basis["gueltig"], basis.get("grund")
+   | E       AssertionError: Kammer abgebrochen (rc=1)
+   | E       assert False
+   | tests/test_vor_t4_03.py:173: AssertionError
+-- tests/test_vor_t4_04.py::test_h2_tab_aufruf_ohne_zusicherung_haelt_nichts_fest (2 Fälle)
+   |         _anlegen(w, werk_extra)
+   |         con = sqlite3.connect(":memory:", isolation_level=None)
+   |         con.row_factory = sqlite3.Row
+   |         con.executescript(datenbank.SCHEMA)
+   |         con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+   |                     (nische, diff))
+   |         monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+   |         basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+   | >       assert basis["gueltig"], basis.get("grund")
+   | E       AssertionError: Kammer abgebrochen (rc=1)
+   | E       assert False
+   | tests/test_vor_t4_03.py:173: AssertionError
+-- tests/test_vor_t4_04.py::test_e4_kandidat_mit_rueckschritt_und_eigenem_test_wird_abgelehnt (1 Fälle)
+   |         _anlegen(w, werk_extra)
+   |         con = sqlite3.connect(":memory:", isolation_level=None)
+   |         con.row_factory = sqlite3.Row
+   |         con.executescript(datenbank.SCHEMA)
+   |         con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+   |                     (nische, diff))
+   |         monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+   |         basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+   | >       assert basis["gueltig"], basis.get("grund")
+   | E       AssertionError: Kammer abgebrochen (rc=1)
+   | E       assert False
+   | tests/test_vor_t4_03.py:173: AssertionError
+-- tests/test_vor_t4_04.py::test_e4_gegenprobe_derselbe_test_in_der_vorgeneration_deckt (1 Fälle)
+   |         _anlegen(w, werk_extra)
+   |         con = sqlite3.connect(":memory:", isolation_level=None)
+   |         con.row_factory = sqlite3.Row
+   |         con.executescript(datenbank.SCHEMA)
+   |         con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+   |                     (nische, diff))
+   |         monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+   |         basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+   | >       assert basis["gueltig"], basis.get("grund")
+   | E       AssertionError: Kammer abgebrochen (rc=1)
+   | E       assert False
+   | tests/test_vor_t4_03.py:173: AssertionError
+-- tests/test_vor_t4_05.py::test_f2_idempotenz_haelt_tab_nicht_fest (2 Fälle)
+   |         _anlegen(w, werk_extra)
+   |         con = sqlite3.connect(":memory:", isolation_level=None)
+   |         con.row_factory = sqlite3.Row
+   |         con.executescript(datenbank.SCHEMA)
+   |         con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+   |                     (nische, diff))
+   |         monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+   |         basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+   | >       assert basis["gueltig"], basis.get("grund")
+   | E       AssertionError: Kammer abgebrochen (rc=1)
+   | E       assert False
+   | tests/test_vor_t4_03.py:173: AssertionError
+-- tests/test_vor_t4_05.py::test_k4_kappe_stellt_zurueck_mit_grund (2 Fälle)
+   |         _anlegen(w, werk_extra)
+   |         con = sqlite3.connect(":memory:", isolation_level=None)
+   |         con.row_factory = sqlite3.Row
+   |         con.executescript(datenbank.SCHEMA)
+   |         con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+   |                     (nische, diff))
+   |         monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+   |         basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+   | >       assert basis["gueltig"], basis.get("grund")
+   | E       AssertionError: Kammer abgebrochen (rc=1)
+   | E       assert False
+   | tests/test_vor_t4_03.py:173: AssertionError
+-- tests/test_vor_t4_05.py::test_k4_gegenprobe_ungedeckt_ohne_kappe_lehnt_ab (1 Fälle)
+   |         _anlegen(w, werk_extra)
+   |         con = sqlite3.connect(":memory:", isolation_level=None)
+   |         con.row_factory = sqlite3.Row
+   |         con.executescript(datenbank.SCHEMA)
+   |         con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+   |                     (nische, diff))
+   |         monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+   |         basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+   | >       assert basis["gueltig"], basis.get("grund")
+   | E       AssertionError: Kammer abgebrochen (rc=1)
+   | E       assert False
+   | tests/test_vor_t4_03.py:173: AssertionError
+-- tests/test_vor_t4_05.py::test_l7_lastaufruf_traegt_formmerkmal_seiner_eingabe (1 Fälle)
+   |         _anlegen(w, werk_extra)
+   |         con = sqlite3.connect(":memory:", isolation_level=None)
+   |         con.row_factory = sqlite3.Row
+   |         con.executescript(datenbank.SCHEMA)
+   |         con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+   |                     (nische, diff))
+   |         monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+   |         basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+   | >       assert basis["gueltig"], basis.get("grund")
+   | E       AssertionError: Kammer abgebrochen (rc=1)
+   | E       assert False
+   | tests/test_vor_t4_03.py:173: AssertionError
+-- tests/test_vor_t4_05.py::test_e8_parametrisierter_eigener_test_deckt_nicht (2 Fälle)
+   |         _anlegen(w, werk_extra)
+   |         con = sqlite3.connect(":memory:", isolation_level=None)
+   |         con.row_factory = sqlite3.Row
+   |         con.executescript(datenbank.SCHEMA)
+   |         con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+   |                     (nische, diff))
+   |         monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+   |         basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+   | >       assert basis["gueltig"], basis.get("grund")
+   | E       AssertionError: Kammer abgebrochen (rc=1)
+   | E       assert False
+   | tests/test_vor_t4_03.py:173: AssertionError
+-- tests/test_vor_t4_06.py::test_t1_typpruefung_tautologie_idempotenz_halten_tab_nicht_fest (4 Fälle)
+   |         _anlegen(w, werk_extra)
+   |         con = sqlite3.connect(":memory:", isolation_level=None)
+   |         con.row_factory = sqlite3.Row
+   |         con.executescript(datenbank.SCHEMA)
+   |         con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+   |                     (nische, diff))
+   |         monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+   |         basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+   | >       assert basis["gueltig"], basis.get("grund")
+   | E       AssertionError: Kammer abgebrochen (rc=1)
+   | E       assert False
+   | tests/test_vor_t4_03.py:173: AssertionError

@@ -1,0 +1,490 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 58 (Teile 4–165 dieses Stands) · enthält R51 bis R51
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R51 · Teil C: Fundstellen Messgerätfehler und Kennungsmuster (Prüfkanal biotop-*, /root/biotop-vor-t4*)
+Beginn: 2026-09-25 16:16:18 CEST (UTC+0200)
+Ende:   2026-09-25 16:16:18 CEST (UTC+0200)
+Dauer:  0.4 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/tore/c2_fundstellen.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/tore/c2_fundstellen.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil C (nur lesend): Fundstellen zu Messgerätfehlern, Befund-Kennungen und Nummernkreisen.
+Durchsucht (nur lesen) die *.md-Dateien der Biotop-Abschlussordner im Prüfkanal (oberste und zweite Ebene) und die
+Arbeitsordner /root/biotop-vor-t4*/ (oberste Ebene und bau/*.md), jeweils nach:
+  (a) 'Messgerätfehler' / 'Messgerätbefund' / 'Messgerät-Fehler' / 'Messfehler'  -> Zeilen mit Datei:Zeile (gekürzt 260)
+  (b) Kennungsmuster: R6-\\d+, U-\\d, M\\d(\\(b\\))?, 'Review ?\\d+ Nr\\. ?\\d+', 'Befund S\\d', 'Vorbedingung \\d+ ' (T4)
+      -> Zählung je Muster und Datei
+Ausgabe gekürzt; keine Inhalte anderer Vorhaben (nur biotop-* Ordner)."""
+import re
+from collections import Counter, defaultdict
+from pathlib import Path
+
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+L = Path(f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe')
+dateien = []
+for o in sorted(L.iterdir()):
+    if o.is_dir() and o.name.startswith('biotop') and o.name != 'biotop-lage-01':
+        dateien += sorted(o.glob('*.md')) + sorted(o.glob('*/*.md'))
+for r in sorted(Path('/root').glob('biotop-vor-t4*')):
+    if r.is_dir():
+        dateien += sorted(r.glob('*.md')) + sorted(r.glob('bau/*.md'))
+print(f'Dateien durchsucht: {len(dateien)}')
+MF = re.compile(r'Messger(ä|ae)t(fehler|befund|-Fehler|-Funde|ausfall)|Messfehler', re.I)
+print('\n== (a) Zeilen mit Messgerätfehler/-befund/Messfehler (je Datei höchstens 6)')
+for p in dateien:
+    t = p.read_text(errors='replace').splitlines()
+    treffer = [(i + 1, z.strip()) for i, z in enumerate(t) if MF.search(z)]
+    if treffer:
+        rel = str(p).replace(str(L) + '/', 'PK:')
+        print(f'-- {rel}: {len(treffer)} Zeilen')
+        for n, z in treffer[:6]:
+            print(f'   {n}: {z[:260]}')
+muster = {
+    'R6-n': re.compile(r'\bR6-\d+\b'),
+    'U-n': re.compile(r'\bU-[1-9]\b'),
+    'Review-Nr': re.compile(r'Review(?:\s*0?\d+)?\s*Nr\.\s*\d+'),
+    'M-n': re.compile(r'\bM[1-9](?:\([a-z]\))?\b'),
+    'Befund S': re.compile(r'Befund(?:e)?\s+S\d'),
+    'VB-T4 n': re.compile(r'Vorbedingung(?:en)?\s+(?:für T4\s+)?\d+'),
+}
+print('\n== (b) Kennungsmuster je Datei (nur Dateien mit Treffern)')
+for p in dateien:
+    t = p.read_text(errors='replace')
+    z = {k: sorted(set(m.group(0) for m in rx.finditer(t))) for k, rx in muster.items()}
+    z = {k: v for k, v in z.items() if v}
+    if z:
+        rel = str(p).replace(str(L) + '/', 'PK:')
+        print(f'-- {rel}')
+        for k, v in z.items():
+            print(f'   {k}: {v[:40]}{" …" if len(v) > 40 else ""}')
+--- Ende /root/sicherung/biotop-lage-01/entwurf/tore/c2_fundstellen.py ---
+Ausgabe (vollständig, stdout und stderr):
+Dateien durchsucht: 286
+
+== (a) Zeilen mit Messgerätfehler/-befund/Messfehler (je Datei höchstens 6)
+-- PK:biotop-gesamtstand/BERICHT.md: 1 Zeilen
+   33: Der tatsächliche Ist-Stand liegt bereits nach früheren Arbeiten an Vorbedingung 1: Lauf 24/25 und A/B/C existieren. Diese Bestandsaufnahme setzt sie weder zurück noch erklärt sie rückwirkend als ungearbeitet. Kein neuer Lauf wurde gestartet. **Ein neuer Repara
+-- PK:biotop-gesamtstand/quellen/MASTERPROMPT-FASSUNG-6.md: 3 Zeilen
+   167: **Versiegelter Eichgegenstand (Fassung 6):** Jede Probe braucht einen Gegenstand — ein Bereichspaar mit Vertrag. Er wird **je Werk einmal gewählt und versiegelt**, beim ersten Lauf, mit Prüfsumme und Begründung; danach unverändert, damit jede Eichung mit jeder
+   346: **Nachlauf zu Tor 1 — erledigt (Lauf 9, Abschlussordner `laeufe/biotop-phase-1-nachlauf/`, 19.09.2026 02:20):** Tor 1 **9 von 9 bestanden**, geprüft durch Chat-Claude am Bericht (Summen nachgerechnet, Kurve Lauf 2 nachvollzogen). S1 behoben nach „behoben heißt
+   384: **Stand Phase 3 (Wertung Chat-Claude, Stand Fassung 6):** **8 von 11 voll, 1 teilweise, 2 im Nachlauf erledigt.** Erfüllt: Nachprobe Zeile 7, **Projektgedächtnis** (Fassung 6 nach oben korrigiert — 0 von 3 strittigen Fällen sind durchgerutschte Wiederholungen;
+-- PK:biotop-phase-3/BERICHT.md: 2 Zeilen
+   202: Der Weg zur Behebung führte durch zwei Messgerät-Fehler (Abschnitt 6). Behoben in **Lauf 20, Generation 1**:
+   237: ## 6. Was schiefging — drei Messgerät-Fehler, fünf verworfene Läufe
+-- PK:biotop-phase-4-vorbedingung-1/BERICHT.md: 1 Zeilen
+   113: Dazu ein **Messfehler in meiner eigenen Auswertung**, vor der Meldung korrigiert: Die erste Zählung wies für
+-- PK:biotop-phase-4-vorbedingung-1/NACHGANG-03.md: 1 Zeilen
+   120: **Achtung, eigener Messfehler in der ersten Fassung dieser Prüfung:** Ich habe zuerst gegen den **Endstand**
+-- PK:biotop-phase-4-vorbedingung-1/NACHGANG.md: 1 Zeilen
+   120: **Achtung, eigener Messfehler in der ersten Fassung dieser Prüfung:** Ich habe zuerst gegen den **Endstand**
+-- PK:biotop-t3-typescript/MASTERPROMPT-v7.md: 6 Zeilen
+   178: **Versiegelter Eichgegenstand (Fassung 6):** Jede Probe braucht einen Gegenstand — ein Bereichspaar mit Vertrag. Er wird **je Werk einmal gewählt und versiegelt**, beim ersten Lauf, mit Prüfsumme und Begründung; danach unverändert, damit jede Eichung mit jeder
+   359: **Nachlauf zu Tor 1 — erledigt (Lauf 9, Abschlussordner `laeufe/biotop-phase-1-nachlauf/`, 19.09.2026 02:20):** Tor 1 **9 von 9 bestanden**, geprüft durch Chat-Claude am Bericht (Summen nachgerechnet, Kurve Lauf 2 nachvollzogen). S1 behoben nach „behoben heißt
+   397: **Stand Phase 3 (Wertung Chat-Claude, Stand Fassung 6):** **8 von 11 voll, 1 teilweise, 2 im Nachlauf erledigt.** Erfüllt: Nachprobe Zeile 7, **Projektgedächtnis** (Fassung 6 nach oben korrigiert — 0 von 3 strittigen Fällen sind durchgerutschte Wiederholungen;
+   403: **Zweck:** Das Biotop soll an jedem Werk arbeiten können, nicht nur an Python-Werken, die Hermes selbst geschrieben hat. Bisher kennt es zwei Werke derselben Art: `lagerhaus` (856 Zeilen) und `logmuehle` (482 Zeilen), beide Python, beide pytest, beide klein, b
+   421: **Was nach jedem Testwerk zu erwarten ist:** Neue Messgerätfehler. Das ist der Zweck, kein Scheitern. Sie werden nach den Grundsätzen 7 bis 9 behandelt: reparieren, was im Kernpfad liegt; benennen und listen, was außerhalb liegt; ein Reviewdurchgang.
+   435: **Abnahme des Breitentests — die Sättigungsregel (Entscheidung Chat-Claude, 21.09.2026):** Philipp hat die Zahl der Testwerke offengelassen. Eine feste Zahl wäre willkürlich; deshalb entscheidet dasselbe Prinzip, nach dem das Biotop selbst aufhört: **Der Breit
+-- PK:biotop-t3-typescript/MESSGERAETFEHLER.md: 2 Zeilen
+   1: # Messgerätfehler T3
+   3: Neue Art: TypeScript/Vitest. Ein neuer Messgerätfehler ist eine erstmals an T3 belegte falsche Messung, falsche Zulassung oder fehlende erforderliche Ausführung im Kernpfad. Sprachfähigkeit, die noch fehlt, ist zunächst eine belegpflichtige Lücke, kein erfunde
+-- PK:biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md: 2 Zeilen
+   277: - **Lauf 37:** 182 + 258 = **440** aus 93 Dateien. Die Ursache ist ein Messgerätbefund (§5).
+   292: ## 5. Messgerätbefund: ein Durchlauf, in dem jeder Fall neutral ausgeht, heißt „nicht gemessen“
+-- PK:biotop-t3-typescript/uebernahme-01/ZWISCHENBERICHT.md: 2 Zeilen
+   15: - Generation 3 brach technisch ab (siehe „Messgerätfehler", unten behoben)
+   70: ## Messgerätfehler: eine Klasse, zwei Stellen
+-- PK:biotop-t3-typescript/zwischenbericht-20260923-152432-r9/ZWISCHENBERICHT.md: 1 Zeilen
+   10: Zwei Entscheidungen von Chat-Claude, damit du ohne Warten fertig wirst. Sperre 3: nicht auflösen — miss S1 bis S5 selbst nach, die Dateien des Unteragenten brauchst du nicht. Laufzeit-Grenzmaß: Entscheidung ja — Median mehrerer Messungen je Seite statt einer E
+-- PK:biotop-vor-t4/REVIEW.md: 2 Zeilen
+   27: | 2 | hoch | **TS-Anhängen (Nr. 9) erzeugt bei erweiterter Importzeile eine doppelte Bindung.** Die kaputte Datei wird als „geurteilt“ gezählt und kommt in den Testbestand. Folgekette, aus dem Code gelesen, in der Kammer nicht ausgeführt: `testbestand[p] = g` 
+   28: | 3 | mittel | **Zurückgestellte Kandidaten zählen in der Generation als nicht überlebt.** Überlebt kein Kandidat, endet die Generation „abgelehnt … (0 von N)“, wobei N die Zurückgestellten enthält. Sie geht dann mit 0 % Verbesserung in Entropie und Sättigung 
+-- PK:biotop-vor-t4-02/BERICHT.md: 5 Zeilen
+   194: - Besteht ein deckender Test im Aufzeichnerlauf nicht, ist das ein Messgerätausfall (zurückgestellt).
+   237: - Ist die Nachmessung ungültig, ist das ein Messgerätausfall (zurückgestellt).
+   299: | `tests/test_eichproben.py` | Referenzlast `REF_PAAR` für die Python-Eichproben (vorher `None`). `last_abnehmer` ruft `bericht` nicht, sonst wird die Vertragsprobe zum Messausfall | Der Vergleich braucht für Python wie für TypeScript eine Referenzlast; ohne s
+   337: | 21 | niedrig | Zeitlimit am Kandidaten gilt als Messgerätausfall statt Inhaltsbefund | offen, nur gelesen. S-12 |
+   380: besteht, ist ein Messgerätausfall. Ohne diese Bedingung könnte das Instrument das Verhalten verändern und trotzdem
+-- PK:biotop-vor-t4-02/REVIEW.md: 3 Zeilen
+   41: | 5 | hoch | **Dekorierte Funktionen werden nicht eingewickelt; die Messlücke erscheint als Verhaltensänderung.** Eingewickelt wird nur, was `inspect.isfunction` erfüllt. Setzt der Kandidat `@functools.lru_cache` auf die reine Funktion `quadrat`, fehlen am Kan
+   45: | 9 | mittel | **Echte Deckungen gehen verloren.** (a) Standardparameter: Der Test ruft `f('a')`, die Sonde `f('a', False)`. Die kanonischen Eingaben unterscheiden sich, gedeckt: 0; Kontrolle mit `f('a', False)`: 2 gedeckt. Dasselbe gilt für Schlüsselwort- sta
+   57: | 21 | niedrig | **Ein Zeitlimit oder Absturz der Sonde am Kandidaten gilt als Messgerätausfall, auch wenn die Vorgeneration gültig beobachtet wurde.** Ein Kandidat, der für einen Randfall endlos läuft, wird zurückgestellt statt abgelehnt. Gelesen, nicht gemes
+-- PK:biotop-vor-t4-02/SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md: 1 Zeilen
+   17: | S-5 | Aufrufbare Objekte mit `__wrapped__` (u. a. `lru_cache`) werden eingewickelt; eine fehlende Beobachtung wegen gescheiterten Einwickelns ist Enthaltung oder Messgerätausfall, nie „ungedeckt“ | p12: 16 von 16, Ablehnung | — |
+-- PK:biotop-vor-t4-03/BERICHT.md: 1 Zeilen
+   138: Ein deckender Test, der ein geändertes Modul lädt und im Aufzeichnerlauf keinen Aufruf zeigt, ist Messgerätausfall.
+-- PK:biotop-vor-t4-03/REVIEW.md: 2 Zeilen
+   32: | 3 | hoch | **Neue stille Stelle aus der Behebung von Lücke 1: Die Sonde ersetzt zurückgegebene Iterator-Objekte durch einen Generator.** `wert()` liest jedes Objekt mit `__next__` aus und gibt dem Werk `_weiter(…)` zurück. Attribute und Methoden des echten O
+   41: | 12 | niedrig | **Ungültige Gewinn-Nachmessung: Der Zweig ist gebaut, aber ungetestet.** In `aegis.py:1029-1030` (zurückstellen) und `lauf.py:428-433` (Messgerätausfall) ist er vorhanden. Kein Test in `tests/` nennt „Gewinn-Nachmessung“. `test_c_*` (6) und di
+-- PK:biotop-vor-t4-03/SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md: 2 Zeilen
+   12: | R4-3 | Nur echte Generatoren auslesen und ersetzen; andere Iterator-Objekte durchreichen, als Enthaltung „Iterator-Objekt“ zählen; Lastabbruch unter der Sonde, während das Messgerät die Last fehlerfrei lief = Messgerätausfall | Review Nr. 3: p18 0 Abweichung
+   18: | R4-9 | Test: ungültige Gewinn-Nachmessung → zurückgestellt (Annahmepfad) bzw. Messgerätausfall (Generalprobe) | Review Nr. 12: 0 Tests | — |
+-- PK:biotop-vor-t4-04/BERICHT.md: 1 Zeilen
+   118: unter der Sonde an der Vorgeneration ab, ist das ein Messgerätausfall statt einer stillen Lücke.
+-- PK:biotop-vor-t4-04/REVIEW.md: 1 Zeilen
+   132: - Messgerätausfall: q1.
+-- PK:biotop-vor-t4-04/zwischenbericht-20260924-151154-r22-kontext80/ZWISCHENBERICHT.md: 1 Zeilen
+   40: 43b8fad Vor T4, Runde 4, Nachtrag: Nachspiel repariert, Lastabbruch unter der Sonde ist Messgerätausfall, Torzeile-Tests
+-- PK:biotop-vor-t4-04/zwischenbericht-20260924-160210-r0-kontext80-verdichtung/ZWISCHENBERICHT.md: 1 Zeilen
+   35: 43b8fad Vor T4, Runde 4, Nachtrag: Nachspiel repariert, Lastabbruch unter der Sonde ist Messgerätausfall, Torzeile-Tests
+-- PK:biotop-vor-t4-05/BERICHT-vor-fuellen.md: 2 Zeilen
+   144: Funktionen, die diese Last rief (`last_aufrufe`). Ohne diese Angabe bleibt es beim Messgerätausfall wie in Runde 4.
+   156: jede Funktion mehrfach auf, darum bricht die Last unter der Sonde ab. An `43b8fad` war das ein Messgerätausfall für
+-- PK:biotop-vor-t4-05/BERICHT-vor-review.md: 4 Zeilen
+   1: # Behebungsrunde 5 vor T4: nicht abgenommen — die Gegenproben der Runde halten, aber an 0c2f058 sind zwei Messfehler derselben Klasse gemessen, die vor T4 behoben sein müssen (R6-1, R6-4)
+   22: - **Nicht abgenommen.** An `0c2f058` sind zwei Messfehler gemessen, die T4 gefährden; beide sind als rote
+   185: Funktionen, die diese Last rief (`last_aufrufe`). Ohne diese Angabe bleibt es beim Messgerätausfall wie in Runde 4.
+   197: jede Funktion mehrfach auf, darum bricht die Last unter der Sonde ab. An `43b8fad` war das ein Messgerätausfall für
+-- PK:biotop-vor-t4-05/BERICHT.md: 4 Zeilen
+   1: # Behebungsrunde 5 vor T4: nicht abgenommen — die Gegenproben der Runde halten, aber an 0c2f058 sind zwei Messfehler derselben Klasse gemessen, die vor T4 behoben sein müssen (R6-1, R6-4)
+   22: - **Nicht abgenommen.** An `0c2f058` sind zwei Messfehler gemessen, die T4 gefährden; beide sind als rote
+   190: Funktionen, die diese Last rief (`last_aufrufe`). Ohne diese Angabe bleibt es beim Messgerätausfall wie in Runde 4.
+   202: jede Funktion mehrfach auf, darum bricht die Last unter der Sonde ab. An `43b8fad` war das ein Messgerätausfall für
+-- PK:biotop-vor-t4-05/REVIEW-verworfen-erster-durchgang.md: 2 Zeilen
+   36: - Eine hängende Last führt nach 240 s zum Messgerätausfall (Nr. 7).
+   50: | 7 | mittel | **Eine hängende Last ist kein Ausfall einer Funktion, sondern ein Messgerätausfall nach 240 s.** **Kammer, d1:** Die Last legt ein Element in eine `queue.Queue` und ruft `hole(0)`. Die Sonde ruft `hole` mehrfach auf, und der zweite `Q.get()` blo
+-- PK:biotop-vor-t4-05/REVIEW.md: 1 Zeilen
+   61: | 5 | mittel | **Eine Last, die unter der Sonde hängt statt abzubrechen, legt den ganzen Kandidaten still.** Probe d1: Die Last nimmt ein Element aus einer `queue.Queue`. Die Sonde ruft `hole` mehrfach auf, und der zweite Aufruf blockiert. Ergebnis: Kammer-Zei
+-- PK:biotop-vor-t4-05/zwischenbericht-20260924-203327-r1-verdichtung/ZWISCHENBERICHT.md: 1 Zeilen
+   51: 43b8fad Vor T4, Runde 4, Nachtrag: Nachspiel repariert, Lastabbruch unter der Sonde ist Messgerätausfall, Torzeile-Tests
+-- PK:biotop-vor-t4-05/zwischenbericht-20260924-203928-r1-kontext80/ZWISCHENBERICHT.md: 1 Zeilen
+   51: 43b8fad Vor T4, Runde 4, Nachtrag: Nachspiel repariert, Lastabbruch unter der Sonde ist Messgerätausfall, Torzeile-Tests
+-- PK:biotop-vor-t4-05/zwischenbericht-20260924-210135-r0-kontext80/ZWISCHENBERICHT.md: 1 Zeilen
+   26: 43b8fad Vor T4, Runde 4, Nachtrag: Nachspiel repariert, Lastabbruch unter der Sonde ist Messgerätausfall, Torzeile-Tests
+-- PK:biotop-vor-t4-05/zwischenbericht-20260924-214148-r2-verdichtung/ZWISCHENBERICHT.md: 1 Zeilen
+   29: 43b8fad Vor T4, Runde 4, Nachtrag: Nachspiel repariert, Lastabbruch unter der Sonde ist Messgerätausfall, Torzeile-Tests
+-- PK:biotop-vor-t4-06/zwischenbericht-20260925-000624-r29-verdichtung/ZWISCHENBERICHT.md: 1 Zeilen
+   26: 43b8fad Vor T4, Runde 4, Nachtrag: Nachspiel repariert, Lastabbruch unter der Sonde ist Messgerätausfall, Torzeile-Tests
+-- PK:biotop-vor-t4-06/zwischenbericht-20260925-002824-r0-verdichtung/ZWISCHENBERICHT.md: 1 Zeilen
+   27: 43b8fad Vor T4, Runde 4, Nachtrag: Nachspiel repariert, Lastabbruch unter der Sonde ist Messgerätausfall, Torzeile-Tests
+-- PK:biotop-vor-t4-06/zwischenbericht-20260925-010825-r0-verdichtung/ZWISCHENBERICHT.md: 1 Zeilen
+   26: 43b8fad Vor T4, Runde 4, Nachtrag: Nachspiel repariert, Lastabbruch unter der Sonde ist Messgerätausfall, Torzeile-Tests
+-- PK:biotop-vor-t4-06/zwischenbericht-20260925-011225-r12-verdichtung/ZWISCHENBERICHT.md: 1 Zeilen
+   26: 43b8fad Vor T4, Runde 4, Nachtrag: Nachspiel repariert, Lastabbruch unter der Sonde ist Messgerätausfall, Torzeile-Tests
+-- PK:biotop-wiedereinstieg-2026-09-20-01/INFINITE-EVOLUTION-BIOTOP-Masterprompt-v6-01.md: 3 Zeilen
+   167: **Versiegelter Eichgegenstand (Fassung 6):** Jede Probe braucht einen Gegenstand — ein Bereichspaar mit Vertrag. Er wird **je Werk einmal gewählt und versiegelt**, beim ersten Lauf, mit Prüfsumme und Begründung; danach unverändert, damit jede Eichung mit jeder
+   346: **Nachlauf zu Tor 1 — erledigt (Lauf 9, Abschlussordner `laeufe/biotop-phase-1-nachlauf/`, 19.09.2026 02:20):** Tor 1 **9 von 9 bestanden**, geprüft durch Chat-Claude am Bericht (Summen nachgerechnet, Kurve Lauf 2 nachvollzogen). S1 behoben nach „behoben heißt
+   384: **Stand Phase 3 (Wertung Chat-Claude, Stand Fassung 6):** **8 von 11 voll, 1 teilweise, 2 im Nachlauf erledigt.** Erfüllt: Nachprobe Zeile 7, **Projektgedächtnis** (Fassung 6 nach oben korrigiert — 0 von 3 strittigen Fällen sind durchgerutschte Wiederholungen;
+-- /root/biotop-vor-t4/REVIEW.md: 2 Zeilen
+   27: | 2 | hoch | **TS-Anhängen (Nr. 9) erzeugt bei erweiterter Importzeile eine doppelte Bindung.** Die kaputte Datei wird als „geurteilt“ gezählt und kommt in den Testbestand. Folgekette, aus dem Code gelesen, in der Kammer nicht ausgeführt: `testbestand[p] = g` 
+   28: | 3 | mittel | **Zurückgestellte Kandidaten zählen in der Generation als nicht überlebt.** Überlebt kein Kandidat, endet die Generation „abgelehnt … (0 von N)“, wobei N die Zurückgestellten enthält. Sie geht dann mit 0 % Verbesserung in Entropie und Sättigung 
+-- /root/biotop-vor-t4-02/BERICHT.md: 5 Zeilen
+   194: - Besteht ein deckender Test im Aufzeichnerlauf nicht, ist das ein Messgerätausfall (zurückgestellt).
+   237: - Ist die Nachmessung ungültig, ist das ein Messgerätausfall (zurückgestellt).
+   299: | `tests/test_eichproben.py` | Referenzlast `REF_PAAR` für die Python-Eichproben (vorher `None`). `last_abnehmer` ruft `bericht` nicht, sonst wird die Vertragsprobe zum Messausfall | Der Vergleich braucht für Python wie für TypeScript eine Referenzlast; ohne s
+   337: | 21 | niedrig | Zeitlimit am Kandidaten gilt als Messgerätausfall statt Inhaltsbefund | offen, nur gelesen. S-12 |
+   380: besteht, ist ein Messgerätausfall. Ohne diese Bedingung könnte das Instrument das Verhalten verändern und trotzdem
+-- /root/biotop-vor-t4-02/REVIEW.md: 3 Zeilen
+   41: | 5 | hoch | **Dekorierte Funktionen werden nicht eingewickelt; die Messlücke erscheint als Verhaltensänderung.** Eingewickelt wird nur, was `inspect.isfunction` erfüllt. Setzt der Kandidat `@functools.lru_cache` auf die reine Funktion `quadrat`, fehlen am Kan
+   45: | 9 | mittel | **Echte Deckungen gehen verloren.** (a) Standardparameter: Der Test ruft `f('a')`, die Sonde `f('a', False)`. Die kanonischen Eingaben unterscheiden sich, gedeckt: 0; Kontrolle mit `f('a', False)`: 2 gedeckt. Dasselbe gilt für Schlüsselwort- sta
+   57: | 21 | niedrig | **Ein Zeitlimit oder Absturz der Sonde am Kandidaten gilt als Messgerätausfall, auch wenn die Vorgeneration gültig beobachtet wurde.** Ein Kandidat, der für einen Randfall endlos läuft, wird zurückgestellt statt abgelehnt. Gelesen, nicht gemes
+-- /root/biotop-vor-t4-02/SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md: 1 Zeilen
+   17: | S-5 | Aufrufbare Objekte mit `__wrapped__` (u. a. `lru_cache`) werden eingewickelt; eine fehlende Beobachtung wegen gescheiterten Einwickelns ist Enthaltung oder Messgerätausfall, nie „ungedeckt“ | p12: 16 von 16, Ablehnung | — |
+-- /root/biotop-vor-t4-03/BERICHT.md: 1 Zeilen
+   138: Ein deckender Test, der ein geändertes Modul lädt und im Aufzeichnerlauf keinen Aufruf zeigt, ist Messgerätausfall.
+-- /root/biotop-vor-t4-03/REVIEW.md: 2 Zeilen
+   32: | 3 | hoch | **Neue stille Stelle aus der Behebung von Lücke 1: Die Sonde ersetzt zurückgegebene Iterator-Objekte durch einen Generator.** `wert()` liest jedes Objekt mit `__next__` aus und gibt dem Werk `_weiter(…)` zurück. Attribute und Methoden des echten O
+   41: | 12 | niedrig | **Ungültige Gewinn-Nachmessung: Der Zweig ist gebaut, aber ungetestet.** In `aegis.py:1029-1030` (zurückstellen) und `lauf.py:428-433` (Messgerätausfall) ist er vorhanden. Kein Test in `tests/` nennt „Gewinn-Nachmessung“. `test_c_*` (6) und di
+-- /root/biotop-vor-t4-03/SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md: 2 Zeilen
+   12: | R4-3 | Nur echte Generatoren auslesen und ersetzen; andere Iterator-Objekte durchreichen, als Enthaltung „Iterator-Objekt“ zählen; Lastabbruch unter der Sonde, während das Messgerät die Last fehlerfrei lief = Messgerätausfall | Review Nr. 3: p18 0 Abweichung
+   18: | R4-9 | Test: ungültige Gewinn-Nachmessung → zurückgestellt (Annahmepfad) bzw. Messgerätausfall (Generalprobe) | Review Nr. 12: 0 Tests | — |
+-- /root/biotop-vor-t4-04/BERICHT.md: 1 Zeilen
+   118: unter der Sonde an der Vorgeneration ab, ist das ein Messgerätausfall statt einer stillen Lücke.
+-- /root/biotop-vor-t4-04/REVIEW.md: 1 Zeilen
+   132: - Messgerätausfall: q1.
+-- /root/biotop-vor-t4-05/BERICHT.md: 4 Zeilen
+   1: # Behebungsrunde 5 vor T4: nicht abgenommen — die Gegenproben der Runde halten, aber an 0c2f058 sind zwei Messfehler derselben Klasse gemessen, die vor T4 behoben sein müssen (R6-1, R6-4)
+   22: - **Nicht abgenommen.** An `0c2f058` sind zwei Messfehler gemessen, die T4 gefährden; beide sind als rote
+   190: Funktionen, die diese Last rief (`last_aufrufe`). Ohne diese Angabe bleibt es beim Messgerätausfall wie in Runde 4.
+   202: jede Funktion mehrfach auf, darum bricht die Last unter der Sonde ab. An `43b8fad` war das ein Messgerätausfall für
+-- /root/biotop-vor-t4-05/REVIEW-verworfen-erster-durchgang.md: 2 Zeilen
+   36: - Eine hängende Last führt nach 240 s zum Messgerätausfall (Nr. 7).
+   50: | 7 | mittel | **Eine hängende Last ist kein Ausfall einer Funktion, sondern ein Messgerätausfall nach 240 s.** **Kammer, d1:** Die Last legt ein Element in eine `queue.Queue` und ruft `hole(0)`. Die Sonde ruft `hole` mehrfach auf, und der zweite `Q.get()` blo
+-- /root/biotop-vor-t4-05/REVIEW.md: 1 Zeilen
+   61: | 5 | mittel | **Eine Last, die unter der Sonde hängt statt abzubrechen, legt den ganzen Kandidaten still.** Probe d1: Die Last nimmt ein Element aus einer `queue.Queue`. Die Sonde ruft `hole` mehrfach auf, und der zweite Aufruf blockiert. Ergebnis: Kammer-Zei
+-- /root/biotop-vor-t4-05/bau/BERICHT-vor-fuellen.md: 2 Zeilen
+   144: Funktionen, die diese Last rief (`last_aufrufe`). Ohne diese Angabe bleibt es beim Messgerätausfall wie in Runde 4.
+   156: jede Funktion mehrfach auf, darum bricht die Last unter der Sonde ab. An `43b8fad` war das ein Messgerätausfall für
+-- /root/biotop-vor-t4-05/bau/BERICHT-vor-review.md: 4 Zeilen
+   1: # Behebungsrunde 5 vor T4: nicht abgenommen — die Gegenproben der Runde halten, aber an 0c2f058 sind zwei Messfehler derselben Klasse gemessen, die vor T4 behoben sein müssen (R6-1, R6-4)
+   22: - **Nicht abgenommen.** An `0c2f058` sind zwei Messfehler gemessen, die T4 gefährden; beide sind als rote
+   185: Funktionen, die diese Last rief (`last_aufrufe`). Ohne diese Angabe bleibt es beim Messgerätausfall wie in Runde 4.
+   197: jede Funktion mehrfach auf, darum bricht die Last unter der Sonde ab. An `43b8fad` war das ein Messgerätausfall für
+-- /root/biotop-vor-t4-06/BAU-S1-SONDE.md: 1 Zeilen
+   102: Frist). Probe d1 (hängende `queue.Queue`) muss danach geurteilt oder gezählt enthalten sein, kein Messgerätausfall.
+-- /root/biotop-vor-t4-06/bau/S1-PLAN.md: 1 Zeilen
+   388: Gelesen aus seinen Belegen: die Gegenprobe (gegen=True) endet „Messgerätausfall — zurückgestellt: Verhaltenssonde
+
+== (b) Kennungsmuster je Datei (nur Dateien mit Treffern)
+-- PK:biotop-gesamtstand/BERICHT.md
+   VB-T4 n: ['Vorbedingung 1']
+-- PK:biotop-gesamtstand/LAEUFE-01.md
+   VB-T4 n: ['Vorbedingung 1']
+-- PK:biotop-gesamtstand/OFFENE-PUNKTE-01.md
+   VB-T4 n: ['Vorbedingung 1']
+-- PK:biotop-phase-4-einstieg-20260921-01/ZWISCHENBERICHT.md
+   VB-T4 n: ['Vorbedingung 1', 'Vorbedingung 2']
+-- PK:biotop-phase-4-vorbedingung-1/BERICHT.md
+   VB-T4 n: ['Vorbedingung 1', 'Vorbedingung 2']
+-- PK:biotop-phase-4-vorbedingung-1/KASSE-05.md
+   VB-T4 n: ['Vorbedingung 1']
+-- PK:biotop-phase-4-vorbedingung-1/KASSE-06.md
+   VB-T4 n: ['Vorbedingung 1']
+-- PK:biotop-phase-4-vorbedingung-1/KASSE.md
+   VB-T4 n: ['Vorbedingung 1']
+-- PK:biotop-phase-4-vorbedingung-1/NACHGANG-03.md
+   VB-T4 n: ['Vorbedingung 1']
+-- PK:biotop-phase-4-vorbedingung-1/NACHGANG-04.md
+   VB-T4 n: ['Vorbedingung 1']
+-- PK:biotop-phase-4-vorbedingung-1/NACHGANG-05.md
+   VB-T4 n: ['Vorbedingung 1']
+-- PK:biotop-phase-4-vorbedingung-1/NACHGANG-06.md
+   VB-T4 n: ['Vorbedingung 1']
+-- PK:biotop-phase-4-vorbedingung-1/NACHGANG.md
+   VB-T4 n: ['Vorbedingung 1']
+-- PK:biotop-phase-4-vorbedingung-1/nach-reparatur-02/MESSPLAN.md
+   VB-T4 n: ['Vorbedingung 1']
+-- PK:biotop-phase-4-vorbedingung-1/nach-reparatur-02/ZWISCHENBERICHT.md
+   VB-T4 n: ['Vorbedingung 1']
+-- PK:biotop-t3-typescript/MASTERPROMPT-v7.md
+   VB-T4 n: ['Vorbedingung 1']
+-- PK:biotop-t3-typescript/abschluss-01/ABSCHLUSSBERICHT.md
+   VB-T4 n: ['Vorbedingung 1']
+-- PK:biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md
+   Review-Nr: ['Review Nr. 1', 'Review Nr. 10', 'Review Nr. 12', 'Review Nr. 2', 'Review Nr. 4', 'Review Nr. 6', 'Review Nr. 7', 'Review Nr. 9']
+   VB-T4 n: ['Vorbedingung 1', 'Vorbedingung 2', 'Vorbedingung 3', 'Vorbedingung 4', 'Vorbedingung 5', 'Vorbedingung 6', 'Vorbedingung 7', 'Vorbedingung 8']
+-- PK:biotop-t3-typescript/abschluss-03/REVIEW-AUFTRAG-03.md
+   VB-T4 n: ['Vorbedingung 1']
+-- PK:biotop-t3-typescript/uebernahme-01/ZWISCHENBERICHT.md
+   VB-T4 n: ['Vorbedingung 1']
+-- PK:biotop-vor-t4/BERICHT.md
+   Review-Nr: ['Review Nr. 1', 'Review Nr. 10', 'Review Nr. 11', 'Review Nr. 13', 'Review Nr. 2', 'Review Nr. 3', 'Review Nr. 5', 'Review Nr. 6', 'Review Nr. 7', 'Review Nr. 8', 'Review Nr. 9']
+   VB-T4 n: ['Vorbedingung 1', 'Vorbedingungen 1']
+-- PK:biotop-vor-t4/REVIEW-AUFTRAG-VOR-T4.md
+   VB-T4 n: ['Vorbedingung 1']
+-- PK:biotop-vor-t4/REVIEW.md
+   VB-T4 n: ['Vorbedingungen 1']
+-- PK:biotop-vor-t4/zwischenbericht-20260923-220002-r110/ZWISCHENBERICHT.md
+   VB-T4 n: ['Vorbedingungen 1']
+-- PK:biotop-vor-t4-02/BERICHT.md
+   Review-Nr: ['Review Nr. 1', 'Review Nr. 10', 'Review Nr. 11', 'Review Nr. 13', 'Review Nr. 14', 'Review Nr. 15', 'Review Nr. 16', 'Review Nr. 17', 'Review Nr. 18', 'Review Nr. 19', 'Review Nr. 6', 'Review Nr. 7', 'Review Nr. 9']
+   VB-T4 n: ['Vorbedingung 3']
+-- PK:biotop-vor-t4-02/REVIEW.md
+   VB-T4 n: ['Vorbedingung 1', 'Vorbedingungen 1']
+-- PK:biotop-vor-t4-02/zwischenbericht-20260923-225416-r13-verdichtung/ZWISCHENBERICHT.md
+   VB-T4 n: ['Vorbedingungen 1']
+-- PK:biotop-vor-t4-02/zwischenbericht-20260924-004847-r104-kontext80/ZWISCHENBERICHT.md
+   VB-T4 n: ['Vorbedingungen 1']
+-- PK:biotop-vor-t4-02/zwischenbericht-20260924-010853-r2-verdichtung/ZWISCHENBERICHT.md
+   VB-T4 n: ['Vorbedingungen 1']
+-- PK:biotop-vor-t4-02/zwischenbericht-20260924-020708-r1-verdichtung/ZWISCHENBERICHT.md
+   VB-T4 n: ['Vorbedingungen 1']
+-- PK:biotop-vor-t4-03/BERICHT.md
+   Review-Nr: ['Review 02\n  Nr. 18', 'Review 02 Nr. 15', 'Review Nr. 10', 'Review Nr. 16', 'Review Nr. 18']
+-- PK:biotop-vor-t4-03/REVIEW.md
+   Review-Nr: ['Review 02 Nr. 8']
+-- PK:biotop-vor-t4-03/SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md
+   Review-Nr: ['Review Nr. 1', 'Review Nr. 11', 'Review Nr. 12', 'Review Nr. 13', 'Review Nr. 15', 'Review Nr. 16', 'Review Nr. 17', 'Review Nr. 2', 'Review Nr. 3', 'Review Nr. 4', 'Review Nr. 6', 'Review Nr. 7', 'Review Nr. 8', 'Review Nr. 9']
+-- PK:biotop-vor-t4-03/zwischenbericht-20260924-051104-r113/ZWISCHENBERICHT.md
+   VB-T4 n: ['Vorbedingungen 1']
+-- PK:biotop-vor-t4-03/zwischenbericht-20260924-051906-r141/ZWISCHENBERICHT.md
+   VB-T4 n: ['Vorbedingungen 1']
+-- PK:biotop-vor-t4-04/BERICHT.md
+   Review-Nr: ['Review 03 Nr. 2', 'Review Nr. 1', 'Review Nr. 7']
+-- PK:biotop-vor-t4-04/REVIEW-AUFTRAG.md
+   Review-Nr: ['Review 03 Nr. 1']
+-- PK:biotop-vor-t4-04/REVIEW.md
+   Review-Nr: ['Review 03 Nr. 1', 'Review 03 Nr. 2', 'Review 03 Nr. 4', 'Review 03 Nr. 9']
+-- PK:biotop-vor-t4-04/SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md
+   Review-Nr: ['Review 04 Nr. 1', 'Review 04 Nr. 11']
+-- PK:biotop-vor-t4-05/BERICHT-vor-fuellen.md
+   R6-n: ['R6-1', 'R6-2', 'R6-3']
+   Review-Nr: ['Review 04 Nr. 1', 'Review 04 Nr. 14', 'Review 04 Nr. 16', 'Review 04 Nr. 18', 'Review 04 Nr. 4']
+-- PK:biotop-vor-t4-05/BERICHT-vor-review.md
+   R6-n: ['R6-1', 'R6-2', 'R6-3', 'R6-4']
+   Review-Nr: ['Review 04 Nr. 1', 'Review 04 Nr. 14', 'Review 04 Nr. 16', 'Review 04 Nr. 18', 'Review 04 Nr. 4']
+-- PK:biotop-vor-t4-05/BERICHT.md
+   R6-n: ['R6-1', 'R6-10', 'R6-11', 'R6-12', 'R6-13', 'R6-14', 'R6-15', 'R6-2', 'R6-3', 'R6-4', 'R6-6', 'R6-7', 'R6-8', 'R6-9']
+   U-n: ['U-1', 'U-2', 'U-3', 'U-4']
+   Review-Nr: ['Review 04 Nr. 1', 'Review 04 Nr. 14', 'Review 04 Nr. 16', 'Review 04 Nr. 18', 'Review 04 Nr. 4', 'Review Nr. 9']
+-- PK:biotop-vor-t4-05/REVIEW-verworfen-erster-durchgang.md
+   R6-n: ['R6-1', 'R6-4']
+   Review-Nr: ['Review 04 Nr. 1']
+-- PK:biotop-vor-t4-05/REVIEW.md
+   R6-n: ['R6-1', 'R6-2', 'R6-3', 'R6-4']
+   Review-Nr: ['Review 04 Nr. 1']
+   VB-T4 n: ['Vorbedingung 4', 'Vorbedingungen 6']
+-- PK:biotop-vor-t4-05/SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md
+   R6-n: ['R6-1', 'R6-10', 'R6-11', 'R6-12', 'R6-13', 'R6-14', 'R6-15', 'R6-2', 'R6-3', 'R6-4', 'R6-5', 'R6-6', 'R6-7', 'R6-8', 'R6-9']
+   U-n: ['U-1', 'U-2', 'U-3', 'U-4']
+   Review-Nr: ['Review 04 Nr. 4', 'Review 05 Nr. 1', 'Review 05 Nr. 10', 'Review 05 Nr. 11', 'Review 05 Nr. 2', 'Review 05 Nr. 3', 'Review 05 Nr. 4', 'Review 05 Nr. 5', 'Review 05 Nr. 6', 'Review 05 Nr. 7', 'Review 05 Nr. 8', 'Review Nr. 1']
+-- PK:biotop-vor-t4-05/SPEZIFIKATIONEN-vor-review.md
+   R6-n: ['R6-1', 'R6-2', 'R6-3', 'R6-4', 'R6-5']
+   Review-Nr: ['Review 04 Nr. 4']
+-- PK:biotop-vor-t4-05/UEBERGABE.md
+   R6-n: ['R6-1', 'R6-2', 'R6-3', 'R6-4']
+-- PK:biotop-vor-t4-05/ZWEI-REVIEWS.md
+   R6-n: ['R6-4']
+   U-n: ['U-1', 'U-4']
+-- PK:biotop-vor-t4-05/bau_R5-REVIEW-ABSCHNITT.md
+   R6-n: ['R6-1', 'R6-10', 'R6-11', 'R6-12', 'R6-13', 'R6-14', 'R6-15', 'R6-2', 'R6-4', 'R6-6', 'R6-7', 'R6-8', 'R6-9']
+   U-n: ['U-1', 'U-2', 'U-3', 'U-4']
+-- PK:biotop-vor-t4-05/zwischenbericht-20260924-214148-r2-verdichtung/UEBERGABE-1-UEBERGABE.md
+   R6-n: ['R6-1', 'R6-2', 'R6-3']
+-- PK:biotop-vor-t4-06/zwischenbericht-20260925-000624-r29-verdichtung/UEBERGABE-1-UEBERGABE.md
+   R6-n: ['R6-1', 'R6-13', 'R6-14', 'R6-15', 'R6-2', 'R6-3', 'R6-4', 'R6-6']
+   U-n: ['U-1', 'U-4']
+   Review-Nr: ['Review 05 Nr. 1']
+-- PK:biotop-vor-t4-06/zwischenbericht-20260925-000624-r29-verdichtung/ZWISCHENBERICHT.md
+   R6-n: ['R6-1', 'R6-2', 'R6-3', 'R6-4']
+-- PK:biotop-vor-t4-06/zwischenbericht-20260925-002824-r0-verdichtung/UEBERGABE-1-UEBERGABE.md
+   R6-n: ['R6-1', 'R6-13', 'R6-14', 'R6-15', 'R6-2', 'R6-3', 'R6-4', 'R6-6']
+   U-n: ['U-1', 'U-4']
+   Review-Nr: ['Review 05 Nr. 1']
+-- PK:biotop-vor-t4-06/zwischenbericht-20260925-002824-r0-verdichtung/ZWISCHENBERICHT.md
+   U-n: ['U-1', 'U-4']
+-- PK:biotop-vor-t4-06/zwischenbericht-20260925-010825-r0-verdichtung/UEBERGABE-1-UEBERGABE.md
+   R6-n: ['R6-1', 'R6-13', 'R6-14', 'R6-15', 'R6-2', 'R6-3', 'R6-4', 'R6-6']
+   U-n: ['U-1', 'U-4']
+   Review-Nr: ['Review 05 Nr. 1']
+-- PK:biotop-vor-t4-06/zwischenbericht-20260925-011225-r12-verdichtung/UEBERGABE-1-UEBERGABE.md
+   R6-n: ['R6-1', 'R6-13', 'R6-14', 'R6-15', 'R6-2', 'R6-3', 'R6-4', 'R6-6']
+   U-n: ['U-1', 'U-4']
+   Review-Nr: ['Review 05 Nr. 1']
+-- PK:biotop-wiedereinstieg-2026-09-20-01/KASSE-01.md
+   VB-T4 n: ['Vorbedingung 1']
+-- PK:biotop-wiedereinstieg-2026-09-20-01/ZWISCHENBERICHT.md
+   VB-T4 n: ['Vorbedingung 2']
+-- PK:biotop-wiedereinstieg-2026-09-20-01/belege/QUELLE-NACHGANG06-01.md
+   VB-T4 n: ['Vorbedingung 1']
+-- PK:biotop-wiedereinstieg-2026-09-20-01/quellen/doc_599e9e97ca3f_WIEDEREINSTIEG_Hermes_2026-09-20.md
+   VB-T4 n: ['Vorbedingung 1', 'Vorbedingung 2']
+-- /root/biotop-vor-t4/BERICHT.md
+   Review-Nr: ['Review Nr. 1', 'Review Nr. 10', 'Review Nr. 11', 'Review Nr. 13', 'Review Nr. 2', 'Review Nr. 3', 'Review Nr. 5', 'Review Nr. 6', 'Review Nr. 7', 'Review Nr. 8', 'Review Nr. 9']
+   VB-T4 n: ['Vorbedingung 1', 'Vorbedingungen 1']
+-- /root/biotop-vor-t4/REVIEW-AUFTRAG-VOR-T4.md
+   VB-T4 n: ['Vorbedingung 1']
+-- /root/biotop-vor-t4/REVIEW.md
+   VB-T4 n: ['Vorbedingungen 1']
+-- /root/biotop-vor-t4-02/BERICHT.md
+   Review-Nr: ['Review Nr. 1', 'Review Nr. 10', 'Review Nr. 11', 'Review Nr. 13', 'Review Nr. 14', 'Review Nr. 15', 'Review Nr. 16', 'Review Nr. 17', 'Review Nr. 18', 'Review Nr. 19', 'Review Nr. 6', 'Review Nr. 7', 'Review Nr. 9']
+   VB-T4 n: ['Vorbedingung 3']
+-- /root/biotop-vor-t4-02/REVIEW.md
+   VB-T4 n: ['Vorbedingung 1', 'Vorbedingungen 1']
+-- /root/biotop-vor-t4-03/BERICHT.md
+   Review-Nr: ['Review 02\n  Nr. 18', 'Review 02 Nr. 15', 'Review Nr. 10', 'Review Nr. 16', 'Review Nr. 18']
+-- /root/biotop-vor-t4-03/REVIEW.md
+   Review-Nr: ['Review 02 Nr. 8']
+-- /root/biotop-vor-t4-03/SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md
+   Review-Nr: ['Review Nr. 1', 'Review Nr. 11', 'Review Nr. 12', 'Review Nr. 13', 'Review Nr. 15', 'Review Nr. 16', 'Review Nr. 17', 'Review Nr. 2', 'Review Nr. 3', 'Review Nr. 4', 'Review Nr. 6', 'Review Nr. 7', 'Review Nr. 8', 'Review Nr. 9']
+-- /root/biotop-vor-t4-04/BERICHT.md
+   Review-Nr: ['Review 03 Nr. 2', 'Review Nr. 1', 'Review Nr. 7']
+-- /root/biotop-vor-t4-04/REVIEW-AUFTRAG.md
+   Review-Nr: ['Review 03 Nr. 1']
+-- /root/biotop-vor-t4-04/REVIEW.md
+   Review-Nr: ['Review 03 Nr. 1', 'Review 03 Nr. 2', 'Review 03 Nr. 4', 'Review 03 Nr. 9']
+-- /root/biotop-vor-t4-04/SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md
+   Review-Nr: ['Review 04 Nr. 1', 'Review 04 Nr. 11']
+-- /root/biotop-vor-t4-05/BERICHT.md
+   R6-n: ['R6-1', 'R6-10', 'R6-11', 'R6-12', 'R6-13', 'R6-14', 'R6-15', 'R6-2', 'R6-3', 'R6-4', 'R6-6', 'R6-7', 'R6-8', 'R6-9']
+   U-n: ['U-1', 'U-2', 'U-3', 'U-4']
+   Review-Nr: ['Review 04 Nr. 1', 'Review 04 Nr. 14', 'Review 04 Nr. 16', 'Review 04 Nr. 18', 'Review 04 Nr. 4', 'Review Nr. 9']
+-- /root/biotop-vor-t4-05/REVIEW-verworfen-erster-durchgang.md
+   R6-n: ['R6-1', 'R6-4']
+   Review-Nr: ['Review 04 Nr. 1']
+-- /root/biotop-vor-t4-05/REVIEW.md
+   R6-n: ['R6-1', 'R6-2', 'R6-3', 'R6-4']
+   Review-Nr: ['Review 04 Nr. 1']
+   VB-T4 n: ['Vorbedingung 4', 'Vorbedingungen 6']
+-- /root/biotop-vor-t4-05/SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md
+   R6-n: ['R6-1', 'R6-10', 'R6-11', 'R6-12', 'R6-13', 'R6-14', 'R6-15', 'R6-2', 'R6-3', 'R6-4', 'R6-5', 'R6-6', 'R6-7', 'R6-8', 'R6-9']
+   U-n: ['U-1', 'U-2', 'U-3', 'U-4']
+   Review-Nr: ['Review 04 Nr. 4', 'Review 05 Nr. 1', 'Review 05 Nr. 10', 'Review 05 Nr. 11', 'Review 05 Nr. 2', 'Review 05 Nr. 3', 'Review 05 Nr. 4', 'Review 05 Nr. 5', 'Review 05 Nr. 6', 'Review 05 Nr. 7', 'Review 05 Nr. 8', 'Review Nr. 1']
+-- /root/biotop-vor-t4-05/UEBERGABE.md
+   R6-n: ['R6-1', 'R6-2', 'R6-3', 'R6-4']
+-- /root/biotop-vor-t4-05/ZWEI-REVIEWS.md
+   R6-n: ['R6-4']
+   U-n: ['U-1', 'U-4']
+-- /root/biotop-vor-t4-05/bau/BERICHT-vor-fuellen.md
+   R6-n: ['R6-1', 'R6-2', 'R6-3']
+   Review-Nr: ['Review 04 Nr. 1', 'Review 04 Nr. 14', 'Review 04 Nr. 16', 'Review 04 Nr. 18', 'Review 04 Nr. 4']
+-- /root/biotop-vor-t4-05/bau/BERICHT-vor-review.md
+   R6-n: ['R6-1', 'R6-2', 'R6-3', 'R6-4']
+   Review-Nr: ['Review 04 Nr. 1', 'Review 04 Nr. 14', 'Review 04 Nr. 16', 'Review 04 Nr. 18', 'Review 04 Nr. 4']
+-- /root/biotop-vor-t4-05/bau/R5-REVIEW-ABSCHNITT.md
+   R6-n: ['R6-1', 'R6-10', 'R6-11', 'R6-12', 'R6-13', 'R6-14', 'R6-15', 'R6-2', 'R6-4', 'R6-6', 'R6-7', 'R6-8', 'R6-9']
+   U-n: ['U-1', 'U-2', 'U-3', 'U-4']
+-- /root/biotop-vor-t4-05/bau/SPEZIFIKATIONEN-vor-review.md
+   R6-n: ['R6-1', 'R6-2', 'R6-3', 'R6-4', 'R6-5']
+   Review-Nr: ['Review 04 Nr. 4']
+-- /root/biotop-vor-t4-06/BAU-S1-FORTSETZUNG.md
+   R6-n: ['R6-4']
+   U-n: ['U-1']
+-- /root/biotop-vor-t4-06/BAU-S1-SONDE.md
+   R6-n: ['R6-1', 'R6-13', 'R6-4']
+   Review-Nr: ['Review 05 Nr. 2']
+-- /root/biotop-vor-t4-06/BAU-S1B-M2B.md
+   M-n: ['M2']
+   VB-T4 n: ['Vorbedingung 2']
+-- /root/biotop-vor-t4-06/BAU-S1C-UNBEOBACHTET.md
+   M-n: ['M2']
+   Befund S: ['Befund S1']
+   VB-T4 n: ['Vorbedingung 2']
+-- /root/biotop-vor-t4-06/BAU-S2-TOR4.md
+   Review-Nr: ['Review 05 Nr. 8']
+-- /root/biotop-vor-t4-06/BAU-S3-STUFE2.md
+   R6-n: ['R6-3']
+-- /root/biotop-vor-t4-06/BAU-S4-VERDRAHTUNG.md
+   Review-Nr: ['Review 05 Nr. 7']
+   VB-T4 n: ['Vorbedingung 4', 'Vorbedingung 9', 'Vorbedingungen 1']
+-- /root/biotop-vor-t4-06/EINORDNUNG-U1-U4.md
+   R6-n: ['R6-14']
+   U-n: ['U-1', 'U-2', 'U-3', 'U-4']
+-- /root/biotop-vor-t4-06/UEBERGABE.md
+   R6-n: ['R6-1', 'R6-13', 'R6-14', 'R6-15', 'R6-2', 'R6-3', 'R6-4', 'R6-6']
+   U-n: ['U-1', 'U-4']
+   Review-Nr: ['Review 05 Nr. 1']
+   M-n: ['M2']
+   VB-T4 n: ['Vorbedingung 2']
+-- /root/biotop-vor-t4-06/VERDICHTUNG-OPENROUTER.md
+   U-n: ['U-1', 'U-4']
+-- /root/biotop-vor-t4-06/bau/S1-GEAENDERTE-TESTS.md
+   R6-n: ['R6-1']
+   M-n: ['M2']
+-- /root/biotop-vor-t4-06/bau/S1-PLAN.md
+   R6-n: ['R6-1', 'R6-4']
+   Review-Nr: ['Review 02 Nr. 11', 'Review 05 Nr. 1', 'Review 05 Nr. 2', 'Review 05 Nr. 3', 'Review 05 Nr. 4']
+   M-n: ['M1', 'M2']
+-- /root/biotop-vor-t4-06/bau/S1-UMSETZUNG.md
+   R6-n: ['R6-1', 'R6-4']
+   Review-Nr: ['Review 05 Nr. 1', 'Review 05 Nr. 2', 'Review 05 Nr. 3', 'Review 05 Nr. 4']
+   M-n: ['M1', 'M2']
+-- /root/biotop-vor-t4-06/bau/S1-VORHER-EINORDNUNG.md
+   R6-n: ['R6-1', 'R6-4']
+   M-n: ['M1', 'M2']
+   Befund S: ['Befund S1']
+-- /root/biotop-vor-t4-06/bau/S1B-PLAN.md
+   M-n: ['M1', 'M2']
+-- /root/biotop-vor-t4-06/bau/S1C-PLAN.md
+   R6-n: ['R6-4']
+   Review-Nr: ['Review 02 Nr. 12']
+   M-n: ['M2']
+   Befund S: ['Befund S1']
+-- /root/biotop-vor-t4-06/bau/S2-PLAN.md
+   R6-n: ['R6-2']
+   U-n: ['U-4']
+-- /root/biotop-vor-t4-06/bau/S3-GEAENDERTE-TESTS.md
+   R6-n: ['R6-3']
+-- /root/biotop-vor-t4-06/bau/S4-PLAN.md
+   Review-Nr: ['Review 03 Nr. 5']
+-- /root/biotop-vor-t4-06/bau/S4-UMSETZUNG.md
+   Review-Nr: ['Review 03 Nr. 5']
+   VB-T4 n: ['Vorbedingung 4', 'Vorbedingung 9', 'Vorbedingungen 1']
+-- /root/biotop-vor-t4-06/bau/TOR4-ZEILEN-DEFINITION.md
+   U-n: ['U-4']
+   Review-Nr: ['Review 05 Nr. 8']
+   VB-T4 n: ['Vorbedingung 1']
+=== Ende R51 ===

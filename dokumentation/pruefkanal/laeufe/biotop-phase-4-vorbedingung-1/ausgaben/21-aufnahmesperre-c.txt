@@ -1,0 +1,33 @@
+# Aufnahmesperre C (F7) — Mechanikprüfung mit rotem und grünem Eichfall
+# Maßstab vorab: Durchgerutscht 0 · Fehlalarm ≤ 20 % der Sperrungen, einzeln belegt
+# Deterministisch, 0 Modellaufrufe. Geprüft wird die echte Kernfunktion aegis.aufnahmesperre.
+
+## Ausgangslage: Vorrat des Bereichs `lager` = ['reserviert|Eq:zahl']
+
+## Drei Tests werden zur Aufnahme angeboten
+  test_reserviert_zaehlt_nach_einloesen_nicht_mehr → Schlüssel `reserviert|Eq:zahl`
+  test_zugang_lehnt_negative_menge_ab → Schlüssel `zugang|raises:ValueError`
+  test_reserviert_zaehlt_erneut_nach_einloesen → Schlüssel `reserviert|Eq:zahl`
+
+## Ergebnis der Sperre
+  AUFGENOMMEN  test_zugang_lehnt_negative_menge_ab — `zugang|raises:ValueError`
+  ABGEWIESEN   test_reserviert_zaehlt_erneut_nach_einloesen — `reserviert|Eq:zahl`
+  ABGEWIESEN   test_reserviert_zaehlt_nach_einloesen_nicht_mehr — `reserviert|Eq:zahl`
+
+## Eichfälle
+  GRÜN  `test_zugang_lehnt_negative_menge_ab` mit `zugang|raises:ValueError`: Behauptung nicht im Vorrat → aufgenommen. Der Filter lässt Neues durch.
+  ROT   `test_reserviert_zaehlt_erneut_nach_einloesen` mit `reserviert|Eq:zahl`: Behauptung steht im Vorrat → abgewiesen. Der Filter hält die Wiederholung.
+  Beide Fälle vorhanden: True
+
+## Maßstab
+  Durchgerutscht (aufgenommen, obwohl im Vorrat): 0 (Maßstab 0 → ERFÜLLT)
+  Fehlalarm (abgewiesen, obwohl Behauptung neu und einmalig): 0 von 2 Sperrungen = 0 % (Maßstab ≤ 20 % → ERFÜLLT)
+
+## Protokoll (jede Abweisung mit Grund und Gegenstück)
+  #15228: {"behauptung": "reserviert|Eq:zahl", "bereich": "lager", "gegenstueck": "bereits im Vorrat des Bereichs", "kandidat": 9999, "lauf_id": 9901, "regel": "Aufnahmesperre C (F7): der Schlüssel des geschriebenen Tests wird vor der Aufnahme gegen den Vorrat geprüft — deterministisch, ohne Modellaufruf", "s
+
+## Gegenprobe: leerer Vorrat
+  aufgenommen 2, abgewiesen 1 — abgewiesen wird nur die werkinterne Doppelung (['test_reserviert_zaehlt_nach_einloesen_nicht_mehr'])
+  Der Filter sperrt also nicht pauschal, sondern nur bei tatsächlicher Wiederholung.
+
+(Prüfwerk 9901 wieder entfernt; Protokollzeilen bleiben — das Protokoll ist unveränderlich.)

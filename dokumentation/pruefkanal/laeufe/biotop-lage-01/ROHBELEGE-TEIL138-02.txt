@@ -1,0 +1,331 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 138 (Teile 4–165 dieses Stands) · enthält R154 bis R155
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R154 · Kosten und Herkunft: Verdichtungen seit Auftragsbeginn, Hermes-Protokolle, frühere Messung je Verdichtung; Anlage von organe/stufe2.py und tests/test_tor4_zeilen.py; Delegations-Zustellbuch (nur lesend)
+Beginn: 2026-09-25 18:13:59 CEST (UTC+0200)
+Ende:   2026-09-25 18:14:00 CEST (UTC+0200)
+Dauer:  0.3 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/n11_kosten_herkunft.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/n11_kosten_herkunft.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): (a) Verdichtungen seit Auftragsbeginn (state.db, Kennung „[CONTEXT COMPACTION“) je Sitzung,
+(b) Hermes-Protokolle: Zeilen zu Verdichtung/Hilfsmodell seit 14:44 (Ziffernfolgen ab 8 und Schlüsselmuster maskiert),
+(c) frühere Messung der Kosten je Verdichtung (Runde 6), (d) welcher Werkzeugaufruf biotop/organe/stufe2.py und
+tests/test_tor4_zeilen.py angelegt hat, (e) Zustellbuch der Delegationsergebnisse (offene Zustellungen)."""
+import datetime as dt
+import json
+import re
+import sqlite3
+import subprocess
+from pathlib import Path
+
+AB = dt.datetime(2026, 9, 25, 14, 44, 20).timestamp()
+f = lambda ts: dt.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+maske = lambda s: re.sub(r'sk-[A-Za-z0-9_\-]{8,}', 'sk-[MASKIERT]', re.sub(r'\d{8,}', '<ZIFFERN>', s))
+con = sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+sess = {r[0]: (r[1], r[2] or '') for r in con.execute('SELECT id, source, title FROM sessions')}
+
+print('== (a) Verdichtungen seit 2026-09-25 14:44:20 (user-Zeilen, die mit „[CONTEXT COMPACTION“ beginnen; Doppelzeilen zusammengefasst)')
+seen = {}
+for sid, ts in con.execute("SELECT session_id, timestamp FROM messages WHERE role='user' AND timestamp >= ? AND "
+                           "content LIKE '[CONTEXT COMPACTION%' ORDER BY timestamp", (AB,)):
+    seen.setdefault((sid, ts), 1)
+for (sid, ts) in seen:
+    q, t = sess.get(sid, ('?', ''))
+    print(f'   {f(ts)} · {sid} · {q} · {t[:60]!r}')
+print(f'   Anzahl: {len(seen)} Verdichtungen in {len({s for s, _ in seen})} Sitzungen')
+
+print('== (b) Hermes-Protokolle seit 2026-09-25 14:44 (Zeilen mit compress/compaction/auxiliary/summar/openrouter)')
+muster = re.compile(r'compress|compaction|auxiliary|summar|openrouter', re.I)
+for p in sorted(Path('/root/.hermes/logs').glob('*.log')):
+    treffer = []
+    try:
+        for z in p.read_text(errors='replace').splitlines():
+            if z[:16] >= '2026-09-25 14:44' and z[:4] == '2026' and muster.search(z):
+                treffer.append(z)
+    except OSError as e:
+        print(f'   {p.name}: nicht lesbar ({e})')
+        continue
+    print(f'   {p.name}: {len(treffer)} Zeilen')
+    for z in treffer[:6] + (['   …'] if len(treffer) > 12 else []) + treffer[-6:] if len(treffer) > 12 else treffer:
+        print('      ' + maske(z)[:230])
+
+print('== (c) frühere Messung „Kosten je Verdichtung“ (Runde 6, Dateien mit „je Verdichtung“)')
+r = subprocess.run(['grep', '-r', '-n', '-i', '--include=*.md', '--include=*.txt', 'je Verdichtung', '/root/biotop-vor-t4-06'],
+                   capture_output=True, text=True)
+for z in r.stdout.splitlines()[:8]:
+    print('   ' + maske(z)[:230])
+
+print('== (d) Werkzeugaufrufe, die die zwei Dateien anlegen oder zuerst schreiben (Pfad im Argument, Schreibwerkzeug)')
+for name, geburt in (('organe/stufe2.py', '2026-09-25 03:24:45'), ('tests/test_tor4_zeilen.py', '2026-09-25 04:34:22')):
+    g = dt.datetime.strptime(geburt, '%Y-%m-%d %H:%M:%S').timestamp()
+    rows = con.execute("SELECT id, session_id, timestamp, tool_calls FROM messages WHERE role='assistant' AND tool_calls LIKE ? "
+                       "AND timestamp BETWEEN ? AND ? ORDER BY timestamp", (f'%{name}%', g - 900, g + 120)).fetchall()
+    print(f'-- {name} (Geburt laut Dateisystem {geburt}): Aufrufe mit dem Namen 15 min davor bis 2 min danach: {len(rows)}')
+    for mid, sid, ts, tc in rows:
+        try:
+            calls = json.loads(tc)
+        except (TypeError, ValueError):
+            calls = []
+        for c in calls:
+            fn = (c.get('function') or {}).get('name') or c.get('name')
+            args = (c.get('function') or {}).get('arguments') or ''
+            if name in str(args):
+                pfad = re.search(r'"path"\s*:\s*"([^"]+)"', str(args))
+                print(f'   {f(ts)} · id {mid} · {sid} ({sess.get(sid, ("?",))[0]}) · {fn} · Pfad {pfad.group(1) if pfad else "—"}')
+
+print('== (e) Delegations-Zustellbuch in state.db (Tabellen mit „deleg“ im Namen)')
+for (t,) in con.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '%deleg%'"):
+    cols = [c[1] for c in con.execute(f'PRAGMA table_info({t})')]
+    n = con.execute(f'SELECT count(*) FROM {t}').fetchone()[0]
+    print(f'   {t}: {n} Zeilen · Spalten {cols}')
+    for sc in ('status', 'state', 'delivery_status'):
+        if sc in cols:
+            for st, k in con.execute(f'SELECT {sc}, count(*) FROM {t} GROUP BY {sc}'):
+                print(f'      {sc}={st}: {k}')
+--- Ende /root/sicherung/biotop-lage-01/arbeit/n11_kosten_herkunft.py ---
+Ausgabe (vollständig, stdout und stderr):
+== (a) Verdichtungen seit 2026-09-25 14:44:20 (user-Zeilen, die mit „[CONTEXT COMPACTION“ beginnen; Doppelzeilen zusammengefasst)
+   2026-09-25 14:49:16 · 20260924_203120_e6c401 · telegram · 'Zuerst Runde 5 abschließen: Es gilt das zweite…'
+   2026-09-25 15:57:48 · 20260924_203120_e6c401 · telegram · 'Zuerst Runde 5 abschließen: Es gilt das zweite…'
+   2026-09-25 17:47:25 · 20260924_203120_e6c401 · telegram · 'Zuerst Runde 5 abschließen: Es gilt das zweite…'
+   Anzahl: 3 Verdichtungen in 1 Sitzungen
+== (b) Hermes-Protokolle seit 2026-09-25 14:44 (Zeilen mit compress/compaction/auxiliary/summar/openrouter)
+   agent.log: 31 Zeilen
+      2026-09-25 17:21:27,040 INFO agent.conversation_compression: context compression started: session=<ZIFFERN>_163044_69477c messages=131 tokens=~507,530 model=claude-opus-5-5 focus=None
+      2026-09-25 17:21:27,114 INFO agent.auxiliary_client: Auxiliary compression: using openrouter (google/gemini-3.6-flash)
+      2026-09-25 17:21:56,051 INFO agent.conversation_compression: Compaction rebuilt a drifted system prompt (session=<ZIFFERN>_163044_69477c, 11374 -> 11614 chars): builder output changed since the stored snapshot (update, config chan
+      2026-09-25 17:21:56,277 INFO agent.conversation_compression: context compression done: session=<ZIFFERN>_163044_69477c messages=131->66 rough_tokens=~368,311 awaiting_real_usage=true
+      2026-09-25 17:21:56,278 INFO agent.conversation_compression: context compression attempt telemetry: {"attempt_id":"dbebc8ac42474e9c951be94a8ba61fcb","chunk_count":0,"chunking":false,"commit_ms":226,"commit_status":"committed","eve
+      2026-09-25 17:22:36,045 INFO [<ZIFFERN>_163044_69477c] agent.conversation_loop: Compression budget rearmed after provider-confirmed recovery: prompt=74,693 < threshold=500,000 (attempts were 1/3)
+         …
+      2026-09-25 17:48:11,837 INFO agent.auxiliary_client: Auxiliary compression: using openrouter (google/gemini-3.6-flash)
+      2026-09-25 17:48:55,513 INFO hermes_cli.mem_trim: memory trim: reason=post-compression malloc_trim=1 rss_kib=520084->483680 rss_anon_kib=504748->468344 threads=68 duration_ms=422.4
+      2026-09-25 17:48:55,528 INFO agent.conversation_compression: Compaction rebuilt a drifted system prompt (session=<ZIFFERN>_161047_154999, 11374 -> 11614 chars): builder output changed since the stored snapshot (update, config chan
+      2026-09-25 17:48:55,815 INFO agent.conversation_compression: context compression done: session=<ZIFFERN>_161047_154999 messages=145->85 rough_tokens=~748,126 awaiting_real_usage=true
+      2026-09-25 17:48:55,815 INFO agent.conversation_compression: context compression attempt telemetry: {"attempt_id":"016526c04f2a453bba575a3804e1330a","chunk_count":0,"chunking":false,"commit_ms":286,"commit_status":"committed","eve
+      2026-09-25 17:48:59,745 INFO [<ZIFFERN>_161047_154999] agent.conversation_loop: Compression budget rearmed after provider-confirmed recovery: prompt=40,020 < threshold=500,000 (attempts were 1/3)
+   errors.log: 0 Zeilen
+   gateway-exit-diag.log: 0 Zeilen
+   gateway-shutdown-diag.log: 0 Zeilen
+   gateway.log: 0 Zeilen
+   gateway_faulthandler.log: 0 Zeilen
+== (c) frühere Messung „Kosten je Verdichtung“ (Runde 6, Dateien mit „je Verdichtung“)
+   /root/biotop-vor-t4-06/UEBERGABE.md:107:  sichern, danach mit einer echten Verdichtung belegen und die Kosten je Verdichtung nennen.“
+   /root/biotop-vor-t4-06/UEBERGABE.md:113:  Verdichtung dieser Sitzung im agent.log belegen (Telemetrie: Anbieter, Token) → Kosten je Verdichtung.
+   /root/biotop-vor-t4-06/UEBERGABE.md:123:  Kosten je Verdichtung → `VERDICHTUNG-OPENROUTER.md`. Achtung: nach der Verdichtung ist der Gesprächsverlauf
+   /root/biotop-vor-t4-06/VERDICHTUNG-OPENROUTER.md:5:Verdichtung belegen und die Kosten je Verdichtung nennen.“
+   /root/biotop-vor-t4-06/VERDICHTUNG-OPENROUTER.md:11:- **Kosten je Verdichtung:** 0,0317835 USD, gemessen an 1 von 1 Verdichtung (Zählerstand des Schlüssels vorher/nachher).
+   /root/biotop-vor-t4-06/VERDICHTUNG-OPENROUTER.md:42:- **Je Verdichtung: 0,0317835 USD** (20,<ZIFFERN> − 20,<ZIFFERN>), 1 von 1 gemessen.
+== (d) Werkzeugaufrufe, die die zwei Dateien anlegen oder zuerst schreiben (Pfad im Argument, Schreibwerkzeug)
+-- organe/stufe2.py (Geburt laut Dateisystem 2026-09-25 03:24:45): Aufrufe mit dem Namen 15 min davor bis 2 min danach: 3
+   2026-09-25 03:14:43 · id 18067 · 20260925_001805_f0fcb7 (subagent) · read_file · Pfad /root/biotop-vor-t4-06/bau/r6_s3_neu/biotop/organe/stufe2.py
+   2026-09-25 03:14:57 · id 18070 · 20260925_001805_f0fcb7 (subagent) · patch · Pfad /root/biotop-vor-t4-06/bau/r6_s3_neu/biotop/organe/stufe2.py
+   2026-09-25 03:14:57 · id 18070 · 20260925_001805_f0fcb7 (subagent) · write_file · Pfad /tmp/r6-s3/gegenprobe_skript.sh
+   2026-09-25 03:25:00 · id 18120 · 20260925_001805_f0fcb7 (subagent) · write_file · Pfad /tmp/r6-s3/teillauf.sh
+-- tests/test_tor4_zeilen.py (Geburt laut Dateisystem 2026-09-25 04:34:22): Aufrufe mit dem Namen 15 min davor bis 2 min danach: 8
+   2026-09-25 04:21:53 · id 18334 · 20260925_001805_512a27 (subagent) · terminal · Pfad —
+   2026-09-25 04:26:27 · id 18342 · 20260925_001805_512a27 (subagent) · terminal · Pfad —
+   2026-09-25 04:32:13 · id 18363 · 20260925_001805_512a27 (subagent) · write_file · Pfad /tmp/r6-s2/teste_kopie.sh
+   2026-09-25 04:32:45 · id 18372 · 20260925_001805_512a27 (subagent) · write_file · Pfad /tmp/r6-s2/gegenproben.py
+   2026-09-25 04:33:24 · id 18377 · 20260925_001805_512a27 (subagent) · terminal · Pfad —
+   2026-09-25 04:33:56 · id 18384 · 20260925_001805_512a27 (subagent) · write_file · Pfad /root/biotop-vor-t4-06/bau/r6_s2_tor4.py
+   2026-09-25 04:34:08 · id 18388 · 20260925_001805_512a27 (subagent) · terminal · Pfad —
+   2026-09-25 04:34:34 · id 18395 · 20260925_001805_512a27 (subagent) · patch · Pfad /root/biotop-vor-t4-06/bau/S2-PLAN.md
+   2026-09-25 04:34:34 · id 18395 · 20260925_001805_512a27 (subagent) · write_file · Pfad /tmp/r6-s2/teillauf.sh
+== (e) Delegations-Zustellbuch in state.db (Tabellen mit „deleg“ im Namen)
+   async_delegations: 30 Zeilen · Spalten ['delegation_id', 'origin_session', 'origin_ui_session_id', 'parent_session_id', 'state', 'dispatched_at', 'completed_at', 'updated_at', 'event_json', 'result_json', 'delivery_state', 'delivery_attempts', 'delivered_at', 'owner_pid', 'owner_started_at', 'task_json', 'delivery_claim', 'delivery_claimed_at', 'origin_session_id']
+      state=completed: 27
+      state=error: 2
+      state=running: 1
+=== Ende R154 ===
+
+
+R155 · Nachrichtenverzeichnis Stand 3 (arbeit/verlauf/v3/) bis zum Stichzeitpunkt 25.09.2026 17:29:59 CEST (Grenze < 17:30:00), Regeln wie v2
+Beginn: 2026-09-25 18:14:00 CEST (UTC+0200)
+Ende:   2026-09-25 18:14:01 CEST (UTC+0200)
+Dauer:  1.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/verlauf_extrakt.py v3 '2026-09-25 17:30:00'
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/verlauf_extrakt.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Nachrichtenverzeichnis und Wortlaut aus der Sitzungsdatenbank ab 18.09.2026 00:00 CEST.
+
+Quelle: /root/.hermes/state.db (mode=ro), Tabellen messages und sessions.
+Dubletten: Dieselbe Nachricht steht nach Verdichtungen mehrfach in der Datenbank (R14). Zusammengefasst wird nach
+(Sitzung, Rolle, Zeitstempel, Inhalt); gezählt wird, wie viele Zeilen zusammengefasst wurden.
+Einordnung Absender (Auslegung Hermes, steht in LAGE/FK48):
+  Philipp            — role=user in einer Telegram-Sitzung, ohne Systemkennung am Anfang
+  System-*           — role=user mit Systemkennung ([ASYNC DELEGATION…, [IMPORTANT: Background process…,
+                       [CONTEXT COMPACTION…, [Context from the interrupted…, [SYSTEM…)
+  Hermes             — role=assistant ohne Werkzeugaufruf in einer Telegram-/CLI-Sitzung (Antwort an Philipp)
+  Hermes-Zwischentext — role=assistant mit Text UND Werkzeugaufruf (Arbeitsnotiz; gezählt, nicht im Wortlaut)
+  Hermes→Subagent    — role=user in einer Subagent-Sitzung (Bauauftrag an den Subagenten)
+  Subagent           — role=assistant ohne Werkzeugaufruf in einer Subagent-Sitzung (Schlussbericht)
+  CLI-Probe          — role=user in einer CLI-Sitzung
+Werkzeug-Nachrichten (role=tool) und Werkzeugaufrufe werden je Tag gezählt, nicht einzeln verzeichnet.
+Einordnung Biotop: ja, wenn die Sitzung eine Biotop-Sitzung ist (Telegram-Kette ab 18.09. 20:59 mit Masterprompt v1,
+ihre Subagenten) — sonst nein; CLI-Proben der Modellkennung sind „nein" (Regel 15: eigene Modell-/Anmeldelage).
+Geheimnisse werden vor dem Schreiben geschwärzt (Muster und Werte aus .env/auth.json, wie geheimnis.py).
+Ausgabe: arbeit/verlauf/nachrichten.jsonl (ohne Inhalt), arbeit/verlauf/wortlaut.jsonl (mit Inhalt, geschwärzt),
+Zusammenfassung auf stdout."""
+import datetime as dt
+import hashlib
+import json
+import re
+import sqlite3
+import sys
+from pathlib import Path
+
+sys.path.insert(0, '/root/sicherung/biotop-lage-01/arbeit')
+import geheimnis  # noqa: E402
+
+AUS = Path('/root/sicherung/biotop-lage-01/arbeit/verlauf') / (sys.argv[1] if len(sys.argv) > 1 else '')
+AUS.mkdir(parents=True, exist_ok=True)
+AB = dt.datetime(2026, 9, 18).timestamp()
+con = sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+sess = {r[0]: {'source': r[1], 'title': r[2], 'parent': r[3], 'started': r[4]} for r in con.execute(
+    'SELECT id, source, title, parent_session_id, started_at FROM sessions')}
+
+# Biotop-Sitzungen: Telegram-Kette ab der Masterprompt-v1-Sitzung und alle Subagenten-Sitzungen darunter
+START = '20260918_205818_3767d1c9'
+biotop = set()
+kinder = {}
+for sid, s in sess.items():
+    kinder.setdefault(s['parent'], []).append(sid)
+stapel = [START]
+while stapel:
+    x = stapel.pop()
+    if x in biotop:
+        continue
+    biotop.add(x)
+    stapel += kinder.get(x, [])
+
+WERTE = geheimnis.werte()
+
+
+def schwaerzen(t: str, mid: int):
+    n = 0
+    for name, m in geheimnis.MUSTER.items():
+        t, k = re.subn(m, f'[GESCHWÄRZT: {name}, Fundort state.db Nachricht {mid}]', t)
+        n += k
+    for v, quelle in WERTE.items():
+        if v in t:
+            n += t.count(v)
+            t = t.replace(v, f'[GESCHWÄRZT: Wert aus {quelle.split(":")[0]}, Fundort state.db Nachricht {mid}]')
+    return t, n
+
+
+SYS = [('[ASYNC DELEGATION', 'System-Delegationsergebnis'), ('[IMPORTANT: Background process', 'System-Hintergrundprozess'),
+       ('[IMPORTANT:', 'System-Hintergrundprozess'), ('[CONTEXT COMPACTION', 'System-Verdichtung'),
+       ('[PRIOR CONTEXT', 'System-Verdichtung'), ('[Your active task list', 'System-Hinweis'),
+       ('[System:', 'System-Hinweis'), ("You've reached the maximum", 'System-Hinweis'),
+       ('[SYSTEM', 'System-Hinweis'), ('[Note:', 'System-Hinweis'), ('[System note', 'System-Hinweis'),
+       ('[STILL IN PROGRESS', 'System-Hinweis')]
+# Nicht als System gezählt (Auslegung Hermes, R88): „Gateway message origin …“ (Telegram-Nachricht Philipps mit
+# vorangestellten Herkunftsdaten), „[Replying to: …]“ (Antwort Philipps auf eine Nachricht), „[Content of …]“ (von
+# Philipp eingelegtes Dokument).
+REVIEW_BINDUNG = {'20260924_150913_a9326d': dt.datetime(2026, 9, 24, 16, 10, 41).timestamp(),
+                  '20260924_203120_e6c401': dt.datetime(2026, 9, 24, 21, 51, 24).timestamp()}
+# „[Context from the interrupted assistant response]…" trägt eine echte Nachricht Philipps (Korrektur während einer
+# Antwort, z. B. 25.09. 14:44:22) — sie zählt als Philipp (Auslegung Hermes).
+
+
+def absender(rolle, quelle, inhalt, tool_calls, sid=None, zeit=None):
+    # Zwei Telegram-Sitzungen der Kette begannen als Review-Subagenten und trugen den Chat mit Philipp erst ab dem
+    # Sitzungswechsel ihrer Elternsitzung (R84, R85; ZWEI-REVIEWS.md). Davor: Auftrag von Hermes an den Reviewer und
+    # Nachrichten des Reviewers (Auslegung Hermes, 25.09.).
+    g = REVIEW_BINDUNG.get(sid)
+    if g and zeit is not None and zeit < g:
+        quelle = 'subagent'
+    if rolle == 'user':
+        if quelle == 'subagent':
+            return 'Hermes→Subagent'
+        if quelle == 'cli':
+            return 'CLI-Probe'
+        for pre, name in SYS:
+            if inhalt.lstrip().startswith(pre):
+                return name
+        return 'Philipp'
+    if rolle == 'assistant':
+        hat_tool = bool(tool_calls) and tool_calls not in ('[]', 'null')
+        if quelle == 'subagent':
+            return 'Subagent-Zwischentext' if hat_tool else 'Subagent'
+        return 'Hermes-Zwischentext' if hat_tool else 'Hermes'
+    return rolle
+
+
+# Obere Grenze (ausschließlich), optional als zweites Argument „JJJJ-MM-TT HH:MM:SS“ (Stand 3: Stichzeitpunkt 17:29:59 →
+# Grenze 17:30:00); ohne Argument bis zur jüngsten Zeile.
+BIS = dt.datetime.strptime(sys.argv[2], '%Y-%m-%d %H:%M:%S').timestamp() if len(sys.argv) > 2 else 1e12
+zeilen = con.execute("""SELECT id, session_id, role, content, tool_calls, timestamp FROM messages
+                        WHERE timestamp >= ? AND timestamp < ? AND role IN ('user','assistant') ORDER BY timestamp, id""",
+                     (AB, BIS))
+gesehen = {}
+for mid, sid, rolle, inhalt, tc, ts in zeilen:
+    inhalt = inhalt or ''
+    key = (sid, rolle, ts, hashlib.sha256(inhalt.encode()).hexdigest())
+    if key in gesehen:
+        gesehen[key]['zeilen'] += 1
+        continue
+    q = sess.get(sid, {}).get('source')
+    a = absender(rolle, q, inhalt, tc, sid, ts)
+    if rolle == 'assistant' and not inhalt.strip():
+        continue  # reiner Werkzeugaufruf ohne Text
+    gesehen[key] = {'id': mid, 'zeit': dt.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S'), 'ts': ts,
+                    'sitzung': sid, 'quelle': q, 'rolle': rolle, 'absender': a,
+                    'biotop': 'ja' if sid in biotop else 'nein', 'bytes': len(inhalt.encode()), 'zeilen': 1,
+                    '_inhalt': inhalt}
+liste = sorted(gesehen.values(), key=lambda x: (x['ts'], x['id']))
+n_geschwaerzt = 0
+with open(AUS / 'nachrichten.jsonl', 'x') as f1, open(AUS / 'wortlaut.jsonl', 'x') as f2:
+    for e in liste:
+        text, n = schwaerzen(e.pop('_inhalt'), e['id'])
+        n_geschwaerzt += n
+        e['geschwaerzt'] = n
+        f1.write(json.dumps(e, ensure_ascii=False) + '\n')
+        f2.write(json.dumps(dict(e, text=text), ensure_ascii=False) + '\n')
+print(f'Biotop-Sitzungen (Kette ab {START}): {len(biotop & set(sess))}')
+print(f'Nachrichten ab 18.09.2026 00:00 CEST (user/assistant mit Text, ohne Dubletten): {len(liste)}; '
+      f'zusammengefasste Dublettenzeilen: {sum(e["zeilen"] - 1 for e in liste)}; Schwärzungen: {n_geschwaerzt}')
+from collections import Counter  # noqa: E402
+c = Counter((e['absender'], e['biotop']) for e in liste)
+for (a, b), n in sorted(c.items()):
+    print(f'  {a:28} Biotop {b:4}: {n}')
+tage = Counter((e['zeit'][:10], e['absender']) for e in liste if e['biotop'] == 'ja')
+print('Je Tag (nur Biotop): Philipp / Hermes / System-* / Hermes→Subagent / Subagent')
+for d in sorted({k[0] for k in tage}):
+    s = sum(n for (t, a), n in tage.items() if t == d and a.startswith('System'))
+    print(f'  {d}: {tage[(d, "Philipp")]} / {tage[(d, "Hermes")]} / {s} / {tage[(d, "Hermes→Subagent")]} / '
+          f'{tage[(d, "Subagent")]}')
+--- Ende /root/sicherung/biotop-lage-01/arbeit/verlauf_extrakt.py ---
+Ausgabe (vollständig, stdout und stderr):
+Biotop-Sitzungen (Kette ab 20260918_205818_3767d1c9): 59
+Nachrichten ab 18.09.2026 00:00 CEST (user/assistant mit Text, ohne Dubletten): 1456; zusammengefasste Dublettenzeilen: 174; Schwärzungen: 28
+  CLI-Probe                    Biotop nein: 8
+  Hermes                       Biotop ja  : 217
+  Hermes                       Biotop nein: 7
+  Hermes-Zwischentext          Biotop ja  : 643
+  Hermes→Subagent              Biotop ja  : 131
+  Philipp                      Biotop ja  : 115
+  Subagent                     Biotop ja  : 54
+  Subagent-Zwischentext        Biotop ja  : 158
+  System-Delegationsergebnis   Biotop ja  : 26
+  System-Hintergrundprozess    Biotop ja  : 50
+  System-Hinweis               Biotop ja  : 26
+  System-Verdichtung           Biotop ja  : 21
+Je Tag (nur Biotop): Philipp / Hermes / System-* / Hermes→Subagent / Subagent
+  2026-09-18: 5 / 5 / 2 / 0 / 0
+  2026-09-19: 26 / 36 / 10 / 0 / 0
+  2026-09-20: 40 / 57 / 39 / 53 / 25
+  2026-09-21: 22 / 49 / 28 / 8 / 2
+  2026-09-22: 3 / 8 / 6 / 2 / 2
+  2026-09-23: 8 / 19 / 15 / 10 / 4
+  2026-09-24: 6 / 26 / 15 / 4 / 2
+  2026-09-25: 5 / 17 / 8 / 54 / 19
+=== Ende R155 ===

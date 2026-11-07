@@ -1,0 +1,205 @@
+EB22 · Vorschau: weitere Repos, Unterordner LAGE-01, docker-Aufrufe und absolute Pfade (nur lesend)
+Beginn: 2026-09-26 00:01:27 CEST (UTC+0200)
+Ende:   2026-09-26 00:01:33 CEST (UTC+0200)
+Dauer:  6.5 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/biotop-einlagerung/arbeit/v1_vorschau.sh
+--- Inhalt von /root/biotop-einlagerung/arbeit/v1_vorschau.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-EINLAGERUNG-01 (nur lesend): Vorschau vor weiteren Schritten.
+# 1. Weitere Repositorys mit nicht Eingechecktem: was ein Festschreiben umfassen würde (Anzahl, Bytes, oberste Ordner,
+#    verschachtelte .git, node_modules), ohne etwas zu schreiben (--no-optional-locks).
+# 2. Inhalt und Größen von /root/sicherung/biotop-lage-01/{tmp,sicherung,testlauf} (für den Umfang von KOMPLETT).
+# 3. Docker-Aufrufe und absolute /root-Pfade im Code und in den Tests von /root/biotop (für die Probe in Schritt 6).
+date '+== Zeitpunkt %Y-%m-%d %H:%M:%S %Z (UTC%z)'
+echo "== 1. Weitere Repositorys"
+for r in /root/biotop-t3/repo-sicherung-vor-commits /root/reparatur-01/teil-eichung/repo /tmp/r6-s2/baum /tmp/r6-s2/baum2 /tmp/r6-s2/baum3; do
+  g=$(git --no-optional-locks -C $r diff --name-only HEAD | wc -l)
+  u=$(git --no-optional-locks -C $r ls-files --others --exclude-standard | wc -l)
+  b=$(git --no-optional-locks -C $r ls-files --others --exclude-standard -z | (cd $r && xargs -0 -r stat -c %s 2>/dev/null) | awk '{s+=$1} END {print s+0}')
+  nm=$(git --no-optional-locks -C $r ls-files --others --exclude-standard | grep -c -E 'node_modules|/\.git/|\.venv/|/venv/')
+  gh=$(ls $r/.git/hooks 2>/dev/null | grep -v '\.sample$' | tr '\n' ' ')
+  echo "$r | gegen HEAD geändert $g | unverfolgt $u ($b B) | davon node_modules/.git/venv $nm | Haken: ${gh:-keine}"
+  git --no-optional-locks -C $r ls-files --others --exclude-standard | cut -d/ -f1-2 | sort | uniq -c | sort -rn | head -12 | sed 's/^/     /'
+done
+echo "== 2. /root/sicherung/biotop-lage-01: Unterordner zweiter Ebene (Bytes, Dateien)"
+for d in /root/sicherung/biotop-lage-01/tmp /root/sicherung/biotop-lage-01/sicherung /root/sicherung/biotop-lage-01/testlauf; do
+  for e in "$d"/*; do
+    printf '%s | %s B | %s Dateien\n' "$e" "$(du -sb "$e" 2>/dev/null | cut -f1)" "$(find "$e" -type f 2>/dev/null | wc -l)"
+  done
+done
+echo "== 3a. docker-Aufrufe in /root/biotop (biotop/, tests/, pruefung/, kammer/): Datei:Zeile"
+grep -rn --include=*.py --include=*.sh --include=*.mjs -E '"docker"|'"'"'docker'"'"'|docker (run|load|build|cp|exec|create)|/usr/bin/docker' /root/biotop/biotop /root/biotop/tests /root/biotop/pruefung /root/biotop/kammer 2>/dev/null | cut -c1-220
+echo "== 3b. Zeilen mit '-v' oder '--mount' oder 'volume' in Dateien mit docker-Aufruf"
+for f in $(grep -rl --include=*.py -E '"docker"|'"'"'docker'"'"'' /root/biotop/biotop /root/biotop/tests /root/biotop/pruefung 2>/dev/null); do
+  grep -n -E '"-v"|'"'"'-v'"'"'|--mount|volume' "$f" | sed "s|^|$f:|" | cut -c1-220
+done
+echo "== 3c. Absolute Pfade '/root/' in biotop/ und tests/ (Anzahl je Datei, dann eindeutige Pfadanfänge)"
+grep -rc --include=*.py "/root/" /root/biotop/biotop /root/biotop/tests 2>/dev/null | grep -v ':0$'
+grep -rhoE --include=*.py "/root/[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)?" /root/biotop/biotop /root/biotop/tests 2>/dev/null | sort | uniq -c | sort -rn | head -40
+echo "== 3d. Kammer-Abbilder im Code"
+grep -rn --include=*.py -E "biotop-kammer:[A-Za-z0-9]+" /root/biotop/biotop /root/biotop/tests 2>/dev/null | cut -c1-200
+--- Ende /root/biotop-einlagerung/arbeit/v1_vorschau.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== Zeitpunkt 2026-09-26 00:01:27 CEST (UTC+0200)
+== 1. Weitere Repositorys
+/root/biotop-t3/repo-sicherung-vor-commits | gegen HEAD geändert 20 | unverfolgt 64 (386353 B) | davon node_modules/.git/venv 0 | Haken: keine
+          16 biotop/kern
+           3 kammer/typescript
+           2 biotop/organe
+           1 tests/test_vorspann_cli.py
+           1 tests/test_vorspann.py
+           1 tests/test_typescript_adapter.py
+           1 tests/test_testreihenfolge.py
+           1 tests/test_t3_wirkungskreis.py
+           1 tests/test_t3_vorfreeze_vertrag.py
+           1 tests/test_t3_verbundausfall.py
+           1 tests/test_t3_transport.py
+           1 tests/test_t3_testoperationen.py
+/root/reparatur-01/teil-eichung/repo | gegen HEAD geändert 4 | unverfolgt 0 (0 B) | davon node_modules/.git/venv 0 | Haken: keine
+/tmp/r6-s2/baum | gegen HEAD geändert 1 | unverfolgt 1 (48585 B) | davon node_modules/.git/venv 0 | Haken: keine
+           1 tests/test_tor4_zeilen.py
+/tmp/r6-s2/baum2 | gegen HEAD geändert 1 | unverfolgt 1 (46250 B) | davon node_modules/.git/venv 0 | Haken: keine
+           1 tests/test_tor4_zeilen.py
+/tmp/r6-s2/baum3 | gegen HEAD geändert 1 | unverfolgt 1 (48585 B) | davon node_modules/.git/venv 0 | Haken: keine
+           1 tests/test_tor4_zeilen.py
+== 2. /root/sicherung/biotop-lage-01: Unterordner zweiter Ebene (Bytes, Dateien)
+/root/sicherung/biotop-lage-01/tmp/aenderungen-20260925-182208.txt | 240827 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/aussen-rw-probe | 0 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/dateiliste-start02.md | 2342 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/dateiliste-start03.md | 21829 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/db-1aytn6eg | 16384 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/db-28rzpq0f | 16384 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/db-6_i0tviz | 101945344 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/db-8fvrb_kn | 106496 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/db-99t5r6rh | 278564864 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/db-_3zqkx50 | 16384 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/db-b6r6rygh | 101945344 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/db-dwwcc9_v | 31961088 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/db-g5d7n_z3 | 106496 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/db-kbdjrfn3 | 101949440 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/db-tgxu_3pr | 101949440 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/db-vkjiyrni | 122880 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/geheimnis-gegenprobe-03.txt.erledigt | 144 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/git-status-stich.txt | 722 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/inventar-db-07cieurb | 278564864 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/inventar-db-2mte25da | 31961088 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/inventar-db-4_zohnbh | 31961088 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/inventar-db-67lth3mm | 278564864 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/inventar-db-c2544qka | 278564864 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/inventar-db-ib5p94ay | 31961088 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/meldung2-01.txt | 3295 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/meldung2-02.txt | 3300 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/meldung2-03.txt | 3283 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/meldung2-04.txt | 3295 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/meldung2-05.txt | 3295 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/meldung2-06.txt | 3295 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/meldung2-07.txt | 3309 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/meldung2-08.txt | 3321 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/meldung2-09.txt | 3321 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/meldung2-10.txt | 3322 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/meldung2-11.txt | 3322 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/meldung2-12.txt | 3315 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/meldung2-13.txt | 3267 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/meldung2-14.txt | 1702 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/meldung2-15.txt | 783 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/node-compile-cache | 514988 B | 143 Dateien
+/root/sicherung/biotop-lage-01/tmp/s6_sicherung-lauf1.log | 3852 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/selbsttest-01 | 89977 B | 26 Dateien
+/root/sicherung/biotop-lage-01/tmp/selbsttest-02 | 90119 B | 27 Dateien
+/root/sicherung/biotop-lage-01/tmp/selbsttest-03 | 90119 B | 27 Dateien
+/root/sicherung/biotop-lage-01/tmp/shm-nachher-inventar.txt | 313 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/shm-vorher-inventar.txt | 313 B | 1 Dateien
+/root/sicherung/biotop-lage-01/tmp/zb-ordner.lst | 2991 B | 1 Dateien
+/root/sicherung/biotop-lage-01/sicherung/MANIFEST-GEGENPROBE.tsv | 16959068 B | 1 Dateien
+/root/sicherung/biotop-lage-01/sicherung/MANIFEST-PACKEN.tsv | 16959068 B | 1 Dateien
+/root/sicherung/biotop-lage-01/sicherung/MANIFEST-PROBE.tsv | 16959068 B | 1 Dateien
+/root/sicherung/biotop-lage-01/sicherung/dbliste.json | 617323 B | 1 Dateien
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe | 3385210643 B | 75214 Dateien
+/root/sicherung/biotop-lage-01/sicherung/probe | 3385210643 B | 75214 Dateien
+/root/sicherung/biotop-lage-01/sicherung/protokoll-stufe-1-biotop.txt | 919 B | 1 Dateien
+/root/sicherung/biotop-lage-01/sicherung/protokoll-stufe-2-auftraege-arbeitsordner.txt | 1299691 B | 1 Dateien
+/root/sicherung/biotop-lage-01/sicherung/protokoll-stufe-2b-tmp.txt | 176330 B | 1 Dateien
+/root/sicherung/biotop-lage-01/sicherung/protokoll-stufe-3-pruefkanal.txt | 837 B | 1 Dateien
+/root/sicherung/biotop-lage-01/sicherung/protokoll-stufe-4-sitzungsdatenbank.txt | 126 B | 1 Dateien
+/root/sicherung/biotop-lage-01/sicherung/protokoll-stufe-5-hermes-rest.txt | 1511 B | 1 Dateien
+/root/sicherung/biotop-lage-01/sicherung/stufe | 3385210643 B | 75214 Dateien
+/root/sicherung/biotop-lage-01/testlauf/MARKE | 0 B | 1 Dateien
+/root/sicherung/biotop-lage-01/testlauf/ausgabe | 966212 B | 1 Dateien
+/root/sicherung/biotop-lage-01/testlauf/baum | 1580187593 B | 33175 Dateien
+/root/sicherung/biotop-lage-01/testlauf/geaendert.txt | 0 B | 1 Dateien
+== 3a. docker-Aufrufe in /root/biotop (biotop/, tests/, pruefung/, kammer/): Datei:Zeile
+/root/biotop/biotop/organe/vorspann.py:33:    p = subprocess.run(['docker', 'image', 'inspect', '--format', '{{.Id}}', kammer.IMAGE],
+/root/biotop/biotop/organe/kammer.py:65:            "docker", "run", "--rm", "--name", name,
+/root/biotop/biotop/organe/kammer.py:87:            subprocess.run(["docker", "kill", name], capture_output=True)
+/root/biotop/biotop/organe/kammer.py:88:            subprocess.run(["docker", "rm", "-f", name], capture_output=True)
+/root/biotop/biotop/organe/kammer.py:121:    p = subprocess.run(["docker", "image", "inspect", IMAGE], capture_output=True, text=True)
+/root/biotop/tests/test_vorspann.py:287:    assert calls[0][0][:3] == ['docker','image','inspect']
+/root/biotop/tests/test_typescript_adapter.py:25:    cmd = ["docker", "run", "--rm", "--network", "none", "--read-only",
+/root/biotop/pruefung/schwaechen_pruefen.py:23:r = subprocess.run(["docker", "run", "--rm", "--network", "none", "-v", f"{w}:/werk:ro", "-w", "/werk",
+/root/biotop/pruefung/tor1.py:78:vorher = subprocess.run(["docker", "ps", "-aq"], capture_output=True, text=True).stdout.split()
+/root/biotop/pruefung/tor1.py:87:nachher = subprocess.run(["docker", "ps", "-aq"], capture_output=True, text=True).stdout.split()
+== 3b. Zeilen mit '-v' oder '--mount' oder 'volume' in Dateien mit docker-Aufruf
+/root/biotop/biotop/organe/kammer.py:72:            "-v", f"{arbeit}:/werk:rw",
+/root/biotop/pruefung/schwaechen_pruefen.py:23:r = subprocess.run(["docker", "run", "--rm", "--network", "none", "-v", f"{w}:/werk:ro", "-w", "/werk",
+== 3c. Absolute Pfade '/root/' in biotop/ und tests/ (Anzahl je Datei, dann eindeutige Pfadanfänge)
+/root/biotop/biotop/anbieter/__init__.py:1
+/root/biotop/biotop/kern/register.py:1
+/root/biotop/biotop/kern/datenbank.py:1
+/root/biotop/biotop/organe/aufnahme.py:1
+/root/biotop/biotop/organe/lazarus.py:1
+/root/biotop/tests/test_t3_angriff_unbrauchbar.py:1
+/root/biotop/tests/test_t3_referenzwarmup.py:1
+/root/biotop/tests/test_vor_t4_06.py:1
+/root/biotop/tests/test_eichproben.py:2
+/root/biotop/tests/test_t3_statik_luecken.py:1
+/root/biotop/tests/test_review_vertrag.py:2
+/root/biotop/tests/test_vor_t4.py:1
+/root/biotop/tests/test_t3_zweigklasse.py:1
+/root/biotop/tests/test_vor_t4_06_register.py:1
+/root/biotop/tests/test_typescript_adapter.py:1
+/root/biotop/tests/test_t3_befundklasse.py:1
+/root/biotop/tests/test_t3_eichpfad.py:2
+      6 /root/biotop/daten
+      4 /root/reparatur-01
+      2 /root/biotop-vor-t4-05/bau
+      1 /root/versandwerk-t3-02
+      1 /root/biotop-vor-t4-06/BAU-S1-SONDE.md
+      1 /root/biotop-vor-t4
+      1 /root/biotop-t3/adapterbau
+      1 /root/biotop-t3/VERFASSUNG-T3-02.md
+      1 /root/biotop-t3/STATIK-LUECKEN-02.json
+      1 /root/biotop-t3/BEFUNDKLASSE-TS.json
+      1 /root/.hermes/.env
+== 3d. Kammer-Abbilder im Code
+/root/biotop/biotop/kern/typescript.py:3:BIOTOP_KAMMER_IMAGE=biotop-kammer:ts1 vor Prozessstart setzen. Kein globaler
+/root/biotop/biotop/organe/kammer.py:25:IMAGE = os.environ.get("BIOTOP_KAMMER_IMAGE", "biotop-kammer:1")
+/root/biotop/tests/test_t3_angriff_unbrauchbar.py:24:kammer.IMAGE = 'biotop-kammer:ts1'
+/root/biotop/tests/test_vor_t4_04.py:2:Annahmepfad wirkt, durch `aegis.pruefen` in der echten Kammer (biotop-kammer:1), gestellt nur das Modell (KEIN ANGRIFF)
+/root/biotop/tests/test_vor_t4_04.py:130:    monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+/root/biotop/tests/test_t3_referenzwarmup.py:15:kammer.IMAGE = 'biotop-kammer:ts1'
+/root/biotop/tests/test_vor_t4_06.py:5:in der echten Kammer (biotop-kammer:1, Proben des Reviews 05: review-proben/kammerprobe05.py), lokale `kan`-Fälle als
+/root/biotop/tests/test_vor_t4_06.py:90:    monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+/root/biotop/tests/test_vor_t4_06.py:169:    kammer.IMAGE = "biotop-kammer:1"
+/root/biotop/tests/test_vor_t4_06.py:217:    monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+/root/biotop/tests/conftest.py:31:    """Tests, die TypeScript in der Kammer ausführen, brauchen das Kammerimage mit node (biotop-kammer:ts1).
+/root/biotop/tests/conftest.py:38:        pytest.fail(f"TypeScript-Kammer nötig: BIOTOP_KAMMER_IMAGE=biotop-kammer:ts1 setzen (aktuell {image}) — "
+/root/biotop/tests/test_t3_mutantentyp.py:10:    monkeypatch.setattr(kammer,'IMAGE','biotop-kammer:ts1')
+/root/biotop/tests/speicherwerk.py:13:Kein Modell, keine Netzwirkung; die Kammer ist das Python-Image biotop-kammer:1.
+/root/biotop/tests/test_t3_statik_luecken.py:12:    monkeypatch.setattr(kammer,'IMAGE','biotop-kammer:ts1')
+/root/biotop/tests/test_verdrahtung.py:14:- Kammer: echt (Docker, netzlos, Image biotop-kammer:ts1).
+/root/biotop/tests/test_verdrahtung.py:338:    monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:ts1")
+/root/biotop/tests/test_vor_t4_03.py:5:   an einem Python-Prüfwerk durch aegis.pruefen in der echten Kammer (biotop-kammer:1); gestellt sind nur das Modell
+/root/biotop/tests/test_vor_t4_03.py:163:    monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+/root/biotop/tests/test_typescript_adapter.py:26:           "--tmpfs", "/tmp", "biotop-kammer:ts1", "node", "-e",
+/root/biotop/tests/test_typescript_adapter.py:41:    monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:ts1")
+/root/biotop/tests/test_t3_gedaechtnis.py:19:    monkeypatch.setattr(kammer,'IMAGE','biotop-kammer:ts1')
+/root/biotop/tests/test_t3_befundklasse.py:12:    monkeypatch.setattr(kammer,'IMAGE','biotop-kammer:ts1')
+/root/biotop/tests/test_vor_t4_05.py:41:    monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+/root/biotop/tests/test_t3_eichpfad.py:12:    monkeypatch.setattr(kammer, 'IMAGE', 'biotop-kammer:ts1')
+/root/biotop/tests/test_vor_t4_02.py:3:1. Python-Sonde am Python-Prüfwerk (speicherwerk) DURCH aegis.pruefen, echte Kammer (biotop-kammer:1):
+/root/biotop/tests/test_vor_t4_02.py:123:    monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+/root/biotop/tests/test_vor_t4_02.py:267:        return w, {"src/m/a.ts": TS_NEU}, {"tests/test_m_deckung.test.ts": TS_TEST}, ref, "biotop-kammer:ts1"
+/root/biotop/tests/test_vor_t4_02.py:274:    return w, {"paket/m/a.py": PY_NEU}, {"tests/test_m_deckung.py": PY_TEST}, ref, "biotop-kammer:1"
+=== Ende EB22 ===

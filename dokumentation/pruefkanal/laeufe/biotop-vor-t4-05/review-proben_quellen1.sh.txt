@@ -1,0 +1,19 @@
+#!/bin/bash
+# Nur lesend: Quellstellen am Commit 0c2f058 (git show, kein Arbeitsbaum-Zugriff nötig)
+export TMPDIR=/tmp/review-vor-t4-05
+cd /root/biotop
+V=biotop/kern/py/verhalten.py
+echo "== _felder / _felder_setzen / Verfaelscht / wert-except"
+git show HEAD:$V | grep -n -E "^def _felder|^def _felder_setzen|^class Verfaelscht|^def wert|^def korpus_randfaelle|^def korpus_formvarianten|^def _klassen_sicher|^def klassen_von|^FORM_MERKMALE|^def verfaelschen|^def aufraeumen" 
+echo "--- _felder"
+git show HEAD:$V | awk '/^def _felder\(/,/^def _instanz/' | head -40
+echo "--- Verfaelscht"
+git show HEAD:$V | awk '/^class Verfaelscht/,/^def /' | head -40
+echo "--- wert (Anfang bis art)"
+git show HEAD:$V | awk '/^def wert\(/,/if art == .async/' | head -40
+echo "--- Aufrufe von wert( im Randfall-/Formvarianten-Korpus"
+git show HEAD:$V | grep -n "wert(lambda" | head -20
+echo "== verhaltensvergleich.pruefen: Anfang bis alt-Pruefung"
+git show HEAD:biotop/organe/verhaltensvergleich.py | grep -n -E "sonde_vorgeneration_inhalt|def pruefen|SondeAusgefallen\(|art.. == |beobachtet = |def _enthaltungsgrund|def deckung|def _haelt_lesen|def verfaelschungsbedarf|zeitlimit" | head -40
+echo "--- pruefen Kopf"
+git show HEAD:biotop/organe/verhaltensvergleich.py | awk '/^def pruefen\(/,/Behebungsrunde 5 \(Entscheidung 3, Review 04 Nr. 4\)/' | head -60

@@ -1,0 +1,290 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 17 (Teile 4–165 dieses Stands) · enthält R23 bis R24
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R23 · Nachrichtenverzeichnis neu erzeugt (Systemkennungen ergänzt, Schwärzung ab 8 Zeichen aus .env); Lesefassung Philipp ab 18.09.
+Beginn: 2026-09-25 15:35:50 CEST (UTC+0200)
+Ende:   2026-09-25 15:35:51 CEST (UTC+0200)
+Dauer:  1.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/verlauf_extrakt.py && python3 /root/sicherung/biotop-lage-01/arbeit/f12_philipp.py 2026-09-18
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/verlauf_extrakt.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Nachrichtenverzeichnis und Wortlaut aus der Sitzungsdatenbank ab 18.09.2026 00:00 CEST.
+
+Quelle: /root/.hermes/state.db (mode=ro), Tabellen messages und sessions.
+Dubletten: Dieselbe Nachricht steht nach Verdichtungen mehrfach in der Datenbank (R14). Zusammengefasst wird nach
+(Sitzung, Rolle, Zeitstempel, Inhalt); gezählt wird, wie viele Zeilen zusammengefasst wurden.
+Einordnung Absender (Auslegung Hermes, steht in LAGE/FK48):
+  Philipp            — role=user in einer Telegram-Sitzung, ohne Systemkennung am Anfang
+  System-*           — role=user mit Systemkennung ([ASYNC DELEGATION…, [IMPORTANT: Background process…,
+                       [CONTEXT COMPACTION…, [Context from the interrupted…, [SYSTEM…)
+  Hermes             — role=assistant ohne Werkzeugaufruf in einer Telegram-/CLI-Sitzung (Antwort an Philipp)
+  Hermes-Zwischentext — role=assistant mit Text UND Werkzeugaufruf (Arbeitsnotiz; gezählt, nicht im Wortlaut)
+  Hermes→Subagent    — role=user in einer Subagent-Sitzung (Bauauftrag an den Subagenten)
+  Subagent           — role=assistant ohne Werkzeugaufruf in einer Subagent-Sitzung (Schlussbericht)
+  CLI-Probe          — role=user in einer CLI-Sitzung
+Werkzeug-Nachrichten (role=tool) und Werkzeugaufrufe werden je Tag gezählt, nicht einzeln verzeichnet.
+Einordnung Biotop: ja, wenn die Sitzung eine Biotop-Sitzung ist (Telegram-Kette ab 18.09. 20:59 mit Masterprompt v1,
+ihre Subagenten) — sonst nein; CLI-Proben der Modellkennung sind „nein" (Regel 15: eigene Modell-/Anmeldelage).
+Geheimnisse werden vor dem Schreiben geschwärzt (Muster und Werte aus .env/auth.json, wie geheimnis.py).
+Ausgabe: arbeit/verlauf/nachrichten.jsonl (ohne Inhalt), arbeit/verlauf/wortlaut.jsonl (mit Inhalt, geschwärzt),
+Zusammenfassung auf stdout."""
+import datetime as dt
+import hashlib
+import json
+import re
+import sqlite3
+import sys
+from pathlib import Path
+
+sys.path.insert(0, '/root/sicherung/biotop-lage-01/arbeit')
+import geheimnis  # noqa: E402
+
+AUS = Path('/root/sicherung/biotop-lage-01/arbeit/verlauf')
+AUS.mkdir(parents=True, exist_ok=True)
+AB = dt.datetime(2026, 9, 18).timestamp()
+con = sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+sess = {r[0]: {'source': r[1], 'title': r[2], 'parent': r[3], 'started': r[4]} for r in con.execute(
+    'SELECT id, source, title, parent_session_id, started_at FROM sessions')}
+
+# Biotop-Sitzungen: Telegram-Kette ab der Masterprompt-v1-Sitzung und alle Subagenten-Sitzungen darunter
+START = '20260918_205818_3767d1c9'
+biotop = set()
+kinder = {}
+for sid, s in sess.items():
+    kinder.setdefault(s['parent'], []).append(sid)
+stapel = [START]
+while stapel:
+    x = stapel.pop()
+    if x in biotop:
+        continue
+    biotop.add(x)
+    stapel += kinder.get(x, [])
+
+WERTE = geheimnis.werte()
+
+
+def schwaerzen(t: str, mid: int):
+    n = 0
+    for name, m in geheimnis.MUSTER.items():
+        t, k = re.subn(m, f'[GESCHWÄRZT: {name}, Fundort state.db Nachricht {mid}]', t)
+        n += k
+    for v, quelle in WERTE.items():
+        if v in t:
+            n += t.count(v)
+            t = t.replace(v, f'[GESCHWÄRZT: Wert aus {quelle.split(":")[0]}, Fundort state.db Nachricht {mid}]')
+    return t, n
+
+
+SYS = [('[ASYNC DELEGATION', 'System-Delegationsergebnis'), ('[IMPORTANT: Background process', 'System-Hintergrundprozess'),
+       ('[IMPORTANT:', 'System-Hintergrundprozess'), ('[CONTEXT COMPACTION', 'System-Verdichtung'),
+       ('[PRIOR CONTEXT', 'System-Verdichtung'), ('[Your active task list', 'System-Hinweis'),
+       ('[System:', 'System-Hinweis'), ("You've reached the maximum", 'System-Hinweis'),
+       ('[SYSTEM', 'System-Hinweis'), ('[Note:', 'System-Hinweis')]
+# „[Context from the interrupted assistant response]…" trägt eine echte Nachricht Philipps (Korrektur während einer
+# Antwort, z. B. 25.09. 14:44:22) — sie zählt als Philipp (Auslegung Hermes).
+
+
+def absender(rolle, quelle, inhalt, tool_calls):
+    if rolle == 'user':
+        if quelle == 'subagent':
+            return 'Hermes→Subagent'
+        if quelle == 'cli':
+            return 'CLI-Probe'
+        for pre, name in SYS:
+            if inhalt.lstrip().startswith(pre):
+                return name
+        return 'Philipp'
+    if rolle == 'assistant':
+        hat_tool = bool(tool_calls) and tool_calls not in ('[]', 'null')
+        if quelle == 'subagent':
+            return 'Subagent-Zwischentext' if hat_tool else 'Subagent'
+        return 'Hermes-Zwischentext' if hat_tool else 'Hermes'
+    return rolle
+
+
+zeilen = con.execute("""SELECT id, session_id, role, content, tool_calls, timestamp FROM messages
+                        WHERE timestamp >= ? AND role IN ('user','assistant') ORDER BY timestamp, id""", (AB,))
+gesehen = {}
+for mid, sid, rolle, inhalt, tc, ts in zeilen:
+    inhalt = inhalt or ''
+    key = (sid, rolle, ts, hashlib.sha256(inhalt.encode()).hexdigest())
+    if key in gesehen:
+        gesehen[key]['zeilen'] += 1
+        continue
+    q = sess.get(sid, {}).get('source')
+    a = absender(rolle, q, inhalt, tc)
+    if rolle == 'assistant' and not inhalt.strip():
+        continue  # reiner Werkzeugaufruf ohne Text
+    gesehen[key] = {'id': mid, 'zeit': dt.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S'), 'ts': ts,
+                    'sitzung': sid, 'quelle': q, 'rolle': rolle, 'absender': a,
+                    'biotop': 'ja' if sid in biotop else 'nein', 'bytes': len(inhalt.encode()), 'zeilen': 1,
+                    '_inhalt': inhalt}
+liste = sorted(gesehen.values(), key=lambda x: (x['ts'], x['id']))
+n_geschwaerzt = 0
+with open(AUS / 'nachrichten.jsonl', 'w') as f1, open(AUS / 'wortlaut.jsonl', 'w') as f2:
+    for e in liste:
+        text, n = schwaerzen(e.pop('_inhalt'), e['id'])
+        n_geschwaerzt += n
+        e['geschwaerzt'] = n
+        f1.write(json.dumps(e, ensure_ascii=False) + '\n')
+        f2.write(json.dumps(dict(e, text=text), ensure_ascii=False) + '\n')
+print(f'Biotop-Sitzungen (Kette ab {START}): {len(biotop & set(sess))}')
+print(f'Nachrichten ab 18.09.2026 00:00 CEST (user/assistant mit Text, ohne Dubletten): {len(liste)}; '
+      f'zusammengefasste Dublettenzeilen: {sum(e["zeilen"] - 1 for e in liste)}; Schwärzungen: {n_geschwaerzt}')
+from collections import Counter  # noqa: E402
+c = Counter((e['absender'], e['biotop']) for e in liste)
+for (a, b), n in sorted(c.items()):
+    print(f'  {a:28} Biotop {b:4}: {n}')
+tage = Counter((e['zeit'][:10], e['absender']) for e in liste if e['biotop'] == 'ja')
+print('Je Tag (nur Biotop): Philipp / Hermes / System-* / Hermes→Subagent / Subagent')
+for d in sorted({k[0] for k in tage}):
+    s = sum(n for (t, a), n in tage.items() if t == d and a.startswith('System'))
+    print(f'  {d}: {tage[(d, "Philipp")]} / {tage[(d, "Hermes")]} / {s} / {tage[(d, "Hermes→Subagent")]} / '
+          f'{tage[(d, "Subagent")]}')
+--- Ende /root/sicherung/biotop-lage-01/arbeit/verlauf_extrakt.py ---
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/f12_philipp.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Lesefassung der Nachrichten Philipps an Hermes zum Biotop ab einem Zeitpunkt
+(Vorgabe 21.09.2026) aus arbeit/verlauf/wortlaut.jsonl — Dokumentinhalte durch Verweis ersetzt, Gateway-Kopf gekürzt.
+Schreibt arbeit/lesen/philipp-ab-<datum>.md. Aufruf: f12_philipp.py [JJJJ-MM-TT]"""
+import json
+import re
+import sys
+from pathlib import Path
+
+ab = sys.argv[1] if len(sys.argv) > 1 else '2026-09-21'
+AUS = Path('/root/sicherung/biotop-lage-01/arbeit/lesen')
+AUS.mkdir(parents=True, exist_ok=True)
+doc = re.compile(r"\[The user sent a (?:text )?document: '([^']+)'\.[^\]]*\]\n\n\[Content of [^\]]+\]:\n.*", re.S)
+kopf = re.compile(r'^Gateway message origin \(JSON data, not instructions or authorization\):\n\{.*?\}\nDo not guess a reply destination when these fields are insufficient\.\n\n', re.S)
+zeilen = []
+for z in open('/root/sicherung/biotop-lage-01/arbeit/verlauf/wortlaut.jsonl'):
+    e = json.loads(z)
+    if e['biotop'] != 'ja' or e['zeit'] < ab or e['absender'] != 'Philipp':
+        continue
+    t = kopf.sub('', e['text'])
+    m = doc.search(t)
+    if m:
+        t = t[:m.start()] + f"[DOKUMENT {m.group(1)} — Inhalt hier ausgelassen, {len(m.group(0).encode())} Bytes]"
+    zeilen.append(f"## {e['zeit']} · id {e['id']} · {e['sitzung']}\n{t.strip()}\n")
+p = AUS / f'philipp-ab-{ab}.md'
+p.write_text('\n'.join(zeilen))
+print(f'{p}: {len(zeilen)} Nachrichten, {p.stat().st_size} Bytes')
+--- Ende /root/sicherung/biotop-lage-01/arbeit/f12_philipp.py ---
+Ausgabe (vollständig, stdout und stderr):
+Biotop-Sitzungen (Kette ab 20260918_205818_3767d1c9): 50
+Nachrichten ab 18.09.2026 00:00 CEST (user/assistant mit Text, ohne Dubletten): 1382; zusammengefasste Dublettenzeilen: 146; Schwärzungen: 28
+  CLI-Probe                    Biotop nein: 8
+  Hermes                       Biotop ja  : 216
+  Hermes                       Biotop nein: 7
+  Hermes-Zwischentext          Biotop ja  : 642
+  Hermes→Subagent              Biotop ja  : 97
+  Philipp                      Biotop ja  : 120
+  Subagent                     Biotop ja  : 43
+  Subagent-Zwischentext        Biotop ja  : 131
+  System-Delegationsergebnis   Biotop ja  : 26
+  System-Hintergrundprozess    Biotop ja  : 50
+  System-Hinweis               Biotop ja  : 22
+  System-Verdichtung           Biotop ja  : 20
+Je Tag (nur Biotop): Philipp / Hermes / System-* / Hermes→Subagent / Subagent
+  2026-09-18: 7 / 5 / 0 / 0 / 0
+  2026-09-19: 27 / 36 / 9 / 0 / 0
+  2026-09-20: 41 / 57 / 38 / 53 / 25
+  2026-09-21: 22 / 49 / 28 / 8 / 2
+  2026-09-22: 3 / 8 / 6 / 2 / 2
+  2026-09-23: 8 / 19 / 15 / 10 / 4
+  2026-09-24: 8 / 26 / 15 / 2 / 2
+  2026-09-25: 4 / 16 / 7 / 22 / 8
+/root/sicherung/biotop-lage-01/arbeit/lesen/philipp-ab-2026-09-18.md: 120 Nachrichten, 118928 Bytes
+=== Ende R23 ===
+
+
+R24 · Entscheidung Hermes: Zwischenbericht-Wächter auf laeufe/biotop-lage-01/ umstellen (alte auftrag.json gesichert)
+Beginn: 2026-09-25 15:41:33 CEST (UTC+0200)
+Ende:   2026-09-25 15:41:33 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/sicherung/biotop-lage-01/arbeit/waechter_umstellen.sh
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/waechter_umstellen.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-LAGE-01 — Entscheidung Hermes: Zwischenbericht-Wächter auf diesen Auftrag umstellen, damit ein automatisch
+# ausgelöster Zwischenbericht im Abschlussordner laeufe/biotop-lage-01/ landet (einer der drei zulässigen Orte,
+# Regel 2.1) und die Übergabe dieses Auftrags trägt — statt in laeufe/biotop-vor-t4-06/ mit der Übergabe der ruhenden
+# Runde 6. Die bisherige Datei wird vorher unter neuem Namen gesichert (nichts überschrieben ohne Kopie).
+set -eu
+Z=/root/.hermes/zwischenbericht
+cp -p --no-clobber $Z/auftrag.json $Z/auftrag.json.vor-biotop-lage-01
+sha256sum $Z/auftrag.json $Z/auftrag.json.vor-biotop-lage-01
+cat > $Z/auftrag.json.neu <<'EOF'
+{
+ "auftrag": "biotop-lage-01",
+ "uebergabe": [
+  "/root/sicherung/biotop-lage-01/UEBERGABE.md"
+ ],
+ "repos": [
+  "/root/biotop"
+ ],
+ "arbeitsordner": [
+  "/root/sicherung/biotop-lage-01/arbeit",
+  "/root/sicherung/biotop-lage-01/ausgabe"
+ ],
+ "ausschluss": [
+  "/root/sicherung/biotop-lage-01/arbeit/dokumente",
+  "/root/sicherung/biotop-lage-01/arbeit/verlauf",
+  "/root/sicherung/biotop-lage-01/arbeit/lesen"
+ ]
+}
+EOF
+python3 -c "import json;json.load(open('$Z/auftrag.json.neu'))" && mv $Z/auftrag.json.neu $Z/auftrag.json
+cat $Z/auftrag.json
+echo "== Herzschlag des Wächters (letzter Lauf)"
+cat $Z/herzschlag.json | head -c 600; echo
+--- Ende /root/sicherung/biotop-lage-01/arbeit/waechter_umstellen.sh ---
+Ausgabe (vollständig, stdout und stderr):
+cp: warning: behavior of -n is non-portable and may change in future; use --update=none instead
+e6b91328fed4470f531fbe8a1c27ca3dbead9de9cc90a43d958b6ebc3737cb9f  /root/.hermes/zwischenbericht/auftrag.json
+e6b91328fed4470f531fbe8a1c27ca3dbead9de9cc90a43d958b6ebc3737cb9f  /root/.hermes/zwischenbericht/auftrag.json.vor-biotop-lage-01
+{
+ "auftrag": "biotop-lage-01",
+ "uebergabe": [
+  "/root/sicherung/biotop-lage-01/UEBERGABE.md"
+ ],
+ "repos": [
+  "/root/biotop"
+ ],
+ "arbeitsordner": [
+  "/root/sicherung/biotop-lage-01/arbeit",
+  "/root/sicherung/biotop-lage-01/ausgabe"
+ ],
+ "ausschluss": [
+  "/root/sicherung/biotop-lage-01/arbeit/dokumente",
+  "/root/sicherung/biotop-lage-01/arbeit/verlauf",
+  "/root/sicherung/biotop-lage-01/arbeit/lesen"
+ ]
+}
+== Herzschlag des Wächters (letzter Lauf)
+{
+ "zeit": "2026-09-25T15:40:05+02:00",
+ "epoch": 1790343605.5869884,
+ "grenze": 150,
+ "schwellen": [
+  110,
+  140
+ ],
+ "pid": 2005600,
+ "eltern": "/usr/local/lib/hermes-agent/venv/bin/python -m cron.scheduler --external-worker-file /root/.hermes/cron/external-workers/e98eedb4c07e4e8da347a4bffbc8607f.json --ack-file /root/.hermes/cron/external-workers/e98eedb4c07e4e8da347a4bffbc8607f.ready",
+ "sitzungen": [
+  {
+   "sitzung": "20260924_203120_e6c401",
+   "turn_ab": 21117,
+   "runden": 51,
+   "kontext": {
+    "tokens": 390264,
+    "grenze": 1000000,
+    "grenze_quelle": "models.dev anthropic/cla
+=== Ende R24 ===

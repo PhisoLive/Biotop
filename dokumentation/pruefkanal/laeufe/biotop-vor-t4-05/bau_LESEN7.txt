@@ -1,0 +1,292 @@
+=== test_vor_t4_03 35-148
+QUELLE = '''"""Kleines Python-Prüfwerk für die Lücken der Sonde (Behebungsrunde 3 vor T4)."""
+import functools
+
+
+def zahlen(n: int):
+    """Die ersten n natürlichen Zahlen als Generator."""
+    yield from range(n)
+
+
+def sortiere(xs: list[int]) -> None:
+    """Sortiert an Ort und Stelle, aufsteigend."""
+    xs.sort()
+
+
+def verbinde(a, b):
+    """Hilfsfunktion ohne Annotation, von der Last nicht gerufen."""
+    return a.strip() + b
+
+
+def woerter(s: str) -> list:
+    """Die verschiedenen Wörter eines Textes (Reihenfolge unbestimmt)."""
+    return list(set(s.split()))
+
+
+def quadrat(x: int) -> int:
+    """Quadrat einer ganzen Zahl."""
+    return x * x
+
+
+def normieren(text: str) -> str:
+    """Weißraumfolgen (Leerzeichen, Tab, Zeilenumbruch) zu einem Leerzeichen, Ränder entfernt."""
+    return " ".join(text.split())
+
+
+def _alt(text: str) -> str:
+    """Frühere Fassung, nirgends aufgerufen (toter Code — Vulture zählt ihn)."""
+    return text.strip()
+
+
+class Konto:
+    """Ein Konto mit Stand in Cent."""
+
+    def __init__(self, stand: int):
+        self.stand = stand
+
+    def buchen(self, betrag: int) -> int:
+        """Bucht einen Betrag und liefert den neuen Stand."""
+        self.stand += betrag
+        return self.stand
+
+    @property
+    def doppelt(self) -> int:
+        return self.stand * 2
+'''
+TESTS = '''from probewerk.werk.kern import zahlen, sortiere, woerter, quadrat, normieren, Konto
+
+
+def test_zahlen():
+    assert list(zahlen(3)) == [0, 1, 2]
+
+
+def test_sortiere():
+    xs = [3, 1, 2]
+    sortiere(xs)
+    assert xs == [1, 2, 3]
+
+
+def test_woerter():
+    assert sorted(woerter("b a b")) == ["a", "b"]
+
+
+def test_quadrat():
+    assert quadrat(4) == 16
+
+
+def test_konto():
+    assert Konto(3).buchen(1) == 4
+'''
+VERTRAG = '''from probewerk.werk.kern import Konto
+
+
+def test_vertrag_konto():
+    k = Konto(100)
+    assert k.buchen(5) == 105
+'''
+# `normieren` hat bewusst KEINEN Werkstest: Gruppe B ändert sein Verhalten absichtlich (eine „richtige Behebung“); ein
+# Werkstest auf das alte Verhalten fiele am Kandidaten, und die Verfassung verbietet, ihn zu ändern — der Kandidat
+# schiede dann am Pareto-Maß aus, bevor der Verhaltensvergleich urteilt (gemessen in TEILLAUF-3/-4).
+REFERENZLAST = '''import sys
+sys.path.insert(0, "/werk")
+
+
+def last_werk():
+    from probewerk.werk.kern import zahlen, sortiere, woerter, quadrat, normieren, Konto
+    for i in range(30):
+        list(zahlen(5))
+        xs = [(i * 7) % 11, 3, 1, 8]
+        sortiere(xs)
+        woerter("alpha beta gamma delta epsilon zeta eta theta")
+        quadrat(i % 5)
+        normieren("  wort   wort  ")
+        Konto(i).buchen(2)
+'''
+
+
+def _anlegen(w: Path, extra: dict | None = None):
+    for rel, text in {**(extra or {}), "probewerk/__init__.py": "", "probewerk/werk/__init__.py": "", "probewerk/werk/kern.py": QUELLE, "tests/test_werk.py": TESTS,
+                      "tests/vertraege/__init__.py": "", "tests/vertraege/test_vertrag_werk.py": VERTRAG,
+                      "pyproject.toml": '[project]\nname = "probewerk"\nversion = "0.1.0"\n',
+                      "README.md": "# probewerk\n\nPrüfwerk ohne Betriebszweck.\n"}.items():
+        (w / rel).parent.mkdir(parents=True, exist_ok=True)
+        (w / rel).write_text(text)
+
+
+=== test_vor_t4_03 320-332
+# Die Tests der Gruppe B stehen als Soll-Tests IM WERK und sind an der Vorgeneration rot; der Kandidat ändert nur die
+# Quelle und macht sie grün. So steigt das Kernmaß (neue Tests eines Kandidaten zählen nicht: „bestandene Tests zählen
+# nicht“, und vorhandene Testdateien darf er nicht ändern — Verfassung, Anhang A Satz 6), und der Verhaltensvergleich
+# urteilt mit genau diesen Tests als deckenden Tests (fallen an der Vorgeneration, bestehen am Kandidaten).
+TEST_NORMIEREN = '''from probewerk.werk.kern import normieren
+
+
+def test_normieren_{name}():
+    assert normieren({eingabe!r}) == {erwartet!r}
+'''
+
+
+def test_b_richtige_behebung_mit_test_je_muster_kommt_durch(tmp_path, monkeypatch):
+=== Verdrahtungsbeleg-2: Kanten vorspann/aegis/eichung (Auszug)
+aegis.pruefen ← biotop.lauf:_generation_koerper @ generation
+aegis.pruefen ← biotop.organe.eichproben:_einzelprobe @ vorspann
+eichproben.proben ← biotop.organe.vorspann:_ausfuehren @ vorspann
+eichung.rauschmessung ← biotop.organe.vorspann:_ausfuehren @ vorspann
+masseichung.anwenden ← biotop.lauf:_generation_koerper @ generation
+masseichung.anwenden ← biotop.lauf:mass_einfrieren @ mass
+masseichung.anwenden ← biotop.organe.aegis:pruefen @ generation
+masseichung.anwenden ← biotop.organe.aegis:pruefen @ vorspann
+masseichung.eichen ← biotop.organe.vorspann:_ausfuehren @ vorspann
+verhaltensvergleich.pruefen ← biotop.organe.aegis:pruefen @ generation
+verhaltensvergleich.pruefen ← biotop.organe.aegis:pruefen @ vorspann
+vorspann.ausfuehren ← biotop.__main__:main @ vorspann
+schritte ['lauf', 'einlegen', 'verfassung', 'vertraege', 'kartieren', 'vorspann', 'gen0', 'mass', 'generation']
+=== nachspiel.py 1-70
+"""Nachspiel des Annahmepfads: aufgezeichnete Kandidaten durch genau die Funktion, die ein Lauf zur Annahme ruft.
+
+Anlass (T3, Lauf 38): `verhaltensvergleich` und `masseichung` waren gebaut, getestet und gegen das Modul
+gegengeprüft — und nirgends eingehängt. Die Gegenproben liefen gegen das Modul, nicht durch den Lauf. Ein
+Nachspiel ruft deshalb `aegis.pruefen` mit dem Aufbau, den `lauf.generation()` dafür herstellt
+(`lauf.annahme_tausch`, `lauf.bestwert_des_laufs`, `lauf.letzte_angenommene`, `lauf._referenzlast`) — keine
+Nachbildung davon.
+
+Woher jede Eingabe kommt:
+- Kandidat (Diff, Nische, Bereich, Verträge): aus der Lauf-DB; Status in der KOPIE auf „erzeugt" zurückgesetzt.
+- Vorgeneration: Lazarus-Schnappschuss über `lazarus.rueckkehr(ziel=…)`; weicht die Prüfsumme von der DB ab,
+  bricht das Nachspiel ab.
+- Maß, Rauschtoleranzen, Eichausgang: eingefrorenes Maß und versiegelter Vorspann-Nachweis des Laufs (gelesen,
+  nicht über `vorspann.verlangen` — das würde den Nachweis wegen des seither geänderten Kerns zu Recht verwerfen).
+- Maßeichung: `masseichung.eichen(nachweis.basis, masseichung.sauberer_bereich(verfassung))` — dieselben zwei
+  Aufrufe wie im Vorspann, an der dort versiegelten Ausgangsmessung. Läufe vor dem Einbau tragen die Eichung nicht
+  im Nachweis; sie wird dann aus denselben Daten gebildet und so gekennzeichnet (`eichung_herkunft`).
+- Bestwert/Vorgeneration: aus der DB-Kopie, in der Generationen ab der Kandidatengeneration ausgeblendet sind.
+- Offene Immuntests des Bereichs: genau die, die das aufgezeichnete Urteil vorlegte (tests_offen, immun_bestanden),
+  ohne den eigenen Fund des Kandidaten — der entstand erst in dessen Angriff.
+- Anbietergrenze: ersetzt. Aufgezeichnet ist je Kandidat nur die Ansage des Anklägers, nie der Angriffstext.
+  Lautete sie „KEIN ANGRIFF", liefert die Grenze genau diese Antwort (0 Token, gekennzeichnet). Sonst bricht sie
+  mit benannter Meldung ab; der Ankläger bucht das als Ausfall und urteilt ohne neuen Angriffstest — das steht im
+  Beleg. Ein erfundener Angriff wird nicht eingesetzt.
+- Kammer: echt (Docker, netzlos). Netz im Prozess gesperrt.
+
+Die Original-DB wird nur gelesen (`mode=ro`); gearbeitet wird an einer Sicherungskopie in einem Wegwerfordner.
+"""
+from __future__ import annotations
+
+import json
+import socket
+import sqlite3
+from contextlib import contextmanager
+from pathlib import Path
+
+from . import anbieter
+from . import lauf as L
+from .kern import datenbank, messgeraet
+from .kern.datenbank import lj, transaktion
+from .organe import aegis, kammer, landkarte, lazarus, masseichung, verfassung
+
+KENNUNG = "nachspiel: aufgezeichnete Ansage, kein Modellaufruf"
+AUSGESCHALTET = "nachspiel_ausgeblendet"
+
+
+class NachspielFehler(RuntimeError):
+    """Das Nachspiel kann den Entscheidungszustand nicht belegt herstellen — kein Urteil, laut."""
+
+
+class AufgezeichneteGrenze:
+    """Ersetzt den Anbieter-Adapter. Antwortet nur, was aufgezeichnet ist: die Ansage „KEIN ANGRIFF"."""
+
+    def __init__(self, ansage_kein_angriff: bool):
+        self.kein_angriff = ansage_kein_angriff
+        self.anfragen: list[dict] = []
+        self._melder = None
+
+    def senden(self, modell, system, nutzer, max_tokens, temperatur):
+        ansage = system == aegis.ANSAGE_SYSTEM
+        self.anfragen.append({"modell": modell, "art": "ansage" if ansage else "anderer Aufruf",
+                              "beantwortet": bool(ansage and self.kein_angriff)})
+        if ansage and self.kein_angriff:
+            return "KEIN ANGRIFF", 0, 0
+        raise anbieter.AnbieterFehler(
+            "Nachspiel: Antwort nicht aufgezeichnet (" + ("Ansage mit Behauptung" if ansage else "Angriff/anderer Aufruf")
+            + ") — kein echter Aufruf, kein Ersatztext", verbrauch=(0, 0), ausfallart="nachspiel")
+
+
+@contextmanager
+=== aegis _namen 388-400
+
+def _namen(r: dict, praefix: str, **filt) -> set[str]:
+    out = set()
+    for n, x in r.items():
+        if not n.startswith(praefix + "::") or n.endswith("::*"):
+            continue
+        if all(x.get(k) == v for k, v in filt.items()):
+            out.add(n.split("::")[1])
+    return out
+
+
+# ---------------------------------------------------------------- Befundklassen
+def befundklassen_tests(con, werk_id: int, bereich: str, basis: dict) -> dict[str, str]:
+=== aegis 455-480 (_nennt_vertrag Rest)
+    # Verträge des Werks + die vom Kandidaten mitgebrachte (zu verhandelnde) Fassung der Vertragsdatei
+    quellen = [(v["pfad"], v["code"]) for v in vertraege.alle(con, werk_id)] + list((zusatz_vertraege or {}).items())
+    for pf, cd in quellen:
+        if pf.endswith(".ts"):
+            from ..kern import typescript
+            vertragstests.update(sprachprofil.testname_ohne_endung(pf) + "::" + t["name"] for t in typescript.testfunktionen(cd))
+            continue
+        try:
+            for k in ast.parse(cd or "").body:
+                if isinstance(k, ast.FunctionDef) and k.name.startswith("test_"):
+                    vertragstests.add(f"{Path(pf).stem}::{k.name}")
+        except SyntaxError:
+            pass
+    saetze = set()
+    if verf:
+        for z in verf["text"].splitlines():
+            m = re.match(r"\s*(\d{1,2})[.)]", z)
+            if m:
+                saetze.add(int(m.group(1)))
+    for m in _VERWEIS_MUSTER.finditer(text):
+        ganz = m.group(1)
+        if ganz.startswith("test_vertrag_"):
+            if "::" in ganz:
+                if ganz in vertragstests:
+                    return True
+            elif ganz in vertragsdateien:
+                return True
+            continue
+        nr = next((g for g in m.groups()[1:] if g), None)
+        if nr and int(nr) in saetze:
+            return True
+=== aegis _anhaengen
+197:def _anhaengen(alt: str, neu: str, behalten: set[str]) -> str | None:
+198-    """Alte Testdatei unverändert + die gültigen neuen Funktionen (und neue Imports) des Kandidaten angehängt."""
+199-    con, lauf_id = _zaehlkontext()
+200-    if sprachprofil.tests_ist_ts(alt) or sprachprofil.tests_ist_ts(neu):
+201-        # Vorbedingung 9 (T4): Immunisierung auf dem TypeScript-Pfad. Bis T3 gab dieser Zweig immer None zurück —
+202-        # 0 von 0 Fällen, die Torzeile 3.10 F3 war für TypeScript nicht belegbar. Jetzt: alte Datei unverändert,
+203-        # dazu die neuen Importe und die gültigen neuen test()-Blöcke (Syntaxbaum des Kerns, nicht Textanker).
+204-        return _anhaengen_ts(con, lauf_id, alt, neu, behalten)
+205-    try:
+206-        ba, bn = ast.parse(alt), ast.parse(neu)
+207-    except SyntaxError:
+208-        neutralzaehler.neutral(con, lauf_id, "aegis._anhaengen", "syntaxfehler")
+209-        return None
+210-    alt_namen = {k.name for k in ba.body if isinstance(k, ast.FunctionDef)}
+211-    alt_imports = {ast.unparse(k) for k in ba.body if isinstance(k, (ast.Import, ast.ImportFrom))}
+212-    zusatz = [k for k in bn.body if isinstance(k, (ast.Import, ast.ImportFrom)) and ast.unparse(k) not in alt_imports]
+213-    zusatz += [k for k in bn.body if isinstance(k, ast.FunctionDef) and k.name in behalten and k.name not in alt_namen]
+214-    if not any(isinstance(k, ast.FunctionDef) for k in zusatz):
+215-        neutralzaehler.neutral(con, lauf_id, "aegis._anhaengen", "nichts_anzuhaengen")
+216-        return None
+217-    neutralzaehler.geurteilt(con, lauf_id, "aegis._anhaengen")
+=== eichung-Job
+start 18:04:19 baum=/tmp/r5-baum-43b8fad ref2_sha=9814e717da298958
+K2904 W60_ist  r0 gesperrt=[] eingang=1.351 längster Kammerlauf=11.6s
+K2904 W240     r0 gesperrt=[] eingang=1.153 längster Kammerlauf=12.0s
+K2904 W480     r0 gesperrt=[] eingang=1.17 längster Kammerlauf=13.2s
+K2904 W60_ist  r1 gesperrt=['eingang'] eingang=1.59 längster Kammerlauf=10.9s
+K2904 W240     r1 gesperrt=[] eingang=1.15 längster Kammerlauf=12.0s
+K2904 W480     r1 gesperrt=[] eingang=1.17 längster Kammerlauf=13.7s
+K2904 W60_ist  r2 gesperrt=[] eingang=1.229 längster Kammerlauf=11.4s
+K2904 W240     r2 gesperrt=[] eingang=1.15 längster Kammerlauf=12.0s

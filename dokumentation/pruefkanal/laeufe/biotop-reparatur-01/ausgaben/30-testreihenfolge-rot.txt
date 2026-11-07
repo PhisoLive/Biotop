@@ -1,0 +1,32 @@
+BEFEHL: /root/reparatur-01/venv/bin/python -m pytest tests/test_testreihenfolge.py -q --junitxml=/var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/ausgaben/30-testreihenfolge-rot.xml
+ARBEITSVERZEICHNIS: /root/biotop
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________________ test_kernmass_und_pareto_kommen_vor_rauschen _________________
+
+    def test_kernmass_und_pareto_kommen_vor_rauschen():
+        repo = Path(__file__).resolve().parents[1]
+        env = os.environ.copy()
+        env["PYTHONPATH"] = str(repo)
+        r = subprocess.run([sys.executable, "-m", "pytest", "--collect-only", "-q",
+                            "tests/test_rauschmessung.py", "tests/test_kernmass_pareto.py"],
+                           cwd=repo, env=env, text=True, capture_output=True, timeout=30)
+        assert r.returncode == 0, r.stdout + r.stderr
+        ids = [s for s in r.stdout.splitlines() if s.startswith("tests/") and "::" in s]
+        kern = [i for i, s in enumerate(ids) if s.startswith("tests/test_kernmass_pareto.py::")]
+        rauschen = [i for i, s in enumerate(ids) if s.startswith("tests/test_rauschmessung.py::")]
+        assert kern and rauschen
+>       assert max(kern) < min(rauschen), ids
+E       AssertionError: ['tests/test_rauschmessung.py::test_rauschmessung_braucht_genau_fuenf_werte[0]', 'tests/test_rauschmessung.py::test_ra...ung_braucht_genau_fuenf_werte[4]', 'tests/test_rauschmessung.py::test_rauschmessung_braucht_genau_fuenf_werte[6]', ...]
+E       assert 45 < 0
+E        +  where 45 = max([31, 32, 33, 34, 35, 36, ...])
+E        +  and   0 = min([0, 1, 2, 3, 4, 5, ...])
+
+tests/test_testreihenfolge.py:20: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_testreihenfolge.py::test_kernmass_und_pareto_kommen_vor_rauschen
+1 failed in 0.40s
+
+STDERR:
+
+RUECKGABEWERT: 1

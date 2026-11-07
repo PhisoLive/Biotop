@@ -1,0 +1,471 @@
+--- a/biotop/organe/aegis.py
++++ b/biotop/organe/aegis.py
+@@ -299,7 +299,8 @@
+ 
+ 
+ # ---------------------------------------------------------------- Angriff
+-def bisherige_behauptungen(con, werk_id: int, bereich: str, lauf_id: int | None = None, limit: int = 25) -> list[str]:
++def bisherige_behauptungen(con, werk_id: int, bereich: str, lauf_id: int | None = None, limit: int | None = 25,
++                          *, ohne_ansage_nr: int | None = None) -> list[str]:
+     """Welche Behauptungen hat der Ankläger in diesem Bereich schon aufgestellt? (Fassung 6)
+ 
+     Zwei Quellen, beide nötig:
+@@ -313,7 +314,7 @@
+     acht Tests sagten dasselbe über `lager/reserviert`. Zwei Drittel der Aufrufe brachten also nichts Neues.
+     """
+     aus = []
+-    for z in con.execute("SELECT ursprung FROM immunsystem WHERE werk_id=? AND bereich=? ORDER BY id DESC LIMIT 200",
++    for z in con.execute("SELECT ursprung FROM immunsystem WHERE werk_id=? AND bereich=? ORDER BY id DESC",
+                          (werk_id, bereich)):
+         t = z["ursprung"] or ""
+         if "behauptung=" in t:
+@@ -323,7 +324,9 @@
+                 if s.count("|") == 1 and all(teil.strip() for teil in s.split("|")) and s not in aus:
+                     aus.append(s)
+     if lauf_id is not None:
+-        for z in con.execute("SELECT inhalt FROM protokoll WHERE art='aegis.ansage' ORDER BY nr DESC LIMIT 400"):
++        for z in con.execute("SELECT nr, inhalt FROM protokoll WHERE art='aegis.ansage' ORDER BY nr DESC"):
++            if z["nr"] == ohne_ansage_nr:
++                continue
+             d = lj(z["inhalt"]) or {}
+             if d.get("lauf_id") == lauf_id and d.get("bereich") == bereich and d.get("behauptung"):
+                 if d["behauptung"] not in aus:
+@@ -372,7 +375,12 @@
+     return f"{treffer.group(1)}|{treffer.group(2)}", False
+ 
+ 
+-def _angriff(con, lauf_id, werk_id, paket, bereich, diff, dateien, werk, klassen: list[str]) -> tuple[str | None, str]:
++def _angriff(con, lauf_id, werk_id, paket, bereich, diff, dateien, werk, klassen: list[str],
++             *, kandidat_id: int | None = None, ansage_kontext: dict | None = None) -> tuple[str | None, str, str | None]:
++    # Die Dreier-Rückgabe bleibt kompatibel. Die Kennung bezeichnet NUR diese Ansage,
++    # nicht ihren Schlüssel (eine frühere gleiche Ansage muss weiterhin sperren).
++    if ansage_kontext is not None:
++        ansage_kontext.clear()
+     quelle = []
+     for d in sorted((werk / paket / bereich).rglob("*.py")):
+         rel = str(d.relative_to(werk))
+@@ -391,20 +399,25 @@
+         modell = MODELL_ANGRIFF_SCHWER
+     # Fassung 6 (3.7): Der Ankläger nennt seine Behauptung VORAB. Ist sie im Bereich schon aufgestellt, wird der
+     # Angriff gar nicht erst ausgeführt — das spart den teuren Aufruf und verhindert die Doppelung an der Quelle.
+-    schon = bisherige_behauptungen(con, werk_id, bereich, lauf_id)
+-    ansage, _ = _ansage(con, lauf_id, modell, bereich, paket, diff, quelle, schon)
++    schon = bisherige_behauptungen(con, werk_id, bereich, lauf_id, limit=None)
++    ansage, _ = _ansage(con, lauf_id, modell, bereich, paket, diff, quelle, schon[:25])
+     if ansage is None:
+-        protokoll.schreiben(con, "aegis.ansage", lauf_id=lauf_id, bereich=bereich, behauptung=None,
++        protokoll.schreiben(con, "aegis.ansage", lauf_id=lauf_id, werk_id=werk_id, kandidat=kandidat_id,
++                            bereich=bereich, behauptung=None,
+                             ausgefuehrt=False, grund="Ankläger nennt keine Behauptung (KEIN ANGRIFF)")
+         return None, modell[1], None
+     if ansage in schon:
+-        protokoll.schreiben(con, "aegis.ansage", lauf_id=lauf_id, bereich=bereich, behauptung=ansage,
++        protokoll.schreiben(con, "aegis.ansage", lauf_id=lauf_id, werk_id=werk_id, kandidat=kandidat_id,
++                            bereich=bereich, behauptung=ansage,
+                             ausgefuehrt=False, grund="Behauptung in diesem Bereich bereits aufgestellt — Angriff "
+                                                      "nicht ausgeführt (F6 3.7), spart Aufruf und Kammerlauf",
+                             bisherige=len(schon))
+         return None, modell[1], ansage
+-    protokoll.schreiben(con, "aegis.ansage", lauf_id=lauf_id, bereich=bereich, behauptung=ansage,
+-                        ausgefuehrt=True, bisherige=len(schon))
++    ansage_nr = protokoll.schreiben(con, "aegis.ansage", lauf_id=lauf_id, werk_id=werk_id,
++                                    kandidat=kandidat_id, bereich=bereich, behauptung=ansage,
++                                    ausgefuehrt=True, bisherige=len(schon))
++    if ansage_kontext is not None:
++        ansage_kontext["nr"] = ansage_nr
+     ansage_text = (f"\n\nDU HAST ANGEKÜNDIGT, DIESE BEHAUPTUNG ZU PRÜFEN: {ansage}\n"
+                    f"Schreibe genau dazu den Test. Weiche nicht auf eine andere Behauptung aus.")
+     try:
+@@ -422,7 +435,7 @@
+ 
+ # ---------------------------------------------------------------- Anklage
+ def aufnahmesperre(con, werk_id: int, lauf_id: int, bereich: str, code: str, testnamen, paket: str,
+-                   kandidat_id: int, art: str) -> tuple[list, list]:
++                   kandidat_id: int, art: str, *, eigene_ansage_nr: int | None = None) -> tuple[list, list]:
+     """**Aufnahmesperre C** (Fassung 7, Entscheidung Chat-Claude 20.09.2026).
+ 
+     Prüft den Schlüssel des TATSÄCHLICH GESCHRIEBENEN Tests gegen den Vorrat des Bereichs — deterministisch,
+@@ -439,7 +452,10 @@
+     Rückgabe: (aufnehmen, abgewiesen) — je Liste von (testname, schluessel).
+     Jede Abweisung wird protokolliert, mit Grund und Gegenstück; nie still verworfen.
+     """
+-    vorrat = set(bisherige_behauptungen(con, werk_id, bereich, lauf_id, limit=500))
++    # Ausgenommen ist nur die gerade erzeugte Ansage-Zeile. Der Schlüssel bleibt
++    # sperrbar durch frühere Ansagen und jeden bereits aufgenommenen Immuntest.
++    vorrat = set(bisherige_behauptungen(con, werk_id, bereich, lauf_id, limit=None,
++                                       ohne_ansage_nr=eigene_ansage_nr))
+     aufnehmen, abgewiesen, gesehen = [], [], set()
+     # Pfadnachweis (Masterprompt Lauf 25, Abschnitt 4): JEDE geprüfte Aufnahme wird gezählt, auch wenn nichts
+     # gesperrt wird. Ohne diesen Zähler lässt sich nicht belegen, dass C im Aufnahmepfad liegt und erreicht wird
+@@ -570,7 +586,9 @@
+                 urteil["tests_neu"] += [f"{p}::{n}" for n in sorted(gueltig)]
+ 
+     # Schritt 4: Angriff (schweres Modell bei Befundklasse)
+-    angriff, angriff_modell, ansage_behauptung = _angriff(con, lauf_id, werk_id, paket, bereich, k["diff"], dateien, werk, urteil["befundklassen"])
++    ansage_kontext = {}
++    angriff, angriff_modell, ansage_behauptung = _angriff(con, lauf_id, werk_id, paket, bereich, k["diff"], dateien, werk, urteil["befundklassen"],
++                                                       kandidat_id=kandidat_id, ansage_kontext=ansage_kontext)
+     urteil["ansage"] = [ansage_behauptung] if ansage_behauptung else []
+     if angriff:
+         ad = f"tests/test_{bereich}_immun_aegis_k{kandidat_id}_{bereich}.py"
+@@ -619,7 +637,7 @@
+         if gefunden:
+             # Aufnahmesperre C (F7): der Schlüssel des GESCHRIEBENEN Tests gegen den Vorrat, vor der Aufnahme.
+             nehmen, gesperrt_c = aufnahmesperre(con, werk_id, lauf_id, bereich, angriff, gefunden, paket,
+-                                                kandidat_id, "fund")
++                                                kandidat_id, "fund", eigene_ansage_nr=ansage_kontext.get("nr"))
+             urteil["aufnahmesperre"] = {"aufgenommen": [n for n, _ in nehmen],
+                                         "abgewiesen": [{"test": n, "behauptung": s} for n, s in gesperrt_c]}
+             gefunden = {n for n, _ in nehmen}
+@@ -652,7 +670,7 @@
+             # Auch sie gehen in den Vorrat ein (sie tragen einen Behauptungsschlüssel) und unterliegen deshalb
+             # der Aufnahmesperre C — genau hier rutschte in Lauf 24 `norm_k2458_lager` durch.
+             nehmen_n, gesperrt_n = aufnahmesperre(con, werk_id, lauf_id, bereich, angriff, norm, paket,
+-                                                  kandidat_id, "norm")
++                                                  kandidat_id, "norm", eigene_ansage_nr=ansage_kontext.get("nr"))
+             urteil.setdefault("aufnahmesperre", {"aufgenommen": [], "abgewiesen": []})
+             urteil["aufnahmesperre"]["abgewiesen"] += [{"test": n, "behauptung": s, "art": "norm"} for n, s in gesperrt_n]
+             norm_aufnehmen = {n for n, _ in nehmen_n}
+--- a/biotop/organe/gedaechtnis.py
++++ b/biotop/organe/gedaechtnis.py
+@@ -312,15 +312,17 @@
+                      kat, ergebnis, int(u.get("zuwachs") or 0), lz, (k["begruendung"] or "")[:300], muster, muster_von, protokoll.jetzt()))
+ 
+ 
+-def art_lesen(con, werkklasse_filter: str | None = None, limit: int = 40, werk: str | None = None, nur_angenommen: bool = False) -> list[dict]:
++def art_lesen(con, werkklasse_filter: str | None = None, limit: int | None = 40, werk: str | None = None,
++              nur_angenommen: bool = False, *, fremd_zu: str | None = None) -> list[dict]:
+     tabellen(con)
+     b = []
+     p: list = []
+     if werkklasse_filter: b.append("werkklasse=?"); p.append(werkklasse_filter)
+     if werk: b.append("werk=?"); p.append(werk)
++    if fremd_zu is not None: b.append("werk!=?"); p.append(fremd_zu)
+     if nur_angenommen: b.append("ergebnis='angenommen'")
+     q = "SELECT * FROM artgedaechtnis" + (" WHERE " + " AND ".join(b) if b else "") + " ORDER BY id DESC LIMIT ?"
+-    return [dict(z) for z in con.execute(q, (*p, limit))]
++    return [dict(z) for z in con.execute(q, (*p, -1 if limit is None else limit))]
+ 
+ 
+ def art_zusammenfassung(con) -> list[dict]:
+@@ -367,7 +369,9 @@
+ 
+     # Andere Werke: nur Muster, jedes Muster einmal (gleiche Sätze zusammengefasst).
+     fremd, muster_gesehen = [], set()
+-    for e in art_lesen(con, None, 200, nur_angenommen=True):
++    # Erst die fremde Population auswählen, dann deduplizieren; kein vorgelagertes
++    # Gesamtfenster darf ältere, aber verfügbare fremde Muster unsichtbar machen.
++    for e in art_lesen(con, None, None, nur_angenommen=True, fremd_zu=eigen_werk):
+         if e["werk"] == eigen_werk or not (e.get("muster") or "").strip():
+             continue
+         schl = (e["muster"] or "").lower()[:80]
+@@ -381,7 +385,7 @@
+     # und lieferte 0. Bei 17 Diensten verdrängt die Masse eigener Einträge die fremden allein durch Menge.
+     # Der Anteil steuert, WAS GEZEIGT wird, nicht was zitiert werden muss — ein Pflichtfeld erzeugt Scheinbegründungen.
+     GEZEIGT = 25
+-    fremd_min = min(len(fremd), max(5, GEZEIGT // 2))
++    fremd_min = min(len(fremd), max(5, (GEZEIGT + 1) // 2))
+     eigen_max = max(0, GEZEIGT - fremd_min)
+     fremd_zeigen = fremd[:max(fremd_min, GEZEIGT - min(len(eigen_liste), eigen_max))]
+     eigen_zeigen = eigen_liste[:eigen_max]
+--- /dev/null
++++ b/pytest.ini
+@@ -0,0 +1,2 @@
++[pytest]
++testpaths = tests
+--- /dev/null
++++ b/tests/conftest.py
+@@ -0,0 +1,20 @@
++"""Alle Eigentests sind absichtlich offline; unerwartete Außenaufrufe sind Fehler."""
++import socket
++
++import pytest
++
++from biotop import anbieter
++from biotop.organe import aegis, gedaechtnis, kammer
++
++
++@pytest.fixture(autouse=True)
++def keine_aussenaufrufe(monkeypatch):
++    def verboten(*args, **kwargs):
++        raise AssertionError("Eigentest darf weder Anbieter, Netzwerk noch Kammer aufrufen")
++    monkeypatch.setattr(socket, "create_connection", verboten)
++    monkeypatch.setattr(socket.socket, "connect", verboten)
++    monkeypatch.setattr(anbieter, "aufrufen", verboten)
++    monkeypatch.setattr(anbieter, "adapter", verboten)
++    monkeypatch.setattr(aegis, "aufrufen", verboten)
++    monkeypatch.setattr(gedaechtnis, "aufrufen", verboten)
++    monkeypatch.setattr(kammer, "ausfuehren", verboten)
+--- /dev/null
++++ b/tests/test_ansage_aufnahme.py
+@@ -0,0 +1,165 @@
++"""Gestellte, netzfreie Eigentests; kein Ersatz für den Bestands-Replay."""
++import sqlite3
++from types import SimpleNamespace
++
++import pytest
++
++from biotop.kern import datenbank, protokoll
++from biotop.organe import aegis
++
++
++@pytest.fixture
++def con():
++    c = sqlite3.connect(":memory:", isolation_level=None)
++    c.row_factory = sqlite3.Row
++    c.executescript(datenbank.SCHEMA)
++    yield c
++    c.close()
++
++
++@pytest.mark.parametrize("art", ["fund", "norm"])
++def test_erster_neuer_test_wird_nicht_von_eigener_ansage_gesperrt(con, tmp_path, monkeypatch, art):
++    """Echte _angriff→Ansage→pruefen→Fund/Norm-Aufnahme, nur Außenwirkungen ersetzt."""
++    p = tmp_path / "paket" / "bereich" / "quelle.py"
++    p.parent.mkdir(parents=True)
++    p.write_text("def wert():\n    return 1\n")
++    diff = "--- a/paket/bereich/quelle.py\n+++ b/paket/bereich/quelle.py\n@@ -1,2 +1,2 @@\n def wert():\n-    return 1\n+    return 2\n"
++    con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'bereich','test','erzeugt',?)", (diff,))
++    code = "from paket.bereich.quelle import wert\ndef test_neu():\n    assert wert() == 3\n"
++    replies = iter(["wert|Eq:zahl", f"```python\n{code}```"])
++    monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text=next(replies)))
++
++    def junit(werk, paket, dateien, testdateien):
++        return {f"{t}::test_neu": {"ok": False, "bestaetigt": True,
++                "ort": "paket/bereich/quelle.py" if art == "fund" else "",
++                "meldung": "ValueError" if art == "fund" else "AssertionError"} for t in testdateien}
++
++    monkeypatch.setattr(aegis, "junit_lauf", junit)
++    # Endpunkt nach Aufnahme; keine Kammer, kein Messgerät-/Modellaufruf.
++    monkeypatch.setattr(aegis.messgeraet, "messen", lambda *a, **k: {"gueltig": False, "grund": "Test-Endpunkt"})
++    aegis.pruefen(con, 1, 1, 7, tmp_path, "paket", ["bereich"], [],
++                  {"bereiche": {"bereich": {}}}, {}, None, None)
++    rows = list(con.execute("SELECT name,status,ursprung FROM immunsystem"))
++    assert len(rows) == 1, "Die aktuelle eigene Ansage darf den ersten neuen Test nicht sperren"
++    assert rows[0]["name"] == ("aegis_k7_bereich" if art == "fund" else "norm_k7_bereich")
++    assert "behauptung=wert|Eq:zahl" in rows[0]["ursprung"]
++    assert not con.execute("SELECT 1 FROM protokoll WHERE art='immun.aufnahme_gesperrt'").fetchone()
++
++
++CODE = "def test_neu():\n    assert wert() == 3\n"
++
++
++def immun(con, schluessel, name="vorher"):
++    con.execute("INSERT INTO immunsystem(werk_id,lauf_id,bereich,name,ursprung,status) VALUES(1,1,'bereich',?,?,'offen_norm')",
++                (name, f"behauptung={schluessel}"))
++
++
++def ansage(con, schluessel="wert|Eq:zahl", kandidat=7):
++    return protokoll.schreiben(con, "aegis.ansage", lauf_id=1, werk_id=1, bereich="bereich",
++                              kandidat=kandidat, behauptung=schluessel, ausgefuehrt=True)
++
++
++@pytest.mark.parametrize("quelle", ["vorherige_eigene_ansage", "fremde_ansage", "immun", "im_selben_angriff_aufgenommen"])
++@pytest.mark.parametrize("art", ["fund", "norm"])
++def test_nur_die_aktuelle_ansagezeile_ist_ausgenommen(con, quelle, art):
++    if quelle == "vorherige_eigene_ansage":
++        ansage(con, kandidat=7)
++    elif quelle == "fremde_ansage":
++        ansage(con, kandidat=6)
++    elif quelle == "immun":
++        immun(con, "wert|Eq:zahl")
++    nr = ansage(con)
++    if quelle == "im_selben_angriff_aufgenommen":
++        immun(con, "wert|Eq:zahl")
++    nehmen, sperren = aegis.aufnahmesperre(con, 1, 1, "bereich", CODE, ["test_neu"], "paket", 7, art,
++                                         eigene_ansage_nr=nr)
++    assert nehmen == []
++    assert sperren == [("test_neu", "wert|Eq:zahl")]
++
++
++def test_abweichende_neue_behauptung_bleibt_zulaessig(con):
++    nr = ansage(con, "anderes|Eq:zahl")
++    nehmen, sperren = aegis.aufnahmesperre(con, 1, 1, "bereich", CODE, ["test_neu"], "paket", 7, "fund",
++                                         eigene_ansage_nr=nr)
++    assert nehmen == [("test_neu", "wert|Eq:zahl")]
++    assert sperren == []
++
++
++def test_zweiter_test_selben_schluessels_im_angriff_gesperrt(con):
++    nr = ansage(con)
++    code = CODE + "\ndef test_zweiter():\n    assert wert() == 99\n"
++    nehmen, sperren = aegis.aufnahmesperre(con, 1, 1, "bereich", code, ["test_neu", "test_zweiter"], "paket", 7, "norm",
++                                         eigene_ansage_nr=nr)
++    assert nehmen == [("test_neu", "wert|Eq:zahl")]
++    assert sperren == [("test_zweiter", "wert|Eq:zahl")]
++
++
++@pytest.mark.parametrize("quelle,anzahl", [("immun", 220), ("ansage", 420), ("immun", 520)])
++def test_aufnahme_prueft_den_ganzen_vorrat_nicht_nur_ein_fenster(con, quelle, anzahl):
++    schreiben = (lambda s, i: immun(con, s, str(i))) if quelle == "immun" else (lambda s, i: ansage(con, s))
++    schreiben("wert|Eq:zahl", 0)
++    for i in range(1, anzahl):
++        schreiben(f"anders{i}|Eq:zahl", i)
++    nehmen, sperren = aegis.aufnahmesperre(con, 1, 1, "bereich", CODE, ["test_neu"], "paket", 7, "fund")
++    assert nehmen == []
++    assert sperren == [("test_neu", "wert|Eq:zahl")]
++
++
++def test_ansagesperre_nutzt_vollstaendigen_vorrat_statt_promptfenster(con, tmp_path, monkeypatch):
++    immun(con, "wert|Eq:zahl")
++    for i in range(30):
++        immun(con, f"anders{i}|Eq:zahl", str(i))
++    anfragen = []
++    def antwort(*args, **kwargs):
++        anfragen.append(kwargs["zweck"])
++        return SimpleNamespace(text="wert|Eq:zahl")
++    monkeypatch.setattr(aegis, "aufrufen", antwort)
++    ergebnis = aegis._angriff(con, 1, 1, "paket", "bereich", "", {}, tmp_path, [])
++    assert anfragen == ["aegis.ansage.bereich"], "Bekannte Ansage muss den Testgenerierungs-Aufruf sparen"
++    assert ergebnis == (None, aegis.MODELL_ANGRIFF[1], "wert|Eq:zahl")
++
++
++@pytest.mark.parametrize("antwort_text", ["KEIN ANGRIFF", "wert|Eq:zahl"])
++def test_ansageprotokoll_bindet_auch_abstinenz_und_sperre_an_kandidat(con, tmp_path, monkeypatch, antwort_text):
++    immun(con, "wert|Eq:zahl")
++    monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text=antwort_text))
++    aegis._angriff(con, 1, 1, "paket", "bereich", "", {}, tmp_path, [], kandidat_id=7)
++    row = con.execute("SELECT inhalt FROM protokoll WHERE art='aegis.ansage'").fetchone()
++    d = datenbank.lj(row["inhalt"])
++    assert (d.get("kandidat"), d.get("werk_id")) == (7, 1)
++
++
++def test_fund_aus_selbem_angriff_sperrt_nachfolgenden_normzweig(con, tmp_path, monkeypatch):
++    p = tmp_path / "paket" / "bereich" / "quelle.py"
++    p.parent.mkdir(parents=True)
++    p.write_text("x = 1\n")
++    diff = "--- a/paket/bereich/quelle.py\n+++ b/paket/bereich/quelle.py\n@@ -1 +1 @@\n-x = 1\n+x = 2\n"
++    con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'bereich','test','erzeugt',?)", (diff,))
++    code = "def test_fund():\n    assert wert() == 3\ndef test_norm():\n    assert wert() == 4\n"
++    replies = iter(["wert|Eq:zahl", f"```python\n{code}```"])
++    monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text=next(replies)))
++    def junit(werk, paket, dateien, testdateien):
++        return {f"{t}::{n}": {"ok": False, "bestaetigt": True,
++                "ort": "paket/bereich/quelle.py" if n == "test_fund" else "",
++                "meldung": "ValueError" if n == "test_fund" else "AssertionError"}
++                for t in testdateien for n in ["test_fund", "test_norm"]}
++    monkeypatch.setattr(aegis, "junit_lauf", junit)
++    monkeypatch.setattr(aegis.messgeraet, "messen", lambda *a, **k: {"gueltig": False, "grund": "Test-Endpunkt"})
++    aegis.pruefen(con, 1, 1, 7, tmp_path, "paket", ["bereich"], [],
++                  {"bereiche": {"bereich": {}}}, {}, None, None)
++    assert [r[0] for r in con.execute("SELECT name FROM immunsystem")] == ["aegis_k7_bereich"]
++    d = datenbank.lj(con.execute("SELECT inhalt FROM protokoll WHERE art='immun.aufnahme_gesperrt'").fetchone()[0])
++    assert (d["test"], d["sperrart"], d["gegenstueck"]) == ("test_norm", "norm", "bereits im Vorrat des Bereichs")
++
++
++def test_halbe_gespeicherte_schluessel_sperren_nichts(con):
++    for i, s in enumerate(["|", "wert|", "|Eq:zahl"]):
++        immun(con, s, str(i))
++    assert aegis.bisherige_behauptungen(con, 1, "bereich", 1, limit=None) == []
++
++
++def test_doppelung_ist_behauptung_statt_fundort(con):
++    code = CODE + "\ndef test_andere_datei():\n    assert wert() == 17\n"
++    einzig, doppel = aegis._doppelungen({"test_neu", "test_andere_datei"}, {}, "datei.py", con, 1, "bereich", code, "paket")
++    assert einzig == {"test_andere_datei"}
++    assert doppel == {"test_neu"}
+--- /dev/null
++++ b/tests/test_artvorlage.py
+@@ -0,0 +1,75 @@
++"""Gestellte Vorlagenfälle; echte Bestandsmessung liegt separat im Replay."""
++import json
++import re
++import sqlite3
++
++import pytest
++
++from biotop.kern import datenbank
++from biotop.organe import gedaechtnis as g
++
++
++@pytest.fixture
++def con():
++    c = sqlite3.connect(":memory:", isolation_level=None)
++    c.row_factory = sqlite3.Row
++    c.executescript(datenbank.SCHEMA)
++    g.tabellen(c)
++    c.execute("INSERT INTO werke(id,bericht,sprache) VALUES(1,?,'Python')", (json.dumps({"paket": "eigen"}),))
++    yield c
++    c.close()
++
++
++def eintraege(con, werk, anzahl):
++    ids = []
++    for i in range(anzahl):
++        cur = con.execute("INSERT INTO artgedaechtnis(werk,werkklasse,lauf_id,generation,bereich,nische,kategorie,ergebnis,zuwachs,beschreibung,muster) VALUES(?,'python/klein/bibliothek',1,1,'b','n','sonst','angenommen',1,'Instanz',?)",
++                          (werk, f"Übertragbares Muster {werk} {i}"))
++        ids.append(cur.lastrowid)
++    return ids
++
++
++def gezeigt(con):
++    text = g.art_text(con, 1)
++    ids = [int(i) for i in re.findall(r"\[A(\d+)\]", text)]
++    rows = [con.execute("SELECT * FROM artgedaechtnis WHERE id=?", (i,)).fetchone() for i in ids]
++    return [r["id"] for r in rows if r["werk"] != "eigen"], [r["id"] for r in rows if r["werk"] == "eigen"]
++
++
++def test_ungerades_fenster_reserviert_mindestens_die_haelfte(con):
++    eintraege(con, "eigen", 30)
++    fremd_ids = eintraege(con, "fremd", 13)
++    fremd, eigen = gezeigt(con)
++    assert len(fremd) + len(eigen) == 25
++    assert len(fremd) * 2 >= len(fremd) + len(eigen)
++    assert set(fremd) == set(fremd_ids)
++
++
++def test_alte_fremde_muster_bleiben_trotz_mehr_als_200_eigener_sichtbar(con):
++    fremd_ids = eintraege(con, "fremd", 13)
++    eintraege(con, "eigen", 220)
++    fremd, eigen = gezeigt(con)
++    assert set(fremd) == set(fremd_ids), "Ein Gesamtlimit vor der Fremdauswahl versteckt verfügbare Muster"
++    assert len(eigen) == 12
++
++
++@pytest.mark.parametrize("fremd_anzahl,eigen_anzahl", [(0,0), (0,30), (3,30), (5,30), (12,30), (13,30), (30,30), (30,0), (5,2)])
++def test_mindestanteil_soweit_vorhanden_ohne_erfundene_eintraege(con, fremd_anzahl, eigen_anzahl):
++    alle_ids = set(eintraege(con, "fremd", fremd_anzahl) + eintraege(con, "eigen", eigen_anzahl))
++    fremd, eigen = gezeigt(con)
++    gesamt = len(fremd) + len(eigen)
++    assert gesamt == min(25, fremd_anzahl + eigen_anzahl)
++    assert len(fremd) >= min(fremd_anzahl, max(5, (gesamt + 1) // 2))
++    assert set(fremd + eigen) <= alle_ids
++    assert len(set(fremd + eigen)) == gesamt
++
++
++def test_deduplizierung_verbraucht_keine_plaetze_fuer_aeltere_muster(con):
++    alte = eintraege(con, "fremd", 13)
++    neue = eintraege(con, "fremd", 220)
++    con.executemany("UPDATE artgedaechtnis SET muster='derselbe Satz' WHERE id=?", [(i,) for i in neue])
++    eintraege(con, "eigen", 30)
++    fremd, eigen = gezeigt(con)
++    assert len(fremd) == 13
++    assert len(set(fremd) & set(alte)) == 12
++    assert len(eigen) == 12
+--- /dev/null
++++ b/tests/test_doppelungsschluessel.py
+@@ -0,0 +1,24 @@
++"""Eigentests der bestehenden AST-Schlüsselregel: keine Dateipfad-Doppelung."""
++import pytest
++
++from biotop.organe.aegis import behauptung
++
++
++@pytest.mark.parametrize("code,name,erwartet", [
++    ("def test_a():\n    assert wert() == 1\n", "test_a", "wert|Eq:zahl"),
++    ("def test_umbenannt():\n    assert wert() == 999\n", "test_umbenannt", "wert|Eq:zahl"),
++    ("def test_a():\n    assert wert() == 'text'\n", "test_a", "wert|Eq:text"),
++    ("def test_a():\n    assert wert() >= 1\n", "test_a", "wert|GtE:zahl"),
++    ("def test_a():\n    assert anders() == 1\n", "test_a", "anders|Eq:zahl"),
++    ("import pytest\ndef test_a():\n    with pytest.raises(ValueError):\n        wert()\n", "test_a", "wert|raises:ValueError"),
++    ("def test_a():\n    assert wert()\n", "test_a", "wert|wahrheit"),
++    ("def test_a():\n    xs.append(1)\n    assert wert() == 1\n", "test_a", "wert|Eq:zahl"),
++])
++def test_schluessel_beschreibt_ziel_und_zusicherung(code, name, erwartet):
++    assert behauptung(code, name, "paket") == erwartet
++
++
++def test_doppelung_ignoriert_namen_zeilen_und_zahlenwerte():
++    a = "def test_eins():\n    assert wert() == 1\n"
++    b = "# Anderer Pfad und andere Zeile\n\n\ndef test_zwei():\n    assert wert() == 42\n"
++    assert behauptung(a, "test_eins") == behauptung(b, "test_zwei")

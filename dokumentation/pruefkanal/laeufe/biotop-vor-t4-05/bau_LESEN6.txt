@@ -1,0 +1,386 @@
+=== Parser von 'zurückgestellt'-Gründen
+grep: biotop/organe/__pycache__/aegis.cpython-312.pyc: binary file matches
+grep: biotop/__pycache__/lauf.cpython-312.pyc: binary file matches
+biotop/lauf.py:312:                if nische != "probe" and kz["status"] not in ("leer", aegis.ZURUECKGESTELLT):
+biotop/lauf.py:351:    zurueck = [u["kandidat"] for us in urteile.values() for u in us if u["status"] == aegis.ZURUECKGESTELLT]
+biotop/lauf.py:401:                                (aegis.ZURUECKGESTELLT, "Generalprobe: Messgerätausfall (Laufzeit gepaart) — " + lz["grund"][:300], kid))
+biotop/lauf.py:415:                                (aegis.ZURUECKGESTELLT, "Generalprobe: Messgerätausfall (Laufzeit-Nachmessung) — " + nachmessung["grund"][:300], kid))
+biotop/lauf.py:441:                        con.execute("UPDATE kandidaten SET status=?, grund=? WHERE id=?", (aegis.ZURUECKGESTELLT, grund[:300], kid))
+biotop/lauf.py:692:            if u2["status"] == aegis.ZURUECKGESTELLT:
+biotop/lauf.py:695:                    con.execute("UPDATE kandidaten SET status=?, grund=? WHERE id=?", (aegis.ZURUECKGESTELLT, u2["grund"][:300], aid))
+biotop/lauf.py:741:    if u.get("status") == aegis.ZURUECKGESTELLT:
+biotop/organe/aegis.py:765:ZURUECKGESTELLT = "zurueckgestellt"
+biotop/organe/aegis.py:772:    return fertig(ZURUECKGESTELLT, "Messgerätausfall — zurückgestellt: " + grund)
+=== echte Vorspann-Läufe in Tests
+tests/test_verdrahtung.py
+tests/test_vorspann_cli.py
+tests/test_verdrahtung.py:216:    d = drahtwerk.anlegen(tmp_path / "vorlage")
+tests/test_vor_t4_02.py:125:    SW.anlegen(w)
+=== test_vorspann_cli Kopf
+"""CLI-Gate-Tests. Erfolgsfall = kontrollierter Unit-Test, keine echte Eichung."""
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+import pytest
+from biotop import __main__ as cli
+from biotop import lauf as L
+from biotop.kern.datenbank import lj
+from test_vorspann import unit_vorspann
+
+
+def test_unit_cli_vorspann_fuehrt_denselben_kernpfad_aus(unit_vorspann, monkeypatch, capsys):
+    con, raw = unit_vorspann
+    monkeypatch.setattr(cli, 'verbinden', lambda:con)
+    assert cli.main(['vorspann','1']) == 0
+    aus = json.loads(capsys.readouterr().out)
+    assert aus['qualitaet'] == {'positive':4,'negative':4,'erwartet_je':4}
+    assert raw['reihenfolge'] == ['rauschen','gegenstand','funde','proben']
+    assert L.vorspann.verlangen(con,1,'gen0')['nachweis_sha256'] == aus['nachweis_sha256']
+
+
+def _subprozess(tmp_path, con, argv):
+    root = Path(L.__file__).resolve().parents[1]
+    db = con.execute('PRAGMA database_list').fetchone()[2]
+    # Netzsperre gilt auch im echten CLI-Kindprozess, nicht nur im pytest-Elternprozess.
+    shim = tmp_path / 'netzschutz'; shim.mkdir(exist_ok=True)
+    (shim / 'sitecustomize.py').write_text('import socket\ndef gesperrt(*a,**k):\n    raise AssertionError("Eigen-Test: Netz/Kammer gesperrt")\nsocket.socket.connect=gesperrt\nsocket.create_connection=gesperrt\nfrom biotop.organe import kammer\nkammer.ausfuehren=gesperrt\n')
+=== verhalten.py 1-70
+"""Verhaltenssonde für Python-Werke (T4, Grundsatz 11). Läuft in der netzlosen Kammer (cwd /werk):
+    python _messgeraet/verhalten.py _messgeraet/anfrage.json
+Gegenstück zu kern/ts/verhalten.mjs + verhalten-runner.mjs.
+
+Beobachtet werden die öffentlichen Funktionen UND die öffentlichen Methoden und Eigenschaften der Klassen der
+geänderten Module (Behebungsrunde 3 vor T4, Entscheidung Chat-Claude 3). Eingewickelt wird jede Funktion und jedes
+aufrufbare Objekt mit `__wrapped__` (functools.lru_cache, wraps; Review 02 Nr. 5), auch dort, wo andere Module sie
+gebunden haben.
+- Referenzlast (`beobachten()`, `last_<bereich>()`): je Funktion die ersten KAPPE äußeren Aufrufe (#0…#7), je Aufruf
+  vier Muster — der Aufruf, @alias (dieselben Referenzen noch einmal), @mutation (Zahlenblätter der Eingaben an Ort und
+  Stelle geändert), @nach_ruecksetzung. Nach jedem Aufruf ist der ZUSTAND der veränderlichen Argumente eine eigene
+  Beobachtung (`>args`, Review 02 Nr. 2; bei Methoden gehört self dazu). Den Zustand von self VOR den Korpusaufrufen
+  hält je Klasse `Klasse.__init__~instanz#0` fest (die frische Instanz aus dem Rezept).
+- Zu jedem Aufruf (auch dem echten) ruft die Sonde die Funktion zusätzlich mit einer tiefen KOPIE der Eingabe vor dem
+  Aufruf; weicht das Ergebnis ab, hängt es an Referenz oder verborgenem Zustand statt am Inhalt (`kopien`). Eine solche
+  Abweichung deckt kein Test (verhaltensvergleich.deckung).
+- Generatoren und Iteratoren werden begrenzt ausgelesen (erste ITER_KAPPE Elemente, Review 02 Nr. 1); der Aufrufer
+  bekommt einen Iterator über dieselben Elemente. Koroutinen sind nicht vergleichbar (gezählt: `unvergleichbar`).
+- Als inhaltlich beobachtet zählt nur ein fehlerfreier Aufruf mit vergleichbarem Ergebnis (`inhalt`, Review 02 Nr. 3).
+- Randfall-Korpus (~rand#i) aus der deklarierten Signatur der Vorgeneration und beobachteten Beispielen; Parameter ohne
+  Annotation und ohne Beispiel bekommen einen tastenden Satz. Formvarianten (~form#j) aus der ersten Argumentliste UND
+  aus jeder Randliste mit Leerzeichen (Review 02 Nr. 10). Jede Beobachtung trägt ihr MUSTER (`muster`): Formart bzw.
+  Merkmalsklassen der Eingabe (klassen_von) — Grundlage der Deckung je Muster (Entscheidung Chat-Claude 1).
+- Methoden: Instanzen aus den Verträgen (tests/vertraege: erster Konstruktoraufruf je Klasse), sonst aus der Last
+  (erster Konstruktoraufruf, sonst Zustand der ersten beobachteten Instanz), sonst aus der Signatur von __init__. Beide
+  Stände bekommen dieselben Rezepte (die der Vorgeneration) und führen die Verträge an derselben Stelle aus.
+- Feste Hash-Saat (PYTHONHASHSEED=0, Review 02 Nr. 4): die Sonde startet sich sonst mit ihr neu.
+- Modus 'deckung': führt Tests (pytest) mit Aufzeichnern aus; je Test und Funktion die Merkmalsklassen der über die
+  Signatur vereinheitlichten Argumente (Review 02 Nr. 9a). Mit `verfaelschen` {f, art} wird das Ergebnis bzw. der
+  Argumentzustand dieser Funktion verfälscht: ein Test, der dann fällt, hält dieses Verhalten fest (Review 02 Nr. 8).
+Ausgabe: eine Zeile @@VV@@<json>@@ENDE@@ auf stdout.
+"""
+import os
+import sys
+
+HASHSAAT = '0'
+if __name__ == '__main__' and os.environ.get('PYTHONHASHSEED') != HASHSAAT:
+    os.execve(sys.executable, [sys.executable, *sys.argv], {**os.environ, 'PYTHONHASHSEED': HASHSAAT})
+
+import ast  # noqa: E402
+import asyncio  # noqa: E402
+import copy  # noqa: E402
+import dataclasses  # noqa: E402
+import enum  # noqa: E402
+import functools  # noqa: E402
+import glob  # noqa: E402
+import hashlib  # noqa: E402
+import importlib  # noqa: E402
+import inspect  # noqa: E402
+import itertools  # noqa: E402
+import json  # noqa: E402
+import math  # noqa: E402
+import re  # noqa: E402
+import traceback  # noqa: E402
+import types  # noqa: E402
+
+REQ = {}
+KAPPE, RAND_KAPPE, FORM_KAPPE, ITER_KAPPE = 8, 16, 16, 50
+beob, argtext, zaehler, zaehler_rand, zaehler_form, beispiele = {}, {}, {}, {}, {}, {}
+musterkarte, kopien, inhalt, unvergleichbar, instanzen = {}, {}, {}, {}, {}
+teilweise = {}          # Behebungsrunde 4: je Funktion gezählte Teil-Enthaltungen (Iterator-Kappe, Iterator-Objekt)
+aufrufe = []
+AKTUELL = ['']
+TIEFE = [0]
+LAST = [False]          # True, solange die Referenzlast läuft: `erreicht` zählt dann jeden Aufruf, auch innere
+erreicht = {}
+WEISS = set('\t\n\r\x0b\x0c\u00a0\u2028\u2029\u3000\u2009')
+_ADRESSE = re.compile(r' at 0x[0-9a-fA-F]+')
+
+
+=== verhalten.py klassen_von 199-252
+def klassen_von(werte):
+    """Merkmalsklassen der Werte — dieselben Namen wie die Formarten der Korpusaufrufe (Deckung je Muster).
+    Leer heißt: gewöhnliche Eingabe."""
+    out = set()
+
+    def geh(x, t):
+        if t > 6:
+            return
+        if x is None:
+            out.add('null')
+        elif isinstance(x, bool):
+            return
+        elif isinstance(x, (int, float)):
+            if isinstance(x, float) and not math.isfinite(x):
+                out.add('nichtendlich')
+            elif x == 0:
+                out.add('null_zahl')
+            elif x < 0:
+                out.add('negativ')
+            if isinstance(x, float) and math.isfinite(x) and x.is_integer():
+                out.add('zahltyp')
+        elif isinstance(x, str):
+            if x == '':
+                out.add('leer')
+                return
+            out.update(_text_merkmale(x))
+        elif isinstance(x, (list, tuple, set, frozenset)):
+            if isinstance(x, tuple):
+                out.add('behaelter')
+            if not x:
+                out.add('leer')
+            if len(x) >= 20:
+                out.add('lang')
+            for v in list(x)[:40]:
+                geh(v, t + 1)
+        elif isinstance(x, dict):
+            if not x:
+                out.add('leer')
+            schl = list(x)
+            if len(schl) > 1 and all(isinstance(k, str) for k in schl) and schl != sorted(schl):
+                out.add('schluesselfolge')
+            for v in list(x.values())[:40]:
+                geh(v, t + 1)
+        elif dataclasses.is_dataclass(x) and not isinstance(x, type):
+            for f in dataclasses.fields(x):
+                geh(getattr(x, f.name, None), t + 1)
+        elif _instanz(x):
+            for v in list(_felder(x).values())[:40]:
+                geh(v, t + 1)
+    for w in werte:
+        geh(w, 0)
+    return out
+
+
+=== runner muster-Kopf 140-160
+  if (t !== ergebnis) kopien[k] = t;
+}
+// Ein Aufruf mit den vier Mustern. Rückgabe: das Ergebnis des echten Aufrufs ({roh} oder {fehler}).
+// `kl`: das Muster der Eingabe (Merkmalsklassen des variierten Werts bzw. Formart; [] = gewöhnliche Eingabe).
+function muster(schluessel, args, call, name, kl = []) {
+  tiefe++;
+  try {
+    musterkarte[schluessel] = [...kl].sort();
+    argtext[schluessel] = eingabeText(args);
+    const vl0 = vorlage(args);
+    const erst = wert(() => call(...args), name);
+    beob[schluessel] = knapp(erst.text);
+    zustandObs(schluessel, args);
+    const stand = schnappschuss(args);
+    kopieVergleich(schluessel, vl0, call, beob[schluessel]);
+    zuruecksetzen(stand);
+    const zusatz = k => {
+      argtext[k] = eingabeText(args);
+      const vorher = schnappschuss(args), vl = vorlage(args);
+      const r = knapp(wert(() => call(...args), name).text);
+      beob[k] = r;
+=== runner FORM_MERKMALE/musterVon
+349:const FORM_MERKMALE = new Set(['tab', 'zeilenumbruch', 'crlf', 'cr', 'nbsp', 'weissraum_sonst', 'doppelleer', 'rand_vorn',
+351:function musterVon(liste, bezug, form) {
+357:    return [...neu].filter(m => FORM_MERKMALE.has(m)).sort();
+=== verhalten.mjs (Einwickeln TS)
+ast.mjs
+bau.mjs
+deck-setup.mjs
+deckung.mjs
+einwickeln.mjs
+eslint.config.mjs
+kanon.mjs
+main.mjs
+messen.mjs
+mutanten.mjs
+referenz-runner.mjs
+referenz.mjs
+reporter.mjs
+statik.mjs
+testlauf.mjs
+tests-ast.mjs
+verhalten-runner.mjs
+verhalten.mjs
+vitest.config.mjs
+vitest.deck.config.mjs
+24:  return einwickelnAst(ts, code, modul, '__vvAufzeichnen');
+64:  const p = lauf('node', ['--import', '/opt/biotop-ts/node_modules/tsx/dist/loader.mjs', '_messgeraet/ts/verhalten-runner.mjs']);
+=== testlauf.mjs
+import fs from 'node:fs';
+import {spawnSync} from 'node:child_process';
+import {dateien} from './ast.mjs';
+export function lauf(cmd,args,timeout=100000) {
+  const start=performance.now();
+  const p=spawnSync(cmd,args,{cwd:'/werk',encoding:'utf8',timeout,maxBuffer:16*1024*1024});
+  return {rc:p.status,signal:p.signal,fehler:p.error?.message??null,stdout:p.stdout??'',stderr:p.stderr??'',dauer_ms:performance.now()-start};
+}
+export function testlauf(req) {
+  const erwartet=req.testdateien??dateien('tests').filter(f=>f.endsWith('.test.ts'));
+  const proc=lauf('node',['/opt/biotop-ts/node_modules/vitest/vitest.mjs','run','--config','_messgeraet/ts/vitest.config.mjs']);
+  // `art` trennt zwei Fälle, die bisher gleich aussahen:
+  //   'inhalt'        — die gelieferte Testdatei ist unbrauchbar (Sammlung, Skip, leer,
+  //                     Widerspruch). Ein Befund über die Datei, kein Messgerätfehler.
+  //   'infrastruktur' — Runner tot, JUnit unlesbar, Kammer weg. Ohne Messgerät kein Urteil.
+  const out={gueltig:false,grund:'',art:'infrastruktur',faelle:{},rc:proc.rc,prozess:proc};
+  const inhalt=(m)=>{const e=Error(m);e.art='inhalt';return e;};
+  try {
+    if(proc.fehler||proc.signal||![0,1].includes(proc.rc)) throw Error('Vitest-Runnerabbruch');
+    const n=JSON.parse(fs.readFileSync('/tmp/ts-nachweis.json','utf8'));
+    out.nachweis=n;
+    const xml=fs.readFileSync('/tmp/ts-junit.xml','utf8');
+    const jp=lauf('python',['-c',`import json,xml.etree.ElementTree as E
+r=E.parse('/tmp/ts-junit.xml').getroot()
+print(json.dumps([dict(id=t.get('file',t.get('classname',''))+'::'+t.get('name',''),skip=t.find('skipped') is not None,fail=t.find('failure') is not None,error=t.find('error') is not None) for t in r.iter('testcase')]))`]);
+    if(jp.rc!==0) throw Error('JUnit nicht lesbar: '+jp.stderr);
+    out.junit={xml,faelle:JSON.parse(jp.stdout)};
+    if(!n.beendet||n.errors.length||n.suites.length) throw inhalt('Collection-/Suite-/Runnerfehler');
+    const ids=n.tests.map(t=>t.id).sort(), collected=[...n.gesammelt].sort();
+    if(!ids.length||new Set(ids).size!==ids.length||JSON.stringify(ids)!==JSON.stringify(collected)) throw inhalt('Leere, doppelte oder unvollständige Sammlung');
+    if(!erwartet.length||erwartet.some(f=>!ids.some(id=>id.startsWith(f+'::')))) throw inhalt('Pflicht-Testdatei ohne Ausführung');
+    if(n.tests.some(t=>!['pass','fail'].includes(t.state)||t.mode!=='run'||Object.values(t.hooks).some(h=>h!=='pass'))) throw inhalt('Skip/Todo/Hook-/Teillauf');
+    const j=out.junit.faelle.sort((a,b)=>a.id.localeCompare(b.id)), t=[...n.tests].sort((a,b)=>a.id.localeCompare(b.id));
+    if(j.length!==t.length||j.some((x,i)=>x.id!==t[i].id||x.skip||x.error||x.fail!==(t[i].state==='fail'))) throw Error('JUnit widerspricht Vitest-Abschluss');
+    if((proc.rc===1)!==t.some(x=>x.state==='fail')) throw Error('Vitest-RC widerspricht Testfällen');
+    for(const x of t) {
+      const errors=x.errors||[], first=errors[0], stack=first?.stackStr||first?.stack||'';
+      const ort=stack.match(/\/werk\/((?:src|tests)\/[^\s():]+\.ts):\d+:\d+/)?.[1]||'';
+      const assertion=errors.length>0&&errors.every(e=>(e.name||e.nameStr)==='AssertionError');
+      out.faelle[x.id]={ok:x.state==='pass',bestaetigt:x.state==='fail'&&(assertion||ort.startsWith('src/')),
+        meldung:first?`${first.name||first.nameStr||'Error'}: ${first.message}`:'',ort};
+    }
+    out.gueltig=true;
+  } catch(e) {out.grund=String(e.message||e);out.art=e.art||'infrastruktur';}
+  return out;
+=== TS deckungs-Test-Quelle (test_vor_t4_02)
+250:TS_QUELLE = "export function f(x: string): string {\n  return x;\n}\n"
+251:TS_NEU = "export function f(x: string): string {\n  return x.toUpperCase();\n}\n"
+252:TS_TEST = ("import { test, expect } from 'vitest';\nimport { f } from '../src/m/a.js';\n\n"
+253-           "test('test_m_deckt_a', () => {\n  expect(f('a')).toBe('A');\n});\n")
+254:PY_QUELLE = "def f(x: str) -> str:\n    return x\n"
+255:PY_NEU = "def f(x: str) -> str:\n    return x.upper()\n"
+256:PY_TEST = "from paket.m.a import f\n\n\ndef test_m_deckt_a():\n    assert f('a') == 'A'\n"
+257-
+258-
+259-def _deckungswerk(tmp_path, sprache):
+260-    w = tmp_path / f"werk_{sprache}"
+261-    if sprache == "ts":
+262-        (w / "src" / "m").mkdir(parents=True)
+=== aegis urteil-Protokoll (aegis.urteil)
+802:        protokoll.schreiben(con, "aegis.urteil", lauf_id=lauf_id, kandidat=kandidat_id, bereich=bereich, status=status,
+    def fertig(status, grund, masse=None, dateien_final=None, basis_paar=None):
+        urteil["status"], urteil["grund"] = status, grund
+        if masse is not None:
+            masse = {**masse, "_dateien": dateien_final or {}, "_basis_paar": basis_paar, "_urteil_f2": urteil["mass"]}
+        with transaktion(con):
+            con.execute("UPDATE kandidaten SET status=?, grund=?, masse=?, wirkungskreis=? WHERE id=?",
+                        (status, grund, j(masse) if masse else None, j(urteil["wirkungskreis"]), kandidat_id))
+        protokoll.schreiben(con, "aegis.urteil", lauf_id=lauf_id, kandidat=kandidat_id, bereich=bereich, status=status,
+                            grund=grund[:500], wirkungskreis=urteil["wirkungskreis"], immun=urteil["immun"],
+                            tests_neu=urteil["tests_neu"], tests_verworfen=urteil["tests_verworfen"],
+                            immun_bestanden=urteil["immun_bestanden"], befundklassen=urteil["befundklassen"],
+                            verfassung=urteil["verfassung_verstoesse"], angriff=urteil["angriff"], mass=urteil["mass"], tests_offen=urteil["tests_offen"],
+                            norm=urteil["norm"], doppelungen=urteil["doppelungen"], vertrag_verletzt=urteil["vertrag_verletzt"], nische=k["nische"],
+                            # Tor 2 Zeile 8 braucht die GESCHRIEBENEN Behauptungen je erzeugtem
+                            # Angriffstest. Ohne sie ist der Doppelungsanteil nachtraeglich nicht
+                            # rekonstruierbar — gemessen in Lauf 37: 0 von 210 Urteilen trugen sie,
+                            # obwohl 42 Angriffe liefen.
+                            behauptungen=urteil.get("behauptungen") or {},
+                            behauptungen_treffer=urteil.get("behauptungen_treffer") or [],
+                            aufnahmesperre=urteil.get("aufnahmesperre") or {},
+                            # Verhaltensvergleich und Maßeichung stehen im Protokoll, damit jede Annahme
+                            # zeigt, ob das Verhalten verglichen und welche Regeln nicht gezählt wurden.
+                            verhalten=urteil.get("verhalten"),
+                            laufzeit_nachmessung=urteil.get("laufzeit_nachmessung"),
+                            laufzeit_stufe=urteil.get("laufzeit_stufe"),
+                            gewinn_nachmessung=urteil.get("gewinn_nachmessung"),
+                            masseichung_stillgelegt=((tausch or {}).get("_masseichung") or {}).get("stillgelegt") or [])
+        return urteil
+=== lauf generation: Protokoll der Annahme / gewaehlt
+143:    ms = [lj(z["masse"]) for z in con.execute("SELECT masse FROM generationen WHERE lauf_id=? AND status='angenommen' ORDER BY nummer", (lauf_id,))]
+146:    b["_aus_generationen"] = [z["nummer"] for z in con.execute("SELECT nummer FROM generationen WHERE lauf_id=? AND status='angenommen' ORDER BY nummer", (lauf_id,))]
+151:    z = con.execute("SELECT * FROM generationen WHERE lauf_id=? AND status='angenommen' ORDER BY nummer DESC LIMIT 1", (lauf_id,)).fetchone()
+194:    offen = con.execute("SELECT nummer FROM generationen WHERE lauf_id=? AND status='vorgelegt'", (lauf_id,)).fetchone()
+346:    zusammenfassung["_gewaehlt"] = gewaehlt
+476:            con.execute("UPDATE kandidaten SET status='angenommen' WHERE id=?", (kid,))
+557:    gewaehlt_k = ((lj(g["kandidaten"]) or {}).get("_gewaehlt") or {})
+560:            con.execute("UPDATE generationen SET status='angenommen', freigabe_am=?, freigabe_grund=? WHERE lauf_id=? AND nummer=?",
+575:    vorherige = con.execute("SELECT MAX(nummer) FROM generationen WHERE lauf_id=? AND nummer<? AND status='angenommen'", (lauf_id, nummer)).fetchone()[0]
+580:        con.execute("UPDATE kandidaten SET status='abgelehnt', grund=? WHERE lauf_id=? AND generation=? AND status='angenommen'",
+=== freigabe
+546:def freigabe(con: sqlite3.Connection, lauf_id: int, nummer: int, entscheidung: str, grund: str, von: str) -> dict:
+547-    """Philipp gibt frei oder lehnt ab. Ablehnung → Rückkehr zur Vorgeneration (Lazarus), Grund ins Gedächtnis."""
+548-    g = con.execute("SELECT * FROM generationen WHERE lauf_id=? AND nummer=?", (lauf_id, nummer)).fetchone()
+549-    if not g or g["status"] != "vorgelegt":
+550-        raise LaufFehler(f"Generation {nummer} ist nicht vorgelegt (Status: {g['status'] if g else 'fehlt'})")
+551-    werk = _werk(con, _lauf(con, lauf_id)["werk_id"])
+552-    verf = verfassung.lesen(con, werk["id"])
+553-    uebungswerk = bool(((verf or {}).get("regeln") or {}).get("uebungswerk"))
+554-    if entscheidung == "frei" and not von.lower().startswith("philipp") and not uebungswerk:
+555-        raise LaufFehler("Freigabe eines Werks mit Betriebszweck nur durch Philipp (Abschnitt 4 F2) — Vollmacht gilt nur für Übungswerke")
+556-    vollmacht = "Vollmacht Abschnitt 4 F2 (Übungswerk ohne Betriebszweck, Verfassung regeln.uebungswerk=true)" if (uebungswerk and not von.lower().startswith("philipp")) else None
+557-    gewaehlt_k = ((lj(g["kandidaten"]) or {}).get("_gewaehlt") or {})
+558-    if entscheidung == "frei":
+559-        with transaktion(con):
+560-            con.execute("UPDATE generationen SET status='angenommen', freigabe_am=?, freigabe_grund=? WHERE lauf_id=? AND nummer=?",
+561-                        (protokoll.jetzt(), f"{von}: {grund}", lauf_id, nummer))
+562-            con.execute("UPDATE laeufe SET status='bereit' WHERE id=?", (lauf_id,))
+563-        g_m = lj(g["masse"]) or {}
+564-        protokoll.schreiben(con, "freigabe.frei", lauf_id=lauf_id, nummer=nummer, von=von, grund=grund, vollmacht=vollmacht,
+565-                            kernmass_f2=g_m.get("kernmass_f2"), urteil=g_m.get("_urteil_f2"))
+566-        for b, kid in gewaehlt_k.items():
+567-            gedaechtnis.geschmack_merken(con, werk["id"], lauf_id, nummer, kid, "frei", grund, von)
+568-        r = {"nummer": nummer, "status": "angenommen", "entropie": entropie.messen(con, lauf_id, nummer)}
+569-        s_ = entropie.pruefen_und_beenden(con, lauf_id)
+570-        if s_:
+571-            r["saettigung"] = s_
+=== lazarus.rueckkehr Signatur
+def rueckkehr(con: sqlite3.Connection, lauf_id: int, generation: int, werk: Path, ziel: Path | None = None) -> dict:
+    """Stellt Generation `generation` her — in `werk` (Standard) oder in `ziel`
+    (für Prüfungen ohne Eingriff ins laufende Werk). Rückgabe: Prüfergebnis."""
+    z = con.execute("SELECT * FROM lazarus WHERE lauf_id=? AND generation=?", (lauf_id, generation)).fetchone()
+    if not z:
+        raise KeyError(f"kein Schnappschuss für Lauf {lauf_id} Generation {generation}")
+    ziel = ziel or werk
+    if ziel == werk:
+        # Arbeitskopie aus dem Git-Tag, Landkarte/Verlauf danach markieren
+        _git(werk, "checkout", "-q", "-f", z["tag"])
+        _git(werk, "checkout", "-q", "-B", "main")
+        _git(werk, "clean", "-qfd")
+        with transaktion(con):
+            con.execute("UPDATE generationen SET status='verworfen_durch_rueckkehr' WHERE lauf_id=? AND nummer>? AND status='angenommen'", (lauf_id, generation))
+            werk_id = con.execute("SELECT werk_id FROM laeufe WHERE id=?", (lauf_id,)).fetchone()["werk_id"]
+            con.execute("UPDATE landkarte SET pruefsumme='veraltet' WHERE werk_id=? AND stufe<=2", (werk_id,))
+    else:
+        if ziel.exists():
+=== tests drahtwerk DATEIEN Schlüssel
+48:DATEIEN = {
+49:    "package.json": json.dumps({"name": NAME, "version": "0.1.0", "private": True, "type": "module",
+51:    "README.md": "# drahtwerk\n\nKleines Prüfwerk ohne Betriebszweck: Zahlenlisten summieren.\n",
+52:    "tsconfig.json": json.dumps({"compilerOptions": {"target": "ES2022", "module": "NodeNext", "moduleResolution": "NodeNext",
+55:    "vitest.config.ts": ("import { defineConfig } from 'vitest/config';\n\nexport default defineConfig({\n"
+57:    "src/beta/wert.ts": WERT,
+58:    "src/alpha/liste.ts": LISTE,
+59:    "tests/test_alpha.test.ts": ("import { test, expect } from 'vitest';\nimport { summen, gesamt } from '../src/alpha/liste.js';\n\n"
+64:    "tests/test_beta.test.ts": ("import { test, expect } from 'vitest';\nimport { plus, halb, an } from '../src/beta/wert.js';\n\n"
+124:    """Zwei gleich gute Kandidaten: beide entfernen `ungenutzt` (Kernmaß +1), sie unterscheiden sich nur im Kommentar."""
+132:    """Toter Code entfernt (Kernmaß +1, besteht das Maß) UND gesamt([]) liefert −1 statt 0 — ungedeckt."""
+140:    """Legt Werk, Vertragsverzeichnis, Referenzlast, Verfassung und Mutantenplan unter `ziel` an."""
+=== vitest config deck
+ast.mjs bau.mjs deck-setup.mjs deckung.mjs einwickeln.mjs eslint.config.mjs kanon.mjs main.mjs messen.mjs mutanten.mjs referenz-runner.mjs referenz.mjs reporter.mjs statik.mjs testlauf.mjs tests-ast.mjs verhalten-runner.mjs verhalten.mjs vitest.config.mjs vitest.deck.config.mjs 

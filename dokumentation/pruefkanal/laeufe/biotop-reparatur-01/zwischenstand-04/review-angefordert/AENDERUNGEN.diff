@@ -1,0 +1,2979 @@
+diff --git a/.gitignore b/.gitignore
+index 654bcdb..f8578cb 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -2,3 +2,5 @@ daten/
+ __pycache__/
+ *.pyc
+ .env*
++.venv/
++.pytest_cache/
+diff --git a/biotop/__main__.py b/biotop/__main__.py
+index 28b445b..651485d 100644
+--- a/biotop/__main__.py
++++ b/biotop/__main__.py
+@@ -3,6 +3,8 @@
+   biotop lauf anlegen --budget 30
+   biotop einlegen <lauf> <name> <quelle>
+   biotop kartieren <lauf>
++  biotop vorspann <lauf>            (Generation minus eins, vor gen0 und mass)
++  biotop gen0 <lauf>
+   biotop mass <lauf> --bestaetigt-von Philipp
+   biotop generation <lauf>
+   biotop freigabe <lauf> <nummer> frei|ablehnen --grund "..." --von Philipp
+@@ -37,6 +39,7 @@ def main(argv=None) -> int:
+     s = sub.add_parser("lauf"); s.add_argument("aktion", choices=["anlegen"]); s.add_argument("--budget", type=float, required=True)
+     s = sub.add_parser("einlegen"); s.add_argument("lauf", type=int); s.add_argument("name"); s.add_argument("quelle")
+     s = sub.add_parser("kartieren"); s.add_argument("lauf", type=int)
++    s = sub.add_parser("vorspann"); s.add_argument("lauf", type=int)
+     s = sub.add_parser("mass"); s.add_argument("lauf", type=int); s.add_argument("--bestaetigt-von", required=True)
+     s = sub.add_parser("generation"); s.add_argument("lauf", type=int); s.add_argument("--einschleusen", help="JSON-Datei mit Proben-Kandidaten [{bereich, diff, begruendung, vertraege, probe}]")
+     s = sub.add_parser("abbrechen"); s.add_argument("lauf", type=int); s.add_argument("--grund", required=True)
+@@ -68,6 +71,8 @@ def main(argv=None) -> int:
+             _p(L.einlegen(con, a.lauf, a.name, a.quelle))
+         elif a.cmd == "kartieren":
+             _p(L.kartieren(con, a.lauf))
++        elif a.cmd == "vorspann":
++            _p(L.vorspann.ausfuehren(con, a.lauf))
+         elif a.cmd == "mass":
+             r = L.mass_einfrieren(con, a.lauf, a.bestaetigt_von)
+             _p({"mass": r["mass"], "kernmass": r["messung"]["kernmass"], "bereiche": {b: {k: v for k, v in m.items() if not isinstance(v, (list, dict))} for b, m in r["messung"]["bereiche"].items()}, "schnappschuss": r["schnappschuss"]})
+@@ -145,9 +150,9 @@ def main(argv=None) -> int:
+             anmeldung.benutzer_anlegen(con, a.name, os.environ.get("BIOTOP_KENNWORT", ""))
+             _p({"benutzer": a.name, "angelegt": True})
+         return 0
+-    except (L.LaufFehler, kasse.BudgetErschoepft) as e:
++    except (L.LaufFehler, L.vorspann.VorspannFehler, kasse.BudgetErschoepft) as e:
+         print(f"ABBRUCH: {e}", file=sys.stderr)
+-        return 2
++        return 1
+ 
+ 
+ if __name__ == "__main__":
+diff --git a/biotop/kern/messgeraet.py b/biotop/kern/messgeraet.py
+index 84e5541..e12fbbc 100644
+--- a/biotop/kern/messgeraet.py
++++ b/biotop/kern/messgeraet.py
+@@ -349,16 +349,19 @@ def rauschtoleranz_aus_werten(werte: list[float]) -> dict:
+        Messproblem, statt die Zahl als Toleranz hinzunehmen.
+     Rückgabe: {"toleranz", "spannweite", "median", "werte", "aussetzer", "nachmessen", "meldung"}.
+     """
++    import math
++    if any(isinstance(w, bool) or not math.isfinite(float(w)) or float(w) <= 0 for w in werte):
++        raise ValueError("Rauschwerte müssen endlich und positiv sein; Bool-Werte sind keine Messung")
+     sortiert = sorted(float(w) for w in werte)
+-    if not sortiert:
+-        return {"toleranz": RAUSCH_F4, "spannweite": None, "median": None, "werte": [], "aussetzer": [],
+-                "nachmessen": True, "meldung": "keine Messwerte — Rauschmessung fehlgeschlagen"}
++    if len(sortiert) != RAUSCH_MESSUNGEN:
++        return {"toleranz": RAUSCH_F4, "spannweite": None, "median": None, "werte": sortiert, "aussetzer": [],
++                "nachmessen": True, "meldung": f"{len(sortiert)} von {RAUSCH_MESSUNGEN} erforderlichen Messwerten — keine gültige Rauschmessung"}
+     median = sortiert[len(sortiert) // 2]
+     aussetzer = [w for w in sortiert if median > 0 and w > median * RAUSCH_AUSSETZER]
+     rest = [w for w in sortiert if w not in aussetzer]
+     if len(rest) < 3:
+         return {"toleranz": RAUSCH_F4, "spannweite": None, "median": round(median, 2), "werte": [round(w, 2) for w in sortiert],
+-                "aussetzer": [round(w, 2) for w in aussetzer], "nachmessen": True,
++                "aussetzer": list(aussetzer), "nachmessen": True,
+                 "meldung": f"nur {len(rest)} brauchbare Werte nach Aussetzer-Abzug — nachmessen"}
+     # Streuung IMMER zwischen Messungen, nie innerhalb einer (Fassung 6) — eine Stelle, eine Regel.
+     s = streuung(rest)
+@@ -372,7 +375,7 @@ def rauschtoleranz_aus_werten(werte: list[float]) -> dict:
+                    f"Das ist kein Rauschen mehr, das ist ein kaputtes Messgerät oder eine unstete Referenzlast.")
+     return {"toleranz": round(toleranz, 3), "spannweite": round(spannweite, 3), "median": round(median, 2),
+             "werte": [round(w, 2) for w in sortiert], "mittlere": [round(w, 2) for w in mitte],
+-            "aussetzer": [round(w, 2) for w in aussetzer], "nachmessen": bool(aussetzer), "meldung": meldung}
++            "aussetzer": list(aussetzer), "nachmessen": bool(aussetzer), "meldung": meldung}
+ 
+ 
+ def bestwerte(angenommene: list[dict], bereiche: list[str]) -> dict:
+@@ -411,6 +414,7 @@ def grenzen_f2(ausgang: dict, kandidat: dict, bereiche: list[str], tausch: dict
+     Rückgabe: Liste gerissener Grenzen (leer = alles innerhalb)."""
+     t = tausch or {}
+     rt = rauschtoleranz or {}
++    gesperrt = set(t.get("_gesperrte_bereiche") or [])
+     lf = float(t.get("laufzeit_faktor", GRENZ_F2["laufzeit_ms"]))
+     lf_s = float(t.get("laufzeit_faktor_bei_sicherheitsgewinn", lf))
+     sf = float(t.get("sonst_faktor", 1.25))
+@@ -425,7 +429,7 @@ def grenzen_f2(ausgang: dict, kandidat: dict, bereiche: list[str], tausch: dict
+             gemessen = rt.get(b)
+             b_lf = b_lf_s = b_sf = float(gemessen or RAUSCH_F4)
+             quelle = f"gemessene Rauschtoleranz {b_lf:.2f}" if gemessen else f"Rückfallwert {RAUSCH_F4} (keine Rauschmessung)"
+-        if a.get("laufzeit_ms") and k.get("laufzeit_ms"):
++        if b not in gesperrt and a.get("laufzeit_ms") and k.get("laufzeit_ms"):
+             faktor = b_lf_s if b in sicherheit_gesunken else b_lf
+             grenze = a["laufzeit_ms"] * faktor
+             if k["laufzeit_ms"] > grenze:
+@@ -452,10 +456,14 @@ def urteil_f2(basis: dict, kandidat: dict, ausgang: dict, bereiche: list[str], w
+     sich = {b for b in bereiche if kandidat["bereiche"][b]["sicherheit_punkte"] < basis["bereiche"][b]["sicherheit_punkte"]}
+     k0, k1 = kernmass_f2(basis), kernmass_f2(kandidat)
+     # F4: `ausgang` ist der Bezug der Grenzmaße — Bestwert des Laufs (lauf.py übergibt bestwerte()); ohne Kernmaßgewinn nur +15 %
+-    gerissen = grenzen_f2(ausgang, kandidat, bereiche, tausch, sich, kernmassgewinn=(k1 - k0) > 0)
++    gerissen = grenzen_f2(ausgang, kandidat, bereiche, tausch, sich, kernmassgewinn=(k1 - k0) > 0,
++                         rauschtoleranz=(tausch or {}).get("_rauschtoleranz"))
+     r = {"kern_basis": k0, "kern_kandidat": k1, "zuwachs": k1 - k0, "pareto_schlechter": schlechter,
+          "pareto_besser": besser, "grenzen_gerissen": gerissen, "sicherheit_gesunken_in": sorted(sich)}
+-    if not kandidat["werk"]["baut"]:
++    gesperrt = sorted(set((tausch or {}).get("_gesperrte_bereiche") or []) & set(wirkungskreis))
++    if gesperrt:
++        r.update(ok=False, grund="Rauschmessung: Wirkungskreis gesperrt: " + ", ".join(gesperrt))
++    elif not kandidat["werk"]["baut"]:
+         r.update(ok=False, grund="baut nicht")
+     elif schlechter:
+         r.update(ok=False, grund="Pareto verletzt: " + "; ".join(schlechter))
+diff --git a/biotop/lauf.py b/biotop/lauf.py
+index 2e353d4..6ed1304 100644
+--- a/biotop/lauf.py
++++ b/biotop/lauf.py
+@@ -12,9 +12,9 @@ from pathlib import Path
+ 
+ from .kern import kasse, messgeraet, protokoll
+ from .kern.datenbank import j, lj, transaktion
+-from .organe import aegis, aufnahme, entropie, gedaechtnis, genesis, jury, kammer, landkarte, lazarus, mentor, nischen, verfassung, vertraege
++from .organe import aegis, aufnahme, entropie, gedaechtnis, genesis, jury, kammer, landkarte, lazarus, mentor, nischen, verfassung, vertraege, vorspann
+ 
+-REFERENZLAST = Path("/root/biotop/biotop/kern/referenzlast")
++REFERENZLAST = Path(__file__).resolve().parent / "kern/referenzlast"
+ 
+ 
+ class LaufFehler(RuntimeError):
+@@ -80,6 +80,7 @@ def kartieren(con: sqlite3.Connection, lauf_id: int) -> dict:
+ def mass_einfrieren(con: sqlite3.Connection, lauf_id: int, bestaetigt_von: str) -> dict:
+     """Misst Generation 0 (Ausgangszustand), friert das Maß ein, legt Schnappschuss 0 an."""
+     lauf = _lauf(con, lauf_id)
++    nachweis = _vorspann_verlangen(con, lauf_id, "mass")
+     werk = _werk(con, lauf["werk_id"])
+     b = lj(werk["bericht"])
+     paket = b["paket"]
+@@ -95,7 +96,7 @@ def mass_einfrieren(con: sqlite3.Connection, lauf_id: int, bestaetigt_von: str)
+         raise LaufFehler("Verfassung des Werks fehlt (3.3 F2) — vor dem Maß einlegen: biotop verfassung <lauf> <datei.md> <regeln.json>")
+     tausch = (verf.get("regeln") or {}).get("tausch") or {}
+     mess["kernmass_f2"] = messgeraet.kernmass_f2(mess)
+-    mass = {"fassung": 2,
++    mass = {"fassung": 2, "vorspann_sha256": nachweis["nachweis_sha256"],
+             "kernmass": "je Bereich: −tests_fehlgeschlagen − sicherheit_punkte(10·HIGH+3·MEDIUM+1·LOW) − tote_funktionen; Höchstwert 0; bestandene Tests zählen nicht; paarweise Messung mit dem Testbestand des Kandidaten",
+             "pareto": list(messgeraet.PARETO_F2) + ["baut"],
+             "grenzen": {"laufzeit_faktor": tausch.get("laufzeit_faktor", 2.0), "laufzeit_faktor_bei_sicherheitsgewinn": tausch.get("laufzeit_faktor_bei_sicherheitsgewinn", tausch.get("laufzeit_faktor", 2.0)),
+@@ -104,14 +105,19 @@ def mass_einfrieren(con: sqlite3.Connection, lauf_id: int, bestaetigt_von: str)
+             "nischen": list(__import__("biotop.organe.nischen", fromlist=["NISCHEN"]).NISCHEN), "groesste_funktion_absolut": 60,
+             "pareto_je_test": True, "norm_regel": "3.7 F4 (alle neuen Tests, expliziter Verweis)", "bandit_kein_vorschlag": "neutral (3.6 F4)", "archivierung_offener_funde": "nach 5 Generationen (3.10 F4)", "immunisierung": "3.10 F3 (nur bestandene, Doppelungen gekennzeichnet)",
+             "bestaetigt_von": bestaetigt_von, "eingefroren_am": protokoll.jetzt()}
++    _vorspann_verlangen(con, lauf_id, "mass")  # auch nach der langen Messung unverändert
+     with transaktion(con):
++        try:
++            mass_sha256 = vorspann.mass_binden(con, lauf_id, mass)
++        except vorspann.VorspannFehler as e:
++            raise LaufFehler(str(e)) from e
+         con.execute("UPDATE laeufe SET mass=?, status='bereit' WHERE id=?", (j(mass), lauf_id))
+-        con.execute("INSERT OR REPLACE INTO generationen(lauf_id, nummer, status, masse, erstellt_am, grund) VALUES (?,?,?,?,?,?)",
++        con.execute("INSERT INTO generationen(lauf_id, nummer, status, masse, erstellt_am, grund) VALUES (?,?,?,?,?,?)",
+                     (lauf_id, 0, "angenommen", j(mess), protokoll.jetzt(), "Ausgangszustand"))
+     s = lazarus.schnappschuss(con, lauf_id, 0, Path(werk["pfad"]), mess)
+     with transaktion(con):
+         con.execute("UPDATE generationen SET tag=?, pruefsumme=? WHERE lauf_id=? AND nummer=0", (s["tag"], s["pruefsumme"], lauf_id))
+-    protokoll.schreiben(con, "mass.eingefroren", lauf_id=lauf_id, fassung=2, kernmass_f2=mess["kernmass_f2"], kernmass_f1=mess["kernmass"], grenzen=mass["grenzen"], bestaetigt_von=bestaetigt_von)
++    protokoll.schreiben(con, "mass.eingefroren", lauf_id=lauf_id, mass_sha256=mass_sha256, vorspann_sha256=nachweis["nachweis_sha256"], fassung=2, kernmass_f2=mess["kernmass_f2"], kernmass_f1=mess["kernmass"], grenzen=mass["grenzen"], bestaetigt_von=bestaetigt_von)
+     return {"mass": mass, "messung": mess, "schnappschuss": s}
+ 
+ 
+@@ -130,6 +136,13 @@ def letzte_angenommene(con, lauf_id) -> dict:
+     return dict(z)
+ 
+ 
++def _vorspann_verlangen(con, lauf_id, phase):
++    try:
++        return vorspann.verlangen(con, lauf_id, phase)
++    except vorspann.VorspannFehler as e:
++        raise LaufFehler(str(e)) from e
++
++
+ def generation(con: sqlite3.Connection, lauf_id: int, einschleusen: list[dict] | None = None) -> dict:
+     """Eine Generation: je Bereich Schwarm → Ankläger; Zusammensetzen der Überlebenden;
+     Generalprobe; Pareto gegen die letzte angenommene Generation; Schnappschuss.
+@@ -138,6 +151,7 @@ def generation(con: sqlite3.Connection, lauf_id: int, einschleusen: list[dict] |
+     die eingeschleusten Kandidaten (nische='probe', Modell 'hermes/probe-…') durchlaufen denselben Ankläger, dieselbe
+     Verhandlung und dieselbe Generalprobe wie Schwarm-Kandidaten. Protokolliert als probe.eingeschleust; Bandit bucht sie nicht."""
+     lauf = _lauf(con, lauf_id)
++    nachweis = _vorspann_verlangen(con, lauf_id, "generation")
+     if lauf["status"] not in ("bereit", "laeuft"):
+         raise LaufFehler(f"Lauf {lauf_id} ist im Zustand {lauf['status']}, nicht bereit")
+     offen = con.execute("SELECT nummer FROM generationen WHERE lauf_id=? AND status='vorgelegt'", (lauf_id,)).fetchone()
+@@ -155,13 +169,23 @@ def generation(con: sqlite3.Connection, lauf_id: int, einschleusen: list[dict] |
+     bstrassen = landkarte.bereichs_strassen(kanten, paket)
+     # Kassen-Vorprüfung auf Generationsebene: Kostenvoranschlag = teuerste bisherige Generation dieses Laufs.
+     # Reicht das Budget dafür nicht, wird die Generation gar nicht erst begonnen (kein einziger Modellaufruf).
++    rausch = nachweis["rauschen"]
++    gesperrt = rausch["gesperrt"]
++    for b in gesperrt:
++        protokoll.schreiben(con, "generation.bereich_uebersprungen", lauf_id=lauf_id, generation=nummer,
++                            bereich=b, toleranz=rausch["bereiche"][b]["toleranz"],
++                            grund=rausch["bereiche"][b].get("meldung"), nachweis_sha256=nachweis["nachweis_sha256"])
++    if not set(bereiche) - set(gesperrt):
++        raise LaufFehler("Vorspann: alle Bereiche gesperrt — kein Kandidat wird erzeugt")
+     kasse.generation_vorpruefung(con, lauf_id, nummer)
+     with transaktion(con):
+         con.execute("UPDATE laeufe SET status='laeuft' WHERE id=?", (lauf_id,))
+         con.execute("INSERT INTO generationen(lauf_id, nummer, status, erstellt_am) VALUES (?,?,?,?)", (lauf_id, nummer, "laeuft", protokoll.jetzt()))
+     protokoll.schreiben(con, "generation.begonnen", lauf_id=lauf_id, nummer=nummer, basis=basis_gen["nummer"], kasse=kasse.stand(con, lauf_id))
+     ausgang = bestwert_des_laufs(con, lauf_id, bereiche)  # F4: Grenzmaße gegen den Bestwert aller angenommenen Generationen
+-    tausch = mass.get("grenzen") or {}
++    tausch = dict(mass.get("grenzen") or {})
++    tausch.update(_rauschtoleranz=dict(rausch["toleranz"]), _gesperrte_bereiche=list(gesperrt),
++                  _rauschbelege=rausch["bereiche"], _vorspann_sha256=nachweis["nachweis_sha256"])
+     try:
+         return _generation_koerper(con, lauf_id, nummer, werk, mass, paket, bereiche, pfad, ref, basis, bstrassen, ausgang, tausch, einschleusen)
+     except kasse.BudgetErschoepft:
+@@ -195,6 +219,8 @@ def _generation_koerper(con, lauf_id, nummer, werk, mass, paket, bereiche, pfad,
+     # Eingeschleuste Proben (Tor-Zeilen): statt Schwarm die von Hermes gestellten Kandidaten — gekennzeichnet, Bandit-neutral
+     probe_ids: dict[str, list[int]] = {}
+     for e in (einschleusen or []):
++        if e["bereich"] in tausch.get("_gesperrte_bereiche", []):
++            continue
+         with transaktion(con):
+             cur = con.execute("INSERT INTO kandidaten(lauf_id, generation, bereich, nische, anbieter, modell, diff, begruendung, status, grund, erstellt_am, vertraege, ist_probe) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1)",
+                               (lauf_id, nummer, e["bereich"], "probe", "hermes", "hermes/probe-" + e.get("probe", "probe"), e["diff"], e.get("begruendung", ""), "erzeugt", "", protokoll.jetzt(), e.get("vertraege", "keine")))
+@@ -202,6 +228,8 @@ def _generation_koerper(con, lauf_id, nummer, werk, mass, paket, bereiche, pfad,
+         protokoll.schreiben(con, "probe.eingeschleust", lauf_id=lauf_id, generation=nummer, kandidat=cur.lastrowid, probe=e.get("probe"), bereich=e["bereich"], vertraege=e.get("vertraege"))
+     for b in bereiche:
+         urteile[b] = []
++        if b in tausch.get("_gesperrte_bereiche", []):
++            continue
+         befunde = [{k: v for k, v in f.items() if k in ("test", "schwere", "zeile", "text")} for f in basis["bereiche"][b].get("sicherheit_befunde", [])]
+         vt_text = vertraege.text_fuer_bereich(con, werk["id"], b)
+         for nische in (["probe"] if einschleusen is not None else aktive_nischen):
+@@ -294,11 +322,16 @@ def _generation_koerper(con, lauf_id, nummer, werk, mass, paket, bereiche, pfad,
+     mess["_testbestand"] = sorted(testbestand)
+ 
+     # 6. Pareto + Grenzen + Zuwachs (F2)
+-    u = messgeraet.urteil_f2(basis_paar, mess, ausgang, bereiche, bereiche, tausch)
++    wirkungskreis = set()
++    for b, kid in gewaehlt.items():
++        kz = con.execute("SELECT wirkungskreis FROM kandidaten WHERE id=?", (kid,)).fetchone()
++        wirkungskreis.update(lj(kz["wirkungskreis"]) or landkarte.wirkungskreis(b, bstrassen))
++    wirkungskreis = sorted(wirkungskreis)
++    u = messgeraet.urteil_f2(basis_paar, mess, ausgang, bereiche, wirkungskreis, tausch)
+     # Nischenmaß auf Werkebene: Gesamtkandidat mit reinem Laufzeitgewinn (Kernmaß gleich) ist zulässig
+     if not u["ok"] and u["grund"].startswith("Kernmaß unverändert"):
+-        gew = [f"{b}: {basis_paar['bereiche'][b]['laufzeit_ms']} → {mess['bereiche'][b]['laufzeit_ms']}" for b in bereiche
+-               if basis_paar["bereiche"][b].get("laufzeit_ms") and mess["bereiche"][b].get("laufzeit_ms") and mess["bereiche"][b]["laufzeit_ms"] <= basis_paar["bereiche"][b]["laufzeit_ms"] * 0.85]
++        gew = [f"{b}: {basis_paar['bereiche'][b]['laufzeit_ms']} → {mess['bereiche'][b]['laufzeit_ms']}" for b in wirkungskreis
++               if b not in tausch.get('_gesperrte_bereiche', []) and basis_paar["bereiche"][b].get("laufzeit_ms") and mess["bereiche"][b].get("laufzeit_ms") and mess["bereiche"][b]["laufzeit_ms"] <= basis_paar["bereiche"][b]["laufzeit_ms"] * 0.85]
+         if gew:
+             u = {**u, "ok": True, "grund": "Laufzeit gesunken (Nischenmaß), Kernmaß unverändert: " + "; ".join(gew), "laufzeit_gewinne": gew}
+     vv = vertraege.verletzt(set(basis_paar["werk"]["tests_fehlgeschlagen_liste"]), set(mess["werk"]["tests_fehlgeschlagen_liste"]))
+@@ -498,6 +531,15 @@ def _verhandeln(con, lauf_id, werk, nummer, pfad, paket, bereiche, bstrassen, ba
+     extra: dict[str, str] = {}
+     anpassungen = []
+     for nb in sorted(nachbarn):
++        if nb in tausch.get("_gesperrte_bereiche", []):
++            grund = f"Verhandlung nicht ausführbar: Nachbar {nb} wegen Rauschmessung gesperrt"
++            protokoll.schreiben(con, "generation.bereich_uebersprungen", lauf_id=lauf_id, generation=nummer,
++                                bereich=nb, kandidat=kid, grund=grund,
++                                toleranz=(tausch.get("_rauschbelege", {}).get(nb) or {}).get("toleranz"),
++                                nachweis_sha256=tausch.get("_vorspann_sha256"))
++            with transaktion(con):
++                con.execute("UPDATE kandidaten SET status='abgelehnt',grund=? WHERE id=?", (grund, kid))
++            return {**u, "status":"abgelehnt", "grund":grund}
+         vt = vertraege.text_fuer_bereich(con, werk["id"], nb)
+         # Der Nachbar sieht die vom Kandidaten geänderte Vertragsdatei (neue Zusicherungen), nicht nur den alten Vertrag
+         kdat = aegis.kandidat_dateien(pfad, kd["diff"]) or {}
+@@ -560,7 +602,9 @@ def generation0(con: sqlite3.Connection, lauf_id: int, mutanten_json: str | None
+     mutanten_json: von Hermes gesetzte Mutanten [{datei, zeile, art, beschreibung, code}] (Tor 2) — sonst erzeugt das Biotop eigene."""
+     import json as _json
+     from .organe import generation0 as G0
+-    lauf = _lauf(con, lauf_id); werk = _werk(con, lauf["werk_id"]); pfad = Path(werk["pfad"])
++    lauf = _lauf(con, lauf_id)
++    _vorspann_verlangen(con, lauf_id, "gen0")
++    werk = _werk(con, lauf["werk_id"]); pfad = Path(werk["pfad"])
+     b = lj(werk["bericht"]); paket = b["paket"]
+     bereiche = landkarte.bereiche_finden(pfad, paket)
+     if mutanten_json:
+diff --git a/biotop/organe/aegis.py b/biotop/organe/aegis.py
+index efdf753..bed7ab8 100644
+--- a/biotop/organe/aegis.py
++++ b/biotop/organe/aegis.py
+@@ -299,7 +299,8 @@ def _doppelungen(treffer: set[str], ergebnisse: dict, ad: str, con, werk_id: int
+ 
+ 
+ # ---------------------------------------------------------------- Angriff
+-def bisherige_behauptungen(con, werk_id: int, bereich: str, lauf_id: int | None = None, limit: int = 25) -> list[str]:
++def bisherige_behauptungen(con, werk_id: int, bereich: str, lauf_id: int | None = None, limit: int | None = 25,
++                          *, ohne_ansage_nr: int | None = None) -> list[str]:
+     """Welche Behauptungen hat der Ankläger in diesem Bereich schon aufgestellt? (Fassung 6)
+ 
+     Zwei Quellen, beide nötig:
+@@ -313,7 +314,7 @@ def bisherige_behauptungen(con, werk_id: int, bereich: str, lauf_id: int | None
+     acht Tests sagten dasselbe über `lager/reserviert`. Zwei Drittel der Aufrufe brachten also nichts Neues.
+     """
+     aus = []
+-    for z in con.execute("SELECT ursprung FROM immunsystem WHERE werk_id=? AND bereich=? ORDER BY id DESC LIMIT 200",
++    for z in con.execute("SELECT ursprung FROM immunsystem WHERE werk_id=? AND bereich=? ORDER BY id DESC",
+                          (werk_id, bereich)):
+         t = z["ursprung"] or ""
+         if "behauptung=" in t:
+@@ -323,7 +324,9 @@ def bisherige_behauptungen(con, werk_id: int, bereich: str, lauf_id: int | None
+                 if s.count("|") == 1 and all(teil.strip() for teil in s.split("|")) and s not in aus:
+                     aus.append(s)
+     if lauf_id is not None:
+-        for z in con.execute("SELECT inhalt FROM protokoll WHERE art='aegis.ansage' ORDER BY nr DESC LIMIT 400"):
++        for z in con.execute("SELECT nr, inhalt FROM protokoll WHERE art='aegis.ansage' ORDER BY nr DESC"):
++            if z["nr"] == ohne_ansage_nr:
++                continue
+             d = lj(z["inhalt"]) or {}
+             if d.get("lauf_id") == lauf_id and d.get("bereich") == bereich and d.get("behauptung"):
+                 if d["behauptung"] not in aus:
+@@ -372,7 +375,12 @@ def _ansage(con, lauf_id, modell, bereich, paket, diff, quelle, schon: list[str]
+     return f"{treffer.group(1)}|{treffer.group(2)}", False
+ 
+ 
+-def _angriff(con, lauf_id, werk_id, paket, bereich, diff, dateien, werk, klassen: list[str]) -> tuple[str | None, str]:
++def _angriff(con, lauf_id, werk_id, paket, bereich, diff, dateien, werk, klassen: list[str],
++             *, kandidat_id: int | None = None, ansage_kontext: dict | None = None) -> tuple[str | None, str, str | None]:
++    # Die Dreier-Rückgabe bleibt kompatibel. Die Kennung bezeichnet NUR diese Ansage,
++    # nicht ihren Schlüssel (eine frühere gleiche Ansage muss weiterhin sperren).
++    if ansage_kontext is not None:
++        ansage_kontext.clear()
+     quelle = []
+     for d in sorted((werk / paket / bereich).rglob("*.py")):
+         rel = str(d.relative_to(werk))
+@@ -391,20 +399,25 @@ def _angriff(con, lauf_id, werk_id, paket, bereich, diff, dateien, werk, klassen
+         modell = MODELL_ANGRIFF_SCHWER
+     # Fassung 6 (3.7): Der Ankläger nennt seine Behauptung VORAB. Ist sie im Bereich schon aufgestellt, wird der
+     # Angriff gar nicht erst ausgeführt — das spart den teuren Aufruf und verhindert die Doppelung an der Quelle.
+-    schon = bisherige_behauptungen(con, werk_id, bereich, lauf_id)
+-    ansage, _ = _ansage(con, lauf_id, modell, bereich, paket, diff, quelle, schon)
++    schon = bisherige_behauptungen(con, werk_id, bereich, lauf_id, limit=None)
++    ansage, _ = _ansage(con, lauf_id, modell, bereich, paket, diff, quelle, schon[:25])
+     if ansage is None:
+-        protokoll.schreiben(con, "aegis.ansage", lauf_id=lauf_id, bereich=bereich, behauptung=None,
++        protokoll.schreiben(con, "aegis.ansage", lauf_id=lauf_id, werk_id=werk_id, kandidat=kandidat_id,
++                            bereich=bereich, behauptung=None,
+                             ausgefuehrt=False, grund="Ankläger nennt keine Behauptung (KEIN ANGRIFF)")
+         return None, modell[1], None
+     if ansage in schon:
+-        protokoll.schreiben(con, "aegis.ansage", lauf_id=lauf_id, bereich=bereich, behauptung=ansage,
++        protokoll.schreiben(con, "aegis.ansage", lauf_id=lauf_id, werk_id=werk_id, kandidat=kandidat_id,
++                            bereich=bereich, behauptung=ansage,
+                             ausgefuehrt=False, grund="Behauptung in diesem Bereich bereits aufgestellt — Angriff "
+                                                      "nicht ausgeführt (F6 3.7), spart Aufruf und Kammerlauf",
+                             bisherige=len(schon))
+         return None, modell[1], ansage
+-    protokoll.schreiben(con, "aegis.ansage", lauf_id=lauf_id, bereich=bereich, behauptung=ansage,
+-                        ausgefuehrt=True, bisherige=len(schon))
++    ansage_nr = protokoll.schreiben(con, "aegis.ansage", lauf_id=lauf_id, werk_id=werk_id,
++                                    kandidat=kandidat_id, bereich=bereich, behauptung=ansage,
++                                    ausgefuehrt=True, bisherige=len(schon))
++    if ansage_kontext is not None:
++        ansage_kontext["nr"] = ansage_nr
+     ansage_text = (f"\n\nDU HAST ANGEKÜNDIGT, DIESE BEHAUPTUNG ZU PRÜFEN: {ansage}\n"
+                    f"Schreibe genau dazu den Test. Weiche nicht auf eine andere Behauptung aus.")
+     try:
+@@ -422,7 +435,7 @@ def _angriff(con, lauf_id, werk_id, paket, bereich, diff, dateien, werk, klassen
+ 
+ # ---------------------------------------------------------------- Anklage
+ def aufnahmesperre(con, werk_id: int, lauf_id: int, bereich: str, code: str, testnamen, paket: str,
+-                   kandidat_id: int, art: str) -> tuple[list, list]:
++                   kandidat_id: int, art: str, *, eigene_ansage_nr: int | None = None) -> tuple[list, list]:
+     """**Aufnahmesperre C** (Fassung 7, Entscheidung Chat-Claude 20.09.2026).
+ 
+     Prüft den Schlüssel des TATSÄCHLICH GESCHRIEBENEN Tests gegen den Vorrat des Bereichs — deterministisch,
+@@ -439,7 +452,10 @@ def aufnahmesperre(con, werk_id: int, lauf_id: int, bereich: str, code: str, tes
+     Rückgabe: (aufnehmen, abgewiesen) — je Liste von (testname, schluessel).
+     Jede Abweisung wird protokolliert, mit Grund und Gegenstück; nie still verworfen.
+     """
+-    vorrat = set(bisherige_behauptungen(con, werk_id, bereich, lauf_id, limit=500))
++    # Ausgenommen ist nur die gerade erzeugte Ansage-Zeile. Der Schlüssel bleibt
++    # sperrbar durch frühere Ansagen und jeden bereits aufgenommenen Immuntest.
++    vorrat = set(bisherige_behauptungen(con, werk_id, bereich, lauf_id, limit=None,
++                                       ohne_ansage_nr=eigene_ansage_nr))
+     aufnehmen, abgewiesen, gesehen = [], [], set()
+     # Pfadnachweis (Masterprompt Lauf 25, Abschnitt 4): JEDE geprüfte Aufnahme wird gezählt, auch wenn nichts
+     # gesperrt wird. Ohne diesen Zähler lässt sich nicht belegen, dass C im Aufnahmepfad liegt und erreicht wird
+@@ -465,11 +481,16 @@ def aufnahmesperre(con, werk_id: int, lauf_id: int, bereich: str, code: str, tes
+ 
+ def pruefen(con: sqlite3.Connection, lauf_id: int, werk_id: int, kandidat_id: int, werk: Path, paket: str,
+             bereiche: list[str], bstrassen: list[tuple[str, str]], basis: dict, ausgang: dict,
+-            referenzlast: str | None, tausch: dict | None, extra_code: dict[str, str] | None = None) -> dict:
++            referenzlast: str | None, tausch: dict | None, extra_code: dict[str, str] | None = None,
++            *, probe_ohne_modell: bool = False, probe_angriff: str | None = None) -> dict:
+     """extra_code: zusätzliche Dateien (z. B. Anpassung des Nachbarn bei Verhandlung), die zusammen mit dem
+     Kandidaten gemessen werden."""
+     """Vollständige Anklage (F2). Rückgabe: Urteil mit Belegen; Status in der DB gesetzt."""
+     k = con.execute("SELECT * FROM kandidaten WHERE id=?", (kandidat_id,)).fetchone()
++    # Nur markierte Eichkandidaten dürfen mechanische Angriffe ohne Modell nutzen.
++    if (probe_ohne_modell or probe_angriff is not None) and not (
++            probe_ohne_modell and "ist_probe" in k.keys() and k["ist_probe"] == 1):
++        raise ValueError("Reine Probeoption verlangt probe_ohne_modell=True und ist_probe=1")
+     bereich = k["bereich"]
+     urteil = {"kandidat": kandidat_id, "bereich": bereich, "status": "abgelehnt", "grund": "", "wirkungskreis": [],
+               "immun": [], "tests_neu": [], "tests_verworfen": [], "immun_bestanden": [], "befundklassen": [],
+@@ -570,7 +591,12 @@ def pruefen(con: sqlite3.Connection, lauf_id: int, werk_id: int, kandidat_id: in
+                 urteil["tests_neu"] += [f"{p}::{n}" for n in sorted(gueltig)]
+ 
+     # Schritt 4: Angriff (schweres Modell bei Befundklasse)
+-    angriff, angriff_modell, ansage_behauptung = _angriff(con, lauf_id, werk_id, paket, bereich, k["diff"], dateien, werk, urteil["befundklassen"])
++    ansage_kontext = {}
++    if probe_ohne_modell:
++        angriff, angriff_modell, ansage_behauptung = probe_angriff, "mechanische Eichprobe", None
++    else:
++        angriff, angriff_modell, ansage_behauptung = _angriff(con, lauf_id, werk_id, paket, bereich, k["diff"], dateien, werk, urteil["befundklassen"],
++                                                           kandidat_id=kandidat_id, ansage_kontext=ansage_kontext)
+     urteil["ansage"] = [ansage_behauptung] if ansage_behauptung else []
+     if angriff:
+         ad = f"tests/test_{bereich}_immun_aegis_k{kandidat_id}_{bereich}.py"
+@@ -619,7 +645,7 @@ def pruefen(con: sqlite3.Connection, lauf_id: int, werk_id: int, kandidat_id: in
+         if gefunden:
+             # Aufnahmesperre C (F7): der Schlüssel des GESCHRIEBENEN Tests gegen den Vorrat, vor der Aufnahme.
+             nehmen, gesperrt_c = aufnahmesperre(con, werk_id, lauf_id, bereich, angriff, gefunden, paket,
+-                                                kandidat_id, "fund")
++                                                kandidat_id, "fund", eigene_ansage_nr=ansage_kontext.get("nr"))
+             urteil["aufnahmesperre"] = {"aufgenommen": [n for n, _ in nehmen],
+                                         "abgewiesen": [{"test": n, "behauptung": s} for n, s in gesperrt_c]}
+             gefunden = {n for n, _ in nehmen}
+@@ -652,7 +678,7 @@ def pruefen(con: sqlite3.Connection, lauf_id: int, werk_id: int, kandidat_id: in
+             # Auch sie gehen in den Vorrat ein (sie tragen einen Behauptungsschlüssel) und unterliegen deshalb
+             # der Aufnahmesperre C — genau hier rutschte in Lauf 24 `norm_k2458_lager` durch.
+             nehmen_n, gesperrt_n = aufnahmesperre(con, werk_id, lauf_id, bereich, angriff, norm, paket,
+-                                                  kandidat_id, "norm")
++                                                  kandidat_id, "norm", eigene_ansage_nr=ansage_kontext.get("nr"))
+             urteil.setdefault("aufnahmesperre", {"aufgenommen": [], "abgewiesen": []})
+             urteil["aufnahmesperre"]["abgewiesen"] += [{"test": n, "behauptung": s, "art": "norm"} for n, s in gesperrt_n]
+             norm_aufnehmen = {n for n, _ in nehmen_n}
+diff --git a/biotop/organe/eichproben.py b/biotop/organe/eichproben.py
+index 8db38f5..aab8d87 100644
+--- a/biotop/organe/eichproben.py
++++ b/biotop/organe/eichproben.py
+@@ -20,13 +20,16 @@ Alle Probenkandidaten tragen `ist_probe=1` und kommen damit in kein Gedächtnis.
+ from __future__ import annotations
+ 
+ import ast
++import hashlib
+ import sqlite3
++import tempfile
+ import time
++from contextlib import contextmanager
+ from pathlib import Path
+ 
+ from ..kern import protokoll
+-from ..kern.datenbank import transaktion
+-from . import aegis, eichgegenstand, eichung
++from ..kern.datenbank import lj, transaktion
++from . import aegis, eichgegenstand, eichung, kammer, verfassung
+ 
+ PROBEN = ("nebenwirkung", "regression", "norm", "vertrag")
+ 
+@@ -48,10 +51,10 @@ def _funktionen(pfad: Path, paket: str, bereich: str) -> list[tuple[Path, ast.Fu
+ 
+ 
+ def _diff(rel: str, alt: str, neu: str) -> str:
+-    """Vollständiger Datei-Diff (kein Kontextabgleich nötig — der Diffwerk-Teil wendet ihn als Ersetzung an)."""
+-    a = alt.splitlines(); n = neu.splitlines()
+-    kopf = f"--- a/{rel}\n+++ b/{rel}\n@@ -1,{len(a)} +1,{len(n)} @@\n"
+-    return kopf + "\n".join(["-" + z for z in a] + ["+" + z for z in n]) + "\n"
++    """Kleine AST-Eingriffe als Kontextdiff; keine künstliche Vollersetzung."""
++    from difflib import unified_diff
++    return "".join(unified_diff(alt.splitlines(keepends=True), neu.splitlines(keepends=True),
++                                fromfile=f"a/{rel}", tofile=f"b/{rel}"))
+ 
+ 
+ def _neue_datei(rel: str, inhalt: str) -> str:
+@@ -59,22 +62,21 @@ def _neue_datei(rel: str, inhalt: str) -> str:
+     return f"--- /dev/null\n+++ b/{rel}\n@@ -0,0 +1,{len(n)} @@\n" + "\n".join("+" + z for z in n) + "\n"
+ 
+ 
+-def _lahmlegen(pfad: Path, paket: str, bereich: str) -> tuple[str, str]:
+-    """Erste öffentliche Funktion des Bereichs wirkungslos machen → bestehende Tests des Bereichs fallen.
+-    Rückgabe: (Diff, Beschreibung). Mechanisch über den Syntaxbaum, kein Textanker."""
+-    for datei, fn in _funktionen(pfad, paket, bereich):
+-        quelle = datei.read_text()
+-        zeilen = quelle.splitlines()
+-        einzug = " " * (fn.col_offset + 4)
+-        # nach der Signatur (und einem etwaigen Docstring) ein `return None` einsetzen
+-        ziel = fn.body[0].lineno - 1
+-        if isinstance(fn.body[0], ast.Expr) and isinstance(getattr(fn.body[0], "value", None), ast.Constant) \
+-                and isinstance(fn.body[0].value.value, str):
+-            ziel = (fn.body[0].end_lineno or fn.body[0].lineno)
+-        neu = zeilen[:ziel] + [f"{einzug}return None  # Eichprobe: Funktion wirkungslos"] + zeilen[ziel:]
+-        rel = str(datei.relative_to(pfad))
+-        return _diff(rel, quelle, "\n".join(neu) + "\n"), f"{rel}::{fn.name} liefert None"
+-    raise RuntimeError(f"Bereich {bereich} hat keine öffentliche Funktion — Probe nicht baubar")
++def _lahmlegen(pfad: Path, paket: str, bereich: str, alle: bool = False) -> tuple[str, str]:
++    """Reale öffentliche Funktionen per AST wirkungslos machen (nur Privatfixture)."""
++    funktionen = _funktionen(pfad, paket, bereich)
++    if not funktionen:
++        raise RuntimeError(f"Bereich {bereich} hat keine öffentliche Funktion — Probe nicht baubar")
++    auswahl = funktionen if alle else funktionen[:1]
++    quellen = {datei: datei.read_text() for datei, _ in auswahl}
++    neu = {datei: text.splitlines() for datei, text in quellen.items()}
++    beschreibung = []
++    for datei, fn in reversed(auswahl):
++        ziel = fn.body[0].end_lineno if ast.get_docstring(fn) is not None else fn.body[0].lineno - 1
++        neu[datei].insert(ziel, " " * (fn.col_offset + 4) + "return None  # Eichprobe: Funktion wirkungslos")
++        beschreibung.append(f"{datei.relative_to(pfad)}::{fn.name} liefert None")
++    return ("".join(_diff(datei.relative_to(pfad).as_posix(), alt, "\n".join(neu[datei]) + "\n")
++                    for datei, alt in quellen.items()), "; ".join(reversed(beschreibung)))
+ 
+ 
+ def _beschleunigen(pfad: Path, paket: str, bereich: str) -> tuple[str, str]:
+@@ -113,15 +115,54 @@ def _gruene_tests(bereich: str, n: int = 3) -> tuple[str, str]:
+ 
+ 
+ def _normtest(pfad: Path, paket: str, bereich: str) -> tuple[str, str, str]:
+-    """Test, der an der Vorgeneration FÄLLT und am Kandidaten BESTEHT — ohne Absturz, ohne Vertragsverweis.
+-    Der Kandidat setzt dafür eine neue Funktion, der Test prüft sie. Reine Meinung über gewünschtes Verhalten."""
+-    rel_code = f"{paket}/{bereich}/_eichprobe_norm.py"
+-    code = "def eichprobe_kennzeichen():\n    return 'norm'\n"
+-    rel_test = f"tests/test_{bereich}_eichprobe_norm.py"
+-    test = (f"from {paket}.{bereich}._eichprobe_norm import eichprobe_kennzeichen\n\n\n"
+-            f"def test_{bereich}_eichprobe_norm():\n"
+-            f"    assert eichprobe_kennzeichen() == 'norm'\n")
+-    return _neue_datei(rel_code, code) + _neue_datei(rel_test, test), rel_test, "neue Funktion + Test darauf"
++    """Meinung über eine VORHANDENE Funktion; niemals ein neuer Import am Ausgang.
++
++    Nur eindeutig skalar aufrufbare freie Funktionen sind geeignet. Fehlt eine,
++    wird die Probe als nicht baubar gemeldet, nicht auf eine andere Mechanik ersetzt.
++    Der tatsächliche Assertion-/Normnachweis erfolgt anschließend in der Kammer.
++    """
++    for datei, fn in _funktionen(pfad, paket, bereich):
++        argumente = fn.args.posonlyargs + fn.args.args
++        importname, aufruf = fn.name, fn.name
++        if fn.col_offset != 0:
++            # Methoden nur an einer AST-belegt ohne Pflichtargumente baubaren
++            # Klasse. Die Instanz entsteht ausschließlich im Kammer-Test.
++            baum = ast.parse(datei.read_text())
++            klasse = next((k for k in baum.body if isinstance(k, ast.ClassDef)
++                           and any(isinstance(f, ast.FunctionDef) and f.lineno == fn.lineno for f in k.body)), None)
++            if klasse is None or klasse.decorator_list or klasse.bases or not argumente or argumente[0].arg != "self":
++                continue
++            init = next((f for f in klasse.body if isinstance(f, ast.FunctionDef) and f.name == "__init__"), None)
++            if init and (len(init.args.posonlyargs + init.args.args) - len(init.args.defaults) > 1
++                         or any(d is None for d in init.args.kw_defaults)):
++                continue
++            argumente = argumente[1:]
++            importname, aufruf = klasse.name, f"{klasse.name}().{fn.name}"
++        if (fn.decorator_list or len(argumente) != 1
++                or fn.args.vararg or fn.args.kwarg or fn.args.kwonlyargs):
++            continue
++        art = ast.unparse(argumente[0].annotation) if argumente[0].annotation else ""
++        wert = {"float": "137.125", "int": "137", "str": "'eichprobe_eingabe'"}.get(art)
++        if wert is None:
++            continue
++        quelle = datei.read_text()
++        zeilen = quelle.splitlines()
++        erstes = fn.body[0]
++        ziel = erstes.end_lineno if ast.get_docstring(fn) is not None else erstes.lineno - 1
++        einzug = " " * (fn.col_offset + 4)
++        neu = zeilen[:ziel] + [f"{einzug}if {argumente[0].arg} == {wert}:",
++                              f"{einzug}    return 'eichprobe_norm_neu'"] + zeilen[ziel:]
++        rel_code = datei.relative_to(pfad).as_posix()
++        modul = ".".join(datei.relative_to(pfad).with_suffix("").parts)
++        if modul.endswith(".__init__"):
++            modul = modul[:-9]
++        rel_test = f"tests/test_{bereich}_eichprobe_norm.py"
++        test = (f"from {modul} import {importname}\n\n"
++                f"def test_{bereich}_eichprobe_norm():\n"
++                f"    assert {aufruf}({wert}) == 'eichprobe_norm_neu'\n")
++        return (_diff(rel_code, quelle, "\n".join(neu) + "\n") + _neue_datei(rel_test, test),
++                rel_test, f"{rel_code}::{aufruf}({wert}): abweichende Rückgabe ohne Verweis")
++    raise RuntimeError(f"Bereich {bereich}: keine skalar aufrufbare Funktion/Methode für Normprobe")
+ 
+ 
+ # ---------------------------------------------------------------- Ablauf
+@@ -143,107 +184,321 @@ def _kassenstand(con, lauf_id: int) -> tuple[int, float]:
+     return z["n"], z["c"]
+ 
+ 
++@contextmanager
++def _privat(con, pfad):
++    """Jede Probe erhält eigene DB und eigenes Werk; keine Rückschreibverbindung."""
++    if con.in_transaction:
++        raise RuntimeError("Eichproben brauchen einen abgeschlossenen DB-Ausgang")
++    with tempfile.TemporaryDirectory(prefix="eichprobe-") as ordner:
++        wurzel = Path(ordner)
++        werk = wurzel / "werk"
++        kammer._kopie(pfad, werk)
++        db = wurzel / "probe.db"
++        kopie = sqlite3.connect(db, isolation_level=None)
++        kopie.row_factory = sqlite3.Row
++        try:
++            con.backup(kopie)
++            db.chmod(0o600)
++            # Auch etwaige DB-interne Werkpfadleser dürfen nur die Kopie finden.
++            kopie.execute("UPDATE werke SET pfad=? WHERE pfad=?", (str(werk), str(pfad)))
++            yield kopie, werk
++        finally:
++            kopie.close()
++
++
++def _bestanden(name: str, belege: dict) -> bool:
++    """Belege der ORIGINALEN Ableitungen verlangen; kein eigenes Ersatz-Pareto."""
++    u = belege.get("urteil", {})
++    m = u.get("mass")
++    messung = belege.get("messung", {})
++    if (not isinstance(m, dict) or not m or not messung.get("gueltig")
++            or not (messung.get("_basis_paar") or {}).get("gueltig")):
++        return False
++    if name == "nebenwirkung":
++        a, b = belege["gewinnbereich"], belege["verlustbereich"]
++        return all((u.get("status") == "abgelehnt", m.get("ok") is False,
++                    any(s.startswith(a + ".tests_fehlgeschlagen:") for s in m.get("pareto_besser", [])),
++                    any(s.startswith(b + ".tests_fehlgeschlagen:") for s in m.get("pareto_schlechter", [])),
++                    b in u.get("grund", "")))
++    if name == "regression":
++        n = belege["regressionstest"]
++        massname = n.split("/")[-1]
++        gruene = belege.get("gruene_tests", [])
++        return all((u.get("status") == "abgelehnt", m.get("ok") is False,
++                    belege["basis_tests"].get(n, {}).get("ok") is True,
++                    belege["kandidat_tests"].get(n, {}).get("ok") is False,
++                    belege["kandidat_tests"].get(n, {}).get("bestaetigt") is True,
++                    any(s.startswith("Regression je Test") and massname in s
++                        for s in m.get("pareto_schlechter", [])),
++                    len(gruene) >= 3,
++                    all(belege["kandidat_tests"][g]["ok"] and belege["basis_tests"][g]["ok"]
++                        for g in gruene)))
++    if name == "vertrag":
++        n = belege["verbrauchertest"]
++        x = belege["kandidat_tests"].get(n, {})
++        return all((u.get("status") == "abgelehnt", m.get("ok") is False,
++                    belege["vertragstest"] in u.get("vertrag_verletzt", []),
++                    u.get("grund", "").startswith("Vertrag verletzt (Schritt 2):"),
++                    belege["vertragstest"] in u.get("grund", ""),
++                    belege["basis_tests"].get(n, {}).get("ok") is True,
++                    x.get("ok") is False, x.get("bestaetigt") is True,
++                    x.get("ort") == belege["verbraucherdatei"],
++                    "eichprobe_zusicherung" in x.get("meldung", "")))
++    if name == "norm":
++        n = belege["testname"]
++        vorher = belege.get("basis_tests", {}).get(f"{belege['testpfad']}::{n}", {})
++        nachher = belege.get("kandidat_tests", {}).get(f"{belege['testpfad']}::{n}", {})
++        norm = u.get("norm", [])
++        return all((
++            vorher.get("ok") is False, vorher.get("bestaetigt") is True,
++            vorher.get("meldung", "").startswith(("AssertionError", "assert")),
++            not vorher.get("ort", "").startswith(belege["paket"] + "/"),
++            nachher.get("ok") is True, belege.get("ohne_verweis") is True,
++            n in norm or f"{belege['testpfad']}::{n}" in norm,
++            any(z["status"] == "offen_norm" and f"def {n}(" in z["code"]
++                for z in belege.get("normeintraege", [])),
++            "zuwachs" in m and m["zuwachs"] == 0,
++            # Geprüft wird die Normklassifikation, nicht die separat geeichte
++            # Laufzeitgrenze. Deren Befund bleibt im unveränderten Originalurteil.
++            u.get("status") == "abgelehnt", not m.get("pareto_schlechter"),
++            not u.get("vertrag_verletzt"), not u.get("verfassung_verstoesse"),
++            "_dateien" in messung and not any(n in code for p, code in messung["_dateien"].items()
++                                              if p.startswith("tests/")),
++            belege.get("werk_test_vorhanden") is False,
++        ))
++    return False
++
++
++def _norm_vorbereiten(db, werk, werk_id, paket, bereich, gegenprobe):
++    diff, testpfad, beschreibung = _normtest(werk, paket, bereich)
++    dateien = aegis.kandidat_dateien(werk, diff)
++    if dateien is None or any(c is None for c in dateien.values()):
++        raise RuntimeError(aegis.diff_grund(werk, diff) or "Normdiff ungültig")
++    testcode = dateien[testpfad]
++    testname = f"test_{bereich}_eichprobe_norm"
++    belege = {"paket": paket, "testpfad": testpfad, "testname": testname,
++              "basis_tests": aegis.junit_lauf(werk, paket, {testpfad: testcode}, [testpfad]),
++              "kandidat_tests": aegis.junit_lauf(werk, paket, dateien, [testpfad]),
++              "ohne_verweis": not aegis._nennt_vertrag(testcode, testname, verfassung.lesen(db, werk_id),
++                                                      db, werk_id, bereich)}
++    # Gleiche Änderung, gleiche Zeugen, aber kein Normtest im Anklagepfad.
++    if gegenprobe:
++        diff = "".join(_diff(p, (werk / p).read_text(), code)
++                       for p, code in dateien.items() if not p.startswith("tests/"))
++    return diff, beschreibung, belege, None if gegenprobe else testcode
++
++
++def _nebenwirkung_vorbereiten(werk, paket, a, b, gegenprobe):
++    """Bekannten Defekt in A NUR im privaten Ausgang setzen; Kandidat behebt ihn.
++
++    B wird erst am Kandidaten geschädigt. Damit messen Originaltests einen echten
++    Gewinn in A und Verlust in B statt einer behaupteten Beschleunigung.
++    """
++    defekt, beschreibung_a = _lahmlegen(werk, paket, a, alle=True)
++    geaendert = aegis.kandidat_dateien(werk, defekt)
++    if not geaendert:
++        raise RuntimeError("Ausgangsdefekt A nicht anwendbar")
++    wiederherstellen = ""
++    for p, code in geaendert.items():
++        original = (werk / p).read_text()
++        wiederherstellen += _diff(p, code, original)
++        (werk / p).write_text(code)
++    schaden_b, beschreibung_b = _lahmlegen(werk, paket, b)
++    return (wiederherstellen + ("" if gegenprobe else schaden_b),
++            f"A={a}: behebt privaten Ausgangsdefekt ({beschreibung_a}); "
++            f"B={b}: {'unverändert (Gegenprobe)' if gegenprobe else beschreibung_b}",
++            {"gewinnbereich": a, "verlustbereich": b, "basis_eingriff": geaendert}, None)
++
++
++def _regression_vorbereiten(werk, paket, a, b, gegenprobe):
++    diff, beschreibung, belege, _ = _nebenwirkung_vorbereiten(werk, paket, a, b, gegenprobe)
++    gruen_diff, gruen_text = _gruene_tests(a)
++    gruen = aegis.kandidat_dateien(werk, gruen_diff)
++    testdateien = sorted(p.relative_to(werk).as_posix() for p in (werk / "tests").glob("test_*.py")
++                        if p.name == f"test_{b}.py" or p.name.startswith(f"test_{b}_"))
++    if not testdateien:
++        raise RuntimeError(f"Keine Bereichstests für {b}: Regression nicht prüfbar")
++    basis_tests = aegis.junit_lauf(werk, paket, gruen, testdateien + list(gruen))
++    schaden, _ = _lahmlegen(werk, paket, b)
++    schaden_tests = aegis.junit_lauf(werk, paket, aegis.kandidat_dateien(werk, schaden), testdateien)
++    faelle = sorted(n for n, x in schaden_tests.items()
++                    if not x["ok"] and x["bestaetigt"] and basis_tests.get(n, {}).get("ok"))
++    if not faelle:
++        raise RuntimeError(f"Kein bestätigter Einzeltest fällt durch den Eingriff in {b}")
++    diff += gruen_diff
++    kandidat_tests = aegis.junit_lauf(werk, paket, aegis.kandidat_dateien(werk, diff), testdateien + list(gruen))
++    belege.update(regressionstest=faelle[0], basis_tests=basis_tests, kandidat_tests=kandidat_tests,
++                  gruene_tests=sorted(n for n in kandidat_tests if n.split("::")[0] in gruen and not n.endswith("::*")))
++    return diff, beschreibung + "; " + gruen_text, belege, None
++
++
++def _vertrag_vorbereiten(werk, paket, a, b, vertrag_pfad, gegenprobe):
++    datei, fn = next((d, f) for d, f in _funktionen(werk, paket, a) if f.col_offset == 0)
++    quelle = datei.read_text()
++    zeilen = quelle.splitlines()
++    ziel = fn.body[0].end_lineno if ast.get_docstring(fn) is not None else fn.body[0].lineno - 1
++    neu = zeilen[:ziel] + [f"    from {paket} import {b} as _eichlieferant",
++                          "    if _eichlieferant.eichprobe_zusicherung() != 'da':",
++                          "        raise ValueError('eichprobe_zusicherung fehlt')"] + zeilen[ziel:]
++    rel = datei.relative_to(werk).as_posix()
++    diff = _diff(rel, quelle, "\n".join(neu) + "\n")
++    # Einen wirklich vorhandenen Verbraucher-Test samt Imports übernehmen.
++    # Kein unaufgerufener Hilfsfunktionsstummel als vermeintlicher Konsument.
++    testpfad = f"tests/test_{a}.py"
++    baum = ast.parse((werk / testpfad).read_text())
++    test = next((k for k in baum.body if isinstance(k, ast.FunctionDef) and k.name.startswith("test_")
++                 and not k.args.args and not k.args.posonlyargs and not k.args.kwonlyargs and not k.decorator_list
++                 and any(isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == fn.name
++                         for n in ast.walk(k))), None)
++    if test is None:
++        raise RuntimeError(f"Kein eigenständig ausführbarer Test für {rel}::{fn.name}")
++    verbrauchertest = f"{testpfad}::{test.name}"
++    test.name = "test_eichprobe_vertrag_neue_zusicherung"
++    test.body += ast.parse(f"from {paket}.{b} import eichprobe_zusicherung\n"
++                          "assert eichprobe_zusicherung() == 'da'\n").body
++    importe = [k for k in baum.body if isinstance(k, (ast.Import, ast.ImportFrom))]
++    zusatz = ast.unparse(ast.Module(body=importe + [test], type_ignores=[])) + "\n"
++    alt_vertrag = (werk / vertrag_pfad).read_text()
++    diff += _diff(vertrag_pfad, alt_vertrag, alt_vertrag.rstrip() + "\n\n" + zusatz)
++    if gegenprobe:
++        lieferant = f"{paket}/{b}/__init__.py"
++        alt = (werk / lieferant).read_text()
++        diff += _diff(lieferant, alt, alt.rstrip() + "\n\n"
++                      "def eichprobe_zusicherung():\n    return 'da'\n")
++    dateien = aegis.kandidat_dateien(werk, diff)
++    belege = {"verbrauchertest": verbrauchertest, "verbraucherdatei": rel,
++              "vertragstest": f"{Path(vertrag_pfad).name}::{test.name}",
++              "basis_tests": aegis.junit_lauf(werk, paket, {}, [testpfad]),
++              "kandidat_tests": aegis.junit_lauf(werk, paket, dateien, [testpfad])}
++    return (diff, f"{vertrag_pfad}: {a}.{fn.name} fordert {b}.eichprobe_zusicherung(); "
++            f"Lieferant {'angepasst (Gegenprobe)' if gegenprobe else 'NICHT angepasst'}", belege, None)
++
++
++def _einzelprobe(con, lauf_id, werk_id, pfad, paket, bereiche, bstrassen, basis, ausgang, ref, tausch,
++                 generation, gegenstand, name, gegenprobe=False):
++    """Eine vollständig ausgeführte Positiv- oder Gegenprobe an isoliertem Bestand."""
++    t0 = time.monotonic()
++    with _privat(con, pfad) as (db, werk), kammer.zaehlung() as aufrufe:
++        n0, c0 = _kassenstand(db, lauf_id)
++        a, b = gegenstand["von_bereich"], gegenstand["nach_bereich"]
++        if name == "norm":
++            bereich = b
++            diff, beschreibung, belege, angriff = _norm_vorbereiten(db, werk, werk_id, paket, b, gegenprobe)
++        elif name == "nebenwirkung":
++            bereich = a
++            diff, beschreibung, belege, angriff = _nebenwirkung_vorbereiten(werk, paket, a, b, gegenprobe)
++        elif name == "regression":
++            bereich = a
++            diff, beschreibung, belege, angriff = _regression_vorbereiten(werk, paket, a, b, gegenprobe)
++        elif name == "vertrag":
++            bereich = a
++            diff, beschreibung, belege, angriff = _vertrag_vorbereiten(
++                werk, paket, a, b, gegenstand["vertrag_pfad"], gegenprobe)
++        else:
++            raise ValueError(f"Noch keine Probe gebaut: {name}")
++        dateien = aegis.kandidat_dateien(werk, diff)
++        if not dateien:
++            raise RuntimeError(aegis.diff_grund(werk, diff) or "kein anwendbarer Probediff")
++        kid = _einschleusen(db, lauf_id, generation, bereich, diff, beschreibung,
++                           gegenstand["vertrag_pfad"] if name == "vertrag" else "keine", name)
++        belege["zielpruefsummen"] = {p: hashlib.sha256((werk / p).read_bytes()).hexdigest()
++                                     for p in dateien if (werk / p).exists()}
++        u = aegis.pruefen(db, lauf_id, werk_id, kid, werk, paket, bereiche, bstrassen, basis, ausgang, ref, tausch,
++                          probe_ohne_modell=True, probe_angriff=angriff)
++        messung = lj(db.execute("SELECT masse FROM kandidaten WHERE id=?", (kid,)).fetchone()[0]) or {}
++        belege.update(urteil=u, messung=messung)
++        if name == "norm":
++            belege.update(werk_test_vorhanden=(werk / belege["testpfad"]).exists(),
++                          normeintraege=[dict(z) for z in db.execute(
++                              "SELECT name,status,code,ursprung FROM immunsystem WHERE name=?",
++                              (f"norm_k{kid}_{bereich}",))])
++        n1, c1 = _kassenstand(db, lauf_id)
++        pruefbar = bool(messung.get("gueltig") and (messung.get("_basis_paar") or {}).get("gueltig"))
++        return {"kandidat": kid, "ausgefuehrt": bool(aufrufe), "pruefbar": pruefbar,
++                "bestanden": _bestanden(name, belege), "belege": belege, "status": u["status"],
++                "grund": u["grund"], "befund": beschreibung, "gegenprobe": gegenprobe, "diff": diff,
++                "modellaufrufe": n1 - n0, "kosten_eur": round(c1 - c0, 6),
++                "kammerlaeufe": len(aufrufe), "kammer": list(aufrufe),
++                "dauer_s": round(time.monotonic() - t0, 3)}
++
++
++def _leer(grund):
++    return {"kandidat": None, "ausgefuehrt": False, "pruefbar": False, "bestanden": False,
++            "grund": grund, "befund": grund, "belege": {}, "modellaufrufe": 0,
++            "kosten_eur": 0.0, "kammerlaeufe": 0, "dauer_s": 0.0}
++
++
++def _vollstaendig(positive, gegenproben):
++    return (set(positive) == set(gegenproben) == set(PROBEN)
++            and all(p.get("ausgefuehrt") is True and p.get("pruefbar") is True
++                    and p.get("bestanden") is True for p in positive.values())
++            and all(p.get("ausgefuehrt") is True and p.get("pruefbar") is True
++                    and p.get("bestanden") is False for p in gegenproben.values()))
++
++
+ def proben(con: sqlite3.Connection, lauf_id: int, werk_id: int, pfad: Path, paket: str, bereiche: list[str],
+            bstrassen, basis: dict, ausgang: dict, ref: str | None, tausch: dict, generation: int = 0) -> dict:
+-    """Die vier Proben am versiegelten Gegenstand. Rückgabe mit Ergebnis und Abrechnung je Probe."""
+-    g = eichgegenstand.sichern(con, werk_id, lauf_id, pfad)
+-    if not g.get("gegenstand"):
+-        return {"bestanden": False, "grund": g.get("befund") or "kein Eichgegenstand", "gegenstand": None,
+-                "proben": {}, "lauf_startet": False}
+-    geg = g["gegenstand"]
+-    A, B = geg["von_bereich"], geg["nach_bereich"]      # A = Konsument, B = Lieferant des Vertrags
+-    ergebnisse: dict = {}
+-
+-    def lauf_probe(name: str, bereich: str, diff: str, begruendung: str, vertraege: str, pruefung) -> dict:
+-        t0 = time.time()
+-        n0, c0 = _kassenstand(con, lauf_id)
+-        kid = _einschleusen(con, lauf_id, generation, bereich, diff, begruendung, vertraege, name)
+-        u = aegis.pruefen(con, lauf_id, werk_id, kid, pfad, paket, bereiche, bstrassen, basis, ausgang, ref, tausch)
+-        n1, c1 = _kassenstand(con, lauf_id)
+-        ok, befund = pruefung(u)
+-        e = {"kandidat": kid, "bestanden": ok, "befund": befund, "status": u.get("status"),
+-             "grund": (u.get("grund") or "")[:300], "modellaufrufe": n1 - n0, "kosten_eur": round(c1 - c0, 6),
+-             "kammerlaeufe": 1, "dauer_s": round(time.time() - t0, 1)}
+-        eichung.kosten_buchen(con, lauf_id, werk_id, f"probe.{name}", 1, time.time() - t0,
+-                              modellaufrufe=n1 - n0, kosten_eur=c1 - c0)
+-        protokoll.schreiben(con, "eichprobe.ergebnis", lauf_id=lauf_id, probe=name, **{k: v for k, v in e.items()})
+-        ergebnisse[name] = e
+-        return e
+-
+-    # --- 1. Nebenwirkung: B schneller, A kaputt → muss abgelehnt werden und A nennen
+-    d_a, t_a = _lahmlegen(pfad, paket, A)
+-    lauf_probe("nebenwirkung", A, d_a, f"Eichprobe Nebenwirkung: {t_a} (Bereich {A} fällt)", "keine",
+-               lambda u: ((u.get("status") != "ueberlebt" and A in (u.get("grund") or "")),
+-                          f"abgelehnt und nennt {A}: {(u.get('grund') or '')[:160]}"))
+-
+-    # --- 2. Regression: dieselbe Verschlechterung, aber mit drei grünen Tests → Einzeltest muss benannt sein
+-    d_g, t_g = _gruene_tests(A)
+-    lauf_probe("regression", A, d_a + d_g, f"Eichprobe Regression: {t_a} plus {t_g}", "keine",
+-               lambda u: ("Regression je Test" in (u.get("grund") or "") and "::" in (u.get("grund") or ""),
+-                          f"gefallener Einzeltest benannt: {(u.get('grund') or '')[:160]}"))
+-
+-    # --- 3. Norm: Test ohne Absturz und ohne Vertragsverweis → offen, 0 Punkte, nicht im Werk
+-    d_n, rel_test, t_n = _normtest(pfad, paket, B)
+-    lauf_probe("norm", B, d_n, f"Eichprobe Norm: {t_n}", "keine",
+-               lambda u: (int((u.get("masse") or {}).get("zuwachs") or 0) == 0
+-                          and rel_test.split("/")[-1] not in str((u.get("masse") or {}).get("_testbestand") or []),
+-                          f"0 Punkte und nicht im Werk: zuwachs={(u.get('masse') or {}).get('zuwachs')}, "
+-                          f"norm={u.get('norm')}, Status {u.get('status')}"))
+-
+-    # --- 4. Vertrag: Grenze ändern, Nachbar NICHT anpassen → abgelehnt
+-    # Die Vertragsdatei allein genügt dem Ankläger nicht („Diff ändert nichts"): Eine Grenzänderung besteht aus
+-    # der neuen Zusicherung IM VERTRAG und ihrer Nutzung im Konsumenten. Der Lieferant B wird bewusst nicht
+-    # angepasst — genau das muss auffallen.
+-    vertrag_rel = geg["vertrag_pfad"]
+-    alt_v = (pfad / vertrag_rel).read_text()
+-    neu_v = alt_v + (f"\n\ndef test_eichprobe_vertrag_neue_zusicherung():\n"
+-                     f"    \"\"\"Eichprobe: {A} verlangt von {B} die Funktion eichprobe_zusicherung().\"\"\"\n"
+-                     f"    from {paket}.{B} import eichprobe_zusicherung\n"
+-                     f"    assert eichprobe_zusicherung() == 'da'\n")
+-    # Konsument A nutzt die neue Zusicherung — der Lieferant B hat sie nicht.
+-    datei_a, fn_a = _funktionen(pfad, paket, A)[0]
+-    quelle_a = datei_a.read_text()
+-    neu_a = quelle_a.replace(f"def {fn_a.name}",
+-                             f"def _eichprobe_nutzt_zusicherung():\n"
+-                             f"    from {paket}.{B} import eichprobe_zusicherung\n"
+-                             f"    return eichprobe_zusicherung()\n\n\ndef {fn_a.name}", 1)
+-    d_v = _diff(vertrag_rel, alt_v, neu_v) + _diff(str(datei_a.relative_to(pfad)), quelle_a, neu_a)
+-    lauf_probe("vertrag", A, d_v,
+-               f"Eichprobe Vertrag: {vertrag_rel} fordert {B}.eichprobe_zusicherung(), {A} nutzt sie, "
+-               f"Nachbar {B} NICHT angepasst", f"{vertrag_rel}",
+-               lambda u: (u.get("status") != "ueberlebt",
+-                          f"abgelehnt: {(u.get('grund') or '')[:160]}"))
+-
+-    alle_ok = all(e["bestanden"] for e in ergebnisse.values())
+-    protokoll.schreiben(con, "eichprobe.abschluss", lauf_id=lauf_id, werk_id=werk_id, bestanden=alle_ok,
+-                        gegenstand=f"{A}→{B}", vertrag=vertrag_rel,
+-                        je_probe={k: {"bestanden": v["bestanden"], "modellaufrufe": v["modellaufrufe"],
+-                                      "kosten_eur": v["kosten_eur"]} for k, v in ergebnisse.items()},
+-                        regel="Fassung 5 3.5: Besteht eine Probe nicht, beginnt kein Lauf (Satz 6)")
+-    return {"bestanden": alle_ok, "gegenstand": geg, "proben": ergebnisse, "lauf_startet": alle_ok,
+-            "grund": None if alle_ok else "mindestens eine Eichprobe nicht bestanden"}
++    """Vier Paare, ohne Modelle, ohne vorausgesetzten Freeze und ohne Rückschreiben.
++
++    `basis`/`ausgang` sind explizite Messungen; laeufe.mass darf NULL sein. Die
++    Rückgabe ist der Beleg für den Aufrufer, kein selbst erteiltes Startrecht.
++    Sämtliche Versiegelungs-, Anklage-, Immun- und Kostenwrites bleiben privat.
++    """
++    with _privat(con, pfad) as (db, werk):
++        gegenstand = eichgegenstand.sichern(db, werk_id, lauf_id, werk)
++        g = gegenstand.get("gegenstand")
++        if not g:
++            grund = gegenstand.get("befund") or "kein Eichgegenstand"
++            return {"bestanden": False, "grund": grund, "gegenstand": None, "lauf_startet": False,
++                    "proben": {n: _leer(grund) for n in PROBEN},
++                    "gegenproben": {n: _leer(grund) for n in PROBEN},
++                    "kosten": {"kammerlaeufe": 0, "modellaufrufe": 0, "kosten_eur": 0.0, "dauer_s": 0.0}}
++        positive, negative = {}, {}
++        for name in PROBEN:
++            for ist_gegenprobe, ziel in ((False, positive), (True, negative)):
++                t0 = time.monotonic()
++                with kammer.zaehlung() as aufrufe:
++                    try:
++                        ziel[name] = _einzelprobe(db, lauf_id, werk_id, werk, paket, bereiche, bstrassen,
++                                                 basis, ausgang, ref, tausch, generation, g, name, ist_gegenprobe)
++                    except (RuntimeError, ValueError, StopIteration, OSError, sqlite3.Error) as fehler:
++                        # Kein ausgeführtes Gegenprädikat: ein ausdrücklich
++                        # ungeprüfter Infrastruktur-/Fixturebefund sperrt Gesamtgrün.
++                        ziel[name] = {**_leer(str(fehler) or type(fehler).__name__),
++                                      "fehlerart": type(fehler).__name__, "status": "prueffehler",
++                                      "kammerlaeufe": len(aufrufe), "kammer": list(aufrufe),
++                                      "dauer_s": round(time.monotonic() - t0, 3)}
++        alle = list(positive.values()) + list(negative.values())
++        kosten = {k: sum(p[k] for p in alle) for k in ("kammerlaeufe", "modellaufrufe", "kosten_eur", "dauer_s")}
++        ok = _vollstaendig(positive, negative)
++        return {"bestanden": ok, "gegenstand": g, "proben": positive, "gegenproben": negative,
++                "lauf_startet": ok, "kosten": kosten,
++                "grund": None if ok else "Vier Positivtreffer und vier prüfbare negative Gegenproben erforderlich"}
+ 
+ 
+ def text(e: dict) -> list[str]:
+     if not e.get("gegenstand"):
+         return [f"Eichproben: NICHT GELAUFEN — {e.get('grund')}"]
+     g = e["gegenstand"]
+-    z = [f"Eichproben am versiegelten Gegenstand {g['von_bereich']}→{g['nach_bereich']} "
+-         f"(Vertrag `{g['vertrag_pfad']}`, Prüfsumme {g['vertrag_pruefsumme'][:16]}):"]
++    zeilen = [f"Eichproben {g['von_bereich']}→{g['nach_bereich']} "
++              f"({g['vertrag_pfad']}, SHA256 {g['vertrag_pruefsumme']}):"]
+     for name in PROBEN:
+-        p = e["proben"].get(name)
+-        if not p:
+-            z.append(f"  {name:<13} NICHT GELAUFEN")
+-            continue
+-        z.append(f"  {name:<13} {'bestanden' if p['bestanden'] else 'NICHT BESTANDEN'} | K{p['kandidat']} "
+-                 f"| {p['modellaufrufe']:>2} Modellaufrufe | {p['kosten_eur']:.4f} € | {p['kammerlaeufe']} Kammerlauf "
+-                 f"| {p['dauer_s']:.0f} s")
+-        z.append(f"                {p['befund']}")
+-    n = sum(p["modellaufrufe"] for p in e["proben"].values())
+-    c = sum(p["kosten_eur"] for p in e["proben"].values())
+-    z.append(f"  SUMME Vorspann: {len(e['proben'])} Proben, {n} Modellaufrufe, {c:.4f} €, "
+-             f"{sum(p['kammerlaeufe'] for p in e['proben'].values())} Kammerläufe, "
+-             f"{sum(p['dauer_s'] for p in e['proben'].values()):.0f} s")
++        for gruppe, titel in (("proben", "Positivprobe"), ("gegenproben", "Gegenprobe")):
++            p = e.get(gruppe, {}).get(name, _leer("fehlende Zeile"))
++            zeilen.append(f"  {titel} {name}: ausgeführt={p['ausgefuehrt']}, prüfbar={p['pruefbar']}, "
++                          f"Bestehensprädikat={p['bestanden']} | {p['kammerlaeufe']} Kammerläufe | "
++                          f"{p['modellaufrufe']} Modellaufrufe | {p['kosten_eur']:.6f} €")
++            zeilen.append(f"    Originalurteil: {p['grund']}")
++            b = p.get("belege", {})
++            m = b.get("urteil", {}).get("mass") or {}
++            if name in ("nebenwirkung", "regression"):
++                zeilen.append(f"    Pareto besser: {m.get('pareto_besser')}; schlechter: {m.get('pareto_schlechter')}")
++            elif name == "norm":
++                zeilen.append(f"    Norm: {b.get('urteil', {}).get('norm')}; Zuwachs: {m.get('zuwachs')}; "
++                              f"Normeinträge: {[z['name'] for z in b.get('normeintraege', [])]}")
++    k = e["kosten"]
++    zeilen.append(f"SUMME gesamte Batterie: {k['kammerlaeufe']} Kammerläufe, "
++                  f"{k['modellaufrufe']} Modellaufrufe, {k['kosten_eur']:.6f} €, {k['dauer_s']:.3f} s")
+     if not e["bestanden"]:
+-        z.append("  LAUF STARTET NICHT: mindestens eine Eichprobe nicht bestanden (Satz 6).")
+-    return z
++        zeilen.append("LAUF STARTET NICHT: Batterie unvollständig oder falsches Prädikat.")
++    return zeilen
+diff --git a/biotop/organe/eichung.py b/biotop/organe/eichung.py
+index 570a355..aa16c59 100644
+--- a/biotop/organe/eichung.py
++++ b/biotop/organe/eichung.py
+@@ -146,6 +146,8 @@ def rauschmessung(con: sqlite3.Connection, lauf_id: int, werk_id: int, pfad: Pat
+             behalten = [w for w in roh[b] if w not in e["aussetzer"]] + nach
+             e = messgeraet.rauschtoleranz_aus_werten(behalten)
+             e["nachgemessen"] = True
++        if e.get("nachmessen") and not e.get("meldung"):
++            e["meldung"] = "Rauschmessung nach einmaligem Nachmessen weiterhin unvollständig oder mit Aussetzer — Bereich gesperrt"
+ 
+         # Vorgeschichte: wie oft hat dieser Bereich UNMITTELBAR zuvor hintereinander gemeldet — und wann?
+         # Der Zeitraum gehört zum Befund: drei Meldungen in einer Sitzung deuten auf die Maschine (fremde Last,
+diff --git a/biotop/organe/gedaechtnis.py b/biotop/organe/gedaechtnis.py
+index 8c7625e..6d71676 100644
+--- a/biotop/organe/gedaechtnis.py
++++ b/biotop/organe/gedaechtnis.py
+@@ -312,15 +312,17 @@ def art_merken(con, werk_id: int, lauf_id: int, kandidat_id: int, ergebnis: str,
+                      kat, ergebnis, int(u.get("zuwachs") or 0), lz, (k["begruendung"] or "")[:300], muster, muster_von, protokoll.jetzt()))
+ 
+ 
+-def art_lesen(con, werkklasse_filter: str | None = None, limit: int = 40, werk: str | None = None, nur_angenommen: bool = False) -> list[dict]:
++def art_lesen(con, werkklasse_filter: str | None = None, limit: int | None = 40, werk: str | None = None,
++              nur_angenommen: bool = False, *, fremd_zu: str | None = None) -> list[dict]:
+     tabellen(con)
+     b = []
+     p: list = []
+     if werkklasse_filter: b.append("werkklasse=?"); p.append(werkklasse_filter)
+     if werk: b.append("werk=?"); p.append(werk)
++    if fremd_zu is not None: b.append("werk!=?"); p.append(fremd_zu)
+     if nur_angenommen: b.append("ergebnis='angenommen'")
+     q = "SELECT * FROM artgedaechtnis" + (" WHERE " + " AND ".join(b) if b else "") + " ORDER BY id DESC LIMIT ?"
+-    return [dict(z) for z in con.execute(q, (*p, limit))]
++    return [dict(z) for z in con.execute(q, (*p, -1 if limit is None else limit))]
+ 
+ 
+ def art_zusammenfassung(con) -> list[dict]:
+@@ -367,7 +369,9 @@ def art_text(con, werk_id: int) -> str:
+ 
+     # Andere Werke: nur Muster, jedes Muster einmal (gleiche Sätze zusammengefasst).
+     fremd, muster_gesehen = [], set()
+-    for e in art_lesen(con, None, 200, nur_angenommen=True):
++    # Erst die fremde Population auswählen, dann deduplizieren; kein vorgelagertes
++    # Gesamtfenster darf ältere, aber verfügbare fremde Muster unsichtbar machen.
++    for e in art_lesen(con, None, None, nur_angenommen=True, fremd_zu=eigen_werk):
+         if e["werk"] == eigen_werk or not (e.get("muster") or "").strip():
+             continue
+         schl = (e["muster"] or "").lower()[:80]
+@@ -381,7 +385,7 @@ def art_text(con, werk_id: int) -> str:
+     # und lieferte 0. Bei 17 Diensten verdrängt die Masse eigener Einträge die fremden allein durch Menge.
+     # Der Anteil steuert, WAS GEZEIGT wird, nicht was zitiert werden muss — ein Pflichtfeld erzeugt Scheinbegründungen.
+     GEZEIGT = 25
+-    fremd_min = min(len(fremd), max(5, GEZEIGT // 2))
++    fremd_min = min(len(fremd), max(5, (GEZEIGT + 1) // 2))
+     eigen_max = max(0, GEZEIGT - fremd_min)
+     fremd_zeigen = fremd[:max(fremd_min, GEZEIGT - min(len(eigen_liste), eigen_max))]
+     eigen_zeigen = eigen_liste[:eigen_max]
+diff --git a/biotop/organe/kammer.py b/biotop/organe/kammer.py
+index ed06331..dfaae58 100644
+--- a/biotop/organe/kammer.py
++++ b/biotop/organe/kammer.py
+@@ -17,7 +17,9 @@ import shutil
+ import subprocess
+ import tempfile
+ import uuid
+-from dataclasses import dataclass
++from contextlib import contextmanager
++from contextvars import ContextVar
++from dataclasses import asdict, dataclass
+ from pathlib import Path
+ 
+ IMAGE = os.environ.get("BIOTOP_KAMMER_IMAGE", "biotop-kammer:1")
+@@ -42,7 +44,7 @@ def _kopie(werk: Path, ziel: Path) -> None:
+     )
+ 
+ 
+-def ausfuehren(werk: Path, befehl: list[str], zeitlimit_s: int | None = None,
++def _ausfuehren(werk: Path, befehl: list[str], zeitlimit_s: int | None = None,
+                dateien: dict[str, str] | None = None) -> Ergebnis:
+     """Kopiert `werk` in ein Wegwerfverzeichnis, legt optional `dateien`
+     (Pfad → Inhalt, relativ zum Werk) hinein und führt `befehl` im Container aus.
+@@ -91,6 +93,28 @@ def ausfuehren(werk: Path, befehl: list[str], zeitlimit_s: int | None = None,
+         shutil.rmtree(tmp, ignore_errors=True)
+ 
+ 
++_ZAEHLUNGEN: ContextVar[tuple] = ContextVar("kammerzaehlungen", default=())
++
++
++@contextmanager
++def zaehlung():
++    """Kontextlokale Rohbelege aller tatsächlichen Kammeraufrufe, auch verschachtelt."""
++    aufrufe = []
++    token = _ZAEHLUNGEN.set((*_ZAEHLUNGEN.get(), aufrufe))
++    try:
++        yield aufrufe
++    finally:
++        _ZAEHLUNGEN.reset(token)
++
++
++def ausfuehren(werk: Path, befehl: list[str], zeitlimit_s: int | None = None,
++               dateien: dict[str, str] | None = None) -> Ergebnis:
++    ergebnis = _ausfuehren(werk, befehl, zeitlimit_s, dateien)
++    for zaehler in _ZAEHLUNGEN.get():
++        zaehler.append({**asdict(ergebnis), "befehl": list(befehl)})
++    return ergebnis
++
++
+ def bereit() -> tuple[bool, str]:
+     p = subprocess.run(["docker", "image", "inspect", IMAGE], capture_output=True, text=True)
+     if p.returncode != 0:
+diff --git a/pruefung/vorspann.py b/pruefung/vorspann.py
+index 85fd6c2..af67591 100644
+--- a/pruefung/vorspann.py
++++ b/pruefung/vorspann.py
+@@ -1,56 +1,32 @@
+-"""Vollständiger Vorspann „Generation minus eins" an einem Lauf (F5 3.5) — zugleich die Nachmessung der vier
+-Tor-2-Zeilen Nebenwirkung, Regression, Norm und Vertrag mit den gehärteten Proben (Vorgabe Philipp, Punkt 9).
++"""Kompatibler Berichts-Wrapper: vorspann.py <ausgaben-dir> <lauf_id>.
+ 
+-Reihenfolge wie in 3.5: Rauschmessung → Eichgegenstand → Fund-Neubewertung → vier Proben.
+-Aufruf: vorspann.py <ausgaben-dir> <lauf_id>
++Kein zweiter Eichpfad: delegiert ausschließlich an `biotop vorspann <lauf>`.
+ """
+-import sys
+-import time
++import argparse
++from contextlib import redirect_stderr, redirect_stdout
++from io import StringIO
+ from pathlib import Path
+-sys.path.insert(0, "/root/biotop")
+-from biotop.kern.datenbank import verbinden, lj
+-from biotop.organe import eichgegenstand, eichproben, eichung, fundpruefung, landkarte
+-from biotop import lauf as L
+-
+-A = Path(sys.argv[1]); LAUF = int(sys.argv[2])
+-con = verbinden()
+-lauf = L._lauf(con, LAUF); werk = L._werk(con, lauf["werk_id"]); pfad = Path(werk["pfad"])
+-mass = lj(lauf["mass"]); paket, bereiche = mass["paket"], mass["bereiche"]
+-ref = L._referenzlast(werk["name"], paket)
+-basis_gen = L.letzte_angenommene(con, LAUF); basis = lj(basis_gen["masse"])
+-ausgang = lj(con.execute("SELECT masse FROM generationen WHERE lauf_id=? AND nummer=0", (LAUF,)).fetchone()["masse"])
+-kanten = [(z["von"], z["nach"], z["art"]) for z in con.execute("SELECT von, nach, art FROM strassen WHERE werk_id=?", (werk["id"],))]
+-bstr = landkarte.bereichs_strassen(kanten, paket)
+-
+-z = [f"# Generation minus eins — vollständiger Vorspann, Lauf {LAUF}, Werk {werk['name']}",
+-     f"# Zugleich Nachmessung der Tor-2-Zeilen Nebenwirkung, Regression, Norm, Vertrag (Vorgabe Philipp)"]
++import sys
+ 
+-z.append("\n## 1. Rauschmessung (Toleranz je Bereich, bereichsweise Sperre)")
+-r = eichung.rauschmessung(con, LAUF, werk["id"], pfad, bereiche, paket, ref)
+-z += ["  " + s for s in eichung.text(r)]
++# Diese Kopie, niemals ein fest verdrahtetes produktives Repository.
++sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
++from biotop.__main__ import main as biotop_main
+ 
+-z.append("\n## 2. Eichgegenstand (versiegelt, je Werk einmal)")
+-g = eichgegenstand.sichern(con, werk["id"], LAUF, pfad)
+-z += ["  " + s for s in eichgegenstand.text(g)]
+ 
+-z.append("\n## 3. Fund-Neubewertung (offene Funde am Ausgang nachmessen)")
+-t0 = time.time()
+-f = fundpruefung.bewerten(con, werk["id"], LAUF, pfad)
+-eichung.kosten_buchen(con, LAUF, werk["id"], "fundpruefung", f["kammerlaeufe"], time.time() - t0, modellaufrufe=0, kosten_eur=0.0)
+-z.append(f"  {f['bezugsgroesse']}, {f['kammerlaeufe']} Kammerläufe")
+-for e in f["ergebnisse"]:
+-    if e["geaendert"]:
+-        z.append(f"    {e['name']}: {e['alt']} → {e['neu']}")
++def main(argv=None):
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument('ausgaben', type=Path)
++    parser.add_argument('lauf', type=int)
++    args = parser.parse_args(argv)
++    args.ausgaben.mkdir(parents=True, exist_ok=True)
++    out, err = StringIO(), StringIO()
++    with redirect_stdout(out), redirect_stderr(err):
++        rc = biotop_main(['vorspann', str(args.lauf)])
++    (args.ausgaben / f'15-vorspann-lauf{args.lauf}.txt').write_text(out.getvalue() + err.getvalue())
++    print(out.getvalue(), end='')
++    print(err.getvalue(), end='', file=sys.stderr)
++    return rc
+ 
+-z.append("\n## 4. Die vier Proben am versiegelten Gegenstand (= Tor-2-Zeilen, nachgemessen)")
+-p = eichproben.proben(con, LAUF, werk["id"], pfad, paket, bereiche, bstr, basis, ausgang, ref,
+-                      mass.get("grenzen") or {}, generation=basis_gen["nummer"])
+-z += ["  " + s for s in eichproben.text(p)]
+ 
+-z.append("\n## Ergebnis des Vorspanns")
+-z.append(f"  Lauf startet: {r['lauf_startet'] and p['bestanden']} "
+-         f"(Rauschmessung {r['lauf_startet']}, Proben {p['bestanden']})")
+-z.append("\n## Eichkosten (getrennt von der Laufsumme)")
+-z += ["  " + s for s in eichung.kosten_text(eichung.kosten(con, LAUF), bereiche=len(bereiche))]
+-(A / f"15-vorspann-lauf{LAUF}.txt").write_text("\n".join(z) + "\n")
+-print("\n".join(z))
++if __name__ == '__main__':
++    sys.exit(main())
+diff --git a/root/biotop/README.md b/README.md
+new file mode 100644
+index 0000000..7cee704
+--- /dev/null
++++ b/README.md
+@@ -0,0 +1,30 @@
++# Biotop — INFINITE EVOLUTION
++
++Der Python-Code liegt in `biotop/`, die eigene automatisierte Testsuite in `tests/`.
++Das sind **Tests des Biotops**, nicht die Tests eingespielter Übungswerke.
++
++## Eigen-Tests ausführen
++
++```sh
++uv venv .venv
++uv pip install --python .venv/bin/python -r requirements-test.txt
++.venv/bin/python -m pytest --collect-only -q
++.venv/bin/python -m pytest -q
++```
++
++`pytest.ini` macht `tests/` vom Repository-Stamm aus auffindbar. Laufdaten,
++Archive und historische Prüfskripte werden nicht versehentlich gesammelt.
++Die Eigen-Tests verwenden temporäre Datenbanken. Netzaufrufe sind standardmäßig
++im Testprozess gesperrt; es werden keine Modellkosten durch Eigen-Tests erzeugt.
++
++Echte Kammer-/Eichungsprüfungen benötigen Docker und das Image `biotop-kammer:1`.
++Unit-Test-Doubles sind kein Nachweis einer solchen Ausführung; deren Rohdaten
++werden im jeweiligen Prüfkanalauftrag gesondert geliefert.
++
++## Messungen und Startvoraussetzungen
++
++Ein Maß-/Messgerätwechsel darf keine alte Lauf-ID fortsetzen. Abfolge:
++Aufnahme → Landkarte/Verfassung/Verträge → verbindlicher Vorspann → Generation 0
++→ Maß einfrieren → Generationen. `python -m biotop --help` zeigt die CLI.
++Das harte Auftragsbudget gilt über alle zum Auftrag gehörenden Läufe,
++nicht erneut je Einzelversuch.
+diff --git a/root/biotop/biotop/organe/vorspann.py b/biotop/organe/vorspann.py
+new file mode 100644
+index 0000000..8ded4a5
+--- /dev/null
++++ b/biotop/organe/vorspann.py
+@@ -0,0 +1,264 @@
++"""Verbindliche Generation minus eins; ein Kernpfad für CLI und Prüfskript."""
++from __future__ import annotations
++
++import hashlib
++import math
++import re
++import subprocess
++import time
++from pathlib import Path
++
++from ..kern import messgeraet, protokoll
++from ..kern.datenbank import j, lj, transaktion
++from . import eichgegenstand, eichproben, eichung, fundpruefung, landkarte, verfassung, vertraege, kammer
++
++WURZEL = Path(__file__).resolve().parents[2]
++
++
++class VorspannFehler(RuntimeError):
++    pass
++
++
++def _tabelle(con):
++    con.execute("""CREATE TABLE IF NOT EXISTS vorspann_nachweise (
++        lauf_id INTEGER PRIMARY KEY, status TEXT NOT NULL, ergebnis TEXT,
++        nachweis_sha256 TEXT, protokoll_nr INTEGER, mass_sha256 TEXT)""")
++
++
++def _sha(obj):
++    return hashlib.sha256(j(obj).encode()).hexdigest()
++
++
++def _infrastruktur():
++    p = subprocess.run(['docker', 'image', 'inspect', '--format', '{{.Id}}', kammer.IMAGE],
++                       capture_output=True, text=True, timeout=15)
++    image_id = p.stdout.strip()
++    if p.returncode != 0 or not re.fullmatch(r'sha256:[0-9a-f]{64}', image_id):
++        raise ValueError(f'Kammer-Image nicht identifizierbar: {kammer.IMAGE}: {p.stderr}')
++    return {'image':kammer.IMAGE, 'image_id':image_id,
++            'speicher':kammer.SPEICHER, 'zeitlimit_s':kammer.ZEITLIMIT_S}
++
++
++def _quellen(con, lauf_id):
++    from .. import lauf as L
++    lauf = L._lauf(con, lauf_id)
++    werk = L._werk(con, lauf['werk_id'])
++    paket = lj(werk['bericht'])['paket']
++    ref = L._referenzlast(werk['name'], paket)
++    if not ref:
++        raise ValueError('Referenzlast fehlt')
++    dateien = {str(p.relative_to(WURZEL)):hashlib.sha256(p.read_bytes()).hexdigest()
++               for p in sorted((WURZEL / 'biotop').rglob('*.py'))}
++    dateien['kammer/Dockerfile'] = hashlib.sha256((WURZEL / 'kammer/Dockerfile').read_bytes()).hexdigest()
++    instrument = {'dateien':dateien, 'infrastruktur':_infrastruktur()}
++    return {'instrument':instrument, 'instrument_sha256':_sha(instrument),
++            'werk':{k:werk[k] for k in ('id','name','pfad','bericht')},
++            'bereiche':landkarte.bereiche_finden(Path(werk['pfad']), paket),
++            'verfassung':verfassung.lesen(con, werk['id']),
++            'referenzlast':{'sha256':hashlib.sha256(ref.encode()).hexdigest(),
++                           'suche':[werk['name'],paket], 'wurzel':str(L.REFERENZLAST.resolve())}}
++
++
++def _fehler(lauf_id, grund):
++    return VorspannFehler(f'Vorspann Lauf {lauf_id}: {grund} — neuer Lauf erforderlich (Satz 2), keine Nacheichung')
++
++
++def _qualitaet(p):
++    erwartet = {'nebenwirkung', 'regression', 'norm', 'vertrag'}
++    zahlen = {}
++    for gruppe, soll, name in (('proben', True, 'positive'), ('gegenproben', False, 'negative')):
++        es = p.get(gruppe) or {}
++        zahlen[name] = sum(isinstance(e, dict) and e.get('ausgefuehrt') is True
++                           and e.get('pruefbar') is True and e.get('bestanden') is soll
++                           for e in es.values())
++        if set(es) != erwartet or zahlen[name] != 4:
++            raise ValueError(f'{gruppe}: nicht genau vier ausgeführte, prüfbare Kontrollen mit Sollurteil {soll}')
++    if p.get('bestanden') is not True:
++        raise ValueError('Eichproben-Gesamturteil nicht bestanden')
++    return dict(zahlen, erwartet_je=4)
++
++
++def _rauschwerte(r, bereiche):
++    """Vollständige, endliche Bereichswerte; keine Rückfalltoleranz im Lauf."""
++    gesperrt = r.get('gesperrt') or []
++    toleranz = r.get('toleranz') or {}
++    es = r.get('bereiche') or {}
++    if (set(es) != set(bereiche) or len(gesperrt) != len(set(gesperrt))
++            or not set(gesperrt) <= set(bereiche)
++            or set(toleranz) != set(bereiche) - set(gesperrt)):
++        raise ValueError('Rauschmessung unvollständig oder widersprüchlich')
++    for b, e in es.items():
++        if e.get('gesperrt') is not (b in gesperrt):
++            raise ValueError(f'Rauschmessung {b}: widersprüchliche Sperre')
++        if b in gesperrt:
++            continue
++        t = toleranz[b]
++        werte = e.get('werte') or []
++        if (type(t) not in (int, float) or not math.isfinite(t) or not 1.15 <= t <= 1.5
++                or t != e.get('toleranz') or e.get('meldung') or e.get('nachmessen')
++                or len(werte) != 5 or any(type(w) not in (int, float) or not math.isfinite(w) or w <= 0 for w in werte)):
++            raise ValueError(f'Rauschmessung {b}: keine brauchbare Toleranz samt fünf Rohwerten')
++    if not toleranz or r.get('lauf_startet') is not True:
++        raise ValueError('Rauschmessung: alle Bereiche gesperrt oder Start verweigert')
++    return {'_rauschtoleranz': dict(toleranz), '_gesperrte_bereiche': sorted(gesperrt)}
++
++
++def ausfuehren(con, lauf_id):
++    """Eichen vor gen0 und Maß. Rohdaten bleiben im Nachweis und im Protokoll."""
++    _tabelle(con)
++    with transaktion(con):
++        if con.execute('SELECT 1 FROM vorspann_nachweise WHERE lauf_id=?', (lauf_id,)).fetchone():
++            raise _fehler(lauf_id, 'bereits ein Eichversuch unter dieser ID')
++        con.execute("INSERT INTO vorspann_nachweise(lauf_id,status) VALUES(?,'laeuft')", (lauf_id,))
++    r = {'lauf_id':lauf_id, 'generation':-1, 'erstellt_am':protokoll.jetzt(),
++         'regel':'F6 3.5; Verfassungssatz 2: neues Messgerät verlangt neuen Lauf'}
++    try:
++        return _ausfuehren(con, lauf_id, r)
++    except Exception as e:
++        with transaktion(con):
++            con.execute("UPDATE vorspann_nachweise SET status='gescheitert',ergebnis=?,nachweis_sha256=NULL WHERE lauf_id=?",
++                        (j(r), lauf_id))
++        protokoll.schreiben(con, 'vorspann.gescheitert', lauf_id=lauf_id, grund=str(e), ergebnis=r)
++        raise _fehler(lauf_id, str(e)) from e
++
++
++def _ausfuehren(con, lauf_id, r):
++    from .. import lauf as L
++    lauf = L._lauf(con, lauf_id)
++    alt = con.execute('SELECT 1 FROM generationen WHERE lauf_id=?', (lauf_id,)).fetchone()
++    gen0_alt = any(lj(z['inhalt']).get('lauf_id') == lauf_id for z in con.execute(
++        "SELECT inhalt FROM protokoll WHERE art LIKE 'generation0.%'"))
++    if lauf['mass'] is not None or alt or gen0_alt or lauf['status'] not in ('aufgenommen', 'kartiert'):
++        raise ValueError('kein frischer Lauf vor Generation minus eins')
++    werk = L._werk(con, lauf['werk_id'])
++    pfad = Path(werk['pfad'])
++    paket = lj(werk['bericht'])['paket']
++    bereiche = landkarte.bereiche_finden(pfad, paket)
++    ref = L._referenzlast(werk['name'], paket)
++    verf = verfassung.lesen(con, werk['id'])
++    if verf is None:
++        raise ValueError('Verfassung fehlt')
++    if not ref:
++        raise ValueError('Referenzlast fehlt')
++    if not bereiche or not con.execute('SELECT 1 FROM landkarte WHERE werk_id=?', (werk['id'],)).fetchone():
++        raise ValueError('Landkarte fehlt')
++    if not vertraege.alle(con, werk['id']):
++        raise ValueError('Verträge fehlen')
++    kanten = [tuple(z) for z in con.execute('SELECT von,nach,art FROM strassen WHERE werk_id=?', (werk['id'],))]
++    tausch = dict(verf['regeln'].get('tausch') or {})
++    r['werk_id'] = werk['id']
++    r['quellen'] = _quellen(con, lauf_id)
++    r['rauschen'] = eichung.rauschmessung(con, lauf_id, werk['id'], pfad, bereiche, paket, ref)
++    tausch.update(_rauschwerte(r['rauschen'], bereiche))
++    r['gegenstand'] = eichgegenstand.sichern(con, werk['id'], lauf_id, pfad)
++    if not r['gegenstand'].get('gegenstand'):
++        raise ValueError('Eichgegenstand fehlt: ' + str(r['gegenstand'].get('befund')))
++    t0 = time.monotonic()
++    r['funde'] = fundpruefung.bewerten(con, werk['id'], lauf_id, pfad)
++    eichung.kosten_buchen(con, lauf_id, werk['id'], 'fundpruefung', r['funde']['kammerlaeufe'],
++                         time.monotonic()-t0, modellaufrufe=0, kosten_eur=0.0)
++    t0 = time.monotonic()
++    r['basis'] = messgeraet.messen(pfad, bereiche, paket, ref)
++    # messen() führt genau einen Kammeraufruf aus; keine Modelle. Auch ungültige Rückgaben kosten diesen Lauf.
++    eichung.kosten_buchen(con, lauf_id, werk['id'], 'eichausgang', 1, time.monotonic()-t0,
++                         modellaufrufe=0, kosten_eur=0.0)
++    if r['basis'].get('gueltig') is not True or r['basis'].get('werk', {}).get('baut') is not True:
++        raise ValueError('Messung des Eich-Ausgangs ungültig: ' + str(r['basis'].get('grund')))
++    r['eichproben'] = eichproben.proben(con, lauf_id, werk['id'], pfad, paket, bereiche,
++                                      landkarte.bereichs_strassen(kanten, paket), r['basis'], r['basis'], ref,
++                                      tausch, generation=-1)
++    p = r['eichproben']
++    # Proben isolieren ihre Datenbank; die gemessenen Kosten kommen als Rohdaten zurück.
++    for gruppe, prefix in (('proben', 'probe'), ('gegenproben', 'gegenprobe')):
++        for name, e in (p.get(gruppe) or {}).items():
++            eichung.kosten_buchen(con, lauf_id, werk['id'], f'{prefix}.{name}', e['kammerlaeufe'],
++                                 e['dauer_s'], modellaufrufe=e['modellaufrufe'], kosten_eur=e['kosten_eur'])
++    gegenstand = r['gegenstand']['gegenstand']
++    datei = pfad / gegenstand['vertrag_pfad']
++    if (p.get('gegenstand') != gegenstand or eichgegenstand.lesen(con, werk['id']) != gegenstand
++            or not datei.is_file() or hashlib.sha256(datei.read_bytes()).hexdigest() != gegenstand['vertrag_pruefsumme']):
++        raise ValueError('Eichgegenstand während der Proben verändert oder andere Probequelle')
++    r['qualitaet'] = _qualitaet(p)
++    if _quellen(con, lauf_id) != r['quellen']:
++        raise ValueError('Messgerät/Quellen während der Eichung verändert (Satz 2)')
++    r['kosten'] = eichung.kosten(con, lauf_id)
++    digest = _sha(r)
++    nr = protokoll.schreiben(con, 'vorspann.bestanden', lauf_id=lauf_id, nachweis_sha256=digest, ergebnis=r)
++    with transaktion(con):
++        con.execute("UPDATE vorspann_nachweise SET status='bestanden',ergebnis=?,nachweis_sha256=?,protokoll_nr=? WHERE lauf_id=?",
++                    (j(r), digest, nr, lauf_id))
++    return dict(r, nachweis_sha256=digest)
++
++
++def mass_binden(con, lauf_id, mass):
++    """In derselben Transaktion wie laeufe.mass schreiben: genau einmal, nie ersetzen."""
++    digest = _sha(mass)
++    cur = con.execute("""UPDATE vorspann_nachweise SET mass_sha256=?
++        WHERE lauf_id=? AND status='bestanden' AND mass_sha256 IS NULL AND nachweis_sha256=?
++        AND NOT EXISTS(SELECT 1 FROM laeufe WHERE id=? AND mass IS NOT NULL)""",
++        (digest, lauf_id, mass['vorspann_sha256'], lauf_id))
++    if cur.rowcount != 1:
++        raise _fehler(lauf_id, 'Maß bereits gebunden oder Nachweis fehlt')
++    return digest
++
++
++def verlangen(con, lauf_id, phase):
++    """Jeder Eingang verlangt den versiegelten Nachweis und protokolliert seine Verweigerung."""
++    try:
++        return _verlangen(con, lauf_id, phase)
++    except VorspannFehler as e:
++        protokoll.schreiben(con, 'vorspann.verweigert', lauf_id=lauf_id, phase=phase, grund=str(e))
++        raise
++
++
++def _verlangen(con, lauf_id, phase):
++    from .. import lauf as L
++    _tabelle(con)
++    z = con.execute('SELECT * FROM vorspann_nachweise WHERE lauf_id=?', (lauf_id,)).fetchone()
++    if z is None or z['status'] != 'bestanden' or not z['nachweis_sha256']:
++        raise _fehler(lauf_id, f'Nachweis fehlt oder unbrauchbar — {phase} startet nicht')
++    lauf = L._lauf(con, lauf_id)
++    if phase not in ('gen0', 'mass', 'generation'):
++        raise _fehler(lauf_id, f'unbekannte Phase {phase}')
++    if phase in ('gen0', 'mass'):
++        if lauf['mass'] is not None or z['mass_sha256'] or con.execute(
++                'SELECT 1 FROM generationen WHERE lauf_id=?', (lauf_id,)).fetchone():
++            raise _fehler(lauf_id, f'{phase} nach eingefrorenem Maß/Generation verboten')
++        if phase == 'mass' and not any(lj(e['inhalt']).get('lauf_id') == lauf_id for e in con.execute(
++                "SELECT inhalt FROM protokoll WHERE art='generation0.ergebnis' AND nr>?", (z['protokoll_nr'],))):
++            raise _fehler(lauf_id, 'Generation 0 vor dem Maß nicht abgeschlossen')
++    if phase == 'generation' and lauf['mass'] is None:
++        raise _fehler(lauf_id, 'eingefrorenes Maß fehlt')
++    try:
++        r = lj(z['ergebnis'])
++        if _sha(r) != z['nachweis_sha256'] or r['lauf_id'] != lauf_id:
++            raise ValueError('Nachweis-Prüfsumme oder Laufzuordnung verändert')
++        e = con.execute('SELECT * FROM protokoll WHERE nr=?', (z['protokoll_nr'],)).fetchone()
++        if (not e or e['art'] != 'vorspann.bestanden' or not protokoll.pruefen(con)[0]
++                or lj(e['inhalt']).get('ergebnis') != r
++                or lj(e['inhalt']).get('nachweis_sha256') != z['nachweis_sha256']):
++            raise ValueError('Protokollquelle des Nachweises fehlt oder verändert')
++        if _quellen(con, lauf_id) != r['quellen']:
++            raise ValueError('Messgerät/Quellen verändert; alter Nachweis ungültig')
++        if _qualitaet(r['eichproben']) != r['qualitaet']:
++            raise ValueError('Qualitätsbeleg verändert')
++        _rauschwerte(r['rauschen'], r['quellen']['bereiche'])
++        if phase == 'generation':
++            mass = lj(lauf['mass'])
++            if (not z['mass_sha256'] or _sha(mass) != z['mass_sha256']
++                    or mass.get('vorspann_sha256') != z['nachweis_sha256']):
++                raise ValueError('eingefrorenes Maß fehlt, wurde ersetzt oder verändert')
++            gebunden = any(lj(e['inhalt']).get('lauf_id') == lauf_id
++                           and lj(e['inhalt']).get('mass_sha256') == z['mass_sha256']
++                           and lj(e['inhalt']).get('vorspann_sha256') == z['nachweis_sha256']
++                           for e in con.execute("SELECT inhalt FROM protokoll WHERE art='mass.eingefroren' AND nr>?",
++                                                (z['protokoll_nr'],)))
++            if not gebunden:
++                raise ValueError('Quellbeleg der Maßbindung fehlt')
++    except Exception as e:
++        with transaktion(con):
++            con.execute("UPDATE vorspann_nachweise SET status='ungueltig' WHERE lauf_id=?", (lauf_id,))
++        protokoll.schreiben(con, 'vorspann.ungueltig', lauf_id=lauf_id, phase=phase, grund=str(e),
++                            nachweis_sha256=z['nachweis_sha256'], regel='Satz 2: neuer Lauf, keine Nachkorrektur')
++        raise _fehler(lauf_id, str(e)) from e
++    return dict(r, nachweis_sha256=z['nachweis_sha256'])
+diff --git a/root/biotop/pytest.ini b/pytest.ini
+new file mode 100644
+index 0000000..39548fb
+--- /dev/null
++++ b/pytest.ini
+@@ -0,0 +1,6 @@
++[pytest]
++testpaths = tests
++python_files = test_*.py
++addopts = -ra --strict-markers -p no:cacheprovider
++markers =
++    integration: führt echte Kammerläufe aus; benötigt Docker und biotop-kammer:1
+diff --git a/root/biotop/requirements-test.txt b/requirements-test.txt
+new file mode 100644
+index 0000000..7345f25
+--- /dev/null
++++ b/requirements-test.txt
+@@ -0,0 +1 @@
++pytest==9.1.1
+diff --git a/root/biotop/tests/conftest.py b/tests/conftest.py
+new file mode 100644
+index 0000000..6a2f409
+--- /dev/null
++++ b/tests/conftest.py
+@@ -0,0 +1,52 @@
++"""Eigen-Tests: ausschließlich temporäre Datenbanken, keine bezahlten Aufrufe."""
++import copy
++import socket
++import pytest
++from biotop.kern import datenbank
++
++
++def pytest_collection_modifyitems(items):
++    """Auftraggeber-Priorität: Kernmaß/Pareto vor den übrigen Eigen-Tests."""
++    def prioritaet(item):
++        if item.path.name == "test_kernmass_pareto.py":
++            if "kernmass" in item.name:
++                return 0
++            if "einzelregression" in item.name or "altfehler" in item.name:
++                return 1
++            return 2
++        return 3
++    items.sort(key=prioritaet)
++
++@pytest.fixture(autouse=True)
++def keine_bezahlten_aufrufe(monkeypatch, tmp_path):
++    monkeypatch.setenv("BIOTOP_DB", str(tmp_path / "biotop.db"))
++    monkeypatch.setattr(datenbank, "DB_PFAD", tmp_path / "biotop.db")
++    def gesperrt(*args, **kwargs):
++        raise AssertionError("Netzaufruf in Eigen-Test gesperrt")
++    monkeypatch.setattr(socket.socket, "connect", gesperrt)
++    monkeypatch.setattr(socket, "create_connection", gesperrt)
++
++@pytest.fixture
++def messung():
++    def bauen(**werte):
++        bereich = dict(tests_bestanden=3, tests_fehlgeschlagen=0, sicherheit_punkte=0,
++                       tote_funktionen=0, laufzeit_ms=100.0, groesste_funktion=10)
++        bereich.update(werte)
++        return dict(gueltig=True, kernmass=6,
++                    bereiche={"alpha": copy.deepcopy(bereich), "beta": copy.deepcopy(bereich)},
++                    werk=dict(baut=True, zyklen=0, bauzeit_ms=100, tests_fehlgeschlagen_liste=[]))
++    return bauen
++
++@pytest.fixture
++def db_lauf(tmp_path, messung):
++    con = datenbank.verbinden(tmp_path / "pruefung.db")
++    (tmp_path / "paket" / "alpha").mkdir(parents=True)
++    (tmp_path / "paket" / "alpha" / "__init__.py").write_text("")
++    con.execute("INSERT INTO werke(id,name,pfad,bericht,status) VALUES(1,?,?,?,?)",
++                ("eigenpruefung", str(tmp_path), datenbank.j({"paket":"paket"}), "aufgenommen"))
++    con.execute("INSERT INTO laeufe(id,werk_id,budget_eur,status,mass) VALUES(1,1,5,'bereit',?)",
++                (datenbank.j({"paket":"paket","bereiche":["alpha","beta"],"nischen":[]}),))
++    con.execute("INSERT INTO generationen(lauf_id,nummer,status,masse) VALUES(1,0,'angenommen',?)",
++                (datenbank.j(messung()),))
++    yield con
++    con.close()
+diff --git a/root/biotop/tests/test_ansage_aufnahme.py b/tests/test_ansage_aufnahme.py
+new file mode 100644
+index 0000000..a4d03f1
+--- /dev/null
++++ b/tests/test_ansage_aufnahme.py
+@@ -0,0 +1,165 @@
++"""Gestellte, netzfreie Eigentests; kein Ersatz für den Bestands-Replay."""
++import sqlite3
++from types import SimpleNamespace
++
++import pytest
++
++from biotop.kern import datenbank, protokoll
++from biotop.organe import aegis
++
++
++@pytest.fixture
++def con():
++    c = sqlite3.connect(":memory:", isolation_level=None)
++    c.row_factory = sqlite3.Row
++    c.executescript(datenbank.SCHEMA)
++    yield c
++    c.close()
++
++
++@pytest.mark.parametrize("art", ["fund", "norm"])
++def test_erster_neuer_test_wird_nicht_von_eigener_ansage_gesperrt(con, tmp_path, monkeypatch, art):
++    """Echte _angriff→Ansage→pruefen→Fund/Norm-Aufnahme, nur Außenwirkungen ersetzt."""
++    p = tmp_path / "paket" / "bereich" / "quelle.py"
++    p.parent.mkdir(parents=True)
++    p.write_text("def wert():\n    return 1\n")
++    diff = "--- a/paket/bereich/quelle.py\n+++ b/paket/bereich/quelle.py\n@@ -1,2 +1,2 @@\n def wert():\n-    return 1\n+    return 2\n"
++    con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'bereich','test','erzeugt',?)", (diff,))
++    code = "from paket.bereich.quelle import wert\ndef test_neu():\n    assert wert() == 3\n"
++    replies = iter(["wert|Eq:zahl", f"```python\n{code}```"])
++    monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text=next(replies)))
++
++    def junit(werk, paket, dateien, testdateien):
++        return {f"{t}::test_neu": {"ok": False, "bestaetigt": True,
++                "ort": "paket/bereich/quelle.py" if art == "fund" else "",
++                "meldung": "ValueError" if art == "fund" else "AssertionError"} for t in testdateien}
++
++    monkeypatch.setattr(aegis, "junit_lauf", junit)
++    # Endpunkt nach Aufnahme; keine Kammer, kein Messgerät-/Modellaufruf.
++    monkeypatch.setattr(aegis.messgeraet, "messen", lambda *a, **k: {"gueltig": False, "grund": "Test-Endpunkt"})
++    aegis.pruefen(con, 1, 1, 7, tmp_path, "paket", ["bereich"], [],
++                  {"bereiche": {"bereich": {}}}, {}, None, None)
++    rows = list(con.execute("SELECT name,status,ursprung FROM immunsystem"))
++    assert len(rows) == 1, "Die aktuelle eigene Ansage darf den ersten neuen Test nicht sperren"
++    assert rows[0]["name"] == ("aegis_k7_bereich" if art == "fund" else "norm_k7_bereich")
++    assert "behauptung=wert|Eq:zahl" in rows[0]["ursprung"]
++    assert not con.execute("SELECT 1 FROM protokoll WHERE art='immun.aufnahme_gesperrt'").fetchone()
++
++
++CODE = "def test_neu():\n    assert wert() == 3\n"
++
++
++def immun(con, schluessel, name="vorher"):
++    con.execute("INSERT INTO immunsystem(werk_id,lauf_id,bereich,name,ursprung,status) VALUES(1,1,'bereich',?,?,'offen_norm')",
++                (name, f"behauptung={schluessel}"))
++
++
++def ansage(con, schluessel="wert|Eq:zahl", kandidat=7):
++    return protokoll.schreiben(con, "aegis.ansage", lauf_id=1, werk_id=1, bereich="bereich",
++                              kandidat=kandidat, behauptung=schluessel, ausgefuehrt=True)
++
++
++@pytest.mark.parametrize("quelle", ["vorherige_eigene_ansage", "fremde_ansage", "immun", "im_selben_angriff_aufgenommen"])
++@pytest.mark.parametrize("art", ["fund", "norm"])
++def test_nur_die_aktuelle_ansagezeile_ist_ausgenommen(con, quelle, art):
++    if quelle == "vorherige_eigene_ansage":
++        ansage(con, kandidat=7)
++    elif quelle == "fremde_ansage":
++        ansage(con, kandidat=6)
++    elif quelle == "immun":
++        immun(con, "wert|Eq:zahl")
++    nr = ansage(con)
++    if quelle == "im_selben_angriff_aufgenommen":
++        immun(con, "wert|Eq:zahl")
++    nehmen, sperren = aegis.aufnahmesperre(con, 1, 1, "bereich", CODE, ["test_neu"], "paket", 7, art,
++                                         eigene_ansage_nr=nr)
++    assert nehmen == []
++    assert sperren == [("test_neu", "wert|Eq:zahl")]
++
++
++def test_abweichende_neue_behauptung_bleibt_zulaessig(con):
++    nr = ansage(con, "anderes|Eq:zahl")
++    nehmen, sperren = aegis.aufnahmesperre(con, 1, 1, "bereich", CODE, ["test_neu"], "paket", 7, "fund",
++                                         eigene_ansage_nr=nr)
++    assert nehmen == [("test_neu", "wert|Eq:zahl")]
++    assert sperren == []
++
++
++def test_zweiter_test_selben_schluessels_im_angriff_gesperrt(con):
++    nr = ansage(con)
++    code = CODE + "\ndef test_zweiter():\n    assert wert() == 99\n"
++    nehmen, sperren = aegis.aufnahmesperre(con, 1, 1, "bereich", code, ["test_neu", "test_zweiter"], "paket", 7, "norm",
++                                         eigene_ansage_nr=nr)
++    assert nehmen == [("test_neu", "wert|Eq:zahl")]
++    assert sperren == [("test_zweiter", "wert|Eq:zahl")]
++
++
++@pytest.mark.parametrize("quelle,anzahl", [("immun", 220), ("ansage", 420), ("immun", 520)])
++def test_aufnahme_prueft_den_ganzen_vorrat_nicht_nur_ein_fenster(con, quelle, anzahl):
++    schreiben = (lambda s, i: immun(con, s, str(i))) if quelle == "immun" else (lambda s, i: ansage(con, s))
++    schreiben("wert|Eq:zahl", 0)
++    for i in range(1, anzahl):
++        schreiben(f"anders{i}|Eq:zahl", i)
++    nehmen, sperren = aegis.aufnahmesperre(con, 1, 1, "bereich", CODE, ["test_neu"], "paket", 7, "fund")
++    assert nehmen == []
++    assert sperren == [("test_neu", "wert|Eq:zahl")]
++
++
++def test_ansagesperre_nutzt_vollstaendigen_vorrat_statt_promptfenster(con, tmp_path, monkeypatch):
++    immun(con, "wert|Eq:zahl")
++    for i in range(30):
++        immun(con, f"anders{i}|Eq:zahl", str(i))
++    anfragen = []
++    def antwort(*args, **kwargs):
++        anfragen.append(kwargs["zweck"])
++        return SimpleNamespace(text="wert|Eq:zahl")
++    monkeypatch.setattr(aegis, "aufrufen", antwort)
++    ergebnis = aegis._angriff(con, 1, 1, "paket", "bereich", "", {}, tmp_path, [])
++    assert anfragen == ["aegis.ansage.bereich"], "Bekannte Ansage muss den Testgenerierungs-Aufruf sparen"
++    assert ergebnis == (None, aegis.MODELL_ANGRIFF[1], "wert|Eq:zahl")
++
++
++@pytest.mark.parametrize("antwort_text", ["KEIN ANGRIFF", "wert|Eq:zahl"])
++def test_ansageprotokoll_bindet_auch_abstinenz_und_sperre_an_kandidat(con, tmp_path, monkeypatch, antwort_text):
++    immun(con, "wert|Eq:zahl")
++    monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text=antwort_text))
++    aegis._angriff(con, 1, 1, "paket", "bereich", "", {}, tmp_path, [], kandidat_id=7)
++    row = con.execute("SELECT inhalt FROM protokoll WHERE art='aegis.ansage'").fetchone()
++    d = datenbank.lj(row["inhalt"])
++    assert (d.get("kandidat"), d.get("werk_id")) == (7, 1)
++
++
++def test_fund_aus_selbem_angriff_sperrt_nachfolgenden_normzweig(con, tmp_path, monkeypatch):
++    p = tmp_path / "paket" / "bereich" / "quelle.py"
++    p.parent.mkdir(parents=True)
++    p.write_text("x = 1\n")
++    diff = "--- a/paket/bereich/quelle.py\n+++ b/paket/bereich/quelle.py\n@@ -1 +1 @@\n-x = 1\n+x = 2\n"
++    con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'bereich','test','erzeugt',?)", (diff,))
++    code = "def test_fund():\n    assert wert() == 3\ndef test_norm():\n    assert wert() == 4\n"
++    replies = iter(["wert|Eq:zahl", f"```python\n{code}```"])
++    monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text=next(replies)))
++    def junit(werk, paket, dateien, testdateien):
++        return {f"{t}::{n}": {"ok": False, "bestaetigt": True,
++                "ort": "paket/bereich/quelle.py" if n == "test_fund" else "",
++                "meldung": "ValueError" if n == "test_fund" else "AssertionError"}
++                for t in testdateien for n in ["test_fund", "test_norm"]}
++    monkeypatch.setattr(aegis, "junit_lauf", junit)
++    monkeypatch.setattr(aegis.messgeraet, "messen", lambda *a, **k: {"gueltig": False, "grund": "Test-Endpunkt"})
++    aegis.pruefen(con, 1, 1, 7, tmp_path, "paket", ["bereich"], [],
++                  {"bereiche": {"bereich": {}}}, {}, None, None)
++    assert [r[0] for r in con.execute("SELECT name FROM immunsystem")] == ["aegis_k7_bereich"]
++    d = datenbank.lj(con.execute("SELECT inhalt FROM protokoll WHERE art='immun.aufnahme_gesperrt'").fetchone()[0])
++    assert (d["test"], d["sperrart"], d["gegenstueck"]) == ("test_norm", "norm", "bereits im Vorrat des Bereichs")
++
++
++def test_halbe_gespeicherte_schluessel_sperren_nichts(con):
++    for i, s in enumerate(["|", "wert|", "|Eq:zahl"]):
++        immun(con, s, str(i))
++    assert aegis.bisherige_behauptungen(con, 1, "bereich", 1, limit=None) == []
++
++
++def test_doppelung_ist_behauptung_statt_fundort(con):
++    code = CODE + "\ndef test_andere_datei():\n    assert wert() == 17\n"
++    einzig, doppel = aegis._doppelungen({"test_neu", "test_andere_datei"}, {}, "datei.py", con, 1, "bereich", code, "paket")
++    assert einzig == {"test_andere_datei"}
++    assert doppel == {"test_neu"}
+diff --git a/root/biotop/tests/test_artvorlage.py b/tests/test_artvorlage.py
+new file mode 100644
+index 0000000..ed81cc8
+--- /dev/null
++++ b/tests/test_artvorlage.py
+@@ -0,0 +1,75 @@
++"""Gestellte Vorlagenfälle; echte Bestandsmessung liegt separat im Replay."""
++import json
++import re
++import sqlite3
++
++import pytest
++
++from biotop.kern import datenbank
++from biotop.organe import gedaechtnis as g
++
++
++@pytest.fixture
++def con():
++    c = sqlite3.connect(":memory:", isolation_level=None)
++    c.row_factory = sqlite3.Row
++    c.executescript(datenbank.SCHEMA)
++    g.tabellen(c)
++    c.execute("INSERT INTO werke(id,bericht,sprache) VALUES(1,?,'Python')", (json.dumps({"paket": "eigen"}),))
++    yield c
++    c.close()
++
++
++def eintraege(con, werk, anzahl):
++    ids = []
++    for i in range(anzahl):
++        cur = con.execute("INSERT INTO artgedaechtnis(werk,werkklasse,lauf_id,generation,bereich,nische,kategorie,ergebnis,zuwachs,beschreibung,muster) VALUES(?,'python/klein/bibliothek',1,1,'b','n','sonst','angenommen',1,'Instanz',?)",
++                          (werk, f"Übertragbares Muster {werk} {i}"))
++        ids.append(cur.lastrowid)
++    return ids
++
++
++def gezeigt(con):
++    text = g.art_text(con, 1)
++    ids = [int(i) for i in re.findall(r"\[A(\d+)\]", text)]
++    rows = [con.execute("SELECT * FROM artgedaechtnis WHERE id=?", (i,)).fetchone() for i in ids]
++    return [r["id"] for r in rows if r["werk"] != "eigen"], [r["id"] for r in rows if r["werk"] == "eigen"]
++
++
++def test_ungerades_fenster_reserviert_mindestens_die_haelfte(con):
++    eintraege(con, "eigen", 30)
++    fremd_ids = eintraege(con, "fremd", 13)
++    fremd, eigen = gezeigt(con)
++    assert len(fremd) + len(eigen) == 25
++    assert len(fremd) * 2 >= len(fremd) + len(eigen)
++    assert set(fremd) == set(fremd_ids)
++
++
++def test_alte_fremde_muster_bleiben_trotz_mehr_als_200_eigener_sichtbar(con):
++    fremd_ids = eintraege(con, "fremd", 13)
++    eintraege(con, "eigen", 220)
++    fremd, eigen = gezeigt(con)
++    assert set(fremd) == set(fremd_ids), "Ein Gesamtlimit vor der Fremdauswahl versteckt verfügbare Muster"
++    assert len(eigen) == 12
++
++
++@pytest.mark.parametrize("fremd_anzahl,eigen_anzahl", [(0,0), (0,30), (3,30), (5,30), (12,30), (13,30), (30,30), (30,0), (5,2)])
++def test_mindestanteil_soweit_vorhanden_ohne_erfundene_eintraege(con, fremd_anzahl, eigen_anzahl):
++    alle_ids = set(eintraege(con, "fremd", fremd_anzahl) + eintraege(con, "eigen", eigen_anzahl))
++    fremd, eigen = gezeigt(con)
++    gesamt = len(fremd) + len(eigen)
++    assert gesamt == min(25, fremd_anzahl + eigen_anzahl)
++    assert len(fremd) >= min(fremd_anzahl, max(5, (gesamt + 1) // 2))
++    assert set(fremd + eigen) <= alle_ids
++    assert len(set(fremd + eigen)) == gesamt
++
++
++def test_deduplizierung_verbraucht_keine_plaetze_fuer_aeltere_muster(con):
++    alte = eintraege(con, "fremd", 13)
++    neue = eintraege(con, "fremd", 220)
++    con.executemany("UPDATE artgedaechtnis SET muster='derselbe Satz' WHERE id=?", [(i,) for i in neue])
++    eintraege(con, "eigen", 30)
++    fremd, eigen = gezeigt(con)
++    assert len(fremd) == 13
++    assert len(set(fremd) & set(alte)) == 12
++    assert len(eigen) == 12
+diff --git a/root/biotop/tests/test_doppelungsschluessel.py b/tests/test_doppelungsschluessel.py
+new file mode 100644
+index 0000000..deb5763
+--- /dev/null
++++ b/tests/test_doppelungsschluessel.py
+@@ -0,0 +1,24 @@
++"""Eigentests der bestehenden AST-Schlüsselregel: keine Dateipfad-Doppelung."""
++import pytest
++
++from biotop.organe.aegis import behauptung
++
++
++@pytest.mark.parametrize("code,name,erwartet", [
++    ("def test_a():\n    assert wert() == 1\n", "test_a", "wert|Eq:zahl"),
++    ("def test_umbenannt():\n    assert wert() == 999\n", "test_umbenannt", "wert|Eq:zahl"),
++    ("def test_a():\n    assert wert() == 'text'\n", "test_a", "wert|Eq:text"),
++    ("def test_a():\n    assert wert() >= 1\n", "test_a", "wert|GtE:zahl"),
++    ("def test_a():\n    assert anders() == 1\n", "test_a", "anders|Eq:zahl"),
++    ("import pytest\ndef test_a():\n    with pytest.raises(ValueError):\n        wert()\n", "test_a", "wert|raises:ValueError"),
++    ("def test_a():\n    assert wert()\n", "test_a", "wert|wahrheit"),
++    ("def test_a():\n    xs.append(1)\n    assert wert() == 1\n", "test_a", "wert|Eq:zahl"),
++])
++def test_schluessel_beschreibt_ziel_und_zusicherung(code, name, erwartet):
++    assert behauptung(code, name, "paket") == erwartet
++
++
++def test_doppelung_ignoriert_namen_zeilen_und_zahlenwerte():
++    a = "def test_eins():\n    assert wert() == 1\n"
++    b = "# Anderer Pfad und andere Zeile\n\n\ndef test_zwei():\n    assert wert() == 42\n"
++    assert behauptung(a, "test_eins") == behauptung(b, "test_zwei")
+diff --git a/root/biotop/tests/test_eichproben.py b/tests/test_eichproben.py
+new file mode 100644
+index 0000000..9dc3b86
+--- /dev/null
++++ b/tests/test_eichproben.py
+@@ -0,0 +1,396 @@
++"""Eichung: echte Kammerläufe, exakte Mechanismen und negative Kontrollen."""
++from pathlib import Path
++import inspect
++import hashlib
++import json
++import os
++import sqlite3
++from copy import deepcopy
++
++import pytest
++
++from biotop.kern import datenbank, messgeraet
++from biotop.organe import aegis, eichproben, kammer, vertraege, verfassung
++
++
++@pytest.fixture
++def werk(tmp_path):
++    pfad = tmp_path / "werk"
++    dateien = {
++        "beispiel/__init__.py": "",
++        "beispiel/lieferant/__init__.py": "from .rechnung import wert\n",
++        "beispiel/lieferant/rechnung.py": (
++            '"""Ein kleiner Lieferant im kopierten Prüfwerk."""\n'
++            "def wert(zahl: float) -> float:\n"
++            '    """Verdoppelt eine Zahl."""\n'
++            "    ergebnis = zahl * 2\n"
++            "    return ergebnis\n"
++        ),
++        "tests/test_lieferant.py": (
++            "from beispiel.lieferant import wert\n\n"
++            "def test_wert():\n"
++            "    assert wert(2) == 4\n"
++        ),
++    }
++    for rel, code in dateien.items():
++        ziel = pfad / rel
++        ziel.parent.mkdir(parents=True, exist_ok=True)
++        ziel.write_text(code)
++    return pfad
++
++
++@pytest.fixture
++def paar(werk, tmp_path):
++    dateien = {
++        "beispiel/abnehmer/__init__.py": "from .ausgabe import bericht\n",
++        "beispiel/abnehmer/ausgabe.py": (
++            "def bericht(zahl: float) -> float:\n"
++            '    """Berichtet einen Zahlenwert."""\n'
++            "    ergebnis = zahl + 1\n"
++            "    return ergebnis\n"
++        ),
++        "tests/test_abnehmer.py": (
++            "from beispiel.abnehmer import bericht\n\n"
++            "def test_bericht():\n"
++            "    assert bericht(2) == 3\n"
++        ),
++    }
++    for rel, code in dateien.items():
++        ziel = werk / rel
++        ziel.parent.mkdir(parents=True, exist_ok=True)
++        ziel.write_text(code)
++    con = datenbank.verbinden(tmp_path / "paar.db")
++    con.executescript(verfassung.SCHEMA)
++    con.execute("INSERT INTO laeufe(id,werk_id,budget_eur,status,mass) VALUES(1,1,0,'angelegt',NULL)")
++    vertragsdatei = vertraege.einlegen(con, 1, werk, {("abnehmer", "lieferant"): (
++        "from beispiel.lieferant import wert\n\n"
++        "def test_grenzwert():\n"
++        "    assert wert(2) == 4\n"
++    )}, "isolierte Testfixture")[0]
++    bereiche = ["abnehmer", "lieferant"]
++    basis = messgeraet.messen(werk, bereiche, "beispiel", None)
++    g = {"von_bereich": "abnehmer", "nach_bereich": "lieferant", "vertrag_pfad": vertragsdatei}
++    yield con, werk, bereiche, basis, g
++    con.close()
++
++
++@pytest.mark.parametrize("gegenprobe", [False, True])
++def test_nebenwirkung_braucht_gewinn_a_und_verlust_b(paar, gegenprobe):
++    con, werk, bereiche, basis, g = paar
++    e = eichproben._einzelprobe(con, 1, 1, werk, "beispiel", bereiche, [], basis, basis, None, {}, 0,
++                               g, "nebenwirkung", gegenprobe)
++    print("NEBENWIRKUNG", gegenprobe, e["bestanden"], e["grund"])
++    assert e["ausgefuehrt"] is True and e["pruefbar"] is True
++    assert e["bestanden"] is (not gegenprobe)
++    m = e["belege"]["urteil"]["mass"]
++    assert any(s.startswith("abnehmer.tests_fehlgeschlagen:") for s in m["pareto_besser"])
++    assert any(s.startswith("lieferant.tests_fehlgeschlagen:") for s in m["pareto_schlechter"]) is (not gegenprobe)
++    falsch = deepcopy(e["belege"])
++    falsch["urteil"]["mass"]["pareto_besser"] = []
++    assert eichproben._bestanden("nebenwirkung", falsch) is False
++
++
++def test_nebenwirkung_gewinnt_auch_bei_rueckwirkung_von_b_auf_a(paar):
++    con, werk, bereiche, _, g = paar
++    rel = "beispiel/abnehmer/ausgabe.py"
++    (werk / rel).write_text(
++        "from beispiel.lieferant import wert\n"
++        "def bericht(zahl: float):\n"
++        "    return wert(zahl)\n"
++        "def zusatz(zahl: float):\n"
++        "    return zahl + 1\n"
++    )
++    (werk / "tests/test_abnehmer.py").write_text(
++        "from beispiel.abnehmer.ausgabe import bericht, zusatz\n"
++        "def test_bericht():\n    assert bericht(2) == 4\n"
++        "def test_zusatz():\n    assert zusatz(2) == 3\n"
++    )
++    basis = messgeraet.messen(werk, bereiche, "beispiel", None)
++    e = eichproben._einzelprobe(con, 1, 1, werk, "beispiel", bereiche, [], basis, basis, None, {}, 0,
++                               g, "nebenwirkung", False)
++    assert e["bestanden"] is True, e["belege"]["urteil"]["mass"]
++
++
++@pytest.mark.parametrize("gegenprobe", [False, True])
++def test_regression_nennt_einzeltest_trotz_ausgefuehrter_gruener_tests(paar, gegenprobe):
++    con, werk, bereiche, basis, g = paar
++    e = eichproben._einzelprobe(con, 1, 1, werk, "beispiel", bereiche, [], basis, basis, None, {}, 0,
++                               g, "regression", gegenprobe)
++    print("REGRESSION", gegenprobe, e["bestanden"], e["grund"])
++    assert e["ausgefuehrt"] is True and e["pruefbar"] is True
++    assert e["bestanden"] is (not gegenprobe)
++    b = e["belege"]
++    assert len(b["gruene_tests"]) >= 3
++    assert all(b["kandidat_tests"][n]["ok"] for n in b["gruene_tests"])
++    assert b["basis_tests"][b["regressionstest"]]["ok"] is True
++    assert b["kandidat_tests"][b["regressionstest"]]["ok"] is gegenprobe
++    falsch = deepcopy(b)
++    falsch["urteil"]["mass"]["pareto_schlechter"] = ["lieferant.tests_fehlgeschlagen: 0 → 1"]
++    assert eichproben._bestanden("regression", falsch) is False
++    falsch = deepcopy(b)
++    falsch["gruene_tests"] = []
++    assert eichproben._bestanden("regression", falsch) is False
++
++
++@pytest.mark.parametrize("gegenprobe", [False, True])
++def test_vertrag_braucht_konkreten_bruch_und_ausgefuehrten_konsumenten(paar, gegenprobe):
++    con, werk, bereiche, basis, g = paar
++    e = eichproben._einzelprobe(con, 1, 1, werk, "beispiel", bereiche, [], basis, basis, None, {}, 0,
++                               g, "vertrag", gegenprobe)
++    print("VERTRAG", gegenprobe, e["bestanden"], e["grund"])
++    assert e["ausgefuehrt"] is True and e["pruefbar"] is True
++    assert e["bestanden"] is (not gegenprobe)
++    b = e["belege"]
++    assert b["basis_tests"][b["verbrauchertest"]]["ok"] is True
++    assert b["kandidat_tests"][b["verbrauchertest"]]["ok"] is gegenprobe
++    assert (b["vertragstest"] in b["urteil"]["vertrag_verletzt"]) is (not gegenprobe)
++    falsch = deepcopy(b)
++    falsch["urteil"]["vertrag_verletzt"] = ["test_vertrag_fremder.py::test_fremd"]
++    assert eichproben._bestanden("vertrag", falsch) is False
++    falsch = deepcopy(b)
++    falsch["urteil"]["grund"] = "Diff nicht anwendbar"
++    assert eichproben._bestanden("vertrag", falsch) is False
++
++
++def test_vier_paare_ohne_freeze_und_ohne_spuren_im_original(paar):
++    con, werk, bereiche, basis, _ = paar
++    vor_db = list(con.iterdump())
++    vor_werk = {p.relative_to(werk).as_posix(): p.read_bytes() for p in werk.rglob("*") if p.is_file()}
++    with kammer.zaehlung() as zaehler:
++        e = eichproben.proben(con, 1, 1, werk, "beispiel", bereiche, [], basis, basis, None, {})
++    assert set(e["proben"]) == set(e["gegenproben"]) == set(eichproben.PROBEN)
++    assert e["bestanden"] is True
++    for name in eichproben.PROBEN:
++        assert e["proben"][name]["ausgefuehrt"] and e["proben"][name]["pruefbar"]
++        assert e["proben"][name]["bestanden"] is True
++        assert e["gegenproben"][name]["ausgefuehrt"] and e["gegenproben"][name]["pruefbar"]
++        assert e["gegenproben"][name]["bestanden"] is False
++    assert e["kosten"]["kammerlaeufe"] == len(zaehler)
++    zeilen = eichproben.text(e)
++    assert sum("Gegenprobe" in z for z in zeilen) == 4
++    assert any(f"{len(zaehler)} Kammerläufe" in z for z in zeilen)
++    print("VIER PAARE", [(n, e["proben"][n]["bestanden"], e["gegenproben"][n]["bestanden"]) for n in eichproben.PROBEN], e["kosten"])
++    falsch = deepcopy(e)
++    falsch["gegenproben"].pop("norm")
++    assert eichproben._vollstaendig(falsch["proben"], falsch["gegenproben"]) is False
++    falsch = deepcopy(e)
++    falsch["gegenproben"]["norm"]["pruefbar"] = False
++    assert eichproben._vollstaendig(falsch["proben"], falsch["gegenproben"]) is False
++    assert list(con.iterdump()) == vor_db
++    assert {p.relative_to(werk).as_posix(): p.read_bytes() for p in werk.rglob("*") if p.is_file()} == vor_werk
++
++
++def test_unbaubare_probe_bleibt_ungeprueft_statt_erwuenscht_falsch(paar):
++    con, werk, bereiche, basis, _ = paar
++    p = werk / "beispiel/lieferant/rechnung.py"
++    p.write_text(p.read_text().replace("zahl: float", "zahl: object"))
++    vor_db = list(con.iterdump())
++    with kammer.zaehlung() as zaehler:
++        e = eichproben.proben(con, 1, 1, werk, "beispiel", bereiche, [], basis, basis, None, {})
++    assert e["bestanden"] is False
++    assert e["gegenproben"]["norm"]["pruefbar"] is False
++    assert e["gegenproben"]["norm"]["ausgefuehrt"] is False
++    assert e["gegenproben"]["norm"]["fehlerart"] == "RuntimeError"
++    assert e["kosten"]["kammerlaeufe"] == len(zaehler)
++    assert list(con.iterdump()) == vor_db
++
++
++def test_fehlender_gegenstand_ist_keine_bestandene_gegenprobe(paar):
++    con, werk, bereiche, basis, g = paar
++    (werk / g["vertrag_pfad"]).unlink()
++    vor_db = list(con.iterdump())
++    e = eichproben.proben(con, 1, 1, werk, "beispiel", bereiche, [], basis, basis, None, {})
++    assert list(con.iterdump()) == vor_db, "Selbst Versiegelungsnebenwirkungen müssen isoliert bleiben"
++    assert e["bestanden"] is False and e["lauf_startet"] is False
++    assert set(e["gegenproben"]) == set(eichproben.PROBEN)
++    assert not any(p["ausgefuehrt"] or p["pruefbar"] for p in e["gegenproben"].values())
++
++
++@pytest.mark.skipif(not os.environ.get("BIOTOP_EICHWERK"), reason="Private Werk-/DB-Kopie nicht angegeben")
++def test_vier_paare_am_kopierten_pruefwerk(tmp_path):
++    quelle = Path(os.environ["BIOTOP_EICHWERK"])
++    dbquelle = Path(os.environ["BIOTOP_EICHDB"])
++    # Dieser Abnahmetest arbeitet ausschließlich mit vorher angelegten Privatkopien.
++    assert str(quelle.resolve()).startswith("/root/reparatur-01/")
++    assert str(dbquelle.resolve()).startswith("/root/reparatur-01/")
++    original_db_hash = hashlib.sha256(dbquelle.read_bytes()).hexdigest()
++    werk = tmp_path / "werk"
++    kammer._kopie(quelle, werk)
++    con = sqlite3.connect(tmp_path / "privat.db", isolation_level=None)
++    con.row_factory = sqlite3.Row
++    with sqlite3.connect(f"file:{dbquelle}?mode=ro", uri=True) as original:
++        original.backup(con)
++    werk_id = int(os.environ.get("BIOTOP_EICHWERK_ID", "22"))
++    con.execute("UPDATE werke SET pfad=? WHERE id=?", (str(werk), werk_id))
++    lauf_id = con.execute("SELECT COALESCE(MAX(id),0)+1 FROM laeufe").fetchone()[0]
++    con.execute("INSERT INTO laeufe(id,werk_id,status,budget_eur,mass) VALUES(?,?,'angelegt',0,NULL)", (lauf_id, werk_id))
++    bereiche = sorted(p.name for p in (werk / "lagerhaus").iterdir() if p.is_dir() and (p / "__init__.py").exists())
++    regeln = verfassung.lesen(con, werk_id)["regeln"]
++    ref = Path("biotop/kern/referenzlast/lagerhaus.py").read_text()
++    basis = messgeraet.messen(werk, bereiche, "lagerhaus", ref)
++    assert basis["gueltig"]
++    vor_db = hashlib.sha256("\n".join(con.iterdump()).encode()).hexdigest()
++    vor_werk = {p.relative_to(werk).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in werk.rglob("*") if p.is_file()}
++    with kammer.zaehlung() as zaehler:
++        e = eichproben.proben(con, lauf_id, werk_id, werk, "lagerhaus", bereiche,
++                             [("bericht", "preise"), ("bericht", "lager"), ("preise", "formeln")],
++                             basis, basis, ref, regeln.get("tausch", {}))
++    e["abnahme"] = {"werkquelle": str(quelle), "quell_db_sha256": original_db_hash,
++                    "privater_lauf": lauf_id, "original_lauf_nicht_fortgesetzt": True,
++                    "basis": basis, "werk_sha256_vor": vor_werk,
++                    "werk_sha256_nach": {p.relative_to(werk).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in werk.rglob("*") if p.is_file()},
++                    "db_sha256_vor": vor_db, "db_sha256_nach": hashlib.sha256("\n".join(con.iterdump()).encode()).hexdigest()}
++    ziel = Path(os.environ["BIOTOP_EICHBELEG"])
++    ziel.parent.mkdir(parents=True, exist_ok=True)
++    ziel.write_text(json.dumps(e, ensure_ascii=False, indent=2))
++    for name in eichproben.PROBEN:
++        for gruppe in ("proben", "gegenproben"):
++            z = e[gruppe][name]
++            print("ECHTES WERK", name, gruppe, z["bestanden"], z["pruefbar"], z["grund"])
++            print("MASS", z["belege"].get("urteil", {}).get("mass"))
++    assert e["kosten"]["kammerlaeufe"] == len(zaehler)
++    assert e["bestanden"] is True, str(ziel)
++    assert e["abnahme"]["werk_sha256_vor"] == e["abnahme"]["werk_sha256_nach"]
++    assert e["abnahme"]["db_sha256_vor"] == e["abnahme"]["db_sha256_nach"]
++    assert hashlib.sha256(dbquelle.read_bytes()).hexdigest() == original_db_hash
++    con.close()
++
++
++def test_norm_aendert_vorhandene_funktion_statt_importfehler(werk):
++    diff, rel_test, _ = eichproben._normtest(werk, "beispiel", "lieferant")
++    dateien = aegis.kandidat_dateien(werk, diff)
++    assert dateien is not None
++    basis = aegis.junit_lauf(werk, "beispiel", {rel_test: dateien[rel_test]}, [rel_test])
++    kandidat = aegis.junit_lauf(werk, "beispiel", dateien, [rel_test])
++    print("NORM BASIS", basis, "NORM KANDIDAT", kandidat)
++    echte_tests = [x for n, x in basis.items() if not n.endswith("::*")]
++    assert len(echte_tests) == 1
++    assert echte_tests[0]["bestaetigt"] is True, "Norm braucht eine Assertion, keinen Importfehler"
++    assert echte_tests[0]["meldung"].startswith(("AssertionError", "assert"))
++    assert not echte_tests[0].get("ort", "").startswith("beispiel/")
++    assert all(x["ok"] for x in kandidat.values())
++    assert all((werk / p).is_file() for p in dateien if not p.startswith("tests/"))
++    assert not (werk / rel_test).exists()
++
++
++@pytest.mark.parametrize("gegenprobe", [False, True])
++def test_normmechanik_bleibt_getrennt_vom_tatsaechlichen_laufzeitbefund(werk, tmp_path, gegenprobe):
++    con = datenbank.verbinden(tmp_path / "normzeit.db")
++    ref = ("import sys, time\nsys.path.insert(0, '/werk')\nfrom beispiel.lieferant import wert\n"
++           "def last_lieferant():\n"
++           "    time.sleep(0.04 if wert(137.125) == 'eichprobe_norm_neu' else 0.01)\n")
++    basis = messgeraet.messen(werk, ["lieferant"], "beispiel", ref)
++    e = eichproben._einzelprobe(con, 1, 1, werk, "beispiel", ["lieferant"], [], basis, basis, ref, {}, 0,
++                               {"von_bereich": "abnehmer", "nach_bereich": "lieferant"}, "norm", gegenprobe)
++    print("NORM MIT ECHTEM ZEITBEFUND", gegenprobe, e["grund"])
++    assert e["belege"]["urteil"]["mass"]["grenzen_gerissen"]
++    assert e["belege"]["urteil"]["mass"]["zuwachs"] == 0
++    assert e["bestanden"] is (not gegenprobe)
++    con.close()
++
++
++def test_norm_erreicht_vorhandene_methode_ohne_paarwechsel(werk):
++    (werk / "beispiel/lieferant/__init__.py").write_text("from .rechnung import Rechner\n")
++    (werk / "beispiel/lieferant/rechnung.py").write_text(
++        "class Rechner:\n"
++        "    def __init__(self, start=0):\n"
++        "        self.start = start\n"
++        "    def wert(self, zahl: float):\n"
++        "        return self.start + zahl\n"
++    )
++    diff, testpfad, _ = eichproben._normtest(werk, "beispiel", "lieferant")
++    dateien = aegis.kandidat_dateien(werk, diff)
++    basis = aegis.junit_lauf(werk, "beispiel", {testpfad: dateien[testpfad]}, [testpfad])
++    kandidat = aegis.junit_lauf(werk, "beispiel", dateien, [testpfad])
++    assert len(basis) == len(kandidat) == 1
++    assert next(iter(basis.values()))["meldung"].startswith(("AssertionError", "assert"))
++    assert all(x["ok"] for x in kandidat.values())
++
++
++def test_kleiner_eingriff_in_grosse_datei_ist_keine_neuschreibung(werk):
++    rel = "beispiel/lieferant/rechnung.py"
++    alt = (werk / rel).read_text() + "\n".join(f"# Eichzeile {n}" for n in range(130)) + "\n"
++    (werk / rel).write_text(alt)
++    neu = alt.replace("zahl * 2", "zahl * 3")
++    diff = eichproben._diff(rel, alt, neu)
++    dateien = aegis.kandidat_dateien(werk, diff)
++    assert dateien is not None, aegis.diff_grund(werk, diff)
++    assert dateien[rel] == neu
++
++
++@pytest.mark.parametrize("ist_probe", [False, True])
++def test_reine_probeoption_ist_markiert_und_erreicht_originale_norm(werk, tmp_path, ist_probe):
++    assert "probe_ohne_modell" in inspect.signature(aegis.pruefen).parameters, "Explizite, geschützte Probeoption fehlt"
++    con = datenbank.verbinden(tmp_path / "probe.db")
++    diff, rel_test, _ = eichproben._normtest(werk, "beispiel", "lieferant")
++    dateien = aegis.kandidat_dateien(werk, diff)
++    kid = eichproben._einschleusen(con, 1, 0, "lieferant", diff, "Norm-Eichung", "keine", "norm")
++    if not ist_probe:
++        con.execute("UPDATE kandidaten SET ist_probe=0 WHERE id=?", (kid,))
++        with pytest.raises(ValueError, match="ist_probe"):
++            aegis.pruefen(con, 1, 1, kid, werk, "beispiel", ["lieferant"], [], {}, {}, None, {},
++                          probe_ohne_modell=True)
++        con.close()
++        return
++    basis = messgeraet.messen(werk, ["lieferant"], "beispiel", None)
++    u = aegis.pruefen(con, 1, 1, kid, werk, "beispiel", ["lieferant"], [], basis, basis, None, {},
++                      probe_ohne_modell=True, probe_angriff=dateien[rel_test])
++    print("REINE NORM", u)
++    assert u["norm"]
++    assert isinstance(u["mass"], dict) and u["mass"]["zuwachs"] == 0
++    immun = con.execute("SELECT status,code FROM immunsystem").fetchall()
++    assert len(immun) == 1 and immun[0]["status"] == "offen_norm"
++    assert "test_lieferant_eichprobe_norm" in immun[0]["code"]
++    m = datenbank.lj(con.execute("SELECT masse FROM kandidaten WHERE id=?", (kid,)).fetchone()[0])
++    assert rel_test not in m["_dateien"]
++    assert con.execute("SELECT COUNT(*) FROM kasse").fetchone()[0] == 0
++    con.close()
++
++
++def test_kammerzaehlung_misst_auch_verschachtelte_aufrufe(werk):
++    assert hasattr(kammer, "zaehlung"), "Kammerzählung fehlt; Konstante 1 ist kein Zähler"
++    with kammer.zaehlung() as aussen:
++        assert aussen == []
++        with kammer.zaehlung() as innen:
++            assert kammer.ausfuehren(werk, ["python", "-c", "print('erster')"]).rc == 0
++        assert kammer.ausfuehren(werk, ["python", "-c", "print('zweiter')"]).rc == 0
++    assert len(innen) == 1 and len(aussen) == 2
++    assert len({z["container"] for z in aussen}) == 2
++    assert [z["stdout"].strip() for z in aussen] == ["erster", "zweiter"]
++    with kammer.zaehlung() as danach:
++        assert danach == []
++
++
++@pytest.mark.parametrize("gegenprobe", [False, True])
++def test_norm_paar_schliesst_falsch_gruen_ohne_normpfad_aus(werk, tmp_path, gegenprobe):
++    assert hasattr(eichproben, "_einzelprobe"), "Isolierte, beweisgebundene Probe fehlt"
++    con = datenbank.verbinden(tmp_path / "original.db")
++    vor_db = list(con.iterdump())
++    vor_werk = {p.relative_to(werk).as_posix(): p.read_bytes() for p in werk.rglob("*") if p.is_file()}
++    basis = messgeraet.messen(werk, ["lieferant"], "beispiel", None)
++    with kammer.zaehlung() as zaehler:
++        e = eichproben._einzelprobe(con, 1, 1, werk, "beispiel", ["lieferant"], [], basis, basis, None, {}, 0,
++                                   {"von_bereich": "abnehmer", "nach_bereich": "lieferant"}, "norm", gegenprobe)
++    print("NORM PAAR", gegenprobe, e["bestanden"], e["grund"], e["kammerlaeufe"])
++    assert e["ausgefuehrt"] is True and e["pruefbar"] is True
++    assert e["bestanden"] is (not gegenprobe)
++    assert e["kammerlaeufe"] == len(zaehler) and len(zaehler) > 1
++    assert e["modellaufrufe"] == 0 and e["kosten_eur"] == 0
++    assert e["belege"]["urteil"]["mass"]["zuwachs"] == 0
++    if gegenprobe:
++        assert e["belege"]["urteil"]["norm"] == []
++        assert e["belege"]["normeintraege"] == []
++    else:
++        for feld, wert in (("mass", None), ("mass", {}), ("norm", [])):
++            falsch = deepcopy(e["belege"])
++            falsch["urteil"][feld] = wert
++            assert eichproben._bestanden("norm", falsch) is False
++        falsch = deepcopy(e["belege"])
++        falsch["normeintraege"] = []
++        assert eichproben._bestanden("norm", falsch) is False
++        falsch = deepcopy(e["belege"])
++        falsch["werk_test_vorhanden"] = True
++        assert eichproben._bestanden("norm", falsch) is False
++    assert list(con.iterdump()) == vor_db
++    assert {p.relative_to(werk).as_posix(): p.read_bytes() for p in werk.rglob("*") if p.is_file()} == vor_werk
++    con.close()
+diff --git a/root/biotop/tests/test_kernmass_pareto.py b/tests/test_kernmass_pareto.py
+new file mode 100644
+index 0000000..625151b
+--- /dev/null
++++ b/tests/test_kernmass_pareto.py
+@@ -0,0 +1,74 @@
++"""Direkte Eigen-Tests der F2-Regeln, nicht Tests der Übungswerke."""
++import pytest
++from biotop.kern import messgeraet as M
++
++
++@pytest.mark.parametrize("bestandene", [0, 1, 1000])
++def test_kernmass_belohnt_keine_bestehenden_tests(messung, bestandene):
++    m = messung(tests_bestanden=bestandene, tests_fehlgeschlagen=2,
++                sicherheit_punkte=3, tote_funktionen=4)
++    assert M.kernmass_f2(m) == sum(-(2 + 3 + 4) for _ in m["bereiche"])
++
++
++def test_kernmass_null_ist_der_hoechstwert(messung):
++    assert M.kernmass_f2(messung()) == 0
++
++
++@pytest.mark.parametrize("merkmal", M.PARETO_F2)
++def test_kernmass_zaehlt_jeden_schaden_einzeln(messung, merkmal):
++    basis, kandidat = messung(), messung()
++    kandidat["bereiche"]["beta"][merkmal] = 1
++    assert M.kernmass_f2(kandidat) == M.kernmass_f2(basis) - 1
++
++
++@pytest.mark.parametrize("merkmal", M.PARETO_F2)
++def test_fehlende_kernmass_spalte_ist_nicht_null(messung, merkmal):
++    m = messung()
++    del m["bereiche"]["alpha"][merkmal]
++    with pytest.raises(KeyError):
++        M.kernmass_f2(m)
++
++
++def test_pareto_sieht_schaden_im_nachbarn_trotz_gesamtgewinn(messung):
++    basis, kandidat = messung(), messung()
++    basis["bereiche"]["alpha"]["sicherheit_punkte"] = 10
++    kandidat["bereiche"]["beta"]["tote_funktionen"] = 1
++    assert M.kernmass_f2(kandidat) > M.kernmass_f2(basis)
++    schlechter, besser = M.pareto_f2(basis, kandidat, ["alpha", "beta"])
++    assert any("beta.tote_funktionen" in s for s in schlechter)
++    assert any("alpha.sicherheit_punkte" in s for s in besser)
++
++
++def test_pareto_erkennt_einzelregression_trotz_sinkender_fehlsumme(messung):
++    basis, kandidat = messung(), messung()
++    basis["bereiche"]["alpha"]["tests_fehlgeschlagen"] = 2
++    basis["werk"]["tests_fehlgeschlagen_liste"] = ["test_alt_eins", "test_alt_zwei"]
++    kandidat["bereiche"]["alpha"]["tests_fehlgeschlagen"] = 1
++    kandidat["werk"]["tests_fehlgeschlagen_liste"] = ["test_regression"]
++    schlechter, _ = M.pareto_f2(basis, kandidat, ["alpha", "beta"])
++    assert any("Regression je Test" in s and "test_regression" in s for s in schlechter)
++
++
++def test_pareto_haelt_gemeinsamen_altfehler_nicht_fuer_regression(messung):
++    basis, kandidat = messung(), messung()
++    basis["werk"]["tests_fehlgeschlagen_liste"] = ["test_offen"]
++    kandidat["werk"]["tests_fehlgeschlagen_liste"] = ["test_offen"]
++    schlechter, besser = M.pareto_f2(basis, kandidat, ["alpha", "beta"])
++    assert schlechter == [] and besser == []
++
++
++def test_pareto_baufehler_wird_nicht_weggezaehlt(messung):
++    basis, kandidat = messung(), messung()
++    kandidat["werk"]["baut"] = False
++    schlechter, _ = M.pareto_f2(basis, kandidat, ["alpha", "beta"])
++    assert "werk.baut: True → False" in schlechter
++
++
++def test_rauschsperre_blendet_keinen_semantischen_nachbarschaden_aus(messung):
++    basis, kandidat = messung(tote_funktionen=1), messung(tote_funktionen=1)
++    kandidat["bereiche"]["alpha"]["tote_funktionen"] = 0
++    kandidat["bereiche"]["beta"]["tests_fehlgeschlagen"] = 1
++    r = M.urteil_f2(basis, kandidat, basis, ["alpha", "beta"], ["alpha"],
++                    {"_rauschtoleranz": {"alpha": 1.15}, "_gesperrte_bereiche": ["beta"]})
++    assert r["ok"] is False
++    assert "Pareto" in r["grund"] and "beta" in r["grund"]
+diff --git a/root/biotop/tests/test_rauschmessung.py b/tests/test_rauschmessung.py
+new file mode 100644
+index 0000000..4e25cc7
+--- /dev/null
++++ b/tests/test_rauschmessung.py
+@@ -0,0 +1,107 @@
++"""Rauschregeln: ein Messwert ist bereits ein Median, nicht ein Einzelaufruf."""
++import pytest
++from biotop.kern import messgeraet as M
++from biotop.organe import eichung
++from pathlib import Path
++
++
++@pytest.mark.parametrize("anzahl", [0, 1, 2, 3, 4, 6])
++def test_rauschmessung_braucht_genau_fuenf_werte(anzahl):
++    r = M.rauschtoleranz_aus_werten([100.0] * anzahl)
++    assert r["nachmessen"] is True
++    assert r["meldung"]
++
++
++@pytest.mark.parametrize("wert", [0, -1, float("nan"), float("inf"), -float("inf"), True])
++def test_ungueltige_rauschwerte_sind_keine_toleranz(wert):
++    with pytest.raises(ValueError, match="endlich|positiv"):
++        M.rauschtoleranz_aus_werten([100.0, 100.0, 100.0, 100.0, wert])
++
++
++def test_aussetzer_wird_ungekuerzt_entfernt_und_einmal_ersetzt(db_lauf, monkeypatch):
++    werte = iter([1., 1., 1., 1., 9.8765, 1.])
++    aufrufe = []
++    def messen(*args):
++        aufrufe.append(True)
++        return {"alpha": next(werte)}
++    monkeypatch.setattr(eichung, "_messen_einmal", messen)
++    r = eichung.rauschmessung(db_lauf, 1, 1, Path("."), ["alpha"], "paket", "# Last")
++    assert len(aufrufe) == 6
++    assert r["lauf_startet"] is True
++    assert r["bereiche"]["alpha"]["nachgemessen"] is True
++    assert r["bereiche"]["alpha"]["werte"] == [1., 1., 1., 1., 1.]
++
++
++@pytest.mark.parametrize("ersatz", [9.8765, None])
++def test_gescheitertes_nachmessen_sperrt_den_bereich(db_lauf, monkeypatch, ersatz):
++    werte = iter([1., 1., 1., 1., 9.8765, ersatz])
++    aufrufe = []
++    def messen(*args):
++        aufrufe.append(True)
++        return {"alpha": next(werte)}
++    monkeypatch.setattr(eichung, "_messen_einmal", messen)
++    r = eichung.rauschmessung(db_lauf, 1, 1, Path("."), ["alpha"], "paket", "# Last")
++    assert r["lauf_startet"] is False
++    assert r["gesperrt"] == ["alpha"]
++    assert r["toleranz"] == {}
++    assert len(aufrufe) == 6
++
++
++@pytest.mark.parametrize("laufzeit,toleranz,erwartet", [(118., 1.2, True), (118., 1.15, False),
++                                                     (120., 1.2, True), (120.01, 1.2, False)])
++def test_urteil_verwendet_gemessene_statt_fester_rauschtoleranz(messung, laufzeit, toleranz, erwartet):
++    basis, kandidat = messung(), messung()
++    kandidat["bereiche"]["alpha"]["laufzeit_ms"] = laufzeit
++    kandidat["bereiche"]["beta"]["laufzeit_ms"] = 80.
++    r = M.urteil_f2(basis, kandidat, basis, ["alpha", "beta"], ["beta"],
++                    {"_rauschtoleranz": {"alpha": toleranz, "beta": 1.15}}, nische="schnell")
++    assert r["ok"] is erwartet
++
++
++@pytest.mark.parametrize("wirkungskreis,erwartet", [(["alpha"], True), (["alpha", "beta"], False)])
++def test_rauschsperre_wirkt_nur_auf_betroffenen_wirkungskreis(messung, wirkungskreis, erwartet):
++    basis, kandidat = messung(tote_funktionen=1), messung(tote_funktionen=1)
++    kandidat["bereiche"]["alpha"]["tote_funktionen"] = 0
++    kandidat["bereiche"]["beta"]["laufzeit_ms"] = 10000.
++    r = M.urteil_f2(basis, kandidat, basis, ["alpha", "beta"], wirkungskreis,
++                    {"_rauschtoleranz": {"alpha": 1.15}, "_gesperrte_bereiche": ["beta"]})
++    assert r["ok"] is erwartet
++    if not erwartet:
++        assert "gesperrt" in r["grund"] and "beta" in r["grund"]
++
++
++def test_streuung_verbietet_innerhalb_einer_messung():
++    with pytest.raises(ValueError, match="zwischen Messungen"):
++        M.streuung([1., 2., 3.], ebene="innerhalb")
++
++
++def test_streuung_trim_mt_zwischen_fuenf_medianen():
++    r = M.streuung([1., 2., 2., 3., 9.])
++    assert r["spannweite"] == (3. - 2.) / 2.
++    assert r["median"] == 2.
++    assert r["getrimmt"] == 2
++    assert r["n"] == 5
++
++
++@pytest.mark.parametrize("werte", [[], [100.]])
++def test_zu_wenige_messungen_sind_nicht_streuung_null(werte):
++    assert M.streuung(werte)["spannweite"] is None
++
++
++@pytest.mark.parametrize("werte,toleranz,meldet", [
++    ([100., 100., 100., 100., 100.], 1.15, False),
++    ([100., 100., 120., 140., 140.], 1.5, False),
++    ([100., 100., 120., 150., 150.], 1.6, True),
++    ([100., 100., 150., 300., 300.], 2.0, True),
++])
++def test_rauschtoleranz_boden_meldeschwelle_und_deckel(werte, toleranz, meldet):
++    r = M.rauschtoleranz_aus_werten(werte)
++    assert r["toleranz"] == toleranz
++    assert bool(r["meldung"]) is meldet
++
++
++@pytest.mark.parametrize("hoch,erwartet", [(500., []), (501., [501.])])
++def test_aussetzer_erst_ueber_fuenffachem_median(hoch, erwartet):
++    r = M.rauschtoleranz_aus_werten([100., 100., 100., 100., hoch])
++    assert r["aussetzer"] == erwartet
++    assert r["nachmessen"] is bool(erwartet)
+diff --git a/root/biotop/tests/test_testreihenfolge.py b/tests/test_testreihenfolge.py
+new file mode 100644
+index 0000000..6184b86
+--- /dev/null
++++ b/tests/test_testreihenfolge.py
+@@ -0,0 +1,20 @@
++"""Kernmaß/Pareto werden auch bei umgekehrter Dateiauswahl zuerst geprüft."""
++from pathlib import Path
++import os
++import subprocess
++import sys
++
++
++def test_kernmass_und_pareto_kommen_vor_rauschen():
++    repo = Path(__file__).resolve().parents[1]
++    env = os.environ.copy()
++    env["PYTHONPATH"] = str(repo)
++    r = subprocess.run([sys.executable, "-m", "pytest", "--collect-only", "-q",
++                        "tests/test_rauschmessung.py", "tests/test_kernmass_pareto.py"],
++                       cwd=repo, env=env, text=True, capture_output=True, timeout=30)
++    assert r.returncode == 0, r.stdout + r.stderr
++    ids = [s for s in r.stdout.splitlines() if s.startswith("tests/") and "::" in s]
++    kern = [i for i, s in enumerate(ids) if s.startswith("tests/test_kernmass_pareto.py::")]
++    rauschen = [i for i, s in enumerate(ids) if s.startswith("tests/test_rauschmessung.py::")]
++    assert kern and rauschen
++    assert max(kern) < min(rauschen), ids
+diff --git a/root/biotop/tests/test_vorspann.py b/tests/test_vorspann.py
+new file mode 100644
+index 0000000..af84980
+--- /dev/null
++++ b/tests/test_vorspann.py
+@@ -0,0 +1,435 @@
++"""Sperren müssen vor jeder Übergabe an die nächste Stufe wirken."""
++import pytest
++from biotop.organe import generation0 as G0
++from biotop import lauf as L
++from biotop.organe import vorspann as V, eichung, eichgegenstand, eichproben, fundpruefung, verfassung, vertraege
++from biotop.kern.datenbank import j, lj
++from pathlib import Path
++import copy
++import hashlib
++
++
++@pytest.fixture
++def unit_vorspann(db_lauf, monkeypatch, messung):
++    """Gate-UNIT-Test: Messung/Proben kontrolliert ersetzt, KEINE echte Eichung."""
++    monkeypatch.setattr(V, '_infrastruktur', lambda: {'image':'unit:1','image_id':'sha256:' + 'a'*64}, raising=False)
++    con = db_lauf
++    con.execute("DELETE FROM generationen")
++    con.execute("UPDATE laeufe SET mass=NULL, status='kartiert'")
++    pfad = Path(L._werk(con, 1)['pfad'])
++    (pfad / 'paket' / 'beta').mkdir()
++    (pfad / 'paket' / 'beta' / '__init__.py').write_text('')
++    verfassung.einlegen(con, 1, 'alpha nutzt beta; Satz 2: Messgerät bleibt fest.',
++                       {'uebungswerk': True, 'tragender_pfad': [['alpha','beta']]}, 'Unit-Verfassung', 'Eigen-Test')
++    vertraege.einlegen(con, 1, pfad, {('alpha','beta'): 'def test_vertrag():\n    assert True\n'}, 'Unit-Vertrag')
++    con.execute("INSERT INTO landkarte(werk_id,stufe,schluessel,inhalt) VALUES(1,1,'unit','{}')")
++    reihenfolge = []
++    raw = {
++        'rauschen': {'toleranz': {'alpha':1.2,'beta':1.3}, 'gesperrt': [], 'lauf_startet':True,
++                     'bereiche': {b:{'toleranz':t, 'gesperrt':False, 'werte':[100,100,100,110,120], 'meldung':None}
++                                  for b,t in [('alpha',1.2),('beta',1.3)]}},
++        'funde': {'geprueft':0, 'geaendert':0, 'kammerlaeufe':0, 'ergebnisse':[], 'bezugsgroesse':'0 von 0'},
++        'proben': {'bestanden':True,
++                   'proben': {n:{'ausgefuehrt':True, 'pruefbar':True, 'bestanden':True, 'grund':'Unit-Positivkontrolle', 'kammerlaeufe':2, 'modellaufrufe':0, 'kosten_eur':0.0, 'dauer_s':0.1} for n in eichproben.PROBEN},
++                   'gegenproben': {n:{'ausgefuehrt':True, 'pruefbar':True, 'bestanden':False, 'grund':'Unit-Negativkontrolle', 'kammerlaeufe':3, 'modellaufrufe':0, 'kosten_eur':0.0, 'dauer_s':0.1} for n in eichproben.PROBEN}},
++        'reihenfolge': reihenfolge, 'probe_aufrufe': [],
++    }
++    def rauschen(*a, **kw):
++        reihenfolge.append('rauschen')
++        return copy.deepcopy(raw['rauschen'])
++    sichern = eichgegenstand.sichern
++    def gegenstand(*a, **kw):
++        reihenfolge.append('gegenstand')
++        return sichern(*a, **kw)
++    def funde(*a, **kw):
++        reihenfolge.append('funde')
++        return copy.deepcopy(raw['funde'])
++    def proben(*a, **kw):
++        reihenfolge.append('proben')
++        raw['probe_aufrufe'].append((a, kw))
++        return dict(copy.deepcopy(raw['proben']), gegenstand=eichgegenstand.lesen(con, 1))
++    monkeypatch.setattr(eichung, 'rauschmessung', rauschen)
++    monkeypatch.setattr(eichgegenstand, 'sichern', gegenstand)
++    monkeypatch.setattr(fundpruefung, 'bewerten', funde)
++    monkeypatch.setattr(eichproben, 'proben', proben)
++    monkeypatch.setattr(L, '_referenzlast', lambda *a: '# Unit-Referenzlast')
++    monkeypatch.setattr(L.messgeraet, 'messen', lambda *a, **kw: messung())
++    return con, raw
++
++
++def test_unit_erfolgreicher_vorspann_vor_gen0_und_mass(unit_vorspann):
++    con, raw = unit_vorspann
++    assert callable(getattr(V, 'ausfuehren', None)), 'Start-Gate braucht ausführbaren Kernpfad'
++    r = V.ausfuehren(con, 1)
++    assert raw['reihenfolge'] == ['rauschen','gegenstand','funde','proben']
++    assert raw['probe_aufrufe'][0][1]['generation'] == -1
++    assert L._lauf(con, 1)['mass'] is None
++    assert con.execute('SELECT count(*) FROM generationen').fetchone()[0] == 0
++    assert r['qualitaet'] == {'positive':4, 'negative':4, 'erwartet_je':4}
++    assert r['rauschen'] == raw['rauschen']
++    assert len(r['nachweis_sha256']) == 64
++    assert V.verlangen(con, 1, 'gen0')['nachweis_sha256'] == r['nachweis_sha256']
++    e = con.execute("SELECT inhalt FROM protokoll WHERE art='vorspann.bestanden'").fetchone()
++    assert lj(e[0])['nachweis_sha256'] == r['nachweis_sha256']
++
++
++@pytest.mark.parametrize('fehler', ['positiv_rot','gegen_gruen','gegen_fehlend','nicht_ausgefuehrt','nicht_pruefbar','gesamt_rot','zusaetzlich','kein_gegenstand'])
++def test_unit_unvollstaendige_eichung_liefert_keinen_nachweis_oder_retry(unit_vorspann, monkeypatch, fehler):
++    con, raw = unit_vorspann
++    p = raw['proben']
++    if fehler == 'positiv_rot': p['proben']['norm']['bestanden'] = False
++    elif fehler == 'gegen_gruen': p['gegenproben']['norm']['bestanden'] = True
++    elif fehler == 'gegen_fehlend': del p['gegenproben']['norm']
++    elif fehler == 'nicht_ausgefuehrt': p['gegenproben']['norm']['ausgefuehrt'] = False
++    elif fehler == 'nicht_pruefbar': p['gegenproben']['norm']['pruefbar'] = False
++    elif fehler == 'gesamt_rot': p['bestanden'] = False
++    elif fehler == 'zusaetzlich': p['gegenproben']['fuenfte'] = dict(p['gegenproben']['norm'])
++    else: monkeypatch.setattr(eichgegenstand, 'sichern', lambda *a: {'gegenstand':None, 'befund':'fehlt'})
++    with pytest.raises(V.VorspannFehler, match='Vorspann.*neue[rn]? Lauf'):
++        V.ausfuehren(con, 1)
++    with pytest.raises(V.VorspannFehler, match='Vorspann'):
++        V.verlangen(con, 1, 'gen0')
++    anzahl = len(raw['reihenfolge'])
++    with pytest.raises(V.VorspannFehler, match='neue[rn]? Lauf'):
++        V.ausfuehren(con, 1)
++    assert len(raw['reihenfolge']) == anzahl, 'kein Grünfischen unter derselben Lauf-ID'
++    assert con.execute("SELECT count(*) FROM protokoll WHERE art='vorspann.bestanden'").fetchone()[0] == 0
++    e = lj(con.execute("SELECT inhalt FROM protokoll WHERE art='vorspann.gescheitert'").fetchone()[0])
++    assert e['ergebnis']['rauschen'] == raw['rauschen']
++    assert e['grund']
++
++
++@pytest.mark.parametrize('alt', ['mass','generation','gen0','beendet'])
++def test_unit_alte_laeufe_nicht_nachtraeglich_eichen(unit_vorspann, alt):
++    con, raw = unit_vorspann
++    if alt == 'mass': con.execute("UPDATE laeufe SET mass='{}'")
++    elif alt == 'generation': con.execute("INSERT INTO generationen(lauf_id,nummer,status) VALUES(1,0,'angenommen')")
++    elif alt == 'gen0': L.protokoll.schreiben(con, 'generation0.begonnen', lauf_id=1)
++    else: con.execute("UPDATE laeufe SET status='beendet'")
++    with pytest.raises(V.VorspannFehler, match='neue[rn]? Lauf'):
++        V.ausfuehren(con, 1)
++    assert raw['reihenfolge'] == []
++
++
++@pytest.mark.parametrize('fehlt', ['Verfassung','Landkarte','Referenzlast','Verträge'])
++def test_unit_voraussetzungen_vor_erster_messung(unit_vorspann, monkeypatch, fehlt):
++    con, raw = unit_vorspann
++    if fehlt == 'Verfassung': con.execute('DELETE FROM verfassung_werk')
++    elif fehlt == 'Landkarte': con.execute('DELETE FROM landkarte')
++    elif fehlt == 'Referenzlast': monkeypatch.setattr(L, '_referenzlast', lambda *a: None)
++    else: con.execute('DELETE FROM vertraege_explizit')
++    with pytest.raises(V.VorspannFehler, match=fehlt):
++        V.ausfuehren(con, 1)
++    assert raw['reihenfolge'] == []
++
++
++def _unit_sperre(raw, bereich):
++    r = raw['rauschen']
++    r['gesperrt'].append(bereich)
++    r['toleranz'].pop(bereich)
++    r['bereiche'][bereich].update(toleranz=1.7, gesperrt=True, meldung='Unit: Messproblem')
++    r['lauf_startet'] = len(r['gesperrt']) < len(r['bereiche'])
++
++
++def test_unit_teilrauschen_wird_an_eichproben_weitergegeben(unit_vorspann):
++    con, raw = unit_vorspann
++    _unit_sperre(raw, 'beta')
++    r = V.ausfuehren(con, 1)
++    tausch = raw['probe_aufrufe'][0][0][10]
++    assert tausch['_rauschtoleranz'] == {'alpha':1.2}
++    assert tausch['_gesperrte_bereiche'] == ['beta']
++    assert r['rauschen']['bereiche']['beta']['toleranz'] == 1.7
++
++
++@pytest.mark.parametrize('fehler', ['alle','fehlt','nan','inf','bool','negativ','zu_gross','zu_klein','widerspruch','zu_wenig_rohwerte','aussetzer','basis'])
++def test_unit_unbrauchbare_messung_liefert_keinen_nachweis(unit_vorspann, monkeypatch, fehler):
++    con, raw = unit_vorspann
++    r = raw['rauschen']
++    if fehler == 'alle':
++        _unit_sperre(raw, 'alpha'); _unit_sperre(raw, 'beta')
++    elif fehler == 'fehlt': r['toleranz'].pop('beta')
++    elif fehler in ('nan','inf','bool','negativ','zu_gross','zu_klein'):
++        r['toleranz']['alpha'] = {'nan':float('nan'),'inf':float('inf'),'bool':True,'negativ':-1,'zu_gross':1.51,'zu_klein':1.1}[fehler]
++    elif fehler == 'widerspruch': r['bereiche']['alpha']['gesperrt'] = True
++    elif fehler == 'zu_wenig_rohwerte': r['bereiche']['alpha']['werte'].pop()
++    elif fehler == 'aussetzer': r['bereiche']['alpha']['nachmessen'] = True
++    else: monkeypatch.setattr(L.messgeraet,'messen',lambda *a,**kw: {'gueltig':False,'grund':'Unit-Kammerfehler'})
++    with pytest.raises(V.VorspannFehler, match='Rausch|Messung'):
++        V.ausfuehren(con, 1)
++    assert raw['probe_aufrufe'] == []
++    with pytest.raises(V.VorspannFehler): V.verlangen(con, 1, 'gen0')
++
++
++def test_unit_nachweis_bindet_vollstaendiges_instrument_und_quellen(unit_vorspann):
++    con, raw = unit_vorspann
++    r = V.ausfuehren(con, 1)
++    q = r['quellen']
++    root = Path(L.__file__).resolve().parents[1]
++    erwartet = {str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest()
++                for p in (root / 'biotop').rglob('*.py')}
++    erwartet['kammer/Dockerfile'] = hashlib.sha256((root / 'kammer/Dockerfile').read_bytes()).hexdigest()
++    assert q['instrument']['dateien'] == erwartet
++    assert q['instrument']['infrastruktur']['image_id'] == 'sha256:' + 'a'*64
++    assert q['werk']['id'] == 1
++    assert q['verfassung']['quelle'] == 'Unit-Verfassung'
++    assert q['referenzlast']['sha256'] == hashlib.sha256(b'# Unit-Referenzlast').hexdigest()
++
++
++@pytest.mark.parametrize('geaendert', ['python','neue_datei','dockerfile','image','referenzlast','verfassung','werk','daten','protokoll'])
++def test_unit_messgeraetwechsel_oder_manipulation_sperrt_dauerhaft(unit_vorspann, monkeypatch, tmp_path, geaendert):
++    import shutil
++    con, raw = unit_vorspann
++    root = tmp_path / 'instrument'
++    source = Path(L.__file__).resolve().parents[1]
++    shutil.copytree(source / 'biotop', root / 'biotop')
++    shutil.copytree(source / 'kammer', root / 'kammer')
++    monkeypatch.setattr(V, 'WURZEL', root, raising=False)
++    r = V.ausfuehren(con, 1)
++    datei = None
++    if geaendert in ('python','neue_datei','dockerfile'):
++        datei = root / {'python':'biotop/organe/aegis.py','neue_datei':'biotop/zusaetzlich.py','dockerfile':'kammer/Dockerfile'}[geaendert]
++        alt = datei.read_text() if datei.exists() else None
++        datei.write_text((alt or '') + '\n# Unit-Aenderung\n')
++    elif geaendert == 'image': monkeypatch.setattr(V, '_infrastruktur', lambda: {'image':'unit:1','image_id':'sha256:'+'b'*64})
++    elif geaendert == 'referenzlast': monkeypatch.setattr(L,'_referenzlast',lambda *a:'# andere Last')
++    elif geaendert == 'verfassung': con.execute("UPDATE verfassung_werk SET regeln='{}'")
++    elif geaendert == 'werk': con.execute("UPDATE werke SET pfad=pfad || '/anderes'")
++    elif geaendert == 'daten':
++        z = lj(con.execute('SELECT ergebnis FROM vorspann_nachweise').fetchone()[0]); z['rauschen']['toleranz']['alpha'] = 1.4
++        con.execute('UPDATE vorspann_nachweise SET ergebnis=?', (j(z),))
++    else: con.execute("UPDATE protokoll SET inhalt='{}' WHERE art='vorspann.bestanden'")
++    with pytest.raises(V.VorspannFehler, match='Satz 2'):
++        V.verlangen(con, 1, 'gen0')
++    if datei:
++        if alt is None: datei.unlink()
++        else: datei.write_text(alt)
++    with pytest.raises(V.VorspannFehler, match='neue[rn]? Lauf'):
++        V.verlangen(con, 1, 'gen0')
++    with pytest.raises(V.VorspannFehler, match='neue[rn]? Lauf'):
++        V.ausfuehren(con, 1)
++
++
++def test_unit_quellenwechsel_waehrend_der_eichung_erzeugt_keinen_nachweis(unit_vorspann, monkeypatch):
++    con, raw = unit_vorspann
++    original = eichproben.proben
++    def veraendert(*a, **kw):
++        r = original(*a, **kw)
++        monkeypatch.setattr(L, '_referenzlast', lambda *a:'# waehrend Eichung geaendert')
++        return r
++    monkeypatch.setattr(eichproben, 'proben', veraendert)
++    with pytest.raises(V.VorspannFehler, match='Satz 2'): V.ausfuehren(con, 1)
++    with pytest.raises(V.VorspannFehler): V.verlangen(con, 1, 'gen0')
++
++
++@pytest.mark.parametrize('image_id,rc', [('sha256:'+'c'*64,0),('',1),('not-an-id',0)])
++def test_unit_kammer_image_id_wird_tatsaechlich_abgefragt(monkeypatch, image_id, rc):
++    import subprocess
++    from types import SimpleNamespace
++    calls = []
++    def inspect(cmd, **kw):
++        calls.append((cmd,kw))
++        return SimpleNamespace(returncode=rc, stdout=image_id+'\n', stderr='Unit-Docker')
++    monkeypatch.setattr(subprocess, 'run', inspect)
++    assert callable(getattr(V, '_infrastruktur', None)), 'Image-ID-Bindung fehlt'
++    if rc or not image_id.startswith('sha256:'):
++        with pytest.raises(ValueError, match='Kammer'): V._infrastruktur()
++    else:
++        assert V._infrastruktur()['image_id'] == image_id
++    assert calls[0][0][:3] == ['docker','image','inspect']
++    assert calls[0][1]['timeout'] > 0
++
++
++@pytest.fixture
++def unit_laufstufen(unit_vorspann, monkeypatch, request):
++    """Nur Ablauf-UNIT-Test, weder Mutantenfang noch Kammer-Schnappschuss."""
++    con, raw = unit_vorspann
++    mutanten = [{'quelle':'Unit','datei':'paket/alpha/__init__.py','zeile':1,'beschreibung':str(i)} for i in range(5)]
++    monkeypatch.setattr(G0,'erzeugen',lambda *a:copy.deepcopy(mutanten))
++    monkeypatch.setattr(G0,'aequivalenz_pruefen',lambda *a:None)
++    monkeypatch.setattr(G0,'messen',lambda *a: {'nicht_aequivalent':5,'gefangen':5,'blind':[]})
++    monkeypatch.setattr(L.lazarus,'schnappschuss',lambda *a: {'tag':'Unit','pruefsumme':'0'*64})
++    raw['generation_koerper'] = L._generation_koerper
++    monkeypatch.setattr(L,'_generation_koerper',lambda *a,**kw: {'unit_generation_betreten':True})
++    for b in getattr(request, 'param', []): _unit_sperre(raw, b)
++    V.ausfuehren(con, 1)
++    return con, raw
++
++
++def test_unit_vollstaendiger_ablauf_bis_generation(unit_laufstufen):
++    con, raw = unit_laufstufen
++    assert L.generation0(con, 1, None, .8)['erreicht'] is True
++    r = L.mass_einfrieren(con, 1, 'Unit')
++    z = con.execute('SELECT * FROM vorspann_nachweise').fetchone()
++    assert r['mass']['vorspann_sha256'] == z['nachweis_sha256']
++    assert z['mass_sha256'] == hashlib.sha256(j(r['mass']).encode()).hexdigest()
++    assert L.generation(con, 1)['unit_generation_betreten'] is True
++
++
++@pytest.mark.parametrize('falsch', ['mass_vor_gen0','gen0_nach_mass','mass_zweimal','mass_geaendert','mass_ohne_bindung'])
++def test_unit_stufenfolge_und_eingefrorenes_mass_sind_verbindlich(unit_laufstufen, falsch):
++    con, raw = unit_laufstufen
++    if falsch != 'mass_vor_gen0':
++        L.generation0(con, 1, None, .8)
++        L.mass_einfrieren(con, 1, 'Unit')
++    if falsch == 'mass_geaendert':
++        m = lj(L._lauf(con,1)['mass']); m['grenzen']['laufzeit_faktor'] = 100
++        con.execute('UPDATE laeufe SET mass=?', (j(m),))
++    if falsch == 'mass_ohne_bindung': con.execute('UPDATE vorspann_nachweise SET mass_sha256=NULL')
++    vorher = L._lauf(con, 1)['mass']
++    with pytest.raises(L.LaufFehler, match='Vorspann'):
++        if falsch == 'gen0_nach_mass': L.generation0(con,1,None,.8)
++        elif falsch.startswith('mass_vor') or falsch == 'mass_zweimal': L.mass_einfrieren(con,1,'Unit-erneut')
++        else: L.generation(con,1)
++    assert L._lauf(con, 1)['mass'] == vorher
++
++
++@pytest.mark.parametrize('unit_laufstufen', [['beta']], indirect=True)
++def test_unit_generation_reicht_validierte_rauschwerte_durch(unit_laufstufen, monkeypatch):
++    con, raw = unit_laufstufen
++    L.generation0(con,1,None,.8); L.mass_einfrieren(con,1,'Unit')
++    gesehen = []
++    def koerper(*args):
++        gesehen.append(args[12]); return {}
++    monkeypatch.setattr(L, '_generation_koerper', koerper)
++    L.generation(con,1)
++    assert gesehen[0]['_rauschtoleranz'] == {'alpha':1.2}
++    assert gesehen[0]['_gesperrte_bereiche'] == ['beta']
++
++
++@pytest.mark.parametrize('unit_laufstufen', [['beta']], indirect=True)
++def test_unit_gesperrter_bereich_erzeugt_keine_kandidaten_und_protokolliert_skip(unit_laufstufen, monkeypatch):
++    con, raw = unit_laufstufen
++    L.generation0(con,1,None,.8); L.mass_einfrieren(con,1,'Unit')
++    monkeypatch.setattr(L, '_generation_koerper', raw['generation_koerper'])
++    erzeugt = []
++    monkeypatch.setattr(L.genesis, 'erzeugen', lambda *a,**kw: erzeugt.append(a[6]) or [])
++    monkeypatch.setattr(L.entropie, 'messen', lambda *a: {})
++    monkeypatch.setattr(L.entropie, 'pruefen_und_beenden', lambda *a: None)
++    L.generation(con,1)
++    assert erzeugt and set(erzeugt) == {'alpha'}
++    skips = [lj(z[0]) for z in con.execute("SELECT inhalt FROM protokoll WHERE art='generation.bereich_uebersprungen'")]
++    assert len(skips) == 1 and skips[0]['bereich'] == 'beta'
++    assert skips[0]['toleranz'] == 1.7
++    assert len(skips[0]['nachweis_sha256']) == 64
++
++
++@pytest.mark.parametrize('unit_laufstufen', [['beta']], indirect=True)
++@pytest.mark.parametrize('fall', ['nachbarfehler', 'nur_gesperrtes_rauschen'])
++def test_unit_generalprobe_nimmt_wirkungskreisunion_aber_pareto_alle_bereiche(unit_laufstufen, monkeypatch, messung, fall):
++    con, raw = unit_laufstufen
++    L.generation0(con,1,None,.8); L.mass_einfrieren(con,1,'Unit')
++    monkeypatch.setattr(L, '_generation_koerper', raw['generation_koerper'])
++    monkeypatch.setattr(L.entropie, 'messen', lambda *a: {})
++    monkeypatch.setattr(L.entropie, 'pruefen_und_beenden', lambda *a: None)
++    def einzel(*a, **kw):
++        kid = a[3]
++        m = messung(); m['_dateien'] = {}
++        con.execute("UPDATE kandidaten SET status='ueberlebt',masse=?,wirkungskreis=? WHERE id=?", (j(m),j(['alpha']),kid))
++        return {'kandidat':kid, 'status':'ueberlebt','grund':'Unit-Einzelurteil', 'mass':{'zuwachs':1}, 'wirkungskreis':['alpha']}
++    monkeypatch.setattr(L.aegis, 'pruefen', einzel)
++    basis = messung(sicherheit_punkte=2)
++    kandidat = messung(sicherheit_punkte=1); kandidat['bereiche']['beta']['tests_fehlgeschlagen'] = 1
++    if fall == 'nur_gesperrtes_rauschen':
++        basis = messung(); kandidat = messung(); kandidat['bereiche']['beta']['laufzeit_ms'] = 50
++    paar = iter([basis, kandidat])
++    monkeypatch.setattr(L.messgeraet, 'messen', lambda *a,**kw: next(paar))
++    gesehen = []
++    echt = L.messgeraet.urteil_f2
++    def urteil(*a, **kw):
++        gesehen.append(a); return echt(*a,**kw)
++    monkeypatch.setattr(L.messgeraet, 'urteil_f2', urteil)
++    r = L.generation(con,1, einschleusen=[{'bereich':b,'diff':'Unit-ersetzt Einzelprüfung'} for b in ['alpha','beta']])
++    assert gesehen[0][3] == ['alpha','beta'], 'Pareto darf Nebenbereiche nicht ausblenden'
++    assert gesehen[0][4] == ['alpha'], 'nicht pauschal alle Bereiche als Wirkungskreis'
++    assert r['status'] == 'abgelehnt'
++    assert ('beta.tests_fehlgeschlagen' if fall == 'nachbarfehler' else 'Kernmaß unverändert') in r['grund']
++    assert con.execute("SELECT count(*) FROM kandidaten WHERE bereich='beta'").fetchone()[0] == 0
++
++
++def test_unit_verhandlung_erzeugt_keine_kandidaten_im_gesperrten_nachbarn(unit_vorspann, monkeypatch, messung):
++    con, raw = unit_vorspann
++    con.execute("INSERT INTO kandidaten(id,lauf_id,bereich,diff,begruendung,vertraege,status) VALUES(1,1,'alpha','Unit','Unit','test_vertrag_alpha_beta','abgelehnt')")
++    def verboten(*a,**kw): pytest.fail('Schwarm darf im gesperrten Nachbarn keine Modelle rufen')
++    monkeypatch.setattr(L.genesis, 'erzeugen', verboten)
++    monkeypatch.setattr(L.aegis, 'kandidat_dateien', lambda *a:{})
++    werk = L._werk(con,1)
++    tausch = {'_gesperrte_bereiche':['beta'], '_rauschtoleranz':{'alpha':1.2}}
++    u = {'status':'abgelehnt','grund':'Vertrag verletzt', 'vertrag_verletzt':['test_vertrag_alpha_beta.py::test_vertrag']}
++    r = L._verhandeln(con,1,werk,1,Path(werk['pfad']),'paket',['alpha','beta'],[],messung(),messung(),None,tausch,'alpha',1,u)
++    assert r['status'] == 'abgelehnt' and 'gesperrt' in r['grund']
++    assert con.execute("SELECT count(*) FROM protokoll WHERE art='generation.bereich_uebersprungen'").fetchone()[0] == 1
++
++
++@pytest.mark.parametrize('wechsel', ['anderes_probenziel','datei_geaendert'])
++def test_unit_eichgegenstand_bleibt_waehrend_proben_versiegelt(unit_vorspann, monkeypatch, wechsel):
++    con, raw = unit_vorspann
++    original = eichproben.proben
++    def verschoben(*a, **kw):
++        r = original(*a, **kw)
++        if wechsel == 'anderes_probenziel': r['gegenstand']['vertrag_pruefsumme'] = 'f'*64
++        else:
++            werk = Path(L._werk(con,1)['pfad'])
++            (werk / r['gegenstand']['vertrag_pfad']).write_text('# verändert während Eichung')
++        return r
++    monkeypatch.setattr(eichproben, 'proben', verschoben)
++    with pytest.raises(V.VorspannFehler, match='Eichgegenstand'):
++        V.ausfuehren(con,1)
++    with pytest.raises(V.VorspannFehler): V.verlangen(con,1,'gen0')
++
++
++def test_unit_eichausgang_wird_getrennt_in_eichkosten_erfasst(unit_vorspann):
++    con, raw = unit_vorspann
++    r = V.ausfuehren(con,1)
++    zeile = con.execute("SELECT * FROM eichkosten WHERE lauf_id=1 AND teil='eichausgang'").fetchone()
++    assert zeile is not None, 'zusätzliche Basis-Messung darf nicht aus der Eichkostenbilanz fallen'
++    assert zeile['kammerlaeufe'] == 1
++    assert zeile['modellaufrufe'] == 0 and zeile['kosten_eur'] == 0.0
++    assert r['kosten'] == eichung.kosten(con,1)
++
++
++def test_unit_probenkosten_aus_privater_rueckgabe_werden_getrennt_gebucht(unit_vorspann):
++    con, raw = unit_vorspann
++    r = V.ausfuehren(con,1)
++    erfasst = {z['teil']:dict(z) for z in con.execute("SELECT * FROM eichkosten WHERE teil LIKE 'probe.%' OR teil LIKE 'gegenprobe.%'")}
++    erwartet = {f'{prefix}.{name}':e for gruppe,prefix in [('proben','probe'),('gegenproben','gegenprobe')]
++                for name,e in raw['proben'][gruppe].items()}
++    assert set(erfasst) == set(erwartet)
++    for teil,e in erwartet.items():
++        assert erfasst[teil]['kammerlaeufe'] == e['kammerlaeufe']
++        assert erfasst[teil]['kosten_eur'] == e['kosten_eur']
++    assert r['kosten']['kammerlaeufe'] == 1 + sum(e['kammerlaeufe'] for e in erwartet.values())
++
++
++def test_referenzlast_gehoert_zur_geladenen_repositorykopie():
++    assert L.REFERENZLAST == Path(L.__file__).resolve().parent / 'kern/referenzlast'
++
++
++def test_gate_verweigerung_hat_phasenbezogenen_protokollbeleg(db_lauf):
++    with pytest.raises(V.VorspannFehler): V.verlangen(db_lauf,1,'gen0')
++    e = db_lauf.execute("SELECT inhalt FROM protokoll WHERE art='vorspann.verweigert'").fetchone()
++    assert e is not None
++    assert lj(e[0])['phase'] == 'gen0' and lj(e[0])['lauf_id'] == 1
++    assert 'Nachweis fehlt' in lj(e[0])['grund']
++
++
++def test_generation_ohne_vorspann_startet_nicht(db_lauf, monkeypatch):
++    betreten = []
++    monkeypatch.setattr(L, "_generation_koerper", lambda *a, **kw: betreten.append(True))
++    with pytest.raises(L.LaufFehler, match="Vorspann"):
++        L.generation(db_lauf, 1)
++    assert betreten == []
++    assert db_lauf.execute("SELECT count(*) FROM generationen WHERE nummer>0").fetchone()[0] == 0
++
++
++@pytest.mark.parametrize("phase", ["mass", "gen0"])
++def test_vorstufen_ohne_vorspann_starten_nicht(db_lauf, monkeypatch, phase):
++    def unerlaubt(*args, **kwargs):
++        pytest.fail("Messung ohne gültigen Vorspann begonnen")
++    monkeypatch.setattr(L, "_referenzlast", lambda *a: "# Referenzlast")
++    monkeypatch.setattr(L.messgeraet, "messen", unerlaubt)
++    monkeypatch.setattr(G0, "erzeugen", unerlaubt)
++    with pytest.raises(L.LaufFehler, match="Vorspann"):
++        if phase == "mass":
++            L.mass_einfrieren(db_lauf, 1, "Eigen-Test")
++        else:
++            L.generation0(db_lauf, 1, None, 0.8)
+diff --git a/root/biotop/tests/test_vorspann_cli.py b/tests/test_vorspann_cli.py
+new file mode 100644
+index 0000000..48826bd
+--- /dev/null
++++ b/tests/test_vorspann_cli.py
+@@ -0,0 +1,54 @@
++"""CLI-Gate-Tests. Erfolgsfall = kontrollierter Unit-Test, keine echte Eichung."""
++import json
++import os
++from pathlib import Path
++import subprocess
++import sys
++
++import pytest
++from biotop import __main__ as cli
++from biotop import lauf as L
++from biotop.kern.datenbank import lj
++from test_vorspann import unit_vorspann
++
++
++def test_unit_cli_vorspann_fuehrt_denselben_kernpfad_aus(unit_vorspann, monkeypatch, capsys):
++    con, raw = unit_vorspann
++    monkeypatch.setattr(cli, 'verbinden', lambda:con)
++    assert cli.main(['vorspann','1']) == 0
++    aus = json.loads(capsys.readouterr().out)
++    assert aus['qualitaet'] == {'positive':4,'negative':4,'erwartet_je':4}
++    assert raw['reihenfolge'] == ['rauschen','gegenstand','funde','proben']
++    assert L.vorspann.verlangen(con,1,'gen0')['nachweis_sha256'] == aus['nachweis_sha256']
++
++
++def _subprozess(tmp_path, con, argv):
++    root = Path(L.__file__).resolve().parents[1]
++    db = con.execute('PRAGMA database_list').fetchone()[2]
++    # Netzsperre gilt auch im echten CLI-Kindprozess, nicht nur im pytest-Elternprozess.
++    shim = tmp_path / 'netzschutz'; shim.mkdir(exist_ok=True)
++    (shim / 'sitecustomize.py').write_text('import socket\ndef gesperrt(*a,**k):\n    raise AssertionError("Eigen-Test: Netz/Kammer gesperrt")\nsocket.socket.connect=gesperrt\nsocket.create_connection=gesperrt\nfrom biotop.organe import kammer\nkammer.ausfuehren=gesperrt\n')
++    child_tmp = tmp_path.parent / (tmp_path.name + '-child-tmp')
++    child_tmp.mkdir(exist_ok=True)
++    env = dict(os.environ, PYTHONPATH=os.pathsep.join([str(shim),str(root)]), TMPDIR=str(child_tmp),
++               BIOTOP_DB=db, PYTHONDONTWRITEBYTECODE='1')
++    return subprocess.run([sys.executable,*argv],env=env,cwd=root,capture_output=True,text=True,timeout=30)
++
++
++@pytest.mark.parametrize('cmd', [['vorspann','1'],['gen0','1'],['mass','1','--bestaetigt-von','Unit'],['generation','1']])
++def test_cli_sperre_hat_exit_eins_und_keine_modellkosten(db_lauf,tmp_path,cmd):
++    p = _subprozess(tmp_path, db_lauf, ['-m','biotop',*cmd])
++    assert p.returncode == 1, p.stdout+p.stderr
++    assert 'Vorspann' in p.stderr
++    assert db_lauf.execute('SELECT count(*) FROM kasse').fetchone()[0] == 0
++    assert db_lauf.execute('SELECT count(*) FROM generationen WHERE nummer>0').fetchone()[0] == 0
++
++
++def test_pruefskript_ist_wrapper_mit_fehlerexit_und_rohdaten(db_lauf,tmp_path):
++    out = tmp_path / 'ausgaben'
++    p = _subprozess(tmp_path,db_lauf,['pruefung/vorspann.py',str(out),'1'])
++    assert p.returncode == 1, p.stdout+p.stderr
++    assert 'Vorspann' in p.stderr
++    assert 'Vorspann' in (out/'15-vorspann-lauf1.txt').read_text()
++    e = db_lauf.execute("SELECT inhalt FROM protokoll WHERE art='vorspann.gescheitert'").fetchone()
++    assert e and lj(e[0])['ergebnis']['generation'] == -1

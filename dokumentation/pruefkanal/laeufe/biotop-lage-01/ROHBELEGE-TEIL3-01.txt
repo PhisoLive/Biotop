@@ -1,0 +1,357 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 01 · Teil 3 von 3 · enthält R4 bis R6
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+
+R4 · Schritt 1: Zeitgeber je Dienst, Zwischenbericht-Wächter, gedaechtnis/, Fassung 1 in der Sitzungsdatenbank
+Beginn: 2026-09-25 14:54:16 CEST (UTC+0200)
+Ende:   2026-09-25 14:54:17 CEST (UTC+0200)
+Dauer:  1.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/sicherung/biotop-lage-01/arbeit/s1_zeitgeber.sh
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/s1_zeitgeber.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-LAGE-01 Schritt 1 (nur lesend): Zeitgeber einordnen (Beschreibung je Dienst), Zwischenbericht-Wächter (was er
+# schreibt, wann zuletzt ausgelöst), Gedächtnis-Dateien im Prüfkanal, Fassung 1 in der Sitzungsdatenbank.
+date '+== Zeitpunkt %Y-%m-%d %H:%M:%S %Z (UTC%z)'
+echo "== systemd-Zeitgeber: Einheit -> Dienst -> Beschreibung -> ExecStart"
+for t in $(systemctl list-timers --all --no-legend --no-pager | grep -o '[A-Za-z0-9@_.-]*\.timer' | sort -u); do
+  s=$(systemctl show -p Unit --value "$t")
+  d=$(systemctl show -p Description --value "$s")
+  e=$(systemctl show -p ExecStart --value "$s" | grep -o 'argv\[\]=[^;]*' | head -1)
+  echo "$t | $s | $d | $e"
+done
+echo "== Zwischenbericht-Wächter: Zielpfade im Skript"
+grep -n -E "laeufe|auftrag.json|zwischenbericht-|SCHWELL|110|140|0\.8" /root/.hermes/scripts/zwischenbericht_waechter.py | head -40
+echo "== Wächter: zuletzt ausgelöst (ausgeloest.json, nur Schlüssel und Zeiten)"
+ls -la --time-style='+%Y-%m-%d %H:%M:%S %z' /root/.hermes/zwischenbericht/ 2>&1
+python3 - <<'EOF'
+import json
+p = '/root/.hermes/zwischenbericht/ausgeloest.json'
+try:
+    d = json.load(open(p))
+except Exception as e:
+    print('nicht lesbar:', e); raise SystemExit
+if isinstance(d, dict):
+    for k, v in list(d.items())[-12:]:
+        print(k, '->', json.dumps(v, ensure_ascii=False)[:300])
+else:
+    print(json.dumps(d, ensure_ascii=False)[:2000])
+EOF
+echo "== Prüfkanal: Inhalt von laeufe/biotop-vor-t4-06 (vom Wächter angelegt?)"
+K=$(cat /etc/pruefkanal/schluessel); L=/var/pruefkanal/oeffentlich/_akte/$K/laeufe
+ls -la --time-style='+%Y-%m-%d %H:%M:%S %z' "$L/biotop-vor-t4-06"
+echo "== Prüfkanal: laeufe/gedaechtnis (Name, Größe, Zeit)"
+ls -la --time-style='+%Y-%m-%d %H:%M:%S %z' "$L/gedaechtnis"
+echo "== Sitzungsdatenbank (nur lesend): Nachrichten mit 'BIOTOP-LAGE' — Zeit, Sitzung, Rolle, Länge"
+python3 - <<'EOF'
+import sqlite3, datetime
+con = sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+cols = [r[1] for r in con.execute("PRAGMA table_info(messages)")]
+print('Spalten messages:', cols)
+zeit = 'timestamp' if 'timestamp' in cols else ('created_at' if 'created_at' in cols else None)
+q = f"SELECT {zeit}, session_id, role, length(content) FROM messages WHERE content LIKE '%BIOTOP-LAGE%' ORDER BY {zeit}"
+for z, s, r, n in con.execute(q):
+    try:
+        zz = datetime.datetime.fromtimestamp(float(z)).strftime('%Y-%m-%d %H:%M:%S')
+    except Exception:
+        zz = z
+    print(zz, s, r, n)
+EOF
+echo "== Auftragsdatei (Fassung 2): sha256 und Größe"
+sha256sum /root/.hermes/cache/documents/doc_5bf902863a6d_BIOTOP-LAGE-01-Auftrag-v2.md
+stat -c '%s Bytes, geändert %y' /root/.hermes/cache/documents/doc_5bf902863a6d_BIOTOP-LAGE-01-Auftrag-v2.md
+--- Ende /root/sicherung/biotop-lage-01/arbeit/s1_zeitgeber.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== Zeitpunkt 2026-09-25 14:54:16 CEST (UTC+0200)
+== systemd-Zeitgeber: Einheit -> Dienst -> Beschreibung -> ExecStart
+analytics-wache.timer | analytics-wache.service | analytics-wache — taeglich pruefen, ob die Besuchermessung traegt (Auftrag SEO 1, Aufgabe C) | argv[]=/opt/node22/bin/node /opt/hermes/projekte/milieulux/_werkzeug/analytics-wache.mjs --modus trocken --melden --aus /opt/hermes/projekte/milieulux/laeufe/seo-1-messung/BELEGE/wache-taeglich 
+anfragen-melder.timer | anfragen-melder.service | Meldet neue Anfragen von der Website nach Telegram | argv[]=/usr/local/sbin/anfragen-melder 
+apport-autoreport.timer | apport-autoreport.service | Process error reports when automatic reporting is enabled | argv[]=/usr/share/apport/whoopsie-upload-all --timeout 20 
+apt-daily-upgrade.timer | apt-daily-upgrade.service | Daily apt upgrade and clean activities | argv[]=/usr/lib/apt/apt.systemd.daily install 
+apt-daily.timer | apt-daily.service | Daily apt download activities | argv[]=/usr/lib/apt/apt.systemd.daily update 
+bild-wache.timer | bild-wache.service | Wache ueber die w=640-Bildvarianten - holt sie von aussen | argv[]=/usr/local/sbin/bild-wache 
+dpkg-db-backup.timer | dpkg-db-backup.service | Daily dpkg database backup service | argv[]=/usr/libexec/dpkg/dpkg-db-backup 
+e2scrub_all.timer | e2scrub_all.service | Online ext4 Metadata Check for All Filesystems | argv[]=/sbin/e2scrub_all 
+formular-wache.timer | formular-wache.service | Wache ueber das Kontaktformular - schickt eine echte Anfrage | argv[]=/usr/local/sbin/formular-wache 
+fstrim.timer | fstrim.service | Discard unused blocks on filesystems from /etc/fstab | argv[]=/sbin/fstrim --listed-in /etc/fstab:/proc/self/mountinfo --verbose --quiet-unsupported 
+fwupd-refresh.timer | fwupd-refresh.service | Refresh fwupd metadata and update motd | argv[]=/usr/bin/fwupdmgr refresh 
+kaltstart-ankuendigung.timer | kaltstart-ankuendigung.service | Kaltstart - Ankuendigung per Telegram, mindestens 30 min vorher (C.2) | argv[]=/usr/bin/python3 /opt/hermes/kaltstart.py ankuendigen --minuten 40 
+kaltstart.timer | kaltstart.service | Kaltstart - Baustein 7, gefahren im freigegebenen Fenster (C.2) | argv[]=/usr/bin/python3 /opt/hermes/kaltstart.py fahren 
+logrotate.timer | logrotate.service | Rotate log files | argv[]=/usr/sbin/logrotate /etc/logrotate.conf 
+man-db.timer | man-db.service | Daily man-db regeneration | argv[]=/usr/bin/install -d -o man -g man -m 0755 /var/cache/man 
+meldebremse-sammlung.timer | meldebremse-sammlung.service | Meldebremse - nach Ablauf der Stunde EINE Sammelmeldung (4.3) | argv[]=/usr/bin/python3 /opt/hermes/melden.py --sammelmeldung 
+melder-wache.timer | melder-wache.service | Prueft, ob der Anfragen-Melder noch laeuft (Gegenlese Lauf 1) | argv[]=/usr/local/sbin/melder-wache 
+motd-news.timer | motd-news.service | Message of the Day | argv[]=/etc/update-motd.d/50-motd-news --force 
+netz-wache.timer | netz-wache.service | Wache ueber die geliehene IPv4-Adresse | argv[]=/usr/local/sbin/netz-wache 
+seiten-wache.timer | seiten-wache.service | Wache ueber die ausgelieferte Website - holt sie von aussen | argv[]=/usr/local/sbin/seiten-wache 
+snapd.snap-repair.timer | snapd.snap-repair.service | Automatically fetch and run repair assertions | argv[]=/usr/lib/snapd/snap-repair run 
+speicher-mitschreiber.timer | speicher-mitschreiber.service | Schreibt mit, wieviel hermes.service wirklich braucht | argv[]=/usr/local/sbin/speicher-mitschreiber 
+sysstat-collect.timer | sysstat-collect.service | system activity accounting tool | argv[]=/usr/lib/sysstat/sa1 1 1 
+sysstat-summary.timer | sysstat-summary.service | Generate a daily summary of process accounting | argv[]=/usr/lib/sysstat/sa2 -A 
+systemd-tmpfiles-clean.timer | systemd-tmpfiles-clean.service | Cleanup of Temporary Directories | argv[]=systemd-tmpfiles --clean 
+ua-timer.timer | ua-timer.service | Ubuntu Pro Timer for running repeated jobs | argv[]=/usr/bin/python3 /usr/lib/ubuntu-advantage/timer.py 
+update-notifier-download.timer | update-notifier-download.service | Download data for packages that failed at package install time | argv[]=/usr/lib/update-notifier/package-data-downloader 
+update-notifier-motd.timer | update-notifier-motd.service | Check to see whether there is a new version of Ubuntu available | argv[]=/usr/lib/ubuntu-release-upgrader/release-upgrade-motd 
+zertifikat-wache.timer | zertifikat-wache.service | Prueft die Restlaufzeit des ausgelieferten TLS-Zertifikats | argv[]=/usr/local/sbin/zertifikat-wache 
+== Zwischenbericht-Wächter: Zielpfade im Skript
+13:Wann ausgelöst wird. Bei Grenze − 40 und bei Grenze − 10 Runden, also 110 und 140 bei max_turns 150. Der erste Wert
+14:liegt bei 110 statt 120: Der Wächter läuft einmal je Minute, und der Bericht soll trotz dieses Taktverzugs
+32:    <Prüfkanal>/laeufe/<auftrag>/zwischenbericht-<JJJJMMTT-HHMMSS>-r<runden>[-kontext80][-verdichtung]/
+36:Auftrag, Übergabedateien, Repositories und Arbeitsordner stehen in <hermes-home>/zwischenbericht/auftrag.json; der
+37:Agent pflegt diese Datei. Fehlt sie, geht der Bericht nach laeufe/zwischenberichte/ und enthält nur den mechanischen
+64:KONTEXT_ANTEIL = 0.80
+222:    return f"laeufe/{name}/zwischenbericht-{datetime.fromtimestamp(jetzt).strftime('%Y%m%d-%H%M%S')}-r{n}{zusatz}"
+270:        z.append('- keine Übergabedatei eingetragen (auftrag.json fehlt oder ist leer)')
+293:    auftrag = lade(home / 'zwischenbericht' / 'auftrag.json')
+== Wächter: zuletzt ausgelöst (ausgeloest.json, nur Schlüssel und Zeiten)
+total 64
+drwxr-xr-x  3 root root  4096 2026-09-25 14:54:00 +0200 .
+drwx------ 28 root root  4096 2026-09-25 14:54:16 +0200 ..
+drwxr-xr-x  2 root root  4096 2026-09-23 21:26:25 +0200 __pycache__
+-rw-r--r--  1 root root   274 2026-09-24 23:52:05 +0200 auftrag.json
+-rw-r--r--  1 root root   228 2026-09-24 02:20:49 +0200 auftrag.json.vor-t4-02
+-rw-r--r--  1 root root 15199 2026-09-25 14:54:00 +0200 ausgeloest.json
+-rw-r--r--  1 root root   768 2026-09-25 14:54:00 +0200 herzschlag.json
+-rw-r--r--  1 root root 14244 2026-09-23 21:26:04 +0200 test_waechter.py
+-rw-r--r--  1 root root  7756 2026-09-23 15:36:36 +0200 test_waechter.py.vor-kontext-20260923-212241
+20260923_194003_92313ee1:16230:verdichtung -> {"zeit": "2026-09-24T14:57:49+02:00", "runden": 1, "zeile": "Zwischenbericht ausgelöst: https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-04/zwischenbericht-20260924-145749-r1-verdichtung/DATEIEN.txt | Runde 1 von 150 (Schwelle –) | Anlass: Verdichtu
+20260923_194003_92313ee1:16230:kontext80 -> {"zeit": "2026-09-24T15:11:54+02:00", "runden": 22, "zeile": "Zwischenbericht ausgelöst: https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-04/zwischenbericht-20260924-151154-r22-kontext80/DATEIEN.txt | Runde 22 von 150 (Schwelle –) | Anlass: Kontextf
+20260923_194003_92313ee1:16399:kontext80 -> {"zeit": "2026-09-24T16:02:10+02:00", "runden": 0, "zeile": "Zwischenbericht ausgelöst: https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-04/zwischenbericht-20260924-160210-r0-kontext80-verdichtung/DATEIEN.txt | Runde 0 von 150 (Schwelle –) | Anlass:
+20260923_194003_92313ee1:16399:verdichtung -> {"zeit": "2026-09-24T16:02:10+02:00", "runden": 0, "zeile": "Zwischenbericht ausgelöst: https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-04/zwischenbericht-20260924-160210-r0-kontext80-verdichtung/DATEIEN.txt | Runde 0 von 150 (Schwelle –) | Anlass:
+20260924_150913_a9326d:16732:verdichtung -> {"zeit": "2026-09-24T20:33:27+02:00", "runden": 1, "zeile": "Zwischenbericht ausgelöst: https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-05/zwischenbericht-20260924-203327-r1-verdichtung/DATEIEN.txt | Runde 1 von 150 (Schwelle –) | Anlass: Verdichtu
+20260924_150913_a9326d:16732:kontext80 -> {"zeit": "2026-09-24T20:39:28+02:00", "runden": 1, "zeile": "Zwischenbericht ausgelöst: https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-05/zwischenbericht-20260924-203928-r1-kontext80/DATEIEN.txt | Runde 1 von 150 (Schwelle –) | Anlass: Kontextfüll
+20260924_150913_a9326d:16769:kontext80 -> {"zeit": "2026-09-24T21:01:35+02:00", "runden": 0, "zeile": "Zwischenbericht ausgelöst: https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-05/zwischenbericht-20260924-210135-r0-kontext80/DATEIEN.txt | Runde 0 von 150 (Schwelle –) | Anlass: Kontextfüll
+20260924_150913_a9326d:16823:verdichtung -> {"zeit": "2026-09-24T21:41:48+02:00", "runden": 2, "zeile": "Zwischenbericht ausgelöst: https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-05/zwischenbericht-20260924-214148-r2-verdichtung/DATEIEN.txt | Runde 2 von 150 (Schwelle –) | Anlass: Verdichtu
+20260924_203120_e6c401:16901:verdichtung -> {"zeit": "2026-09-25T00:06:24+02:00", "runden": 29, "zeile": "Zwischenbericht ausgelöst: https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-06/zwischenbericht-20260925-000624-r29-verdichtung/DATEIEN.txt | Runde 29 von 150 (Schwelle –) | Anlass: Verdic
+20260924_203120_e6c401:17217:verdichtung -> {"zeit": "2026-09-25T00:28:24+02:00", "runden": 0, "zeile": "Zwischenbericht ausgelöst: https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-06/zwischenbericht-20260925-002824-r0-verdichtung/DATEIEN.txt | Runde 0 von 150 (Schwelle –) | Anlass: Verdichtu
+20260924_203120_e6c401:17359:verdichtung -> {"zeit": "2026-09-25T01:08:25+02:00", "runden": 0, "zeile": "Zwischenbericht ausgelöst: https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-06/zwischenbericht-20260925-010825-r0-verdichtung/DATEIEN.txt | Runde 0 von 150 (Schwelle –) | Anlass: Verdichtu
+20260924_203120_e6c401:17606:verdichtung -> {"zeit": "2026-09-25T01:12:25+02:00", "runden": 12, "zeile": "Zwischenbericht ausgelöst: https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-06/zwischenbericht-20260925-011225-r12-verdichtung/DATEIEN.txt | Runde 12 von 150 (Schwelle –) | Anlass: Verdic
+== Prüfkanal: Inhalt von laeufe/biotop-vor-t4-06 (vom Wächter angelegt?)
+total 24
+drwxr-x---   6 root caddy 4096 2026-09-25 01:12:25 +0200 .
+drwxr-x--- 111 root caddy 4096 2026-09-25 00:06:24 +0200 ..
+drwxr-x---   2 root caddy 4096 2026-09-25 00:06:24 +0200 zwischenbericht-20260925-000624-r29-verdichtung
+drwxr-x---   2 root caddy 4096 2026-09-25 00:28:24 +0200 zwischenbericht-20260925-002824-r0-verdichtung
+drwxr-x---   2 root caddy 4096 2026-09-25 01:08:25 +0200 zwischenbericht-20260925-010825-r0-verdichtung
+drwxr-x---   2 root caddy 4096 2026-09-25 01:12:25 +0200 zwischenbericht-20260925-011225-r12-verdichtung
+== Prüfkanal: laeufe/gedaechtnis (Name, Größe, Zeit)
+total 40
+drwxr-x---   2 root caddy 4096 2026-09-20 05:17:33 +0200 .
+drwxr-x--- 111 root caddy 4096 2026-09-25 00:06:24 +0200 ..
+-rw-r-----   1 root caddy  238 2026-09-20 05:17:33 +0200 DATEIEN-01.txt
+-rw-r-----   1 root caddy  341 2026-09-20 05:17:33 +0200 PRUEFSUMME-ORDNER-01.txt
+-rw-r-----   1 root caddy 4504 2026-09-20 05:17:33 +0200 REGELN-01.md
+-rw-r-----   1 root caddy 4386 2026-09-20 05:17:33 +0200 STAND-01.md
+-rw-r-----   1 root caddy 4965 2026-09-20 05:17:33 +0200 UNTERBAU-01.md
+== Sitzungsdatenbank (nur lesend): Nachrichten mit 'BIOTOP-LAGE' — Zeit, Sitzung, Rolle, Länge
+Spalten messages: ['id', 'session_id', 'role', 'content', 'tool_call_id', 'tool_calls', 'tool_name', 'effect_disposition', 'timestamp', 'token_count', 'finish_reason', 'reasoning', 'reasoning_content', 'reasoning_details', 'codex_reasoning_items', 'codex_message_items', 'platform_message_id', 'observed', '_compressed_summary', 'active', 'compacted', 'api_content', 'display_kind', 'display_metadata', 'display_identity', 'display_order']
+2026-09-25 14:44:20 20260924_203120_e6c401 user 40825
+2026-09-25 14:44:20 20260924_203120_e6c401 user 40825
+2026-09-25 14:44:22 20260924_203120_e6c401 user 998
+2026-09-25 14:44:22 20260924_203120_e6c401 user 998
+2026-09-25 14:48:39 20260924_203120_e6c401 tool 234
+2026-09-25 14:48:39 20260924_203120_e6c401 tool 234
+2026-09-25 14:48:39 20260924_203120_e6c401 tool 272
+2026-09-25 14:48:39 20260924_203120_e6c401 tool 272
+2026-09-25 14:48:39 20260924_203120_e6c401 tool 281
+2026-09-25 14:48:39 20260924_203120_e6c401 tool 281
+2026-09-25 14:48:39 20260924_203120_e6c401 tool 285
+2026-09-25 14:48:39 20260924_203120_e6c401 tool 285
+2026-09-25 14:49:28 20260924_203120_e6c401 tool 6233
+2026-09-25 14:49:29 20260924_203120_e6c401 tool 11387
+2026-09-25 14:49:29 20260924_203120_e6c401 tool 8275
+2026-09-25 14:50:14 20260924_203120_e6c401 tool 3443
+2026-09-25 14:50:22 20260924_203120_e6c401 tool 13670
+2026-09-25 14:54:01 20260924_203120_e6c401 tool 283
+2026-09-25 14:54:12 20260924_203120_e6c401 tool 246
+== Auftragsdatei (Fassung 2): sha256 und Größe
+58ba8834b8c3ec08f8da2e18d3db056150c91c2841ed9aac349bcf2eba216b98  /root/.hermes/cache/documents/doc_5bf902863a6d_BIOTOP-LAGE-01-Auftrag-v2.md
+41239 Bytes, geändert 2026-09-25 14:44:20.943607972 +0200
+=== Ende R4 ===
+
+
+R5 · OpenRouter-Nutzungsanzeige zu Auftragsbeginn (kein Modellaufruf)
+Beginn: 2026-09-25 14:54:17 CEST (UTC+0200)
+Ende:   2026-09-25 14:54:18 CEST (UTC+0200)
+Dauer:  0.3 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/or_stand.py beginn
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/or_stand.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01: Stand der OpenRouter-Nutzungsanzeige (kein Modellaufruf; Regel 2.3 erlaubt die Abfrage).
+Der Schlüssel wird aus /root/.hermes/.env gelesen und nie ausgegeben. Ausgegeben werden nur die Zahlen der Anzeige:
+/api/v1/key (usage gesamt, heute, Woche, Monat; Limit) und /api/v1/credits (gekauft, verbraucht).
+Aufruf: python3 or_stand.py <marke>   — hängt eine JSON-Zeile an /root/sicherung/biotop-lage-01/arbeit/OR-STAND.jsonl."""
+import json
+import sys
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+schluessel = None
+for z in Path('/root/.hermes/.env').read_text().splitlines():
+    if z.startswith('OPENROUTER_API_KEY='):
+        schluessel = z.split('=', 1)[1].strip().strip('"').strip("'")
+if not schluessel:
+    sys.exit('OPENROUTER_API_KEY fehlt in /root/.hermes/.env')
+
+
+def hole(url):
+    q = urllib.request.Request(url, headers={'Authorization': f'Bearer {schluessel}'})
+    try:
+        with urllib.request.urlopen(q, timeout=60) as r:
+            return r.status, json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        return e.code, {'fehler': e.read().decode('utf-8', 'replace')[:300]}
+
+
+marke = sys.argv[1] if len(sys.argv) > 1 else 'stand'
+zeile = {'zeit': time.strftime('%Y-%m-%dT%H:%M:%S%z'), 'marke': marke}
+st, k = hole('https://openrouter.ai/api/v1/key')
+d = k.get('data') or {}
+zeile['key_http'] = st
+for f in ('usage', 'usage_daily', 'usage_weekly', 'usage_monthly', 'byok_usage', 'limit', 'limit_remaining',
+          'limit_reset', 'is_free_tier', 'label'):
+    if f in d:
+        zeile['key_' + f] = d[f] if f != 'label' else '[GESCHWÄRZT: Schlüsselbezeichnung]'
+st, c = hole('https://openrouter.ai/api/v1/credits')
+zeile['credits_http'] = st
+cd = c.get('data') or {}
+zeile['credits_total_credits'] = cd.get('total_credits')
+zeile['credits_total_usage'] = cd.get('total_usage')
+with open('/root/sicherung/biotop-lage-01/arbeit/OR-STAND.jsonl', 'a') as f:
+    f.write(json.dumps(zeile, ensure_ascii=False) + '\n')
+print(json.dumps(zeile, ensure_ascii=False, indent=1))
+--- Ende /root/sicherung/biotop-lage-01/arbeit/or_stand.py ---
+Ausgabe (vollständig, stdout und stderr):
+{
+ "zeit": "2026-09-25T14:54:17+0200",
+ "marke": "beginn",
+ "key_http": 200,
+ "key_usage": 20.536052277,
+ "key_usage_daily": 0.30761925,
+ "key_usage_weekly": 10.771282959,
+ "key_usage_monthly": 20.536052277,
+ "key_byok_usage": 0,
+ "key_limit": null,
+ "key_limit_remaining": null,
+ "key_limit_reset": null,
+ "key_is_free_tier": false,
+ "key_label": "[GESCHWÄRZT: Schlüsselbezeichnung]",
+ "credits_http": 200,
+ "credits_total_credits": 240,
+ "credits_total_usage": 195.381784237
+}
+=== Ende R5 ===
+
+
+R6 · Schritt 1: Stand des laufenden Baus S1c (Subagent Runde 6), Obergrenze, Vergleich S1b, git status
+Beginn: 2026-09-25 14:57:44 CEST (UTC+0200)
+Ende:   2026-09-25 14:57:44 CEST (UTC+0200)
+Dauer:  0.0 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/sicherung/biotop-lage-01/arbeit/s1_s1c_stand.sh
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/s1_s1c_stand.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-LAGE-01 Schritt 1 (nur lesend): Stand des laufenden Baus S1c (Subagent der Behebungsrunde 6) — Beginn,
+# Zahl der Werkzeugaufrufe bisher, letzte Einträge, Obergrenze der Iterationen laut Hermes-Konfiguration,
+# Dauer des Vorgängers S1b zum Vergleich.
+date '+== Zeitpunkt %Y-%m-%d %H:%M:%S %Z (UTC%z)'
+D=/root/.hermes/cache/delegation/live/deleg_c88798ee
+echo "== Manifest S1c"; grep -E '"started"|"status"' $D/manifest.json
+echo "== Transkript S1c: Zeilen, Werkzeugaufrufe ('tool     | ->'), erste und letzte Zeitmarke"
+wc -l < $D/task-0.log
+grep -c 'tool     | ->' $D/task-0.log
+head -3 $D/task-0.log | cut -c1-160
+tail -3 $D/task-0.log | cut -c1-160
+echo "== Obergrenze der Iterationen für Subagenten (config.yaml, Schlüssel delegation/max_iterations)"
+grep -n -E "max_iterations|max_turns|delegation:" /root/.hermes/config.yaml | head -20
+echo "== Vergleich S1b (deleg_1471b95c): Werkzeugaufrufe und Dauer laut Manifest/Transkript"
+B=/root/.hermes/cache/delegation/live/deleg_1471b95c
+grep -E '"started"|"status"' $B/manifest.json 2>/dev/null
+grep -c 'tool     | ->' $B/task-0.log 2>/dev/null
+head -1 $B/task-0.log | cut -c1-80; tail -1 $B/task-0.log | cut -c1-80
+echo "== Geänderte Dateien im Baum seit HEAD (git status --short) — Stand jetzt, S1c schreibt weiter"
+git -C /root/biotop status --short
+echo "== S1c-Plan: letzte 25 Zeilen von bau/S1C-PLAN.md"
+tail -25 /root/biotop-vor-t4-06/bau/S1C-PLAN.md 2>&1 | cut -c1-220
+--- Ende /root/sicherung/biotop-lage-01/arbeit/s1_s1c_stand.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== Zeitpunkt 2026-09-25 14:57:44 CEST (UTC+0200)
+== Manifest S1c
+  "started": "2026-09-25 12:51:42",
+      "status": "running"
+== Transkript S1c: Zeilen, Werkzeugaufrufe ('tool     | ->'), erste und letzte Zeitmarke
+256
+118
+=== Hermes subagent live transcript ===
+delegation: deleg_c88798ee   task: 0
+goal: Setze den Bauauftrag /root/biotop-vor-t4-06/BAU-S1C-UNBEOBACHTET.md um: die Klasse „Wirkung außerhalb der Beobachtung“ schließen (A unbeobachtet, B 
+14:49:05 result   | terminal ok 0.3s: {"output": "S1-VORHER-0c2f058.txt: e9d812f22e11502a… → b84ca19ab22e4958…\nS1-VORHER-EINORDNUNG.md: 81ba3837c43e398a�
+14:49:05 tool     | -> execute_code(p = "/root/biotop-vor-t4-06/bau/S1C-P...)
+14:49:05 result   | execute_code ok 0.0s: {"status": "success", "output": "ok\n", "exit_code": 0, "tool_calls_made": 0, "duration_seconds": 0.0, "kernel": {"mod
+== Obergrenze der Iterationen für Subagenten (config.yaml, Schlüssel delegation/max_iterations)
+9:  max_turns: 150
+95:delegation:
+96:  max_iterations: 250
+== Vergleich S1b (deleg_1471b95c): Werkzeugaufrufe und Dauer laut Manifest/Transkript
+  "started": "2026-09-25 08:44:43",
+      "status": "completed",
+190
+=== Hermes subagent live transcript ===
+12:36:19 final    | end status=completed exit_reason=completed
+== Geänderte Dateien im Baum seit HEAD (git status --short) — Stand jetzt, S1c schreibt weiter
+ M biotop/__main__.py
+ M biotop/kern/py/verhalten.py
+ M biotop/kern/register.py
+ M biotop/lauf.py
+ M biotop/nachspiel.py
+ M biotop/organe/aegis.py
+ M biotop/organe/verhaltensvergleich.py
+ M biotop/organe/vorspann.py
+ M biotop/tor4.py
+ M tests/drahtwerk.py
+ M tests/test_nachweis_verbraucher.py
+ M tests/test_t3_eichpfad.py
+ M tests/test_t3_python_annahmen.py
+ M tests/test_verdrahtung.py
+ M tests/test_vor_t4_04.py
+ M tests/test_vor_t4_05.py
+ M tests/test_vorspann.py
+?? biotop/organe/stufe2.py
+?? tests/test_stufe2_eichphase.py
+?? tests/test_tor4_zeilen.py
+?? tests/test_vor_t4_06.py
+?? tests/test_vor_t4_06_hermes.py
+?? tests/test_vor_t4_06_register.py
+== S1c-Plan: letzte 25 Zeilen von bau/S1C-PLAN.md
+    des Attributs in anderen Modulen/Referenzlast; Einheiten von M, die K nennen, kommen bei geändertem Klassenrest zu
+    D. Neue/entfernte Klasse oder geänderter Kopf mit Basis (außer eingebauten/typing/enum/abc), Schlüsselwort oder
+    nicht harmlosem Dekorator, ebenso Funktion mit nicht harmlosem Dekorator neu/entfernt/Dekorator geändert →
+    `<modulebene>` (Wirkung beim Import).
+  - C TypeScript zusätzlich (TS hat kein M2(b)): geänderte Funktion ohne Beobachtung (exportiert und nicht beobachtet;
+    nicht exportiert und nicht gedeckt), geänderte Klasse (die TS-Sonde wickelt Klassen nicht ein) → Enthaltung
+    „betroffen, von der Sonde nicht beobachtet (TypeScript …)“.
+- 14:28 Spezifikation gebaut (`bau/r6_s1c_spez.py` `ea7d7ffc…`, Werkzeug `bau/r6_s1c_werkzeug.py`, Protokoll
+  `bau/S1C-BAU-SPEZ.txt`): 06 `80feee35…` → `7d3f0617…` — Sammelfehler („unexpected '{' in field name“ in
+  `W_TS_RUMPF`); ~20 s später Nachtrag `bau/r6_s1c_spez_n1.py` (`5d490a84…`, erst Kopie + Sammeln, dann Baum):
+  06 → `e47b5f16…` (Kopie = Baum), 168 Fälle gesammelt (102 + 66 `test_w_*` in 7 Funktionen: aegis 13, C-Py 15,
+  D-Py 15, D gemischt 2, C-TS 13, A/B/D-TS 4, E/F 4). Lehre: vor dem Baum an der Kopie sammeln.
+- NÄCHSTES: Vorher am Baum (Code nach S1b) und an 0c2f058 (`/tmp/r6-s1c/vorher`, 06 hineinkopiert), in Stücken < 400 s
+  (aegis-Fälle getrennt), Ausgabe `/tmp/r6-s1c/w-vorher-<ort>-<teil>.txt`.
+- 14:33–14:44 Nachträge Spezifikation n2 (`e_neu_unbeobachtet` war keine Probe), n3 (Gegenproben a_gegen/c_innen an
+  0c2f058 rot aus vorbestehendem Grund: assert ohne Meldung hielt vor R6-4 nie fest → mit Meldung), n4 (e/f durch
+  aegis: zusätzlich `neu_beobachtet`/`direkt_gedeckt`); 06 → `83bb277f…` (Kopie = Baum).
+- 14:47 Vorher (Endstand Spezifikation, `/tmp/r6-s1c/w-vorher-{baum,vorher}-{organ,aegis1,aegis2}.txt`): 66 Fälle;
+  Proben 36 — rot am Baum 36, an 0c2f058 36; Gegenproben 26 — rot 0/0; Wächter (E/F wie M2(b)) 4 — Baum 0, 0c2f058 4.
+  Angehängt: `bau/S1-VORHER-0c2f058.txt` `e9d812f2…` → (siehe Protokoll unten), `bau/S1-VORHER-EINORDNUNG.md`.
+- NÄCHSTES: Bau je Teil an der Kopie, in dieser Reihenfolge (je ein Skript, Tests nach jedem):
+  1. `bau/r6_s1c_ab.py` (A, B: Enthaltung in pruefen; `kurz`),
+  2. `bau/r6_s1c_d.py` (D: Quellpaket, `ausserhalb`, vor/nach Weg 1),
+  3. `bau/r6_s1c_ef.py` (F: rufer ohne Selbst; E: neu beobachtet — vv + verhalten.py `signaturen_neu`),
+  4. `bau/r6_s1c_c.py` (C Python: Modulwerte, `<modulebene>`, `<__main__>`, global → D; C TypeScript: Zerleger).
+=== Ende R6 ===

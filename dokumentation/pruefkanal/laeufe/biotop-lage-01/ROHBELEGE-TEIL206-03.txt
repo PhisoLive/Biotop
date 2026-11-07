@@ -1,0 +1,153 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 03 · Teil 206 (Teile 166–239 dieses Stands) · enthält R202 bis R202
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R202 · Nachprüfung zu R201: die 11 Fälle test_w_g_* und die 24 Fälle „sonst“ auf Hinweise der Abschottung (docker, node, Umgebungsvariable)
+Beginn: 2026-09-25 20:10:26 CEST (UTC+0200)
+Ende:   2026-09-25 20:10:26 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/s9_nachpruefung.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/s9_nachpruefung.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Nachprüfung zu R201 für die 11 Fälle test_w_g_* und die 24 Fälle „sonst“:
+enthält der Fehlertext Hinweise auf die Abschottung (docker, node, Umgebungsvariable, /opt/node)?
+Gibt je Fall die letzte Meldungszeile (gekürzt) und die gefundenen Stichwörter aus."""
+import re
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+J = Path('/root/sicherung/biotop-lage-01/testlauf/ausgabe/junit.xml')
+w = ET.parse(J).getroot()
+s = w if w.tag == 'testsuite' else w.find('testsuite')
+STICH = {'docker': r'docker', 'node': r"'node'|No such file or directory: 'node'|/opt/node|npx|tsc\b",
+         'Umgebungsvariable': r'BIOTOP_[A-Z_]+ (fehlt|und)|AuftragsgrenzeFehlt', 'Netz': r'Errno 101|unreachable',
+         'schreibgeschützt': r'Errno 30|Read-only'}
+n = 0
+for tc in s.iter('testcase'):
+    for art in ('failure', 'error'):
+        e = tc.find(art)
+        if e is None:
+            continue
+        text = f'{e.get("message", "")}\n{e.text or ""}'
+        if re.search(r'docker', text) and not tc.get('name', '').startswith('test_w_g'):
+            continue  # die 168 Docker-Fälle sind in R201 belegt
+        n += 1
+        treffer = [k for k, m in STICH.items() if re.search(m, text)]
+        zeilen = [z.strip() for z in text.splitlines() if re.match(r'\s*E\s', z)]
+        letzte = (zeilen[-1] if zeilen else (e.get('message') or '').splitlines()[0] if e.get('message') else '')[:170]
+        datei = re.sub(r'^.*?(tests/)', r'\1', tc.get('file') or tc.get('classname', ''))
+        print(f'{n:2d} {art[:4]} · {datei}::{tc.get("name")[:70]} · Stichwörter {treffer or "keine"} · {letzte}')
+print(f'geprüft: {n} Fälle (erwartet 35 = 203 − 168)')
+--- Ende /root/sicherung/biotop-lage-01/arbeit/s9_nachpruefung.py ---
+Ausgabe (vollständig, stdout und stderr):
+ 1 fail · tests.test_eichproben::test_regression_nennt_einzeltest_trotz_ausgefuehrter_gruener_tests[Fal · Stichwörter keine · E           RuntimeError: Kein bestätigter Einzeltest fällt durch den Eingriff in lieferant
+ 2 fail · tests.test_eichproben::test_regression_nennt_einzeltest_trotz_ausgefuehrter_gruener_tests[Tru · Stichwörter keine · E           RuntimeError: Kein bestätigter Einzeltest fällt durch den Eingriff in lieferant
+ 3 fail · tests.test_eichproben::test_norm_aendert_vorhandene_funktion_statt_importfehler · Stichwörter keine · E        +  where 0 = len([])
+ 4 fail · tests.test_junit_zeugen::test_rest_junit_nur_aus_abgeschlossener_kammer_ist_erfolgszeuge[sauber · Stichwörter keine · E       AttributeError: 'NoneType' object has no attribute 'group'
+ 5 fail · tests.test_junit_zeugen::test_rest_junit_nur_aus_abgeschlossener_kammer_ist_erfolgszeuge[abbruc · Stichwörter keine · E       AttributeError: 'NoneType' object has no attribute 'group'
+ 6 fail · tests.test_junit_zeugen::test_rest_junit_nur_aus_abgeschlossener_kammer_ist_erfolgszeuge[zeitli · Stichwörter keine · E       AttributeError: 'NoneType' object has no attribute 'group'
+ 7 fail · tests.test_junit_zeugen::test_rest_junit_nur_aus_abgeschlossener_kammer_ist_erfolgszeuge[pytest · Stichwörter keine · E       AttributeError: 'NoneType' object has no attribute 'group'
+ 8 fail · tests.test_review_vertrag::test_contract_countercase_is_not_allowed_to_fail_inside_cloned_test · Stichwörter keine · E           KeyError: 'tests/vertraege/test_vertrag_abnehmer_lieferant.py::test_eichprobe_vertrag_neue_zusicherung'
+ 9 erro · tests.test_review_vertrag::test_normgegenprobe_braucht_ausgefuehrtes_zeugenpaar[skip] · Stichwörter keine · E       assert False
+10 erro · tests.test_review_vertrag::test_normgegenprobe_braucht_ausgefuehrtes_zeugenpaar[xfail] · Stichwörter keine · E       assert False
+11 erro · tests.test_review_vertrag::test_normgegenprobe_braucht_ausgefuehrtes_zeugenpaar[fehlend] · Stichwörter keine · E       assert False
+12 erro · tests.test_review_vertrag::test_normgegenprobe_braucht_ausgefuehrtes_zeugenpaar[pass] · Stichwörter keine · E       assert False
+13 erro · tests.test_review_vertrag::test_test_eigener_fehler_ist_keine_pruefbare_vertragsgegenprobe[setup] · Stichwörter keine · E       assert False
+14 erro · tests.test_review_vertrag::test_test_eigener_fehler_ist_keine_pruefbare_vertragsgegenprobe[aufruf · Stichwörter keine · E       assert False
+15 erro · tests.test_review_vertrag::test_test_eigener_fehler_ist_keine_pruefbare_vertragsgegenprobe[sammlu · Stichwörter keine · E       assert False
+16 erro · tests.test_review_vertrag::test_test_eigener_fehler_ist_keine_pruefbare_vertragsgegenprobe[fehlen · Stichwörter keine · E       assert False
+17 erro · tests.test_review_vertrag::test_test_eigener_fehler_ist_keine_pruefbare_vertragsgegenprobe[skip] · Stichwörter keine · E       assert False
+18 erro · tests.test_review_vertrag::test_test_eigener_fehler_ist_keine_pruefbare_vertragsgegenprobe[xfail] · Stichwörter keine · E       assert False
+19 erro · tests.test_review_vertrag::test_modulhelfer_und_konstanten_bleiben_im_eigenen_namensraum · Stichwörter keine · E       assert False
+20 fail · tests.test_t3_bindung::test_ts_instrumentaenderung_invalidiert_versiegelten_nachweis[biotop/k · Stichwörter keine · E       biotop.organe.vorspann.VorspannFehler: Vorspann Lauf 1: Kernstand seit der Eichphase der Stufe 2 verändert (Eichphase 53e95afdaa588722…, jetzt a91cbef507ecc259…) 
+21 fail · tests.test_t3_bindung::test_ts_instrumentaenderung_invalidiert_versiegelten_nachweis[kammer/t · Stichwörter keine · E       biotop.organe.vorspann.VorspannFehler: Vorspann Lauf 1: Kernstand seit der Eichphase der Stufe 2 verändert (Eichphase 53e95afdaa588722…, jetzt a91cbef507ecc259…) 
+22 fail · tests.test_t3_verbundausfall::test_http_erfolg_ohne_beitrag_ist_ausfall_und_wird_abgerechnet[-stop-N · Stichwörter ['Umgebungsvariable'] · E           biotop.kern.kasse.AuftragsgrenzeFehlt: Auftragsgrenze nicht scharf: BIOTOP_AUFTRAG_LAUF_AB und BIOTOP_AUFTRAG_BUDGET_EUR fehlt oder ist null. Null ist keine G
+23 fail · tests.test_t3_verbundausfall::test_http_erfolg_ohne_beitrag_ist_ausfall_und_wird_abgerechnet[  -stop · Stichwörter ['Umgebungsvariable'] · E           biotop.kern.kasse.AuftragsgrenzeFehlt: Auftragsgrenze nicht scharf: BIOTOP_AUFTRAG_LAUF_AB und BIOTOP_AUFTRAG_BUDGET_EUR fehlt oder ist null. Null ist keine G
+24 fail · tests.test_t3_verbundausfall::test_http_erfolg_ohne_beitrag_ist_ausfall_und_wird_abgerechnet[-refusa · Stichwörter ['Umgebungsvariable'] · E           biotop.kern.kasse.AuftragsgrenzeFehlt: Auftragsgrenze nicht scharf: BIOTOP_AUFTRAG_LAUF_AB und BIOTOP_AUFTRAG_BUDGET_EUR fehlt oder ist null. Null ist keine G
+25 fail · tests.test_t3_verbundausfall::test_http_erfolg_ohne_beitrag_ist_ausfall_und_wird_abgerechnet[Resttex · Stichwörter ['Umgebungsvariable'] · E           biotop.kern.kasse.AuftragsgrenzeFehlt: Auftragsgrenze nicht scharf: BIOTOP_AUFTRAG_LAUF_AB und BIOTOP_AUFTRAG_BUDGET_EUR fehlt oder ist null. Null ist keine G
+26 fail · tests.test_t3_verbundausfall::test_nutzbare_antwort_erreicht_konsument_kein_vorschlag_kein_ausfall[K · Stichwörter ['Umgebungsvariable'] · E           biotop.kern.kasse.AuftragsgrenzeFehlt: Auftragsgrenze nicht scharf: BIOTOP_AUFTRAG_LAUF_AB und BIOTOP_AUFTRAG_BUDGET_EUR fehlt oder ist null. Null ist keine G
+27 fail · tests.test_t3_verbundausfall::test_nutzbare_antwort_erreicht_konsument_kein_vorschlag_kein_ausfall[B · Stichwörter ['Umgebungsvariable'] · E           biotop.kern.kasse.AuftragsgrenzeFehlt: Auftragsgrenze nicht scharf: BIOTOP_AUFTRAG_LAUF_AB und BIOTOP_AUFTRAG_BUDGET_EUR fehlt oder ist null. Null ist keine G
+28 fail · tests.test_t3_verbundausfall::test_timeout_ist_ausfall_keine_freigabe_unbekannter_kosten · Stichwörter ['Umgebungsvariable'] · E           biotop.kern.kasse.AuftragsgrenzeFehlt: Auftragsgrenze nicht scharf: BIOTOP_AUFTRAG_LAUF_AB und BIOTOP_AUFTRAG_BUDGET_EUR fehlt oder ist null. Null ist keine G
+29 fail · tests.test_t3_verbundausfall::test_verbund_ausfall_und_gueltiger_nachbar_durch_genesis · Stichwörter ['Umgebungsvariable'] · E           biotop.kern.kasse.AuftragsgrenzeFehlt: Auftragsgrenze nicht scharf: BIOTOP_AUFTRAG_LAUF_AB und BIOTOP_AUFTRAG_BUDGET_EUR fehlt oder ist null. Null ist keine G
+30 fail · tests.test_verdrahtung::test_jedes_organ_wird_im_lauf_aufgerufen · Stichwörter keine · E           Failed: Kammer nicht bereit — der Verdrahtungsnachweis braucht die echte Kammer: Kammer-Image biotop-kammer:ts1 fehlt
+31 fail · tests.test_vor_t4_02::test_py_zwischenspeicher_fehler_scheitert_am_laufweg · Stichwörter keine · E       assert False
+32 fail · tests.test_vor_t4_02::test_py_gegenprobe_speicher_am_inhalt_ueberlebt · Stichwörter keine · E       assert False
+33 fail · tests.test_vor_t4_02::test_py_weissraum_scheitert_an_formvariante · Stichwörter keine · E       assert False
+34 fail · tests.test_vor_t4_02::test_py_gegenprobe_nur_toter_code_entfernt_ueberlebt · Stichwörter keine · E       assert False
+35 fail · tests.test_vor_t4_03::test_a1_generator_ausgabe_geaendert_wird_abgelehnt · Stichwörter keine · E       assert False
+36 fail · tests.test_vor_t4_03::test_a1_gegenprobe_generator_gleiche_ausgabe_ueberlebt · Stichwörter keine · E       assert False
+37 fail · tests.test_vor_t4_03::test_a2_inplace_sortierung_umgedreht_wird_abgelehnt · Stichwörter keine · E       assert False
+38 fail · tests.test_vor_t4_03::test_a2_gegenprobe_gleiche_sortierung_anders_geschrieben_ueberlebt · Stichwörter keine · E       assert False
+39 fail · tests.test_vor_t4_03::test_a3_funktion_ohne_annotation_wird_mit_tastendem_korpus_gesehen · Stichwörter keine · E       assert False
+40 fail · tests.test_vor_t4_03::test_a4_mengenreihenfolge_ist_kein_fehlalarm · Stichwörter keine · E       assert False
+41 fail · tests.test_vor_t4_03::test_a5_lru_cache_auf_reiner_funktion_ist_kein_fehlalarm · Stichwörter keine · E       assert False
+42 fail · tests.test_vor_t4_03::test_a5_gegenprobe_falscher_cache_wird_abgelehnt · Stichwörter keine · E       assert False
+43 fail · tests.test_vor_t4_03::test_d_geaenderte_methode_wird_abgelehnt · Stichwörter keine · E       assert False
+44 fail · tests.test_vor_t4_03::test_d_gegenprobe_methode_umgeschrieben_ueberlebt · Stichwörter keine · E       assert False
+45 fail · tests.test_vor_t4_03::test_d_zustand_von_self_nach_dem_aufruf_wird_verglichen · Stichwörter keine · E       assert False
+46 fail · tests.test_vor_t4_03::test_b_richtige_behebung_mit_test_je_muster_kommt_durch · Stichwörter keine · E       assert False
+47 fail · tests.test_vor_t4_03::test_b_gegenprobe_ohne_test_fuer_das_weissraum_muster_bleibt_abgelehnt · Stichwörter keine · E       assert False
+48 fail · tests.test_vor_t4_03::test_b_test_der_nur_nebenbei_ruft_deckt_nicht[False] · Stichwörter keine · E       assert False
+49 fail · tests.test_vor_t4_03::test_b_test_der_nur_nebenbei_ruft_deckt_nicht[True] · Stichwörter keine · E       assert False
+50 fail · tests.test_vor_t4_04::test_h1_doppeltes_leerzeichen_deckt_keinen_tab_rueckschritt[x1_doppelt · Stichwörter keine · E       assert False
+51 fail · tests.test_vor_t4_04::test_h1_doppeltes_leerzeichen_deckt_keinen_tab_rueckschritt[x1k_ohne_d · Stichwörter keine · E       assert False
+52 fail · tests.test_vor_t4_04::test_h1_gegenprobe_tests_je_formvariante_decken_den_rueckschritt_nicht · Stichwörter keine · E       assert False
+53 fail · tests.test_vor_t4_04::test_h2_tab_aufruf_ohne_zusicherung_haelt_nichts_fest[False-abgelehnt] · Stichwörter keine · E       assert False
+54 fail · tests.test_vor_t4_04::test_h2_tab_aufruf_ohne_zusicherung_haelt_nichts_fest[True-abgelehnt] · Stichwörter keine · E       assert False
+55 fail · tests.test_vor_t4_04::test_e4_kandidat_mit_rueckschritt_und_eigenem_test_wird_abgelehnt · Stichwörter keine · E       assert False
+56 fail · tests.test_vor_t4_04::test_e4_gegenprobe_derselbe_test_in_der_vorgeneration_deckt · Stichwörter keine · E       assert False
+57 fail · tests.test_vor_t4_04::test_merkmale_gleich_in_python_und_typescript · Stichwörter ['node'] · E                   FileNotFoundError: [Errno 2] No such file or directory: 'node'
+58 fail · tests.test_vor_t4_05::test_f2_idempotenz_haelt_tab_nicht_fest[True] · Stichwörter keine · E       assert False
+59 fail · tests.test_vor_t4_05::test_f2_idempotenz_haelt_tab_nicht_fest[False] · Stichwörter keine · E       assert False
+60 fail · tests.test_vor_t4_05::test_k4_kappe_stellt_zurueck_mit_grund[2-zurueckgestellt] · Stichwörter keine · E       assert False
+61 fail · tests.test_vor_t4_05::test_k4_kappe_stellt_zurueck_mit_grund[24-ueberlebt] · Stichwörter keine · E       assert False
+62 fail · tests.test_vor_t4_05::test_k4_gegenprobe_ungedeckt_ohne_kappe_lehnt_ab · Stichwörter keine · E       assert False
+63 fail · tests.test_vor_t4_05::test_l7_lastaufruf_traegt_formmerkmal_seiner_eingabe · Stichwörter keine · E       assert False
+64 fail · tests.test_vor_t4_05::test_e8_parametrisierter_eigener_test_deckt_nicht[kennung-abgelehnt] · Stichwörter keine · E       assert False
+65 fail · tests.test_vor_t4_05::test_e8_parametrisierter_eigener_test_deckt_nicht[exakt-ueberlebt] · Stichwörter keine · E       assert False
+66 fail · tests.test_vor_t4_06::test_t1_typpruefung_tautologie_idempotenz_halten_tab_nicht_fest[x5] · Stichwörter keine · E       assert False
+67 fail · tests.test_vor_t4_06::test_t1_typpruefung_tautologie_idempotenz_halten_tab_nicht_fest[x5b] · Stichwörter keine · E       assert False
+68 fail · tests.test_vor_t4_06::test_t1_typpruefung_tautologie_idempotenz_halten_tab_nicht_fest[x3] · Stichwörter keine · E       assert False
+69 fail · tests.test_vor_t4_06::test_t1_typpruefung_tautologie_idempotenz_halten_tab_nicht_fest[x3k] · Stichwörter keine · E       assert False
+70 fail · tests.test_vor_t4_06::test_t1_richtige_behebung_mit_tab_test_haelt_fest_und_ueberlebt · Stichwörter keine · E       assert False
+71 fail · tests.test_vor_t4_06::test_b3_r6_1_unveraenderte_stringio_funktion_stellt_nicht_zurueck · Stichwörter keine · E       assert False
+72 fail · tests.test_vor_t4_06::test_b3_privater_helfer_geaendert_aufruferin_unvollstaendig[helfer-zur · Stichwörter keine · E       assert False
+73 fail · tests.test_vor_t4_06::test_b3_privater_helfer_geaendert_aufruferin_unvollstaendig[quadrat-ue · Stichwörter keine · E       assert False
+74 fail · tests.test_vor_t4_06::test_m2_direkt_geaendert_und_unbeobachtet[verdeckt] · Stichwörter keine · E       assert False
+75 fail · tests.test_vor_t4_06::test_m2_direkt_geaendert_und_unbeobachtet[verdeckt_gegen] · Stichwörter keine · E       assert False
+76 fail · tests.test_vor_t4_06::test_m2_direkt_geaendert_und_unbeobachtet[dunder] · Stichwörter keine · E       assert False
+77 fail · tests.test_vor_t4_06::test_m2_direkt_geaendert_und_unbeobachtet[dunder_gegen] · Stichwörter keine · E       assert False
+78 fail · tests.test_vor_t4_06::test_m2_direkt_geaendert_und_unbeobachtet[helfer_gedeckt] · Stichwörter keine · E       assert False
+79 fail · tests.test_vor_t4_06::test_m2_direkt_geaendert_und_unbeobachtet[helfer_sichtbar] · Stichwörter keine · E       assert False
+80 fail · tests.test_vor_t4_06::test_m2_direkt_geaendert_und_unbeobachtet[nicht_erreicht] · Stichwörter keine · E       assert False
+81 fail · tests.test_vor_t4_06::test_m2_direkt_geaendert_und_unbeobachtet[nicht_erreicht_gegen] · Stichwörter keine · E       assert False
+82 fail · tests.test_vor_t4_06::test_m2_direkt_geaendert_und_unbeobachtet[wert_verdeckt] · Stichwörter keine · E       assert False
+83 fail · tests.test_vor_t4_06::test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis[a_konst] · Stichwörter keine · E       assert False
+84 fail · tests.test_vor_t4_06::test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis[a_gegen] · Stichwörter keine · E       assert False
+85 fail · tests.test_vor_t4_06::test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis[b_neues_modul] · Stichwörter keine · E       assert False
+86 fail · tests.test_vor_t4_06::test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis[c_gemischt] · Stichwörter keine · E       assert False
+87 fail · tests.test_vor_t4_06::test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis[c_innen] · Stichwörter keine · E       assert False
+88 fail · tests.test_vor_t4_06::test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis[c_docstring] · Stichwörter keine · E       assert False
+89 fail · tests.test_vor_t4_06::test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis[c_main] · Stichwörter keine · E       assert False
+90 fail · tests.test_vor_t4_06::test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis[d_daten] · Stichwörter keine · E       assert False
+91 fail · tests.test_vor_t4_06::test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis[d_readme] · Stichwörter keine · E       assert False
+92 fail · tests.test_vor_t4_06::test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis[e_neu_beobachtet · Stichwörter keine · E       assert False
+93 fail · tests.test_vor_t4_06::test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis[e_neu_unbeobacht · Stichwörter keine · E       assert False
+94 fail · tests.test_vor_t4_06::test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis[f_selbst] · Stichwörter keine · E       assert False
+95 fail · tests.test_vor_t4_06::test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis[f_gegenseitig] · Stichwörter keine · E       assert False
+96 fail · tests.test_vor_t4_06::test_w_g_schreiben_in_fremde_module_python_am_organ[attribut-    k.RAT · Stichwörter keine · E            +    where <built-in method get of dict object at 0x7240bfeb81c0> = {'module': ['paket.m.a'], 'bereiche': ['m'], 'kappe': 8, 'sprache': 'python', ...}.get
+97 fail · tests.test_vor_t4_06::test_w_g_schreiben_in_fremde_module_python_am_organ[methode-    R.appe · Stichwörter keine · E            +    where <built-in method get of dict object at 0x7240c099e580> = {'module': ['paket.m.a'], 'bereiche': ['m'], 'kappe': 8, 'sprache': 'python', ...}.get
+98 fail · tests.test_vor_t4_06::test_w_g_schreiben_in_fremde_module_python_am_organ[setattr-    k.RATE · Stichwörter keine · E            +    where <built-in method get of dict object at 0x7240c03414c0> = {'module': ['paket.m.a'], 'bereiche': ['m'], 'kappe': 8, 'sprache': 'python', ...}.get
+99 fail · tests.test_vor_t4_06::test_w_g_schreiben_in_fremde_module_python_am_organ[globals-    return · Stichwörter keine · E            +    where <built-in method get of dict object at 0x7240c0372cc0> = {'module': ['paket.m.a'], 'bereiche': ['m'], 'kappe': 8, 'sprache': 'python', ...}.get
+100 fail · tests.test_vor_t4_06::test_w_g_schreiben_in_fremde_module_python_am_organ[ruft_fremd-    k.s · Stichwörter keine · E            +    where <built-in method get of dict object at 0x7240c0045180> = {'module': ['paket.m.a'], 'bereiche': ['m'], 'kappe': 8, 'sprache': 'python', ...}.get
+101 fail · tests.test_vor_t4_06::test_w_g_schreiben_in_fremde_module_python_am_organ[ruft_innen-    _me · Stichwörter keine · E            +    where <built-in method get of dict object at 0x7240c0371840> = {'module': ['paket.m.a'], 'bereiche': ['m'], 'kappe': 8, 'sprache': 'python', ...}.get
+102 fail · tests.test_vor_t4_06::test_w_g_schreiben_in_fremde_module_typescript_am_organ[methode-  REG. · Stichwörter keine · E            +    where <built-in method get of dict object at 0x7240c083cd80> = {'module': ['m/a'], 'bereiche': ['m'], 'kappe': 8, 'sprache': 'typescript', ...}.get
+103 fail · tests.test_vor_t4_06::test_w_g_schreiben_in_fremde_module_typescript_am_organ[ruft_fremd-  s · Stichwörter keine · E            +    where <built-in method get of dict object at 0x7240bfc5f140> = {'module': ['m/a'], 'bereiche': ['m'], 'kappe': 8, 'sprache': 'typescript', ...}.get
+104 fail · tests.test_vor_t4_06::test_w_g_schreiben_in_fremde_module_durch_aegis[g_schreibt] · Stichwörter keine · E       assert False
+105 fail · tests.test_vor_t4_06::test_w_g_schreiben_in_fremde_module_durch_aegis[g_ruft] · Stichwörter keine · E       assert False
+106 fail · tests.test_vor_t4_06::test_w_g_schreiben_in_fremde_module_durch_aegis[g_gegen] · Stichwörter keine · E       assert False
+geprüft: 106 Fälle (erwartet 35 = 203 − 168)
+=== Ende R202 ===

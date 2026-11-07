@@ -1,0 +1,193 @@
+{
+ "mentor_id": 10,
+ "richtungen": [
+  {
+   "name": "extern_filtern sicher und korrekt zugleich lösen",
+   "ziel": "Die Substring-Suche in extern_filtern literal (nicht als Regex) implementieren, ohne Shell/Subprozess, damit sowohl der Grep-Vertragstest als auch die Sicherheitsprüfung bestehen.",
+   "ertrag": "Kernmaß filtern steigt auf 0 (aktuell durch wiederholt fehlgeschlagene Fixversuche in Historie potenziell instabil); Sicherheitspunkte bleiben 0, tote Funktionen 0.",
+   "risiko": "Berührt Schnittstelle filtern↔ausgabe (Verfassungssatz 4 & 5); zahlreiche Vorläufe (A325–A340) sind an genau dieser Regex/Literal-Verwechslung gescheitert.",
+   "aufwand_generationen": 2,
+   "bereiche": [
+    "filtern",
+    "ausgabe"
+   ],
+   "vertraege": [
+    "test_extern_filtern_grep"
+   ],
+   "artgedaechtnis": [
+    "A132"
+   ],
+   "projektgedaechtnis": [
+    "A281",
+    "A270",
+    "A340",
+    "A339",
+    "A335"
+   ],
+   "nische": "sicher",
+   "_verweise_werkuebergreifend": [
+    "A132"
+   ],
+   "_verweise_eigenes_werk": [
+    "A281",
+    "A270",
+    "A340",
+    "A339",
+    "A335"
+   ]
+  },
+  {
+   "name": "tote Funktion _median_alt endgültig entfernen",
+   "ziel": "Die ungenutzte Funktion _median_alt aus zaehlen entfernen, sofern kein Test oder Vertrag sie referenziert.",
+   "ertrag": "Kernmaß zaehlen steigt von −1 (tote Funktion) auf 0, den Höchstwert.",
+   "risiko": "Gering; nur zaehlen betroffen, keine Schnittstellenänderung nötig, aber vorherige Versuche (A322, A332, A341) wurden mehrfach abgelehnt — Ursache prüfen (evtl. Testabdeckung).",
+   "aufwand_generationen": 1,
+   "bereiche": [
+    "zaehlen"
+   ],
+   "vertraege": [],
+   "artgedaechtnis": [],
+   "projektgedaechtnis": [
+    "A271",
+    "A322",
+    "A332",
+    "A341"
+   ],
+   "nische": "sicher",
+   "_verweise_werkuebergreifend": [],
+   "_verweise_eigenes_werk": [
+    "A271",
+    "A322",
+    "A332",
+    "A341"
+   ]
+  },
+  {
+   "name": "Laufzeit von lesen und filtern über Caching senken",
+   "ziel": "Zeitstempel-Parsing (zeit_lesen) und wiederholte Filterprädikate durch Zwischenspeicherung deterministischer Ergebnisse beschleunigen, analog zu A311.",
+   "ertrag": "Grenzmaß Laufzeit sinkt in lesen um geschätzt 40–50 % (Vorbild A311: −47 %), Kernmaß bleibt unverändert bei 0.",
+   "risiko": "Cache muss zeitzonenbewusste Normalisierung (Verfassungssatz 3) korrekt respektieren; Fehlverhalten bei unveränderlichen vs. veränderlichen Eingaben möglich.",
+   "aufwand_generationen": 2,
+   "bereiche": [
+    "lesen",
+    "filtern"
+   ],
+   "vertraege": [],
+   "artgedaechtnis": [
+    "A359",
+    "A249",
+    "A6",
+    "A141"
+   ],
+   "projektgedaechtnis": [
+    "A311",
+    "A331"
+   ],
+   "nische": "schnell",
+   "_verweise_werkuebergreifend": [
+    "A359",
+    "A249",
+    "A6",
+    "A141"
+   ],
+   "_verweise_eigenes_werk": [
+    "A311",
+    "A331"
+   ]
+  },
+  {
+   "name": "Pareto-Vertragstests für Zeitfenstergrenzen härten",
+   "ziel": "Explizite Grenzfalltests für einschließliche Zeitfenster und Perzentil-nächster-Rang ergänzen, um Verfassungssatz 3 messbar abzusichern.",
+   "ertrag": "Neue Pareto-Testfälle je Bereich (filtern, zaehlen) erhöhen Testabdeckung an Vertragsgrenzen, ohne bestehendes Kernmaß zu verschlechtern.",
+   "risiko": "Kann bisher unbemerkte Grenzfehler aufdecken (z. B. bei 'bis' exklusiv/inklusiv, vgl. A270); erfordert Abstimmung zwischen filtern und zaehlen.",
+   "aufwand_generationen": 2,
+   "bereiche": [
+    "filtern",
+    "zaehlen"
+   ],
+   "vertraege": [
+    "test_zeitfenster_grenzen",
+    "test_perzentil_naechster_rang"
+   ],
+   "artgedaechtnis": [],
+   "projektgedaechtnis": [
+    "A270"
+   ],
+   "nische": "elegant",
+   "_verweise_werkuebergreifend": [],
+   "_verweise_eigenes_werk": [
+    "A270"
+   ]
+  },
+  {
+   "name": "Sättigung anerkennen für ausgabe",
+   "ziel": "Der Bereich ausgabe steht bei Kernmaß 0 ohne offene Sicherheits- oder Testbefunde; hier keine weitere Eingriffsrichtung erzwingen.",
+   "ertrag": "Kein Kernmaßgewinn möglich; Ressourcen auf filtern/zaehlen/lesen konzentrieren statt Umformung ohne Maßgewinn.",
+   "risiko": "Keines, sofern keine neuen Anforderungen entstehen.",
+   "aufwand_generationen": 0,
+   "bereiche": [
+    "ausgabe"
+   ],
+   "vertraege": [],
+   "artgedaechtnis": [],
+   "projektgedaechtnis": [
+    "A296",
+    "A324",
+    "A323",
+    "A334",
+    "A333"
+   ],
+   "nische": "sicher",
+   "_verweise_werkuebergreifend": [],
+   "_verweise_eigenes_werk": [
+    "A296",
+    "A324",
+    "A323",
+    "A334",
+    "A333"
+   ]
+  }
+ ],
+ "empfehlung": "extern_filtern sicher und korrekt zugleich lösen",
+ "begruendung": "Dies ist der einzige Bereich mit echtem Kernmaß-Hebel (filtern) und zugleich ungelöstem, wiederholt gescheitertem Konflikt zwischen Sicherheitsbefund und Vertragstest; alle anderen Bereiche stehen bereits am Höchstwert. Die Lösung erfordert präzise literale statt Regex-Matching-Logik, ohne Shell-Zugriff, wie in A132 und A270 grundgelegt.",
+ "pruefung": {
+  "anzahl": 5,
+  "anzahl_ok": true,
+  "pflichtfelder_ok": [
+   true,
+   true,
+   true,
+   true,
+   true
+  ],
+  "artgedaechtnis_werkuebergreifend": [
+   "A132",
+   "A359",
+   "A249",
+   "A6",
+   "A141"
+  ],
+  "eigenes_werk_projektgedaechtnis": [
+   "A281",
+   "A270",
+   "A340",
+   "A339",
+   "A335",
+   "A271",
+   "A322",
+   "A332",
+   "A341",
+   "A311",
+   "A331",
+   "A270",
+   "A296",
+   "A324",
+   "A323",
+   "A334",
+   "A333"
+  ],
+  "erfundene_verweise": [],
+  "richtungen_mit_werkuebergreifendem_verweis": 2
+ },
+ "modell": "anthropic/claude-sonnet-5"
+}

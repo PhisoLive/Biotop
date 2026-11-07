@@ -1,0 +1,311 @@
+
+### /root/reparatur-01/review-01/repo/biotop/__main__.py:110-111
+
+108|            V.einlegen(con, lauf["werk_id"], Path(a.text_md).read_text(), json.loads(Path(a.regeln_json).read_text()), f"{a.text_md} + {a.regeln_json}", a.von)
+109|            _p({"werk_id": lauf["werk_id"], "eingelegt": True})
+110|        elif a.cmd == "gen0":
+111|            _p(L.generation0(con, a.lauf, a.mutanten, a.ziel))
+112|        elif a.cmd == "vertraege":
+113|            from .organe import vertraege as VT
+
+### /root/reparatur-01/review-01/repo/biotop/kern/messgeraet.py:432-432
+
+430|            b_lf = b_lf_s = b_sf = float(gemessen or RAUSCH_F4)
+431|            quelle = f"gemessene Rauschtoleranz {b_lf:.2f}" if gemessen else f"Rückfallwert {RAUSCH_F4} (keine Rauschmessung)"
+432|        if b not in gesperrt and a.get("laufzeit_ms") and k.get("laufzeit_ms"):
+433|            faktor = b_lf_s if b in sicherheit_gesunken else b_lf
+434|            grenze = a["laufzeit_ms"] * faktor
+
+### /root/reparatur-01/review-01/repo/biotop/kern/messgeraet.py:463-465
+
+461|    r = {"kern_basis": k0, "kern_kandidat": k1, "zuwachs": k1 - k0, "pareto_schlechter": schlechter,
+462|         "pareto_besser": besser, "grenzen_gerissen": gerissen, "sicherheit_gesunken_in": sorted(sich)}
+463|    gesperrt = sorted(set((tausch or {}).get("_gesperrte_bereiche") or []) & set(wirkungskreis))
+464|    if gesperrt:
+465|        r.update(ok=False, grund="Rauschmessung: Wirkungskreis gesperrt: " + ", ".join(gesperrt))
+466|    elif not kandidat["werk"]["baut"]:
+467|        r.update(ok=False, grund="baut nicht")
+
+### /root/reparatur-01/review-01/repo/biotop/lauf.py:83-83
+
+81|    """Misst Generation 0 (Ausgangszustand), friert das Maß ein, legt Schnappschuss 0 an."""
+82|    lauf = _lauf(con, lauf_id)
+83|    nachweis = _vorspann_verlangen(con, lauf_id, "mass")
+84|    werk = _werk(con, lauf["werk_id"])
+85|    b = lj(werk["bericht"])
+
+### /root/reparatur-01/review-01/repo/biotop/lauf.py:108-116
+
+106|            "pareto_je_test": True, "norm_regel": "3.7 F4 (alle neuen Tests, expliziter Verweis)", "bandit_kein_vorschlag": "neutral (3.6 F4)", "archivierung_offener_funde": "nach 5 Generationen (3.10 F4)", "immunisierung": "3.10 F3 (nur bestandene, Doppelungen gekennzeichnet)",
+107|            "bestaetigt_von": bestaetigt_von, "eingefroren_am": protokoll.jetzt()}
+108|    _vorspann_verlangen(con, lauf_id, "mass")  # auch nach der langen Messung unverändert
+109|    with transaktion(con):
+110|        try:
+111|            mass_sha256 = vorspann.mass_binden(con, lauf_id, mass)
+112|        except vorspann.VorspannFehler as e:
+113|            raise LaufFehler(str(e)) from e
+114|        con.execute("UPDATE laeufe SET mass=?, status='bereit' WHERE id=?", (j(mass), lauf_id))
+115|        con.execute("INSERT INTO generationen(lauf_id, nummer, status, masse, erstellt_am, grund) VALUES (?,?,?,?,?,?)",
+116|                    (lauf_id, 0, "angenommen", j(mess), protokoll.jetzt(), "Ausgangszustand"))
+117|    s = lazarus.schnappschuss(con, lauf_id, 0, Path(werk["pfad"]), mess)
+118|    with transaktion(con):
+
+### /root/reparatur-01/review-01/repo/biotop/lauf.py:325-330
+
+323|
+324|    # 6. Pareto + Grenzen + Zuwachs (F2)
+325|    wirkungskreis = set()
+326|    for b, kid in gewaehlt.items():
+327|        kz = con.execute("SELECT wirkungskreis FROM kandidaten WHERE id=?", (kid,)).fetchone()
+328|        wirkungskreis.update(lj(kz["wirkungskreis"]) or landkarte.wirkungskreis(b, bstrassen))
+329|    wirkungskreis = sorted(wirkungskreis)
+330|    u = messgeraet.urteil_f2(basis_paar, mess, ausgang, bereiche, wirkungskreis, tausch)
+331|    # Nischenmaß auf Werkebene: Gesamtkandidat mit reinem Laufzeitgewinn (Kernmaß gleich) ist zulässig
+332|    if not u["ok"] and u["grund"].startswith("Kernmaß unverändert"):
+
+### /root/reparatur-01/review-01/repo/biotop/lauf.py:652-660
+
+650|        if lazarus._git(pfad, "status", "--porcelain"):
+651|            lazarus._git(pfad, "commit", "-qm", f"Biotop Lauf {lauf_id} Generation 0: {len(neue_gesamt)} Tests aus Mutantenfang")
+652|    r = {"mutanten": len(mutanten), "nicht_aequivalent": nachher["nicht_aequivalent"],
+653|         "aequivalent": [f"#{nummern[id(m)]} {m['aequivalenz_beleg']}" for m in mutanten if m.get("aequivalent")],
+654|         "gefangen_vorher": vorher["gefangen"], "gefangen_nachher": nachher["gefangen"], "ziel": ziel,
+655|         "bezugsgroesse": f"gefangen: {nachher['gefangen']} von {nachher['nicht_aequivalent']} nicht-äquivalenten (von {len(mutanten)} gesetzten)",
+656|         "erreicht": nachher["gefangen"] >= ziel, "neue_tests": sorted(neue_gesamt), "runden": runde,
+657|         "blind_vorher": [f"#{nummern[id(m)]} {m['datei']}:{m['zeile']} {m['beschreibung']}" for m in vorher["blind"]],
+658|         "blind_nachher": [f"#{nummern[id(m)]} {m['datei']}:{m['zeile']} {m['beschreibung']}" for m in nachher["blind"]]}
+659|    protokoll.schreiben(con, "generation0.ergebnis", lauf_id=lauf_id, **{k: v for k, v in r.items() if k not in ("blind_vorher",)})
+660|    return r
+
+### /root/reparatur-01/review-01/repo/biotop/organe/aegis.py:518-525
+
+516|        return fertig(k["status"], k["grund"] or "nicht geprüft")
+517|
+518|    # Schritt 1: Wirkungskreis
+519|    urteil["wirkungskreis"] = landkarte.wirkungskreis(bereich, bstrassen)
+520|
+521|    dateien = kandidat_dateien(werk, k["diff"])
+522|    if dateien is None:
+523|        return fertig("abgelehnt", "Diff nicht anwendbar: " + (diff_grund(werk, k["diff"]) or "kein Inhalt"))
+524|    code = {p: (i if i is not None else "") for p, i in dateien.items() if not p.startswith("tests/")}
+525|    code.update(extra_code or {})
+526|    tests_kandidat = {p: i for p, i in dateien.items() if p.startswith("tests/") and i is not None and not p.startswith("tests/vertraege/")}
+527|    vertrag_dateien_kandidat = {p: i for p, i in dateien.items() if p.startswith("tests/vertraege/") and i is not None}
+
+### /root/reparatur-01/review-01/repo/biotop/organe/eichproben.py:239-246
+
+237|        n = belege["verbrauchertest"]
+238|        x = belege["kandidat_tests"].get(n, {})
+239|        return all((u.get("status") == "abgelehnt", m.get("ok") is False,
+240|                    belege["vertragstest"] in u.get("vertrag_verletzt", []),
+241|                    u.get("grund", "").startswith("Vertrag verletzt (Schritt 2):"),
+242|                    belege["vertragstest"] in u.get("grund", ""),
+243|                    belege["basis_tests"].get(n, {}).get("ok") is True,
+244|                    x.get("ok") is False, x.get("bestaetigt") is True,
+245|                    x.get("ort") == belege["verbraucherdatei"],
+246|                    "eichprobe_zusicherung" in x.get("meldung", "")))
+247|    if name == "norm":
+248|        n = belege["testname"]
+
+### /root/reparatur-01/review-01/repo/biotop/organe/eichproben.py:284-288
+
+282|              "ohne_verweis": not aegis._nennt_vertrag(testcode, testname, verfassung.lesen(db, werk_id),
+283|                                                      db, werk_id, bereich)}
+284|    # Gleiche Änderung, gleiche Zeugen, aber kein Normtest im Anklagepfad.
+285|    if gegenprobe:
+286|        diff = "".join(_diff(p, (werk / p).read_text(), code)
+287|                       for p, code in dateien.items() if not p.startswith("tests/"))
+288|    return diff, beschreibung, belege, None if gegenprobe else testcode
+289|
+290|
+
+### /root/reparatur-01/review-01/repo/biotop/organe/eichproben.py:349-360
+
+347|    testpfad = f"tests/test_{a}.py"
+348|    baum = ast.parse((werk / testpfad).read_text())
+349|    test = next((k for k in baum.body if isinstance(k, ast.FunctionDef) and k.name.startswith("test_")
+350|                 and not k.args.args and not k.args.posonlyargs and not k.args.kwonlyargs and not k.decorator_list
+351|                 and any(isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == fn.name
+352|                         for n in ast.walk(k))), None)
+353|    if test is None:
+354|        raise RuntimeError(f"Kein eigenständig ausführbarer Test für {rel}::{fn.name}")
+355|    verbrauchertest = f"{testpfad}::{test.name}"
+356|    test.name = "test_eichprobe_vertrag_neue_zusicherung"
+357|    test.body += ast.parse(f"from {paket}.{b} import eichprobe_zusicherung\n"
+358|                          "assert eichprobe_zusicherung() == 'da'\n").body
+359|    importe = [k for k in baum.body if isinstance(k, (ast.Import, ast.ImportFrom))]
+360|    zusatz = ast.unparse(ast.Module(body=importe + [test], type_ignores=[])) + "\n"
+361|    alt_vertrag = (werk / vertrag_pfad).read_text()
+362|    diff += _diff(vertrag_pfad, alt_vertrag, alt_vertrag.rstrip() + "\n\n" + zusatz)
+
+### /root/reparatur-01/review-01/repo/biotop/organe/eichproben.py:416-418
+
+414|                              (f"norm_k{kid}_{bereich}",))])
+415|        n1, c1 = _kassenstand(db, lauf_id)
+416|        pruefbar = bool(messung.get("gueltig") and (messung.get("_basis_paar") or {}).get("gueltig"))
+417|        return {"kandidat": kid, "ausgefuehrt": bool(aufrufe), "pruefbar": pruefbar,
+418|                "bestanden": _bestanden(name, belege), "belege": belege, "status": u["status"],
+419|                "grund": u["grund"], "befund": beschreibung, "gegenprobe": gegenprobe, "diff": diff,
+420|                "modellaufrufe": n1 - n0, "kosten_eur": round(c1 - c0, 6),
+
+### /root/reparatur-01/review-01/repo/biotop/organe/eichproben.py:431-436
+
+429|
+430|
+431|def _vollstaendig(positive, gegenproben):
+432|    return (set(positive) == set(gegenproben) == set(PROBEN)
+433|            and all(p.get("ausgefuehrt") is True and p.get("pruefbar") is True
+434|                    and p.get("bestanden") is True for p in positive.values())
+435|            and all(p.get("ausgefuehrt") is True and p.get("pruefbar") is True
+436|                    and p.get("bestanden") is False for p in gegenproben.values()))
+437|
+438|
+
+### /root/reparatur-01/review-01/repo/biotop/organe/eichung.py:111-113
+
+109|
+110|
+111|def _messen_einmal(pfad: Path, bereiche: list[str], paket: str, ref: str) -> dict:
+112|    m = messgeraet.messen(pfad, bereiche, paket, ref)
+113|    return {b: (m["bereiche"].get(b) or {}).get("laufzeit_ms") for b in bereiche}
+114|
+115|
+
+### /root/reparatur-01/review-01/repo/biotop/organe/fundpruefung.py:55-77
+
+53|    ergebnisse, kammerlaeufe = [], 0
+54|    for f in funde:
+55|        namen = _testnamen(f["code"])
+56|        besteht, absturz, ausgabe = _ausfuehren(pfad, f["name"], f["code"])
+57|        kammerlaeufe += 1
+58|        # Verweis mit der Ankläger-Logik prüfen — nicht mit einem zweiten Regex.
+59|        bezug = any(aegis._nennt_vertrag(f["code"], t, verf, con, werk_id, f["bereich"], None) for t in namen)
+60|        # Einstufung (F5 3.10 in Verbindung mit 3.7). Grundsatz (Fassung 6, Chat-Claude):
+61|        #   **Ein fallender Test beweist eine Abweichung, nie ihre Richtung — welche Seite recht hat,
+62|        #   entscheidet nur ein Absturz oder ein Vertrag.**
+63|        #   besteht am Ausgang, kein Absturz, kein Verweis  → Norm (schreibt das jetzige Verhalten fest)
+64|        #   fällt am Ausgang MIT Absturz oder MIT Verweis    → Fund (beweist einen echten Fehler)
+65|        #   fällt am Ausgang OHNE beides                     → bleibt, was es war: Fallen allein macht keinen Fund,
+66|        #       sonst würde jeder Normtest, den eine spätere Generation ins Fallen bringt, stillschweigend zum Fund
+67|        #       und könnte per Pareto je Test Behebungen töten (gemessen: 9 von 20 Normtests am Werk 18).
+68|        #       Das ist Lauf 16 von der anderen Seite: dort machte Fallen am KANDIDATEN aus einem Normtest einen Fund.
+69|        if besteht and not absturz and not bezug:
+70|            neu = "offen_norm"
+71|        elif not besteht and (absturz or bezug):
+72|            neu = "offen"
+73|        else:
+74|            neu = "offen_norm" if f["status"] == "offen_norm" else "offen"
+75|        ergebnisse.append({"id": f["id"], "name": f["name"], "bereich": f["bereich"], "alt": f["status"], "neu": neu,
+76|                           "besteht_am_ausgang": besteht, "absturz_im_werk": absturz, "vertragsverweis": bezug,
+77|                           "geaendert": neu != f["status"], "testnamen": namen})
+78|    geaendert = [e for e in ergebnisse if e["geaendert"]]
+79|    if schreiben and geaendert:
+
+### /root/reparatur-01/review-01/repo/biotop/organe/vertraege.py:38-51
+
+36|
+37|
+38|def einlegen(con: sqlite3.Connection, werk_id: int, werk: Path, vertraege: dict[tuple[str, str], str], quelle: str) -> list[str]:
+39|    """vertraege: {(von, nach): pytest-code}. Schreibt die Dateien ins Werk (sie sind Teil des Werks) und merkt sie in der DB."""
+40|    _tabelle(con)
+41|    pfade = []
+42|    (werk / VERTRAGS_DIR).mkdir(parents=True, exist_ok=True)
+43|    (werk / VERTRAGS_DIR / "__init__.py").write_text("")
+44|    with transaktion(con):
+45|        for (a, b), code in vertraege.items():
+46|            pfad = f"{VERTRAGS_DIR}/test_vertrag_{a}_{b}.py"
+47|            (werk / pfad).write_text(code)
+48|            con.execute("INSERT OR REPLACE INTO vertraege_explizit(werk_id, von_bereich, nach_bereich, pfad, code, quelle, eingelegt_am) VALUES (?,?,?,?,?,?,?)",
+49|                        (werk_id, a, b, pfad, code, quelle, protokoll.jetzt()))
+50|            pfade.append(pfad)
+51|    protokoll.schreiben(con, "vertraege.eingelegt", werk_id=werk_id, anzahl=len(pfade), pfade=pfade, quelle=quelle)
+52|    return pfade
+53|
+
+### /root/reparatur-01/review-01/repo/biotop/organe/vorspann.py:54-59
+
+52|    dateien['kammer/Dockerfile'] = hashlib.sha256((WURZEL / 'kammer/Dockerfile').read_bytes()).hexdigest()
+53|    instrument = {'dateien':dateien, 'infrastruktur':_infrastruktur()}
+54|    return {'instrument':instrument, 'instrument_sha256':_sha(instrument),
+55|            'werk':{k:werk[k] for k in ('id','name','pfad','bericht')},
+56|            'bereiche':landkarte.bereiche_finden(Path(werk['pfad']), paket),
+57|            'verfassung':verfassung.lesen(con, werk['id']),
+58|            'referenzlast':{'sha256':hashlib.sha256(ref.encode()).hexdigest(),
+59|                           'suche':[werk['name'],paket], 'wurzel':str(L.REFERENZLAST.resolve())}}
+60|
+61|
+
+### /root/reparatur-01/review-01/repo/biotop/organe/vorspann.py:66-78
+
+64|
+65|
+66|def _qualitaet(p):
+67|    erwartet = {'nebenwirkung', 'regression', 'norm', 'vertrag'}
+68|    zahlen = {}
+69|    for gruppe, soll, name in (('proben', True, 'positive'), ('gegenproben', False, 'negative')):
+70|        es = p.get(gruppe) or {}
+71|        zahlen[name] = sum(isinstance(e, dict) and e.get('ausgefuehrt') is True
+72|                           and e.get('pruefbar') is True and e.get('bestanden') is soll
+73|                           for e in es.values())
+74|        if set(es) != erwartet or zahlen[name] != 4:
+75|            raise ValueError(f'{gruppe}: nicht genau vier ausgeführte, prüfbare Kontrollen mit Sollurteil {soll}')
+76|    if p.get('bestanden') is not True:
+77|        raise ValueError('Eichproben-Gesamturteil nicht bestanden')
+78|    return dict(zahlen, erwartet_je=4)
+79|
+80|
+
+### /root/reparatur-01/review-01/repo/biotop/organe/vorspann.py:151-164
+
+149|    r['werk_id'] = werk['id']
+150|    r['quellen'] = _quellen(con, lauf_id)
+151|    r['rauschen'] = eichung.rauschmessung(con, lauf_id, werk['id'], pfad, bereiche, paket, ref)
+152|    tausch.update(_rauschwerte(r['rauschen'], bereiche))
+153|    r['gegenstand'] = eichgegenstand.sichern(con, werk['id'], lauf_id, pfad)
+154|    if not r['gegenstand'].get('gegenstand'):
+155|        raise ValueError('Eichgegenstand fehlt: ' + str(r['gegenstand'].get('befund')))
+156|    t0 = time.monotonic()
+157|    r['funde'] = fundpruefung.bewerten(con, werk['id'], lauf_id, pfad)
+158|    eichung.kosten_buchen(con, lauf_id, werk['id'], 'fundpruefung', r['funde']['kammerlaeufe'],
+159|                         time.monotonic()-t0, modellaufrufe=0, kosten_eur=0.0)
+160|    t0 = time.monotonic()
+161|    r['basis'] = messgeraet.messen(pfad, bereiche, paket, ref)
+162|    # messen() führt genau einen Kammeraufruf aus; keine Modelle. Auch ungültige Rückgaben kosten diesen Lauf.
+163|    eichung.kosten_buchen(con, lauf_id, werk['id'], 'eichausgang', 1, time.monotonic()-t0,
+164|                         modellaufrufe=0, kosten_eur=0.0)
+165|    if r['basis'].get('gueltig') is not True or r['basis'].get('werk', {}).get('baut') is not True:
+166|        raise ValueError('Messung des Eich-Ausgangs ungültig: ' + str(r['basis'].get('grund')))
+
+### /root/reparatur-01/review-01/repo/biotop/organe/vorspann.py:176-180
+
+174|            eichung.kosten_buchen(con, lauf_id, werk['id'], f'{prefix}.{name}', e['kammerlaeufe'],
+175|                                 e['dauer_s'], modellaufrufe=e['modellaufrufe'], kosten_eur=e['kosten_eur'])
+176|    gegenstand = r['gegenstand']['gegenstand']
+177|    datei = pfad / gegenstand['vertrag_pfad']
+178|    if (p.get('gegenstand') != gegenstand or eichgegenstand.lesen(con, werk['id']) != gegenstand
+179|            or not datei.is_file() or hashlib.sha256(datei.read_bytes()).hexdigest() != gegenstand['vertrag_pruefsumme']):
+180|        raise ValueError('Eichgegenstand während der Proben verändert oder andere Probequelle')
+181|    r['qualitaet'] = _qualitaet(p)
+182|    if _quellen(con, lauf_id) != r['quellen']:
+
+### /root/reparatur-01/review-01/repo/biotop/organe/vorspann.py:227-229
+
+225|                'SELECT 1 FROM generationen WHERE lauf_id=?', (lauf_id,)).fetchone():
+226|            raise _fehler(lauf_id, f'{phase} nach eingefrorenem Maß/Generation verboten')
+227|        if phase == 'mass' and not any(lj(e['inhalt']).get('lauf_id') == lauf_id for e in con.execute(
+228|                "SELECT inhalt FROM protokoll WHERE art='generation0.ergebnis' AND nr>?", (z['protokoll_nr'],))):
+229|            raise _fehler(lauf_id, 'Generation 0 vor dem Maß nicht abgeschlossen')
+230|    if phase == 'generation' and lauf['mass'] is None:
+231|        raise _fehler(lauf_id, 'eingefrorenes Maß fehlt')
+
+### /root/reparatur-01/review-01/repo/biotop/organe/vorspann.py:241-245
+
+239|                or lj(e['inhalt']).get('nachweis_sha256') != z['nachweis_sha256']):
+240|            raise ValueError('Protokollquelle des Nachweises fehlt oder verändert')
+241|        if _quellen(con, lauf_id) != r['quellen']:
+242|            raise ValueError('Messgerät/Quellen verändert; alter Nachweis ungültig')
+243|        if _qualitaet(r['eichproben']) != r['qualitaet']:
+244|            raise ValueError('Qualitätsbeleg verändert')
+245|        _rauschwerte(r['rauschen'], r['quellen']['bereiche'])
+246|        if phase == 'generation':
+247|            mass = lj(lauf['mass'])

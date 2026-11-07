@@ -1,0 +1,106 @@
+EB48 · Kosten: Kassenstand VORHER der vier Kassen-Datenbanken (Lesen an Kopien)
+Beginn: 2026-09-26 01:32:03 CEST (UTC+0200)
+Ende:   2026-09-26 01:32:05 CEST (UTC+0200)
+Dauer:  1.8 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/biotop-einlagerung/arbeit/kasse_stand.py vorher
+--- Inhalt von /root/biotop-einlagerung/arbeit/kasse_stand.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-EINLAGERUNG-01 (nur lesend): Kassenstand der vier Kassen-Datenbanken (BIOTOP-LAGE-01 AUFBAU FK38 „Kasse“):
+Zeilen, jüngste Buchung, Summe der Kostenspalten in den Tabellen `kasse` und `eichkosten`.
+Gelesen wird nie das Original selbst: Datei und -wal werden in einen eigenen Ordner tmp/kasse-<marke>/ kopiert (exklusiv),
+die Kopie wird gelesen. Aufruf: kasse_stand.py <marke>   (z. B. vorher, nachher)"""
+import datetime as dt
+import hashlib
+import os
+import shutil
+import sqlite3
+import sys
+from pathlib import Path
+
+DBS = {'STAMM': '/root/biotop/daten/biotop.db', 'VB1': '/root/phase-4-vorbedingung-1/privat/biotop.db',
+       'R02': '/root/reparatur-02/privat-cli/privat.db', 'T3': '/root/biotop-t3/t3.db'}
+marke = sys.argv[1]
+ziel = Path('/root/biotop-einlagerung/tmp') / f'kasse-{marke}'
+ziel.mkdir(parents=True, exist_ok=False)
+print(f'Zeitpunkt: {dt.datetime.now():%Y-%m-%d %H:%M:%S} CEST · Marke {marke}')
+for name, src in DBS.items():
+    vor = {e: (os.path.getsize(src + e) if os.path.exists(src + e) else None) for e in ('', '-wal', '-shm')}
+    k = ziel / f'{name}.db'
+    shutil.copy2(src, k)
+    if vor['-wal']:
+        shutil.copy2(src + '-wal', str(k) + '-wal')
+    c = sqlite3.connect(k)
+    zeile = [f'{name} {src} · Bytes {vor[""]} · -wal {vor["-wal"]} · -shm {vor["-shm"]}']
+    for tab in ('kasse', 'eichkosten'):
+        try:
+            spalten = [r[1] for r in c.execute(f'PRAGMA table_info({tab})')]
+        except sqlite3.Error as e:
+            zeile.append(f'  {tab}: Fehler {e}')
+            continue
+        if not spalten:
+            zeile.append(f'  {tab}: Tabelle fehlt')
+            continue
+        n = c.execute(f'SELECT count(*) FROM {tab}').fetchone()[0]
+        teile = [f'  {tab}: {n} Zeilen · Spalten {spalten}']
+        for s in spalten:
+            if any(x in s.lower() for x in ('eur', 'kosten', 'betrag', 'usd')):
+                v = c.execute(f'SELECT round(sum({s}), 9) FROM {tab}').fetchone()[0]
+                teile.append(f'    Summe {s} = {v}')
+            if any(x in s.lower() for x in ('zeit', 'ts', 'datum', 'am')) and not s.lower().startswith('stat'):
+                v = c.execute(f'SELECT max({s}) FROM {tab}').fetchone()[0]
+                teile.append(f'    jüngster Wert {s} = {v}')
+        h = hashlib.sha256()
+        for r in c.execute(f'SELECT * FROM {tab} ORDER BY rowid'):
+            h.update(repr(r).encode())
+        teile.append(f'    SHA-256 über alle Zeilen (repr, nach rowid): {h.hexdigest()}')
+        zeile += teile
+    c.close()
+    print('\n'.join(zeile))
+print(f'Kopien (bleiben liegen, eigener Arbeitsordner): {ziel}')
+--- Ende /root/biotop-einlagerung/arbeit/kasse_stand.py ---
+Ausgabe (vollständig, stdout und stderr):
+Zeitpunkt: 2026-09-26 01:32:03 CEST · Marke vorher
+STAMM /root/biotop/daten/biotop.db · Bytes 29659136 · -wal 0 · -shm 32768
+  kasse: 4070 Zeilen · Spalten ['id', 'lauf_id', 'zeit', 'anbieter', 'modell', 'tokens_ein', 'tokens_aus', 'kosten_eur', 'zweck', 'kontingent', 'protokoll_nr']
+    jüngster Wert zeit = 2026-09-20T01:43:33.219+00:00
+    Summe kosten_eur = 8.639304769
+    SHA-256 über alle Zeilen (repr, nach rowid): 8e77f57180592f6da1df7ac8429a736800e570a072024d0373f7df90d4fc97a1
+  eichkosten: 11 Zeilen · Spalten ['id', 'lauf_id', 'werk_id', 'teil', 'kammerlaeufe', 'modellaufrufe', 'kosten_eur', 'dauer_s', 'erstellt_am']
+    jüngster Wert kammerlaeufe = 5
+    Summe kosten_eur = 0.01119
+    jüngster Wert erstellt_am = 2026-09-19T20:59:15.461+00:00
+    SHA-256 über alle Zeilen (repr, nach rowid): 6c8bcd0cc60dcff44f4790858c6e55a7d22f7132082105cc87c54ad56be94535
+VB1 /root/phase-4-vorbedingung-1/privat/biotop.db · Bytes 31748096 · -wal 4140632 · -shm 32768
+  kasse: 4316 Zeilen · Spalten ['id', 'lauf_id', 'zeit', 'anbieter', 'modell', 'tokens_ein', 'tokens_aus', 'kosten_eur', 'zweck', 'kontingent', 'protokoll_nr']
+    jüngster Wert zeit = 2026-09-20T20:16:10.084+00:00
+    Summe kosten_eur = 9.086097176
+    SHA-256 über alle Zeilen (repr, nach rowid): 4bbb14cdc63d40b070dad352194bdb6d36d31e9908b6608c11f85c2d9c7465f7
+  eichkosten: 22 Zeilen · Spalten ['id', 'lauf_id', 'werk_id', 'teil', 'kammerlaeufe', 'modellaufrufe', 'kosten_eur', 'dauer_s', 'erstellt_am']
+    jüngster Wert kammerlaeufe = 8
+    Summe kosten_eur = 0.01119
+    jüngster Wert erstellt_am = 2026-09-20T19:33:46.456+00:00
+    SHA-256 über alle Zeilen (repr, nach rowid): 882a903f68b41f2d983d440d261f74d89964f1c616cf2c3d04e5104bf26442c8
+R02 /root/reparatur-02/privat-cli/privat.db · Bytes 30511104 · -wal 0 · -shm 32768
+  kasse: 4070 Zeilen · Spalten ['id', 'lauf_id', 'zeit', 'anbieter', 'modell', 'tokens_ein', 'tokens_aus', 'kosten_eur', 'zweck', 'kontingent', 'protokoll_nr']
+    jüngster Wert zeit = 2026-09-20T01:43:33.219+00:00
+    Summe kosten_eur = 8.639304769
+    SHA-256 über alle Zeilen (repr, nach rowid): 8e77f57180592f6da1df7ac8429a736800e570a072024d0373f7df90d4fc97a1
+  eichkosten: 22 Zeilen · Spalten ['id', 'lauf_id', 'werk_id', 'teil', 'kammerlaeufe', 'modellaufrufe', 'kosten_eur', 'dauer_s', 'erstellt_am']
+    jüngster Wert kammerlaeufe = 39
+    Summe kosten_eur = 0.01119
+    jüngster Wert erstellt_am = 2026-09-20T18:44:07.866+00:00
+    SHA-256 über alle Zeilen (repr, nach rowid): 58767ac6e341844276f57e1bf810f693a776866e3b24196e47a447377f550ef1
+T3 /root/biotop-t3/t3.db · Bytes 276733952 · -wal 13221112 · -shm 32768
+  kasse: 6673 Zeilen · Spalten ['id', 'lauf_id', 'zeit', 'anbieter', 'modell', 'tokens_ein', 'tokens_aus', 'kosten_eur', 'zweck', 'kontingent', 'protokoll_nr']
+    jüngster Wert zeit = 2026-09-22T19:26:08.390+00:00
+    Summe kosten_eur = 18.367942407
+    SHA-256 über alle Zeilen (repr, nach rowid): b4cc2e305f5601a2cc13e025e02f069a6f176a9b6665a167bbd606d4471b9202
+  eichkosten: 127 Zeilen · Spalten ['id', 'lauf_id', 'werk_id', 'teil', 'kammerlaeufe', 'modellaufrufe', 'kosten_eur', 'dauer_s', 'erstellt_am']
+    jüngster Wert kammerlaeufe = 27
+    Summe kosten_eur = 0.01119
+    jüngster Wert erstellt_am = 2026-09-22T13:55:53.067+00:00
+    SHA-256 über alle Zeilen (repr, nach rowid): 911a04cca089bdd64beae03ef03ca9bed71aa94221e6fb0dfb0936dc70f0e5fc
+Kopien (bleiben liegen, eigener Arbeitsordner): /root/biotop-einlagerung/tmp/kasse-vorher
+=== Ende EB48 ===

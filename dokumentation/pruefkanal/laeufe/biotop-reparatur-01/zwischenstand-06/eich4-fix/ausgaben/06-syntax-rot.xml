@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.133" timestamp="2026-09-20T17:28:45.631409+02:00" hostname="ubuntu"><testcase classname="tests.test_review_vertrag" name="test_syntaxfehler_im_verbrauchertest_wird_als_unbaubar_gemeldet" time="0.006"><failure message="  File &quot;&lt;unknown&gt;&quot;, line 1&#10;    def test_bericht(:&#10;                     ^&#10;SyntaxError: invalid syntax">vertragswerk = PosixPath('/root/reparatur-01/nachbesserung-01/vertrag/tmp/06-syntax-rot/test_syntaxfehler_im_verbrauch0/werk')
+
+    def test_syntaxfehler_im_verbrauchertest_wird_als_unbaubar_gemeldet(vertragswerk):
+        (vertragswerk / 'tests/test_abnehmer.py').write_text('def test_bericht(:\n')
+        # proben() fängt RuntimeError und liefert pruefbar=False; SyntaxError würde
+        # dagegen die ganze Batterie verlassen, statt eine ungültige Zeile zu liefern.
+        with pytest.raises(RuntimeError, match='Verbrauchertest.*Syntax'):
+&gt;           eichproben._vertrag_vorbereiten(vertragswerk, 'beispiel', 'abnehmer', 'lieferant', VERTRAG, True)
+
+tests/test_review_vertrag.py:152: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/eichproben.py:391: in _vertrag_vorbereiten
+    baum = ast.parse((werk / testpfad).read_text())
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+source = 'def test_bericht(:\n', filename = '&lt;unknown&gt;', mode = 'exec'
+type_comments = False, feature_version = -1
+
+    def parse(source, filename='&lt;unknown&gt;', mode='exec', *,
+              type_comments=False, feature_version=None):
+        """
+        Parse the source into an AST node.
+        Equivalent to compile(source, filename, mode, PyCF_ONLY_AST).
+        Pass type_comments=True to get back type comments where the syntax allows.
+        """
+        flags = PyCF_ONLY_AST
+        if type_comments:
+            flags |= PyCF_TYPE_COMMENTS
+        if feature_version is None:
+            feature_version = -1
+        elif isinstance(feature_version, tuple):
+            major, minor = feature_version  # Should be a 2-tuple.
+            if major != 3:
+                raise ValueError(f"Unsupported major version: {major}")
+            feature_version = minor
+        # Else it should be an int giving the minor version for 3.x.
+&gt;       return compile(source, filename, mode, flags,
+                       _feature_version=feature_version)
+E         File "&lt;unknown&gt;", line 1
+E           def test_bericht(:
+E                            ^
+E       SyntaxError: invalid syntax
+
+/usr/lib/python3.12/ast.py:52: SyntaxError</failure></testcase></testsuite></testsuites>

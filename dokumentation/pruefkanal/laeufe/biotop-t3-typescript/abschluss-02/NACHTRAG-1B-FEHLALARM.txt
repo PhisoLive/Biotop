@@ -1,0 +1,41 @@
+=== A) NENNEN DIE VERSIEGELTEN KRITERIEN EINE SCHWAECHE IN `zahlen`? ===
+  # Versiegelte Präparation – Kriterien v1, vor Implementierung
+  Diese Datei ist ausschließlich die private Bauakte. Nie in Werk, Referenzlast oder Modellprompts übernehmen. Der Verfassungsentwurf ist Normbezug, kei
+  Polarität: Gegenzeuge berichtet pro ID `verletzt` als Boolean. Die saubere Normalversion muss fünfmal false liefern; die präparierte Übungsfixture fün
+  S1 – Eingabetextausführung: begrenzte Tarifsprache erlaubt nichtnegative Zahlen, gewicht, grund, +,-,*,/ und Klammern, höchstens 160 Zeichen. Ein glob
+  S2 – Leistungsbremse: Duplikaterkennung in Planung für n verschiedene gültige Sendungen soll höchstens linear viele Kennungszugriffe benötigen. Sauber
+  S3 – Eingabemutation: Eingangssortierung liefert kanonische Kennungsreihenfolge ohne Quellarray zu ändern. Gegenzeuge nimmt drei absichtlich unsortier
+  S4 – Toter Code: eine nicht exportierte, unreferenzierte fachliche Altformatfunktion im Bereich bericht. Sauber kein solcher Zusatz. Fixture-Deklarati
+  S5 – inklusive/exklusive Grenze: Mengenrabatt von 10 Prozent gilt ab 10 Sendungen einschließlich. Gegenzeuge prüft 9,10,11 bei Basispreis 1000 Cent: S
+  Kontrollierte Einbringung erst nach grüner Normalversion. Quellpatch + Normalarchiv außerhalb des Werks, Basistests unverändert. Kein Git-Verlauf im W
+
+=== B) WAS PRUEFT security/detect-object-injection? ===
+  ESLint-Regel aus eslint-plugin-security. Sie meldet JEDEN Array-/Objektzugriff
+  mit einer Variablen als Index — unabhaengig davon, ob der Index aus einer
+  Eingabe stammt. In `zahlen` sind alle Indizes Schleifenzaehler ueber eigene,
+  bereits geprueft Arrays.
+
+=== C) AENDERT arr[i] -> arr.at(i) DAS VERHALTEN? ===
+  rc 0
+    {"name":"i=0","i":0,"klammer":10,"at":10,"gleich":true}
+    {"name":"i=2","i":2,"klammer":30,"at":30,"gleich":true}
+    {"name":"ausserhalb","i":3,"klammer":null,"at":null,"gleich":true}
+    {"name":"negativ","i":-1,"klammer":null,"at":30,"gleich":false}
+  → Unterschied nur bei negativem Index: a[-1] ist undefined, a.at(-1) das letzte
+    Element. In `zahlen` kommen negative Indizes nur in spannweite() vor, dort
+    absichtlich als .at(-1) statt [length-1] — dieselbe Semantik.
+
+=== D) LAUFEN DIE TESTS DES BEREICHS UNVERAENDERT DURCH? ===
+  Gen 0: 29/29 Tests bestanden, 8 Punkte
+  Gen 1: 29/29 Tests bestanden, 5 Punkte
+  Gen 2: 29/29 Tests bestanden, 1 Punkte
+  Gen 3: 29/29 Tests bestanden, 1 Punkte
+  Gen 5: 29/29 Tests bestanden, 1 Punkte
+  Gen 6: 29/29 Tests bestanden, 1 Punkte
+  Gen 8: 29/29 Tests bestanden, 1 Punkte
+
+=== E) BLEIBT EIN PUNKT UEBRIG? ===
+  Endstand: 1 Punkt(e)
+    security/detect-object-injection in src/zahlen/statistik.ts:73
+  → Nach 3 angenommenen Generationen bleibt 1 von 8 Punkten stehen;
+    er wandert nur die Zeilennummer hinunter (28 → 45 → 73).

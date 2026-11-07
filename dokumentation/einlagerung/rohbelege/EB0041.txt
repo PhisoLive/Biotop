@@ -1,0 +1,163 @@
+EB41 · Schritt 5: Selbsttest s5_paket.py, zweiter Durchgang (nach Korrektur der Protokollausgabe)
+Beginn: 2026-09-26 01:24:58 CEST (UTC+0200)
+Ende:   2026-09-26 01:24:59 CEST (UTC+0200)
+Dauer:  0.3 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/biotop-einlagerung/arbeit/s5_selbsttest.py 02
+--- Inhalt von /root/biotop-einlagerung/arbeit/s5_selbsttest.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-EINLAGERUNG-01: Selbsttest von arbeit/s5_paket.py an einem erfundenen Baum, bevor das echte Paket entsteht
+(Vorlage: BIOTOP-LAGE-01 sich_selbsttest.py). Alles unter tmp/selbsttest-s5-NN/ (exklusiv).
+Geprüft: Auslassung von Geheimnisdateien (.env, .env.sicherung-*, auth.json, *.key, id_ed25519), Abhängigkeitsordnern
+und ausgelassenen Pfaden; Datenbank-Backup mit gefüllter -wal (Verbindung offen) und ohne -wal, Originale danach
+unverändert; integrity_check; Geheimnissuche findet einen eingeschleusten Wert (Gegenprobe) — der Wert ist eine erfundene
+Zeichenkette, die als .env-Wert im Testbaum steht; Manifest; Packen; Probe (Unterschied leer); Gegenprobe (genau eine Datei)."""
+import hashlib
+import os
+import sqlite3
+import sys
+from pathlib import Path
+
+sys.path.insert(0, '/root/biotop-einlagerung/arbeit')
+import s5_paket as s  # noqa: E402
+
+NN = sys.argv[1] if len(sys.argv) > 1 else '01'
+T = s.E / 'tmp' / f'selbsttest-s5-{NN}'
+T.mkdir(parents=True, exist_ok=False)
+Q = T / 'quelle'
+(Q / 'code' / 'unter').mkdir(parents=True)
+(Q / 'code' / 'node_modules' / 'x').mkdir(parents=True)
+(Q / 'code' / '__pycache__').mkdir()
+(Q / 'code' / 'reproduktion').mkdir()
+(Q / 'code' / 'a.py').write_text('print(1)\n')
+(Q / 'code' / 'unter' / 'b.txt').write_text('b\n' * 1000)
+(Q / 'code' / 'node_modules' / 'x' / 'dep.js').write_text('dep')
+(Q / 'code' / '__pycache__' / 'a.pyc').write_bytes(b'\x00' * 10)
+(Q / 'code' / 'reproduktion' / 'gross.bin').write_bytes(b'\x01' * 100)
+(Q / 'code' / '.env').write_text('ERFUNDEN=selbsttest-wert-XQ7Z93\n')
+(Q / 'code' / 'auth.json').write_text('{}')
+(Q / 'code' / '.env.sicherung-2026-09-18').write_text('GEHEIM=kopie\n')
+(Q / 'code' / 'schluessel.key').write_text('k')
+(Q / 'code' / 'id_ed25519').write_text('k')
+(Q / 'code' / 'verraet.txt').write_text('hier steht selbsttest-wert-XQ7Z93 im Text\n')
+os.symlink('a.py', Q / 'code' / 'verweis.py')
+d1 = Q / 'code' / 'mitwal.db'
+c1 = sqlite3.connect(d1)
+c1.execute('PRAGMA journal_mode=wal')
+c1.execute('PRAGMA wal_autocheckpoint=0')
+c1.execute('CREATE TABLE t(x)')
+c1.executemany('INSERT INTO t VALUES (?)', [(i,) for i in range(500)])
+c1.commit()
+d2 = Q / 'code' / 'ohnewal.db'
+c2 = sqlite3.connect(d2)
+c2.execute('CREATE TABLE t(x)')
+c2.executemany('INSERT INTO t VALUES (?)', [(i,) for i in range(50)])
+c2.commit()
+c2.close()
+vorher = {p: hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in (d1, str(d1) + '-wal', d2)}
+print('Quelle: mitwal.db-wal Bytes', os.path.getsize(str(d1) + '-wal'))
+
+s.P = T / 'paket'
+s.P.mkdir()
+s.STUFE = T / 'stufe'
+s.PROBE = T / 'probe'
+s.TMP = T / 'db-kopien'
+s.ARCHIV = T / 'archiv' / 'selbsttest.tar.gz'
+s.AUS_PFADE = {str(Q / 'code' / 'reproduktion'): 'Reproduktion (Selbsttest)'}
+s.teile = lambda: {'t': [Q]}
+
+print('--- dbliste'); s.dbliste()
+print('--- stufe'); s.stufe('t')
+print('--- integritaet'); s.integritaet()
+k1 = sqlite3.connect(f'file:{s.STUFE}/{str(d1).lstrip("/")}?mode=ro&immutable=1', uri=True)
+print('Zeilen in der Kopie von mitwal.db (erwartet 500):', k1.execute('SELECT count(*) FROM t').fetchone()[0])
+k1.close()
+nachher = {p: hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in vorher}
+print('Originale (db, -wal, db) unverändert:', vorher == nachher)
+im = sorted(str(p.relative_to(s.STUFE)) for p in s.STUFE.rglob('*'))
+print('Stufe enthält:', im)
+print('Auslassung: .env fehlt', not any(x.endswith('/.env') for x in im), '· .env.sicherung fehlt',
+      not any('.env.sicherung' in x for x in im), '· auth.json fehlt', not any(x.endswith('auth.json') for x in im),
+      '· *.key fehlt', not any(x.endswith('.key') for x in im), '· id_ed25519 fehlt', not any(x.endswith('id_ed25519') for x in im),
+      '· node_modules fehlt', not any('node_modules' in x for x in im), '· __pycache__ fehlt', not any('__pycache__' in x for x in im),
+      '· reproduktion fehlt', not any('reproduktion' in x for x in im), '· -wal fehlt', not any(x.endswith('-wal') for x in im))
+print('--- geheimsuche (Gegenprobe: der Wert aus der Test-.env muss in verraet.txt gefunden werden)')
+# Der Test-Wert steht in einer .env unter /root/biotop-einlagerung/tmp/… (Tiefe ≤ 4 unter /root? nein) — daher hier
+# direkt als zusätzlicher Wert eingespeist, über dieselbe Funktion wie im echten Lauf:
+import geheimnis  # noqa: E402
+_alt = geheimnis.werte
+geheimnis.werte = lambda: {**_alt(), 'selbsttest-wert-XQ7Z93': f'{Q}/code/.env:ERFUNDEN'}
+s.geheimsuche()
+geheimnis.werte = _alt
+print('--- packen'); s.packen()
+print('--- probe'); s.probe()
+print('--- gegenprobe'); s.gegenprobe(f'{str(Q).lstrip("/")}/code/unter/b.txt')
+c1.close()
+--- Ende /root/biotop-einlagerung/arbeit/s5_selbsttest.py ---
+Ausgabe (vollständig, stdout und stderr):
+Quelle: mitwal.db-wal Bytes 24752
+--- dbliste
+Zeitpunkt: 2026-09-26 01:24:58 CEST (UTC+0200) · SQLite-Dateien im Umfang: 2 · je Teil: {'t': 2}
+davon mit nicht leerer -wal-Datei: 1
+  /root/biotop-einlagerung/tmp/selbsttest-s5-02/quelle/code/mitwal.db {'-wal': 24752, '-shm': 32768}
+davon mit -journal-Datei: 0 []
+Liste: /root/biotop-einlagerung/tmp/selbsttest-s5-02/paket/dbliste.json
+--- stufe
+Teil t · 2026-09-26 01:24:58 CEST (UTC+0200) · Dauer 0.0 s
+Wurzeln: ['/root/biotop-einlagerung/tmp/selbsttest-s5-02/quelle']
+Zählung: {'ordner': 3, 'datei': 3, 'datenbank': 2, 'verweis': 1, 'sonder': 0, 'aus-ordner': 2, 'aus-geheim': 5, 'aus-pfad': 1, 'aus-begleit': 2, 'verschwunden': 0, 'db-roh': 0} · Bytes in der Stufe: 26627
+Protokoll: /root/biotop-einlagerung/tmp/selbsttest-s5-02/paket/protokoll-stufe-t.txt (12 Zeilen)
+Ausgelassene Geheimnisdateien (nur Pfad) (5), höchstens 60:
+  AUSGELASSEN (Geheimnisdatei, nur Pfad): /root/biotop-einlagerung/tmp/selbsttest-s5-02/quelle/code/.env
+  AUSGELASSEN (Geheimnisdatei, nur Pfad): /root/biotop-einlagerung/tmp/selbsttest-s5-02/quelle/code/.env.sicherung-2026-09-18
+  AUSGELASSEN (Geheimnisdatei, nur Pfad): /root/biotop-einlagerung/tmp/selbsttest-s5-02/quelle/code/auth.json
+  AUSGELASSEN (Geheimnisdatei, nur Pfad): /root/biotop-einlagerung/tmp/selbsttest-s5-02/quelle/code/id_ed25519
+  AUSGELASSEN (Geheimnisdatei, nur Pfad): /root/biotop-einlagerung/tmp/selbsttest-s5-02/quelle/code/schluessel.key
+Ausgelassene Pfade mit Grund (1), höchstens 60:
+  AUSGELASSEN (Reproduktion (Selbsttest)): /root/biotop-einlagerung/tmp/selbsttest-s5-02/quelle/code/reproduktion
+Ausgelassene Ordner nach Name: {".mypy_cache": 0, ".pytest_cache": 0, ".ruff_cache": 0, ".venv": 0, "__pycache__": 1, "node_modules": 1, "venv": 0}
+Weitere Protokollzeilen (0), höchstens 40:
+--- integritaet
+2026-09-26 01:24:58 CEST (UTC+0200) · PRAGMA integrity_check über 2 Datenbankkopien in /root/biotop-einlagerung/tmp/selbsttest-s5-02/stufe
+Ergebnis „ok“: 2 von 2 · nicht ok: 0 · Kopie fehlt: 0
+Einzeln (alle außer Testzwischenständen unter pytest/tmp, und alle > 20 MB): 0
+
+Zeilen in der Kopie von mitwal.db (erwartet 500): 500
+Originale (db, -wal, db) unverändert: True
+Stufe enthält: ['root', 'root/biotop-einlagerung', 'root/biotop-einlagerung/tmp', 'root/biotop-einlagerung/tmp/selbsttest-s5-02', 'root/biotop-einlagerung/tmp/selbsttest-s5-02/quelle', 'root/biotop-einlagerung/tmp/selbsttest-s5-02/quelle/code', 'root/biotop-einlagerung/tmp/selbsttest-s5-02/quelle/code/a.py', 'root/biotop-einlagerung/tmp/selbsttest-s5-02/quelle/code/mitwal.db', 'root/biotop-einlagerung/tmp/selbsttest-s5-02/quelle/code/ohnewal.db', 'root/biotop-einlagerung/tmp/selbsttest-s5-02/quelle/code/unter', 'root/biotop-einlagerung/tmp/selbsttest-s5-02/quelle/code/unter/b.txt', 'root/biotop-einlagerung/tmp/selbsttest-s5-02/quelle/code/verraet.txt', 'root/biotop-einlagerung/tmp/selbsttest-s5-02/quelle/code/verweis.py']
+Auslassung: .env fehlt True · .env.sicherung fehlt True · auth.json fehlt True · *.key fehlt True · id_ed25519 fehlt True · node_modules fehlt True · __pycache__ fehlt True · reproduktion fehlt True · -wal fehlt True
+--- geheimsuche (Gegenprobe: der Wert aus der Test-.env muss in verraet.txt gefunden werden)
+2026-09-26 01:24:58 CEST (UTC+0200) · Geheimnissuche über /root/biotop-einlagerung/tmp/selbsttest-s5-02/stufe
+(a) Geheimnisdateien nach Name/Pfad in der Stufe: 0 []
+(b) Werte (15) und Muster (9) in 3 Dateien (2051 B) · übersprungen (Datenbanken, Kammer-Tar): 2
+    Dateien mit Treffer: 1
+    Dateien je Art: {'Wert ERFUNDEN': 1}
+  TREFFER /root/biotop-einlagerung/tmp/selbsttest-s5-02/quelle/code/verraet.txt · {'Wert ERFUNDEN': 1}
+--- packen
+Beginn 2026-09-26 01:24:58 CEST (UTC+0200)
+{"baum": "/root/biotop-einlagerung/tmp/selbsttest-s5-02/stufe", "ziel": "/root/biotop-einlagerung/tmp/selbsttest-s5-02/paket/MANIFEST-KOMPLETT.tsv", "eintraege": 14, "verzeichnisse": 8, "dateien": 5, "verweise": 1, "sonder": 0, "bytes": 26627, "sha256_manifest": "418c6f1160aaffe1cd37453bf7361ecc390632cdaffde0e800cedec900cfdc12", "dauer_s": 0.0}
+tar rc=0 · pigz rc=0 · Dauer 0.0 s
+Archiv /root/biotop-einlagerung/tmp/selbsttest-s5-02/archiv/selbsttest.tar.gz: 3834 Bytes · SHA-256 7d18423f43f5f15e6c55a3d06d981f054c9540bc9eb7a736ac0d64177024fb61 · Rechte 0o600
+Einträge laut tar -t: 14 (Manifest: 14 Einträge = 8 Verzeichnisse + 5 Dateien + 1 Verweise + 0 Sonder)
+Ende 2026-09-26 01:24:58 CEST (UTC+0200)
+--- probe
+Beginn 2026-09-26 01:24:58 CEST (UTC+0200)
+Entpacken rc=0 · Dauer 0.0 s · stderr: (leer)
+{"baum": "/root/biotop-einlagerung/tmp/selbsttest-s5-02/probe/entpackt", "ziel": "/root/biotop-einlagerung/tmp/selbsttest-s5-02/paket/MANIFEST-PROBE.tsv", "eintraege": 14, "verzeichnisse": 8, "dateien": 5, "verweise": 1, "sonder": 0, "bytes": 26627, "sha256_manifest": "418c6f1160aaffe1cd37453bf7361ecc390632cdaffde0e800cedec900cfdc12", "dauer_s": 0.0}
+gepackt: 14 Einträge, davon 5 Dateien · entpackt: 14 Einträge, davon 5 Dateien
+nur gepackt: 0 · nur entpackt: 0 · verschieden: 0
+ERGEBNIS: Unterschied leer
+Ende 2026-09-26 01:24:59 CEST (UTC+0200)
+--- gegenprobe
+Beginn 2026-09-26 01:24:59 CEST (UTC+0200)
+cp -al entpackt gegenprobe rc=0 
+Geändert: root/biotop-einlagerung/tmp/selbsttest-s5-02/quelle/code/unter/b.txt · Byte 0: 0x62 → 0x63 · entpackt/ dieselbe Datei danach unverändert: True
+{"baum": "/root/biotop-einlagerung/tmp/selbsttest-s5-02/probe/gegenprobe", "ziel": "/root/biotop-einlagerung/tmp/selbsttest-s5-02/paket/MANIFEST-GEGENPROBE.tsv", "eintraege": 14, "verzeichnisse": 8, "dateien": 5, "verweise": 1, "sonder": 0, "bytes": 26627, "sha256_manifest": "0a8f43b0591de472a7a6de5880c832dac42b060e1c82cbb1e3eac55d86fdf3ac", "dauer_s": 0.0}
+gepackt: 14 Einträge, davon 5 Dateien · gegenprobe: 14 Einträge, davon 5 Dateien
+nur gepackt: 0 · nur gegenprobe: 0 · verschieden: 1
+  VERSCHIEDEN: root/biotop-einlagerung/tmp/selbsttest-s5-02/quelle/code/unter/b.txt · 3a19faa4ec704eef… → 09f8f43d3cbe4ca3…
+ERGEBNIS: Unterschied NICHT leer (1 Einträge)
+GEGENPROBE ANGESCHLAGEN: genau die geänderte Datei gemeldet
+Ende 2026-09-26 01:24:59 CEST (UTC+0200)
+=== Ende EB41 ===

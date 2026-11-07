@@ -1,0 +1,678 @@
+[
+  {
+    "id": "B05:O01",
+    "audit_befund": "B05",
+    "audit_leser": "O01",
+    "titel": "Positive Text-/Messmarker werden trotz fehlendem Laufabschluss verwertet",
+    "pfad": "biotop/organe/aufnahme.py",
+    "originalzeilen": [
+      133,
+      160
+    ],
+    "original_sha256": "07962eaf683821cc36c2d2177254fc92019219a20f22eb47048a8f556a24a312",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "O01",
+      "quellbeleg": "133|    # Erster Testlauf in der Kammer (nur wenn Tests vorhanden)\n134|    testlauf = {\"bestanden\": 0, \"gesamt\": 0, \"rc\": None, \"ausgabe\": \"\"}\n135|    if zahlen[\"testdateien\"] and sprache == \"Python\":\n136|        e = kammer.ausfuehren(ziel, [\"python\", \"-m\", \"pytest\", \"-q\", \"-p\", \"no:cacheprovider\", \"--tb=line\"], zeitlimit_s=120)\n137|        m = re.search(r\"(\\d+) passed\", e.stdout)\n138|        f = re.search(r\"(\\d+) failed\", e.stdout)\n139|        err = re.search(r\"(\\d+) error\", e.stdout)\n140|        b = int(m.group(1)) if m else 0\n141|        g = b + (int(f.group(1)) if f else 0) + (int(err.group(1)) if err else 0)\n142|        testlauf = {\"bestanden\": b, \"gesamt\": g, \"rc\": e.rc, \"ausgabe\": e.stdout[-1500:], \"zeitlimit\": e.zeitlimit}\n143|    bericht[\"erster_testlauf\"] = testlauf\n144|    baut = None\n145|    if paket and sprache == \"Python\":\n146|        e = kammer.ausfuehren(ziel, [\"python\", \"-c\", f\"import {paket}\"], zeitlimit_s=60)\n147|        baut = e.rc == 0\n148|        bericht[\"bau_ausgabe\"] = (e.stdout + e.stderr)[-800:]\n149|    bericht[\"baut\"] = baut\n150|\n151|    bericht[\"ethik\"] = _ethik(con, lauf_id, ziel, zahlen)\n152|\n153|    status = \"aufgenommen\"\n154|    grund = \"\"\n155|    if bericht[\"ethik\"][\"urteil\"] == \"BEDENKLICH\":\n156|        status, grund = \"abgelehnt\", \"ethische Prüfung: \" + bericht[\"ethik\"][\"begruendung\"]\n157|    elif not zahlen[\"testdateien\"] or testlauf[\"gesamt\"] == 0:\n158|        status, grund = \"messgeraet_fehlt\", \"Messgerät fehlt: keine Tests gefunden (0 Testdateien mit ausführbaren Tests). Vorschlag: mit Generation 0 (Tests erzeugen) beginnen.\"\n159|    elif baut is False:\n160|        status, grund = \"messgeraet_fehlt\", \"Messgerät fehlt: Werk baut nicht.\""
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Ausgabe enthält erwartete positive Tokens, während rc/zeitlimit nicht hinreichend an die Wertung gebunden sind",
+    "minimalbeleg": {
+      "zustand": "Reststdout mit \"1 passed\" und rc7/124; oder vollständiger @@MESSUNG@@-Marker und rc7.",
+      "schluss": "Fundleser besteht=True, Aufnahme zählt positive Tests trotz Abbruch (Status ist Aufnahme, NICHT behauptet alles grün); messen setzt gueltig=True sofern kein explizites Zeitlimit und Marker vorhanden. Tor1-F2 akzeptiert positive Tokens ähnlich.",
+      "grenze": "Messen sperrt explizites zeitlimitTrue und fehlenden Marker; Original Aufnahme sperrt echten Gesamtwert0."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Versiegelte Kerneingrenzung02: Aufnahme/Gen0-Produzenten und leere Herstellerantwort nicht integrieren; kein Durchgriff auf P4-Freeze-Erfolgsbindung.",
+    "verbraucher_alias": [
+      {
+        "id": "AUSSEN-AUFNAHME-TESTLAUF",
+        "datei": "biotop/organe/aufnahme.py",
+        "zeilen": "133-160",
+        "urteil": "bestätigt offen (Quellbefund), Folgeauftrag",
+        "befund": "Summierung von passed/failed/error ignoriert Skips und Prozessinvalidität. Positive Restzählung genügt, obwohl der Testprozess abgebrochen ist.",
+        "gegenroute_erforderlich": "Ausgeführte rote Produkttests dürfen nicht pauschal mit fehlendem Messgerät gleichgesetzt werden.",
+        "grund_offen": "Kein direkter Kernleser belegt; nach Scope-Reduktion weder geändert noch ausgeführt."
+      }
+    ]
+  },
+  {
+    "id": "B05:P11",
+    "audit_befund": "B05",
+    "audit_leser": "P11",
+    "titel": "Positive Text-/Messmarker werden trotz fehlendem Laufabschluss verwertet",
+    "pfad": "pruefung/funde_neubewerten.py",
+    "originalzeilen": [
+      23,
+      43
+    ],
+    "original_sha256": "f440849193d804545cacd537dffff6735c670f6d3b408533ddf89003503489fa",
+    "original_audit_scope": "ausserhalb_kern",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "P11",
+      "quellbeleg": "23|          \"# Ein Fund-Test, der AM WERK BESTEHT, ohne Absturz und ohne expliziten Vertrags-/Verfassungsverweis, ist Norm (0 Punkte, nicht im Testbestand).\"]\n24|aenderungen = []\n25|for z in con.execute(\"SELECT id, name, status, bereich, code FROM immunsystem WHERE werk_id=? AND status='offen' ORDER BY name\", (WERK_ID,)):\n26|    datei = f\"tests/_neubewertung_{z['name']}.py\"\n27|    e = kammer.ausfuehren(pfad, [\"python\", \"-m\", \"pytest\", \"-q\", \"-p\", \"no:cacheprovider\", datei], dateien={datei: z[\"code\"]}, zeitlimit_s=90)\n28|    aus = e.stdout + e.stderr\n29|    besteht = \" passed\" in aus and \" failed\" not in aus\n30|    absturz = any(w in aus for w in (\"Error\", \"Exception\")) and \"AssertionError\" not in aus\n31|    bezug = bool(verweis.search(z[\"code\"]))\n32|    norm = besteht and not absturz and not bezug\n33|    zeilen.append(f\"{z['name']}: besteht am Werk {besteht} | Absturz {absturz} | Vertrags-/Verfassungsverweis {bezug} → {'NORM (offen_norm)' if norm else 'Fund bleibt offen'}\")\n34|    if norm: aenderungen.append((z[\"id\"], z[\"name\"]))\n35|\n36|zeilen.append(f\"ERGEBNIS: {len(aenderungen)} von {con.execute('SELECT COUNT(*) FROM immunsystem WHERE werk_id=? AND status=%r' % 'offen', (WERK_ID,)).fetchone()[0]} offenen Funden sind nach der Regel Norm: \" + \", \".join(n for _, n in aenderungen))\n37|if SCHREIBEN and aenderungen:\n38|    with transaktion(con):\n39|        for i, n in aenderungen:\n40|            con.execute(\"UPDATE immunsystem SET status='offen_norm', ursprung=ursprung || ? WHERE id=?\",\n41|                        (\" | neubewertet nach F4 3.7 (Fassung Philipp 19.09.2026): Test besteht am Werk, kein Absturz, kein Vertrags-/Verfassungsverweis → Norm, kein Fund\", i))\n42|    protokoll.schreiben(con, \"immun.neubewertet\", werk_id=WERK_ID, anzahl=len(aenderungen), namen=[n for _, n in aenderungen],\n43|                        regel=\"F4 3.7 Fassung Philipp 19.09.2026: Ein Test, der das aktuelle Verhalten festschreibt, ohne Absturz und ohne expliziten Vertrags-/Verfassungsverweis, ist Norm, kein Fund.\")"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Ausgabe enthält erwartete positive Tokens, während rc/zeitlimit nicht hinreichend an die Wertung gebunden sind",
+    "minimalbeleg": {
+      "zustand": "Reststdout mit \"1 passed\" und rc7/124; oder vollständiger @@MESSUNG@@-Marker und rc7.",
+      "schluss": "Fundleser besteht=True, Aufnahme zählt positive Tests trotz Abbruch (Status ist Aufnahme, NICHT behauptet alles grün); messen setzt gueltig=True sofern kein explizites Zeitlimit und Marker vorhanden. Tor1-F2 akzeptiert positive Tokens ähnlich.",
+      "grenze": "Messen sperrt explizites zeitlimitTrue und fehlenden Marker; Original Aufnahme sperrt echten Gesamtwert0."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Historischer Parallelprüfer ohne Rückfluss in aktuellen Pflichtvorspann",
+    "verbraucher_alias": [
+      {
+        "id": "AUSSEN-LEGACY-FUND",
+        "datei": "pruefung/funde_neubewerten.py",
+        "zeilen": "26-34",
+        "urteil": "bestätigt offen (Quellbefund), Folgeauftrag",
+        "befund": "passed ohne failed als Bestehen, ohne rc/Zeitlimit/Skip/Vollständigkeit.",
+        "grund_offen": "Legacy ausdrücklich aus Kernlieferung ausgeschlossen. Skript nie gestartet, Datei unverändert."
+      }
+    ]
+  },
+  {
+    "id": "B05:P37",
+    "audit_befund": "B05",
+    "audit_leser": "P37",
+    "titel": "Positive Text-/Messmarker werden trotz fehlendem Laufabschluss verwertet",
+    "pfad": "pruefung/tor1_f2.py",
+    "originalzeilen": [
+      24,
+      71
+    ],
+    "original_sha256": "8a12748e174e8f742857b0be21633934a07fad2e180e609573d29b490e9484dd",
+    "original_audit_scope": "ausserhalb_kern",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "P37",
+      "quellbeleg": "24|m0 = lj(ang[0][\"masse\"]); mN = lj(ang[-1][\"masse\"])\n25|print(f\"Generationen gestartet: {len(gens)-1}, angenommen: {len(ang)-1} {[g['nummer'] for g in ang[1:]]}, abgelehnt: {len(gens)-len(ang)}\")\n26|def hat(pat, datei):\n27|    return subprocess.run([\"grep\", \"-c\", pat, f\"{pfad}/{datei}\"], capture_output=True, text=True).stdout.strip() or \"0\"\n28|# Endwerk in der Kammer: kompletter Testlauf + Befundklassen-Umgehungen\n29|e = kammer.ausfuehren(pfad, [\"python\", \"-m\", \"pytest\", \"-q\", \"-p\", \"no:cacheprovider\", \"--tb=no\"], zeitlimit_s=120)\n30|tail = e.stdout.strip().splitlines()[-1] if e.stdout.strip() else \"\"\n31|print(f\"Endwerk-Testlauf in der Kammer: {tail}\")\n32|regeln = json.load(open(\"/root/biotop/verfassungen/lagerhaus.regeln.json\"))[\"einstiege\"][\"B307\"][\"formeln\"]\n33|bk_code = befundklassen.immuntest_code(\"B307\", regeln[\"import\"], regeln[\"aufruf\"], regeln[\"fehler_import\"], regeln[\"fehler\"])\n34|e2 = kammer.ausfuehren(pfad, [\"python\", \"-m\", \"pytest\", \"-q\", \"-p\", \"no:cacheprovider\", \"--tb=line\", \"tests/_probe_B307.py\"], zeitlimit_s=60, dateien={\"tests/_probe_B307.py\": bk_code})\n35|bk_tail = e2.stdout.strip().splitlines()[-1] if e2.stdout.strip() else \"\"\n36|f0, fN = m0[\"bereiche\"][\"formeln\"], mN[\"bereiche\"][\"formeln\"]\n37|im_werk_bk = (pfad / \"tests\" / \"test_formeln_immun_befundklasse_B307.py\").exists()\n38|eval_im_werk = hat(\"eval(\", \"lagerhaus/formeln/auswertung.py\")\n39|s1 = fN[\"sicherheit_punkte\"] == 0 and im_werk_bk and \"passed\" in bk_tail and \"failed\" not in bk_tail\n40|print(f\"S1 Sicherheitslücke (formeln, eval): bandit-Punkte {f0['sicherheit_punkte']} → {fN['sicherheit_punkte']} (Befunde jetzt: {fN['sicherheit_befunde']}); 'eval(' im Quelltext: {eval_im_werk} Treffer; Befundklassen-Immuntest im Werk: {im_werk_bk}; Umgehungen am Endwerk frisch ausgeführt: {bk_tail} → {'BEHOBEN (verschwunden + Umgehungen abgewiesen)' if s1 else 'NICHT BEHOBEN'}\")\n41|l0, lN = m0[\"bereiche\"][\"lager\"][\"laufzeit_ms\"], mN[\"bereiche\"][\"lager\"][\"laufzeit_ms\"]\n42|s2 = hat(\"self._bestand\", \"lagerhaus/lager/bestand.py\") != \"0\"\n43|print(f\"S2 Leistungsbremse (lager, Bestand aus Journal O(n²)): laufzeit lager {l0} → {lN} ms; Bestandsführung geändert: {s2} → {'BEHOBEN' if s2 and lN < l0*0.5 else 'NICHT BEHOBEN'}\")\n44|s3 = hat(\"self._reserviert\\\\[artikel\\\\] = self.reserviert(artikel) - menge\", \"lagerhaus/lager/bestand.py\") != \"0\"\n45|probe3 = kammer.ausfuehren(pfad, [\"python\", \"-c\", \"from lagerhaus.lager import Lager\\nl=Lager(); l.zugang('A',10); l.reservieren('A',5); l.reservierung_einloesen('A',5); print('reserviert_nach_einloesen=', l.reserviert('A'))\"], zeitlimit_s=30)\n46|print(f\"S3 Vertragsverletzung (Reservierung nach Einlösen): Fix im Code: {s3}; Probe am Endwerk: {probe3.stdout.strip()} → {'BEHOBEN' if 'reserviert_nach_einloesen= 0' in probe3.stdout else 'NICHT BEHOBEN'}\")\n47|t0, tN = m0[\"bereiche\"][\"preise\"][\"tote_funktionen\"], mN[\"bereiche\"][\"preise\"][\"tote_funktionen\"]\n48|print(f\"S4 Toter Code (preise): tote_funktionen {t0} → {tN}; '_alte_rabattlogik' im Werk: {hat('_alte_rabattlogik', 'lagerhaus/preise/rabatt.py')} Treffer → {'BEHOBEN' if tN == 0 else 'NICHT BEHOBEN'}\")\n49|probe5 = kammer.ausfuehren(pfad, [\"python\", \"-c\", \"from lagerhaus.preise import Artikel, Katalog, Staffel\\nk=Katalog(); k.aufnehmen(Artikel('A','a',1.0,[Staffel(10,0.5)])); print('preis_bei_10=', k.preis_fuer('A',10))\"], zeitlimit_s=30)\n50|print(f\"S5 Randbedingung (Staffel inklusiv): '>=' im Code: {hat('menge >= staffel.ab_menge', 'lagerhaus/preise/katalog.py')}; Probe am Endwerk: {probe5.stdout.strip()} (Soll 5.0) → {'BEHOBEN' if 'preis_bei_10= 5.0' in probe5.stdout else 'NICHT BEHOBEN'}\")\n51|k0, kN = messgeraet.kernmass_f2(m0), messgeraet.kernmass_f2(mN)\n52|print(f\"Kernmaß F2 (je Generation mit eigenem Testbestand): Gen 0 = {k0}, Gen {ang[-1]['nummer']} = {kN}\")\n53|\n54|print(\"\\n## Zeile 3 — Kein Rückschritt (paarweise, Pareto-Maße + Grenzmaße gegen Ausgang)\")\n55|rs = 0\n56|for g in ang[1:]:\n57|    m = lj(g[\"masse\"]); u = m.get(\"_urteil_f2\") or {}\n58|    bp = m.get(\"_basis_paar\") or {}\n59|    print(f\"Gen {g['nummer']}: Kernmaß paarweise {u.get('kern_basis')} → {u.get('kern_kandidat')} (+{u.get('zuwachs')}); Pareto schlechter: {u.get('pareto_schlechter') or 'nichts'}; Grenzen gerissen: {u.get('grenzen_gerissen') or 'keine'}; Testbestand {len(m.get('_testbestand') or [])} Dateien\")\n60|    rs += bool(u.get(\"pareto_schlechter\")) or bool(u.get(\"grenzen_gerissen\"))\n61|print(\"Rohwerte je angenommene Generation (Bereich: fehl/sicherheit/tot/laufzeit_ms/groesste_fn):\")\n62|for g in ang:\n63|    m = lj(g[\"masse\"]); print(f\"  Gen {g['nummer']}: \" + \"; \".join(f\"{b}: {x['tests_fehlgeschlagen']}/{x['sicherheit_punkte']}/{x['tote_funktionen']}/{x['laufzeit_ms']}/{x['groesste_funktion']}\" for b, x in m[\"bereiche\"].items()))\n64|print(f\"ERGEBNIS Zeile 3: in {rs} von {len(ang)-1} angenommenen Generationen ein Pareto-Maß gesunken oder Grenzmaß gerissen\")\n65|\n66|print(\"\\n## Zeile 4 — Halluzinationsprobe (bericht)\")\n67|kb = [dict(r) for r in con.execute(\"SELECT id, generation, modell, status, grund FROM kandidaten WHERE lauf_id=? AND bereich='bericht' ORDER BY id\", (LAUF,))]\n68|for k in kb: print(f\"  K{k['id']} Gen {k['generation']} {k['modell'].split('/')[1]}: {k['status']} — {k['grund'][:100]}\")\n69|n_ang = sum(1 for k in kb if k[\"status\"] == \"angenommen\")\n70|d = subprocess.run([\"git\", \"diff\", \"--stat\", f\"lauf{LAUF}-gen0\", \"HEAD\", \"--\", \"lagerhaus/bericht\"], cwd=pfad, capture_output=True, text=True).stdout.strip()\n71|print(f\"ERGEBNIS Zeile 4: {n_ang} von {len(kb)} Kandidaten im Bereich bericht angenommen; git diff gen0..HEAD -- lagerhaus/bericht: '{d or 'leer (0 Dateien geändert)'}'\")"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Ausgabe enthält erwartete positive Tokens, während rc/zeitlimit nicht hinreichend an die Wertung gebunden sind",
+    "minimalbeleg": {
+      "zustand": "Reststdout mit \"1 passed\" und rc7/124; oder vollständiger @@MESSUNG@@-Marker und rc7.",
+      "schluss": "Fundleser besteht=True, Aufnahme zählt positive Tests trotz Abbruch (Status ist Aufnahme, NICHT behauptet alles grün); messen setzt gueltig=True sofern kein explizites Zeitlimit und Marker vorhanden. Tor1-F2 akzeptiert positive Tokens ähnlich.",
+      "grenze": "Messen sperrt explizites zeitlimitTrue und fehlenden Marker; Original Aufnahme sperrt echten Gesamtwert0."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Historischer Parallelprüfer ohne Rückfluss in aktuellen Pflichtvorspann"
+  },
+  {
+    "id": "B06:G01",
+    "audit_befund": "B06",
+    "audit_leser": "G01",
+    "titel": "Beliebiger Fehlerexit zählt als gefangener Mutant",
+    "pfad": "biotop/organe/generation0.py",
+    "originalzeilen": [
+      108,
+      113
+    ],
+    "original_sha256": "f18e98e98977adf0010aa6cf10b7a353d1f77c99a8b855033f9ae3fb86edde8f",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "G01",
+      "quellbeleg": "108|def _testlauf(werk: Path, dateien: dict[str, str]) -> tuple[bool, str]:\n109|    \"\"\"True = mindestens ein Test fällt (Mutant gefangen). Rückgabe (gefangen, fallende Tests).\"\"\"\n110|    e = kammer.ausfuehren(werk, [\"python\", \"-m\", \"pytest\", \"-q\", \"-p\", \"no:cacheprovider\", \"--tb=no\", \"-x\", \"-q\"], zeitlimit_s=90, dateien=dateien)\n111|    fallen = re.findall(r\"^FAILED (\\S+)\", e.stdout, re.M)\n112|    gefangen = e.rc != 0\n113|    return gefangen, \", \".join(fallen[:3]) or (\"Zeitlimit/Absturz\" if gefangen and not fallen else \"\")"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "rc!=0 wird in Erfolg der negativen Kontrollprobe umgedeutet",
+    "minimalbeleg": {
+      "zustand": "pytest exit5 (keine Tests), Collectionfehler oder Kammerzeitlimit124 ohne FAILED-Zeuge.",
+      "schluss": "gefangen=True bzw faengt=True; Fluss in Mutantenquote/Testübernahme.",
+      "grenze": "Echter ausgeführter Testfehlschlag kann zulässiger Fang sein, beliebiger Exit nicht."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Versiegelte Kerneingrenzung02: Aufnahme/Gen0-Produzenten und leere Herstellerantwort nicht integrieren; kein Durchgriff auf P4-Freeze-Erfolgsbindung.",
+    "zusaetzlicher_ausfuehrungsbeleg": "verbraucher/belege/03-gen0-fang-rot/junit.xml; vor Scope-Reduktion ausgeführt, Teilfix quarantänisiert und nicht als erledigt übernommen",
+    "verbraucher_alias": [
+      {
+        "id": "AUSSEN-GEN0-FANG",
+        "datei": "biotop/organe/generation0.py",
+        "zeilen": "108-113; 180-200",
+        "urteil": "bestätigt offen (Ausführungsrepro), Folgeauftrag",
+        "befund": "Jeder Nichtnull-Rückgabecode zählt als Mutantenfang; Infrastruktur- und Sammelfehler werden wie gefallene Produkttests behandelt und von messen() gezählt.",
+        "belege": [
+          "belege/03-gen0-fang-rot",
+          "belege/04-gen0-fang-gruen"
+        ],
+        "teilfix": "quarantaene/gen0-nichtintegrierbar/TEILFIX.diff",
+        "grund_offen": "Vor Scope-Reduktion TDD-Teilfix erstellt, danach gesichert und aus dem Repo vollständig zurückgenommen. Keine Kernlieferung; nicht als erledigt ausgeben."
+      }
+    ]
+  },
+  {
+    "id": "B06:G03",
+    "audit_befund": "B06",
+    "audit_leser": "G03",
+    "titel": "Beliebiger Fehlerexit zählt als gefangener Mutant",
+    "pfad": "biotop/organe/generation0.py",
+    "originalzeilen": [
+      180,
+      200
+    ],
+    "original_sha256": "f18e98e98977adf0010aa6cf10b7a353d1f77c99a8b855033f9ae3fb86edde8f",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "G03",
+      "quellbeleg": "180|def messen(con: sqlite3.Connection, lauf_id: int, werk_id: int, werk: Path, mutanten: list[dict], phase: str) -> dict:\n181|    \"\"\"Lässt jeden Mutanten gegen den aktuellen Testbestand laufen. phase: 'vorher' | 'nachher'.\"\"\"\n182|    _tabelle(con)\n183|    gefangen = 0\n184|    for i, m in enumerate(mutanten, 1):\n185|        g, von = _testlauf(werk, {m[\"datei\"]: m[\"code\"]})\n186|        if not m.get(\"aequivalent\"):\n187|            gefangen += g\n188|        with transaktion(con):\n189|            if phase == \"vorher\":\n190|                con.execute(\"INSERT INTO mutanten(lauf_id, werk_id, nummer, datei, zeile, art, beschreibung, code, quelle, gefangen_vorher, gefangen_von, erstellt_am) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)\",\n191|                            (lauf_id, werk_id, i, m[\"datei\"], m[\"zeile\"], m[\"art\"], m[\"beschreibung\"], m[\"code\"], m.get(\"quelle\", \"biotop\"), int(g), von, protokoll.jetzt()))\n192|            else:\n193|                con.execute(\"UPDATE mutanten SET gefangen_nachher=?, gefangen_von=? WHERE lauf_id=? AND nummer=?\", (int(g), von, lauf_id, i))\n194|        m[\"gefangen_\" + phase] = g\n195|        m[\"gefangen_von\"] = von\n196|    nicht_aeq = [m for m in mutanten if not m.get(\"aequivalent\")]\n197|    protokoll.schreiben(con, f\"generation0.{phase}\", lauf_id=lauf_id, gefangen=gefangen, gesamt=len(mutanten), nicht_aequivalent=len(nicht_aeq),\n198|                        blind=[f\"#{i} {m['datei']}:{m['zeile']} {m['beschreibung']}\" for i, m in enumerate(mutanten, 1) if not m[\"gefangen_\" + phase] and not m.get(\"aequivalent\")])\n199|    return {\"gefangen\": gefangen, \"gesamt\": len(mutanten), \"nicht_aequivalent\": len(nicht_aeq),\n200|            \"blind\": [m for m in nicht_aeq if not m[\"gefangen_\" + phase]]}"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "rc!=0 wird in Erfolg der negativen Kontrollprobe umgedeutet",
+    "minimalbeleg": {
+      "zustand": "pytest exit5 (keine Tests), Collectionfehler oder Kammerzeitlimit124 ohne FAILED-Zeuge.",
+      "schluss": "gefangen=True bzw faengt=True; Fluss in Mutantenquote/Testübernahme.",
+      "grenze": "Echter ausgeführter Testfehlschlag kann zulässiger Fang sein, beliebiger Exit nicht."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Versiegelte Kerneingrenzung02: Aufnahme/Gen0-Produzenten und leere Herstellerantwort nicht integrieren; kein Durchgriff auf P4-Freeze-Erfolgsbindung.",
+    "zusaetzlicher_ausfuehrungsbeleg": "verbraucher/belege/03-gen0-fang-rot/junit.xml; vor Scope-Reduktion ausgeführt, Teilfix quarantänisiert und nicht als erledigt übernommen",
+    "verbraucher_alias": [
+      {
+        "id": "AUSSEN-GEN0-FANG",
+        "datei": "biotop/organe/generation0.py",
+        "zeilen": "108-113; 180-200",
+        "urteil": "bestätigt offen (Ausführungsrepro), Folgeauftrag",
+        "befund": "Jeder Nichtnull-Rückgabecode zählt als Mutantenfang; Infrastruktur- und Sammelfehler werden wie gefallene Produkttests behandelt und von messen() gezählt.",
+        "belege": [
+          "belege/03-gen0-fang-rot",
+          "belege/04-gen0-fang-gruen"
+        ],
+        "teilfix": "quarantaene/gen0-nichtintegrierbar/TEILFIX.diff",
+        "grund_offen": "Vor Scope-Reduktion TDD-Teilfix erstellt, danach gesichert und aus dem Repo vollständig zurückgenommen. Keine Kernlieferung; nicht als erledigt ausgeben."
+      }
+    ]
+  },
+  {
+    "id": "B06:G04",
+    "audit_befund": "B06",
+    "audit_leser": "G04",
+    "titel": "Beliebiger Fehlerexit zählt als gefangener Mutant",
+    "pfad": "biotop/organe/generation0.py",
+    "originalzeilen": [
+      243,
+      255
+    ],
+    "original_sha256": "f18e98e98977adf0010aa6cf10b7a353d1f77c99a8b855033f9ae3fb86edde8f",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "G04",
+      "quellbeleg": "243|            pfad = f\"tests/test_{bereich}_gen0_m{nummern[id(m)]}.py\"\n244|            # am Original bestehen?\n245|            e_o = kammer.ausfuehren(werk, [\"python\", \"-m\", \"pytest\", \"-q\", \"-p\", \"no:cacheprovider\", \"--tb=no\", pfad], zeitlimit_s=60, dateien={pfad: code})\n246|            besteht = e_o.rc == 0 and \"passed\" in e_o.stdout\n247|            # Mutanten fangen?\n248|            e_m = kammer.ausfuehren(werk, [\"python\", \"-m\", \"pytest\", \"-q\", \"-p\", \"no:cacheprovider\", \"--tb=no\", pfad], zeitlimit_s=60, dateien={pfad: code, m[\"datei\"]: m[\"code\"]})\n249|            faengt = e_m.rc != 0\n250|            nischen.buchen(con, lauf_id, \"sicher\", hersteller, besteht and faengt)\n251|            protokoll.schreiben(con, \"generation0.testkandidat\", lauf_id=lauf_id, mutant=nummern[id(m)], durchlauf=durchlauf, modell=modell, besteht_am_original=besteht, faengt_mutant=faengt)\n252|            if besteht and faengt:\n253|                neu[pfad] = code\n254|                gefunden = True\n255|                break"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "rc!=0 wird in Erfolg der negativen Kontrollprobe umgedeutet",
+    "minimalbeleg": {
+      "zustand": "pytest exit5 (keine Tests), Collectionfehler oder Kammerzeitlimit124 ohne FAILED-Zeuge.",
+      "schluss": "gefangen=True bzw faengt=True; Fluss in Mutantenquote/Testübernahme.",
+      "grenze": "Echter ausgeführter Testfehlschlag kann zulässiger Fang sein, beliebiger Exit nicht."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Versiegelte Kerneingrenzung02: Aufnahme/Gen0-Produzenten und leere Herstellerantwort nicht integrieren; kein Durchgriff auf P4-Freeze-Erfolgsbindung.",
+    "verbraucher_alias": [
+      {
+        "id": "AUSSEN-GEN0-TESTBAU",
+        "datei": "biotop/organe/generation0.py",
+        "zeilen": "245-255",
+        "urteil": "bestätigt offen (Quellbefund), Folgeauftrag",
+        "befund": "Original gilt mit rc=0 plus passed als bestanden trotz möglicher Skips; Mutantenroute zählt jedes rc!=0 als Fang, auch Infrastrukturabbruch.",
+        "grund_offen": "Nach Scope-Reduktion keine Testproduktion, keine Modellaufrufe, keine weitere Reparatur/Reproduktion."
+      }
+    ]
+  },
+  {
+    "id": "B07:G02",
+    "audit_befund": "B07",
+    "audit_leser": "G02",
+    "titel": "Keine Äquivalenzbeobachtung wird als identischer Beobachtungsnachweis gelesen",
+    "pfad": "biotop/organe/generation0.py",
+    "originalzeilen": [
+      151,
+      174
+    ],
+    "original_sha256": "f18e98e98977adf0010aa6cf10b7a353d1f77c99a8b855033f9ae3fb86edde8f",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "G02",
+      "quellbeleg": "151|    e0 = kammer.ausfuehren(werk, [\"python\", \"_aeq.py\"], zeitlimit_s=120, dateien=dateien_basis)\n152|    h0 = re.search(r\"AEQ (\\w+)\", e0.stdout)\n153|    if e0.rc != 0 or not h0:\n154|        raise RuntimeError(\"Äquivalenzprüfung: Referenzlast-Beobachtung am Original gescheitert (laut scheitern): \" + (e0.stdout + e0.stderr)[-400:])\n155|    for i, m in enumerate(mutanten, 1):\n156|        m[\"aequivalent\"] = False\n157|        g, von = _testlauf(werk, {m[\"datei\"]: m[\"code\"]})\n158|        if g:\n159|            m[\"aequivalenz_beleg\"] = f\"nicht äquivalent: Test fängt ({von})\"\n160|            continue\n161|        e1 = kammer.ausfuehren(werk, [\"python\", \"_aeq.py\"], zeitlimit_s=120, dateien={**dateien_basis, m[\"datei\"]: m[\"code\"]})\n162|        h1 = re.search(r\"AEQ (\\w+)\", e1.stdout)\n163|        if h0 and h0.group(1) == \"keine-beobachtung\":\n164|            m[\"aequivalenz_beleg\"] = \"Referenzlast ohne beobachten() — Äquivalenz nicht prüfbar, zählt als nicht-äquivalent\"\n165|            continue\n166|        if e1.rc != 0 or not h1:\n167|            m[\"aequivalenz_beleg\"] = \"nicht äquivalent: Referenzlast-Beobachtung am Mutanten bricht ab (\" + (e1.stdout + e1.stderr)[-160:].strip() + \")\"\n168|            continue\n169|        if h0 and h1 and h0.group(1) == h1.group(1):\n170|            m[\"aequivalent\"] = True\n171|            m[\"aequivalenz_beleg\"] = (f\"äquivalent auf Raster+Tests: Referenzlast-Prüfsumme {h0.group(1)[:12]} identisch, \"\n172|                                      f\"alle vorhandenen Tests bestehen; Mutation: {m['beschreibung']} in {m['datei']}:{m['zeile']}\")\n173|        else:\n174|            m[\"aequivalenz_beleg\"] = f\"nicht äquivalent: Referenzlast-Prüfsumme weicht ab ({(h0 and h0.group(1)[:12])} vs {(h1 and h1.group(1)[:12])}) — kein Test fängt (blind)\""
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Äquivalenz wird ohne nichtleere Beobachtungspopulation behauptet: abgeschnittener Fehlmarker oder ignorierter n=0-Zähler",
+    "minimalbeleg": {
+      "zustand": "Original und Mutant drucken AEQ keine-beobachtung; kein Test fängt.",
+      "schluss": "h0/h1 lesen nur \"keine\"; Vergleich mit \"keine-beobachtung\" greift nie; identische Token setzen aequivalent=True.",
+      "quelle_zusaetzlich": "generation0.py:125-135 druckt fehlende Beobachtung bzw Hash und Zähler n; Z152/162 liest nur das Token.",
+      "grenze": "Keine Aussage über externe Mutanten/Referenzlast gemacht.",
+      "variante_leerer_generator": "Auch bei vorhandenem beobachten(), das keinen Wert liefert, wird n=0 ausgegeben, aber vom Leser nicht geprüft; Gleichheit des Leerdigests gilt als Äquivalenz. Dies ist dieselbe fehlende Beobachtungsbindung, kein ausgeführter Repro."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Versiegelte Kerneingrenzung02: Aufnahme/Gen0-Produzenten und leere Herstellerantwort nicht integrieren; kein Durchgriff auf P4-Freeze-Erfolgsbindung.",
+    "verbraucher_alias": [
+      {
+        "id": "AUSSEN-GEN0-AEQUIVALENZ",
+        "datei": "biotop/organe/generation0.py",
+        "zeilen": "151-174",
+        "urteil": "bestätigt offen (Quellbefund), Folgeauftrag",
+        "befund": "Äquivalenz nutzt nicht gefangen als alle Tests bestehen; Referenzbeobachtung liest unvollständigen AEQ-Regex ohne positive Beobachtungszahl und ohne zeitlimit. AEQ keine-beobachtung wird vom Regex nur als keine erfasst, sodass der spätere Vergleich gegen keine-beobachtung nicht greift.",
+        "grund_offen": "Außenreproduktion nach Scope-Reduktion gestoppt. Keine Reparatur und kein dynamischer Nachweis dieser Route."
+      }
+    ]
+  },
+  {
+    "id": "B08:L06",
+    "audit_befund": "B08",
+    "audit_leser": "L06",
+    "titel": "Leere Nachbarantwortliste zählt als einstimmige Bestätigung",
+    "pfad": "biotop/lauf.py",
+    "originalzeilen": [
+      554,
+      560
+    ],
+    "original_sha256": "d00993cdbac4f9f686c0582f36ff118225f0efab7e2f7c73f797de75d68cecd2",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "L06",
+      "quellbeleg": "554|        ids = genesis.erzeugen(con, lauf_id, werk[\"id\"], nummer, pfad, paket, nb, messgeraet.bereich_masse(basis, nb), nische=\"sicher\",\n555|                               befunde=[], referenzlast=None, vertraege_text=vt + \"\\n\\n\" + auftrag)\n556|        if einseitig_ok and all(con.execute(\"SELECT status FROM kandidaten WHERE id=?\", (aid,)).fetchone()[\"status\"] == \"leer\" for aid in ids):\n557|            # Nachbar bestätigt („KEIN VORSCHLAG“ von allen), kein Vertragstest fällt: Paar = Kandidat allein, gemeinsam geprüft\n558|            protokoll.schreiben(con, \"verhandlung.paar\", lauf_id=lauf_id, generation=nummer, kandidat=kid, anpassung=None, nachbar=nb, status=u[\"status\"], grund=\"Nachbar: keine Anpassung nötig (KEIN VORSCHLAG)\", vertrag_verletzt=[])\n559|            anpassungen.append(None)\n560|            continue"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "all(ids) wird ohne Existenz eines ausgeführten Antwort-/Prüfobjekts ausgewertet",
+    "minimalbeleg": {
+      "zustand": "einseitig_ok=True; genesis.erzeugen gibt ids=[].",
+      "schluss": "all über leere ids=True; keine Anpassung nötig wird protokolliert und Paar als bestätigt weiterverarbeitet.",
+      "grenze": "Nichtleere Antworten mit explizitem KEIN VORSCHLAG sind anderer Fall."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Versiegelte Kerneingrenzung02: Aufnahme/Gen0-Produzenten und leere Herstellerantwort nicht integrieren; kein Durchgriff auf P4-Freeze-Erfolgsbindung.",
+    "verbraucher_alias": [
+      {
+        "id": "AUSSEN-VERHANDLUNG-LEERE-ANTWORT",
+        "datei": "biotop/lauf.py",
+        "zeilen": "554-560",
+        "urteil": "bestätigt offen (Quellbefund), Folgeauftrag",
+        "befund": "all(...) über ids=[] kann ohne Hersteller-/Nachbarantwort bestätigen.",
+        "grund_offen": "Auftraggeber nimmt diesen Produzenten-/Antwortleerheitsfall ausdrücklich aus dem unmittelbaren Messresultatleser-Scope. Nicht geändert, nicht zusätzlich ausgeführt."
+      }
+    ]
+  },
+  {
+    "id": "B09:P41",
+    "audit_befund": "B09",
+    "audit_leser": "P41",
+    "titel": "Fehlendes Paarmaß/Vertragsergebnis zählt als bestanden",
+    "pfad": "pruefung/verhandlungsprobe.py",
+    "originalzeilen": [
+      57,
+      75
+    ],
+    "original_sha256": "cf85cf5d39145fcd23ee81f470fbd0d183de967d5005645cd43db79df1077c85",
+    "original_audit_scope": "ausserhalb_kern",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "P41",
+      "quellbeleg": "57|u = aegis.pruefen(con, LAUF, wid, kid, pfad, paket, bereiche, bstr, basis, ausgang, ref, tausch)\n58|p(f\"\\nSchritt 1 — Einzelprüfung K{kid}: {u['status']} — {u['grund'][:200]}\")\n59|p(\"  vertrag_verletzt:\", u.get(\"vertrag_verletzt\"), \"| Vertrag benannt:\", (u.get(\"vertraege_benannt\") or \"\")[:80])\n60|u2 = L._verhandeln(con, LAUF, werk, gen, pfad, paket, bereiche, bstr, basis, ausgang, ref, tausch, \"formeln\", kid, u)\n61|p(f\"\\nSchritt 2 — Verhandlung (Schwarm des Nachbarn preise, Nische sicher, 2 Hersteller per Bandit): Ergebnis {u2['status']} — {u2['grund'][:250]}\")\n62|p(\"  vertrag_verletzt nach Paar:\", u2.get(\"vertrag_verletzt\"), \"| Pareto schlechter:\", (u2.get(\"mass\") or {}).get(\"pareto_schlechter\"), \"| Kernmaß:\", (u2.get(\"mass\") or {}).get(\"kern_basis\"), \"→\", (u2.get(\"mass\") or {}).get(\"kern_kandidat\"))\n63|for z in con.execute(\"SELECT nr, art, substr(inhalt,1,400) i FROM protokoll WHERE art LIKE 'verhandlung.%' AND inhalt LIKE ? ORDER BY nr\", (f'%\"kandidat\": {kid},%',)):\n64|    p(f\"  Protokoll #{z['nr']} {z['art']}: {z['i']}\")\n65|anp = [dict(r) for r in con.execute(\"SELECT id, bereich, modell, status, substr(grund,1,120) g FROM kandidaten WHERE lauf_id=? AND status='verhandlung' AND grund LIKE ?\", (LAUF, f\"%Kandidat {kid}%\"))]\n66|for a in anp:\n67|    d = con.execute(\"SELECT diff FROM kandidaten WHERE id=?\", (a[\"id\"],)).fetchone()[\"diff\"]\n68|    p(f\"  Anpassung K{a['id']} ({a['bereich']}, {a['modell']}): {a['g']}\")\n69|    p(\"    \" + \" | \".join(l for l in d.splitlines() if l.startswith((\"+\", \"-\")) and not l.startswith((\"+++\", \"---\")))[:400])\n70|bestanden = bool(con.execute(\"SELECT 1 FROM protokoll WHERE art='verhandlung.bestanden' AND inhalt LIKE ?\", (f'%\"kandidat\": {kid},%',)).fetchone())\n71|vertrag_ok = not u2.get(\"vertrag_verletzt\")\n72|p(f\"\\nERGEBNIS Verhandlungsprobe: Vertrag im Paar bestanden (0 Vertragstests verletzt): {vertrag_ok}; verhandlung.bestanden protokolliert: {bestanden}; Paar-Status {u2['status']} ({'Kernmaß unverändert → keine Annahme, aber Vertragsänderung gemeinsam bestanden' if u2['status'] != 'ueberlebt' and vertrag_ok else u2['grund'][:80]})\")\n73|with transaktion(con):\n74|    con.execute(\"UPDATE kandidaten SET status='probe_' || status WHERE id=? AND status NOT LIKE 'probe_%'\", (kid,))\n75|(A / \"54-verhandlungsprobe.txt\").write_text(\"\\n\".join(out) + \"\\n\")"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "not dict.get(...) mit None/{} macht Nichtprüfung zur leeren gültigen Fehlermenge",
+    "minimalbeleg": {
+      "zustand": "u2={status:abgelehnt,mass:None,vertrag_verletzt:[]} nach frühem Prüfabbruch.",
+      "schluss": "L580 paar_ok=True; historische Skripte melden Vertrag bestanden, obwohl Status daneben abgelehnt sein kann.",
+      "grenze": "Kein Schluss, dass gesamte Generation dadurch zwingend angenommen wird: nachgelagerte Status-/Generalprobegates existieren. Fehler ist konkretes Paar-/Vertragsbestanden-Urteil."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Historischer Parallelprüfer ohne Rückfluss in aktuellen Pflichtvorspann",
+    "verbraucher_alias": [
+      {
+        "id": "AUSSEN-LEGACY-VERHANDLUNG",
+        "datei": "pruefung/verhandlungsprobe.py",
+        "zeilen": "70-72",
+        "urteil": "bestätigt offen (Quellbefund), Folgeauftrag",
+        "befund": "not u2.get(vertrag_verletzt) meldet bei fehlendem Messurteil Vertrag bestanden.",
+        "grund_offen": "Legacy ausdrücklich aus Kernlieferung ausgeschlossen. Skript nie gestartet, Datei unverändert."
+      }
+    ]
+  },
+  {
+    "id": "B09:P46",
+    "audit_befund": "B09",
+    "audit_leser": "P46",
+    "titel": "Fehlendes Paarmaß/Vertragsergebnis zählt als bestanden",
+    "pfad": "pruefung/proben_tor2.py",
+    "originalzeilen": [
+      196,
+      215
+    ],
+    "original_sha256": "c750f9d6ceed4f7fe20d7678c99cebf4dbd55156959b79a4ba513c5c9f52ec69",
+    "original_audit_scope": "ausserhalb_kern",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "P46",
+      "quellbeleg": "196|    assert 'auswerten(regel.bedingung, menge, preis, summe, \"EUR\")' in src\n197|'''\n198|diff4b_mit_vertrag = diff4b + voll_diff(\"tests/vertraege/test_vertrag_preise_formeln.py\", vt2)\n199|k4c = einschleusen(\"formeln\", diff4b_mit_vertrag, \"PROBE Fall 1b: optionaler Parameter waehrung + Vertrag verlangt, dass preise ihn übergibt; OHNE Anpassung von preise\", \"tests/vertraege/test_vertrag_preise_formeln.py\", \"vertrag-ohne-b\")\n200|u4c = pruefe(k4c)\n201|p(f\"Fall 1b (ohne Anpassung, optionaler Parameter) K{k4c}: Status {u4c['status']} — {u4c['grund'][:300]}\")\n202|p(\"  vertrag_verletzt:\", u4c.get(\"vertrag_verletzt\"))\n203|k4b = einschleusen(\"formeln\", diff4b_mit_vertrag, \"PROBE Fall 2: wie 1b, MIT Anpassung des Nachbarn preise (rabatt.py übergibt waehrung)\", \"tests/vertraege/test_vertrag_preise_formeln.py\", \"vertrag-mit\")\n204|u4b = pruefe(k4b, extra={\"lagerhaus/preise/rabatt.py\": rab})\n205|m4b = u4b.get(\"mass\") or {}\n206|p(f\"Fall 2 (mit Anpassung des Nachbarn) K{k4b}: Status {u4b['status']} — {u4b['grund'][:300]}\")\n207|p(\"  vertrag_verletzt:\", u4b.get(\"vertrag_verletzt\"), \"| Pareto schlechter:\", m4b.get(\"pareto_schlechter\"), \"| Kernmaß\", m4b.get(\"kern_basis\"), \"→\", m4b.get(\"kern_kandidat\"))\n208|p(\"  Hinweis: Fall 2 ist ein Vertragsumbau ohne Kernmaßgewinn — nach 3.5 F2 'Kernmaß unverändert' → nicht angenommen. Die Vertragsprobe misst: Fall 1 am Vertrag abgelehnt (ja/nein), Fall 2 Vertrag bestanden (ja/nein).\")\n209|p(f\"ERGEBNIS Vertragsprobe: ohne Anpassung → {'abgelehnt am Vertrag' if u4c.get('vertrag_verletzt') else 'NICHT am Vertrag abgelehnt (FEHLER)'} ({u4c.get('vertrag_verletzt')}); mit Anpassung → Vertrag {'bestanden (0 verletzt)' if not u4b.get('vertrag_verletzt') else 'VERLETZT (FEHLER)'}; Paar-Status {u4b['status']} ({u4b['grund'][:80]})\")\n210|(A / \"53-vertragsprobe.txt\").write_text(\"\\n\".join(out) + \"\\n\"); out.clear()\n211|\n212|# Proben-Kandidaten dürfen nie ins Werk: Status sichern\n213|with transaktion(con):\n214|    con.execute(\"UPDATE kandidaten SET status='probe_' || status WHERE lauf_id=? AND nische='probe' AND status NOT LIKE 'probe_%'\", (LAUF,))\n215|print(\"Proben-Kandidaten markiert:\", [dict(r) for r in con.execute(\"SELECT id, status FROM kandidaten WHERE lauf_id=? AND nische='probe'\", (LAUF,))])"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "not dict.get(...) mit None/{} macht Nichtprüfung zur leeren gültigen Fehlermenge",
+    "minimalbeleg": {
+      "zustand": "u2={status:abgelehnt,mass:None,vertrag_verletzt:[]} nach frühem Prüfabbruch.",
+      "schluss": "L580 paar_ok=True; historische Skripte melden Vertrag bestanden, obwohl Status daneben abgelehnt sein kann.",
+      "grenze": "Kein Schluss, dass gesamte Generation dadurch zwingend angenommen wird: nachgelagerte Status-/Generalprobegates existieren. Fehler ist konkretes Paar-/Vertragsbestanden-Urteil."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Historischer Parallelprüfer ohne Rückfluss in aktuellen Pflichtvorspann",
+    "verbraucher_alias": [
+      {
+        "id": "AUSSEN-LEGACY-TOR2",
+        "datei": "pruefung/proben_tor2.py",
+        "zeilen": "209",
+        "urteil": "bestätigt offen (Quellbefund), Folgeauftrag",
+        "befund": "not u4b.get(vertrag_verletzt) bezeichnet fehlenden Nachweis als bestanden.",
+        "grund_offen": "Legacy ausdrücklich aus Kernlieferung ausgeschlossen. Skript nie gestartet, Datei unverändert."
+      }
+    ]
+  },
+  {
+    "id": "B11:L08",
+    "audit_befund": "B11",
+    "audit_leser": "L08",
+    "titel": "Gen0-Original-Gegenlauf wird nach Fehler ohne Testzuordnung fortgesetzt",
+    "pfad": "biotop/lauf.py",
+    "originalzeilen": [
+      634,
+      644
+    ],
+    "original_sha256": "d00993cdbac4f9f686c0582f36ff118225f0efab7e2f7c73f797de75d68cecd2",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "L08",
+      "quellbeleg": "634|        # Gegenprobe: neuer Testbestand am unmutierten Werk grün?\n635|        e = kammer.ausfuehren(pfad, [\"python\", \"-m\", \"pytest\", \"-q\", \"-p\", \"no:cacheprovider\", \"--tb=line\"], zeitlimit_s=120)\n636|        if e.rc != 0:\n637|            # Tests, die am Original fallen, wieder entfernen (laut scheitern, nicht still)\n638|            for p in list(r[\"neue_tests\"]):\n639|                if p.split(\"/\")[-1] in e.stdout:\n640|                    (pfad / p).unlink(missing_ok=True); neue_gesamt.pop(p, None)\n641|        zwischen = G0.messen(con, lauf_id, werk[\"id\"], pfad, mutanten, \"nachher\")\n642|        blind = zwischen[\"blind\"]\n643|        protokoll.schreiben(con, \"generation0.runde\", lauf_id=lauf_id, runde=runde, gefangen=zwischen[\"gefangen\"], gesamt=len(mutanten), neue_tests=sorted(r[\"neue_tests\"]))\n644|        if zwischen[\"gefangen\"] >= ziel and not blind:"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Fehlerexit bewirkt nur dateinamengestützte Bereinigung statt verbindlichen Abbruch/Nachweis",
+    "minimalbeleg": {
+      "zustand": "Neu erzeugte Tests liegen vor; gesamter Original-Testlauf bricht ab, stdout benennt keine der neuen Dateien.",
+      "schluss": "Keine Datei wird entfernt, G0.messen/Commit-Folge läuft weiter; rc0 allskip wird ebenfalls nicht erkannt.",
+      "grenze": "Quellpfad bestätigt, kein Werkcommit im Audit ausgeführt."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Versiegelte Kerneingrenzung02: Aufnahme/Gen0-Produzenten und leere Herstellerantwort nicht integrieren; kein Durchgriff auf P4-Freeze-Erfolgsbindung."
+  },
+  {
+    "id": "B12:L09",
+    "audit_befund": "B12",
+    "audit_leser": "L09",
+    "titel": "Gen0-Ziel erreicht bei leerer nichtäquivalenter Population",
+    "pfad": "biotop/lauf.py",
+    "originalzeilen": [
+      646,
+      659
+    ],
+    "original_sha256": "d00993cdbac4f9f686c0582f36ff118225f0efab7e2f7c73f797de75d68cecd2",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "L09",
+      "quellbeleg": "646|    nachher = G0.messen(con, lauf_id, werk[\"id\"], pfad, mutanten, \"nachher\")\n647|    if neue_gesamt:\n648|        lazarus.sicherstellen_repo(pfad)\n649|        lazarus._git(pfad, \"add\", \"-A\")\n650|        if lazarus._git(pfad, \"status\", \"--porcelain\"):\n651|            lazarus._git(pfad, \"commit\", \"-qm\", f\"Biotop Lauf {lauf_id} Generation 0: {len(neue_gesamt)} Tests aus Mutantenfang\")\n652|    r = {\"mutanten\": len(mutanten), \"nicht_aequivalent\": nachher[\"nicht_aequivalent\"],\n653|         \"aequivalent\": [f\"#{nummern[id(m)]} {m['aequivalenz_beleg']}\" for m in mutanten if m.get(\"aequivalent\")],\n654|         \"gefangen_vorher\": vorher[\"gefangen\"], \"gefangen_nachher\": nachher[\"gefangen\"], \"ziel\": ziel,\n655|         \"bezugsgroesse\": f\"gefangen: {nachher['gefangen']} von {nachher['nicht_aequivalent']} nicht-äquivalenten (von {len(mutanten)} gesetzten)\",\n656|         \"erreicht\": nachher[\"gefangen\"] >= ziel, \"neue_tests\": sorted(neue_gesamt), \"runden\": runde,\n657|         \"blind_vorher\": [f\"#{nummern[id(m)]} {m['datei']}:{m['zeile']} {m['beschreibung']}\" for m in vorher[\"blind\"]],\n658|         \"blind_nachher\": [f\"#{nummern[id(m)]} {m['datei']}:{m['zeile']} {m['beschreibung']}\" for m in nachher[\"blind\"]]}\n659|    protokoll.schreiben(con, \"generation0.ergebnis\", lauf_id=lauf_id, **{k: v for k, v in r.items() if k not in (\"blind_vorher\",)})"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Anteilziel wird mit Nenner0 zu Ziel0 und gefangen>=ziel erlaubt 0>=0",
+    "minimalbeleg": {
+      "zustand": "mutanten=[] oder alle als äquivalent ausgeschlossen; ziel als Anteil.",
+      "schluss": "Z622-624 setzt Ziel0; Z656 erreicht=True ohne nichtäquivalenten Testzeugen.",
+      "quelle_zusaetzlich": "lauf.py:610-624, explizit leere JSON-Liste erlaubt.",
+      "grenze": "Keine Aussage über tatsächlich vom Standarderzeuger erzeugte Population nötig: mutanten_json ist ein eigener zulässiger Eingabepfad."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Versiegelte Kerneingrenzung02: Aufnahme/Gen0-Produzenten und leere Herstellerantwort nicht integrieren; kein Durchgriff auf P4-Freeze-Erfolgsbindung."
+  },
+  {
+    "id": "B13:P02",
+    "audit_befund": "B13",
+    "audit_leser": "P02",
+    "titel": "Leere Prüfpoulation erfüllt historisches lokales Gütekriterium",
+    "pfad": "pruefung/anklaeger_vielfalt.py",
+    "originalzeilen": [
+      34,
+      54
+    ],
+    "original_sha256": "495b2f5494053acb7b6c12f1838b4e2a826db1c5fa4e5a867eb08398fa8e6bd8",
+    "original_audit_scope": "ausserhalb_kern",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "P02",
+      "quellbeleg": "34|    tests = [dict(r) for r in con.execute(\n35|        \"SELECT name, bereich, code FROM immunsystem WHERE lauf_id=? AND name LIKE 'aegis_%'\", (lauf,))]\n36|    verworfen = 0\n37|    for r in con.execute(\"SELECT inhalt FROM protokoll WHERE art='aegis.urteil' AND inhalt LIKE ?\",\n38|                         (f'%\"lauf_id\": {lauf},%',)):\n39|        verworfen += len(lj(r[\"inhalt\"]).get(\"doppelungen\") or [])\n40|    gruppen = {}\n41|    for t in tests:\n42|        for n in namen(t[\"code\"]):\n43|            gruppen.setdefault((t[\"bereich\"], behauptung(t[\"code\"], n)), []).append(t[\"name\"])\n44|    doppel = sum(len(v) - 1 for v in gruppen.values() if len(v) > 1)\n45|    erzeugt = len(tests) + verworfen\n46|    anteil = 100 * (verworfen + doppel) / max(1, erzeugt)\n47|    z.append(f\"{marke}\")\n48|    z.append(f\"  erzeugte Tests {erzeugt} ({len(tests)} aufgenommen + {verworfen} als Doppelung verworfen), \"\n49|             f\"{len(gruppen)} verschiedene Behauptungen\")\n50|    z.append(f\"  Doppelungen gesamt {verworfen + doppel} = {anteil:.1f} % → \"\n51|             f\"{'unter 20 %, Zeile 8 BESTANDEN' if anteil < 20 else 'über 20 %, Zeile 8 GERISSEN'}\")\n52|    groesste = max((len(v) for v in gruppen.values()), default=0)\n53|    z.append(f\"  BEZUGSGRÖSSE: {verworfen} vom Ankläger erkannt und verworfen (kamen NICHT ins Immunsystem), \"\n54|             f\"{doppel} unbemerkt aufgenommen; größte Gruppe gleicher Behauptung: {groesste} Test(s)\")"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Leerer Nenner/Fehlerlisten ergeben BESTANDEN/ERFÜLLT ohne vorhandenen Prüfumfang",
+    "minimalbeleg": {
+      "zustand": "Keine passenden historischen Tests/Ansagen/Sperrungen; Fehlerlisten leer.",
+      "schluss": "max(1,N) bzw not(fehlalarm/durch) führt zur positiven lokalen Ergebniszeile.",
+      "grenze": "Berichte können daneben fehlende Farbzeugen nennen; bestätigt ist falsches Teilurteil, nicht gesamte Berichtabnahme. Aktuelle DB nie gelesen."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Historischer Parallelprüfer ohne Rückfluss in aktuellen Pflichtvorspann"
+  },
+  {
+    "id": "B13:P29",
+    "audit_befund": "B13",
+    "audit_leser": "P29",
+    "titel": "Leere Prüfpoulation erfüllt historisches lokales Gütekriterium",
+    "pfad": "pruefung/nachgang_n2_n3.py",
+    "originalzeilen": [
+      117,
+      168
+    ],
+    "original_sha256": "6e15cc6301298fb7ba2bed3290f270510af91598f2cd6d0b175628727cfb9b27",
+    "original_audit_scope": "ausserhalb_kern",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "P29",
+      "quellbeleg": "117|    for frueher in ansagen:\n118|        if frueher[\"nr\"] >= a[\"nr\"]:\n119|            break\n120|        if frueher.get(\"bereich\") == bereich and frueher.get(\"behauptung\"):\n121|            vorher.add(frueher[\"behauptung\"])\n122|    if b in vorher:\n123|        korrekt.append((a, \"Übernahme\" if b in uebernommen.get(bereich, set()) else \"frühere Ansage im Lauf\"))\n124|    else:\n125|        fehlalarm.append(a)\n126|z.append(f\"  geprüft: {len(abgewiesen)} abgewiesene Ansagen\")\n127|for a, quelle in korrekt:\n128|    z.append(f\"    #{a['nr']} {a['bereich']}/{a['behauptung']}: stand im Vorrat ({quelle}) → zu Recht abgewiesen\")\n129|for a in fehlalarm:\n130|    z.append(f\"    #{a['nr']} {a['bereich']}/{a['behauptung']}: stand NICHT im Vorrat → FEHLALARM\")\n131|z.append(f\"  ERGEBNIS Fehlalarm: {len(fehlalarm)} von {len(abgewiesen)} \"\n132|         f\"(Maßstab 0 von 10 → {'ERFÜLLT' if not fehlalarm else 'GERISSEN'})\")\n133|\n134|z.append(\"\")\n135|z.append(\"### Durchgerutscht: ausgeführter Angriff, dessen Test eine vorhandene Behauptung wiederholt\")\n136|z.append(\"  WICHTIG (Grundsatz 5): Geprüft wird gegen den Vorrat ZUM ZEITPUNKT DER ANSAGE — nicht gegen den\")\n137|z.append(\"  Endstand. Der erzeugte Test trägt seinen eigenen Schlüssel im Ursprung; wer den Endstand nimmt,\")\n138|z.append(\"  findet jeden Test als 'schon vorhanden' und misst sich selbst. Erste Fassung dieser Prüfung tat das\")\n139|z.append(\"  und meldete fälschlich 2 Durchrutscher.\")\n140|durch = []\n141|for e in erzeugt:\n142|    # Vorrat zum Ansagezeitpunkt = Übernahme-Schlüssel + Ansagen früherer Zeitpunkte desselben Bereichs,\n143|    # OHNE den Schlüssel dieses Tests selbst.\n144|    for n in testnamen(e[\"code\"]):\n145|        schl = behauptung(e[\"code\"], n)\n146|        vorrat = set(uebernommen.get(e[\"bereich\"], set())) - {schl}\n147|        eigene = [a for a in ansagen if a.get(\"bereich\") == e[\"bereich\"] and a.get(\"behauptung\") == schl]\n148|        vorher_angesagt = [a for a in ansagen\n149|                           if a.get(\"bereich\") == e[\"bereich\"] and a.get(\"behauptung\")\n150|                           and eigene and a[\"nr\"] < eigene[0][\"nr\"]]\n151|        vorrat |= {a[\"behauptung\"] for a in vorher_angesagt}\n152|        # Der Schlüssel des Tests selbst zählt nie als „schon vorhanden\".\n153|        if schl in (set(uebernommen.get(e[\"bereich\"], set())) - {schl}) or schl in {a[\"behauptung\"] for a in vorher_angesagt}:\n154|            durch.append((e[\"name\"], schl, \"Übernahme\" if schl in uebernommen.get(e[\"bereich\"], set()) else \"frühere Ansage\"))\n155|z.append(f\"  geprüft: {len(erzeugt)} erzeugte Tests gegen den Vorrat zum Ansagezeitpunkt\")\n156|for name, schl, q in durch:\n157|    z.append(f\"    {name}: Behauptung {schl} war schon vorhanden ({q}) → DURCHGERUTSCHT\")\n158|if not durch:\n159|    for e in erzeugt:\n160|        for n in testnamen(e[\"code\"]):\n161|            z.append(f\"    {e['name']}: Behauptung {behauptung(e['code'], n)} — zum Ansagezeitpunkt neu im \"\n162|                     f\"Bereich {e['bereich']}, kein Durchrutscher\")\n163|z.append(f\"  ERGEBNIS Durchgerutscht: {len(durch)} (Maßstab 0 → {'ERFÜLLT' if not durch else 'GERISSEN'})\")\n164|if durch:\n165|    z.append(\"\")\n166|    z.append(\"  URSACHENPRÜFUNG der durchgerutschten Fälle (nachgesehen, nicht vermutet):\")\n167|    for name, schl, q in durch:\n168|        z.append(f\"    {name}: Behauptung {schl}, Quelle {q}\")"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Leerer Nenner/Fehlerlisten ergeben BESTANDEN/ERFÜLLT ohne vorhandenen Prüfumfang",
+    "minimalbeleg": {
+      "zustand": "Keine passenden historischen Tests/Ansagen/Sperrungen; Fehlerlisten leer.",
+      "schluss": "max(1,N) bzw not(fehlalarm/durch) führt zur positiven lokalen Ergebniszeile.",
+      "grenze": "Berichte können daneben fehlende Farbzeugen nennen; bestätigt ist falsches Teilurteil, nicht gesamte Berichtabnahme. Aktuelle DB nie gelesen."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Historischer Parallelprüfer ohne Rückfluss in aktuellen Pflichtvorspann"
+  },
+  {
+    "id": "B13:P27",
+    "audit_befund": "B13",
+    "audit_leser": "P27",
+    "titel": "Leere Prüfpoulation erfüllt historisches lokales Gütekriterium",
+    "pfad": "pruefung/nachgang_n10.py",
+    "originalzeilen": [
+      49,
+      99
+    ],
+    "original_sha256": "ee1a249f47a625fa1f8a17a11d3a1c4d48a37ad56d1304cdb1d186b947e9bbc5",
+    "original_audit_scope": "ausserhalb_kern",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "P27",
+      "quellbeleg": "49|z.append(\"    Er bringt 0 Punkte, kommt nicht ins Werk und ist kein vom Ankläger bestätigter Fehler.\")\n50|z.append(\"\")\n51|mit_schluessel = [e for e in alle if \"behauptung=\" in (e[\"ursprung\"] or \"\")]\n52|z.append(f\"  Einträge mit gespeichertem Behauptungsschlüssel: {len(mit_schluessel)} von {len(alle)}\")\n53|for e in alle:\n54|    hat = \"behauptung=\" in (e[\"ursprung\"] or \"\")\n55|    z.append(f\"    {e['name']}: {'ja' if hat else 'NEIN'}\")\n56|z.append(\"\")\n57|z.append(\"## Folge für die Bezugsgrößen\")\n58|z.append(\"\")\n59|z.append(\"### Zeile 8 (Doppelungsanteil): Bezugsgröße bleibt 2\")\n60|z.append(\"  Zeile 8 misst den Anteil unter den vom ANKLÄGER ERZEUGTEN TESTS, also unter den Funden.\")\n61|z.append(\"  Ein Norm-Eintrag ist kein erzeugter Fund — er ist das Gegenteil: ein verworfener Test.\")\n62|z.append(f\"  Erzeugte Funde in Lauf {LAUF}: {len(aegis_e)}. Die Zahl 2 in der Zeile-8-Tabelle ist richtig.\")\n63|z.append(\"\")\n64|z.append(\"### Durchgerutscht: über ALLE drei neu gemessen\")\n65|z.append(\"  Der Prüfer hat recht, dass die Frage gestellt werden muss: Trägt der Norm-Eintrag einen Schlüssel,\")\n66|z.append(\"  kann auch er eine vorhandene Behauptung wiederholen. Deshalb hier die Messung über alle drei.\")\n67|z.append(\"\")\n68|# Vorrat zum Ansagezeitpunkt rekonstruieren\n69|uebernommen = {}\n70|for r in con.execute(\"SELECT bereich, ursprung FROM immunsystem WHERE werk_id=? AND generation=0 AND ursprung LIKE '%behauptung=%'\", (WERK,)):\n71|    for s in r[\"ursprung\"].split(\"behauptung=\", 1)[1].strip().split(\" \"):\n72|        if s.count(\"|\") != 1 or not all(x.strip() for x in s.split(\"|\")):\n73|            break\n74|        uebernommen.setdefault(r[\"bereich\"], set()).add(s)\n75|ansagen = []\n76|for r in con.execute(\"SELECT nr, inhalt FROM protokoll WHERE art='aegis.ansage' ORDER BY nr\"):\n77|    d = lj(r[\"inhalt\"]) or {}\n78|    if d.get(\"lauf_id\") == LAUF:\n79|        ansagen.append({\"nr\": r[\"nr\"], **d})\n80|\n81|durch = []\n82|for e in alle:\n83|    for t in testnamen(e[\"code\"]):\n84|        schl = behauptung(e[\"code\"], t)\n85|        eigene = [a for a in ansagen if a.get(\"bereich\") == e[\"bereich\"] and a.get(\"behauptung\") == schl]\n86|        grenze = eigene[0][\"nr\"] if eigene else 10**9\n87|        vorher = {a[\"behauptung\"] for a in ansagen\n88|                  if a.get(\"bereich\") == e[\"bereich\"] and a.get(\"behauptung\") and a[\"nr\"] < grenze}\n89|        vorrat = (uebernommen.get(e[\"bereich\"], set()) | vorher) - {schl} if not eigene else \\\n90|                 (uebernommen.get(e[\"bereich\"], set()) | vorher)\n91|        treffer = schl in (uebernommen.get(e[\"bereich\"], set()) | vorher)\n92|        z.append(f\"  {e['name']} / {schl}: im Vorrat zum Ansagezeitpunkt? {'JA → DURCHGERUTSCHT' if treffer else 'nein'}\")\n93|        if treffer:\n94|            durch.append((e[\"name\"], schl))\n95|z.append(\"\")\n96|z.append(f\"  ERGEBNIS Durchgerutscht über alle {len(alle)} erzeugten Einträge: {len(durch)} \"\n97|         f\"(Maßstab 0 → {'ERFÜLLT' if not durch else 'GERISSEN'})\")\n98|z.append(\"\")\n99|if durch:"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Leerer Nenner/Fehlerlisten ergeben BESTANDEN/ERFÜLLT ohne vorhandenen Prüfumfang",
+    "minimalbeleg": {
+      "zustand": "Keine passenden historischen Tests/Ansagen/Sperrungen; Fehlerlisten leer.",
+      "schluss": "max(1,N) bzw not(fehlalarm/durch) führt zur positiven lokalen Ergebniszeile.",
+      "grenze": "Berichte können daneben fehlende Farbzeugen nennen; bestätigt ist falsches Teilurteil, nicht gesamte Berichtabnahme. Aktuelle DB nie gelesen."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Historischer Parallelprüfer ohne Rückfluss in aktuellen Pflichtvorspann"
+  },
+  {
+    "id": "B14:P16",
+    "audit_befund": "B14",
+    "audit_leser": "P16",
+    "titel": "Nicht ausgeführte Durchrutscherprüfung wird als gemessen ausgegeben",
+    "pfad": "pruefung/lauf25_auswertung.py",
+    "originalzeilen": [
+      37,
+      108
+    ],
+    "original_sha256": "23649a8229beccf2991bc01b0fcea01dd6a277eac08a508f4f96188b7c4b6581",
+    "original_audit_scope": "ausserhalb_kern",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "P16",
+      "quellbeleg": "37|# ---------------------------------------------------------------- Pfadnachweis\n38|geprueft = prot(\"immun.aufnahme_geprueft\")\n39|gesperrt = prot(\"immun.aufnahme_gesperrt\")\n40|erzeugt = [dict(r) for r in con.execute(\n41|    \"SELECT name, bereich, code, status, generation FROM immunsystem WHERE lauf_id=? AND generation > 0 \"\n42|    \"AND ursprung NOT LIKE '%übernommen%' ORDER BY name\", (LAUF,))]\n43|z.append(\"## 1. Pfadnachweis — liegt C im Aufnahmepfad?\")\n44|z.append(f\"  Aufrufe von C (`immun.aufnahme_geprueft`): **{len(geprueft)}** (Menge: Protokollzeilen dieses Laufs)\")\n45|z.append(f\"  geprüfte Tests insgesamt: {sum(x.get('anzahl', 0) for x in geprueft)} \"\n46|         f\"(Menge: Summe des Feldes `anzahl` über alle Aufrufe)\")\n47|z.append(f\"  im Lauf erzeugte Immunsystem-Einträge: **{len(erzeugt)}** \"\n48|         f\"(Menge: `immunsystem` mit lauf_id={LAUF}, generation>0, ohne Übernahme)\")\n49|z.append(\"\")\n50|if len(erzeugt) == 0 and len(geprueft) == 0:\n51|    z.append(\"  ERGEBNIS: **Beide Zahlen sind null.** Das ist konsistent — es sind keine Einträge entstanden,\")\n52|    z.append(\"  also hatte C nichts zu prüfen. Der Pfadnachweis ist damit aber **NICHT GEFÜHRT**:\")\n53|    z.append(\"  Aus 0 = 0 folgt nicht, dass C im Pfad liegt. Nach Masterprompt Abschnitt 4 letzte Zeile lautet\")\n54|    z.append(\"  das Ergebnis **„nicht gemessen\\\", nicht „bestanden\\\" — eine Prüfung ohne Gegenstand meldet das.\")\n55|elif len(geprueft) == 0:\n56|    z.append(f\"  ERGEBNIS: **DURCHGEFALLEN.** {len(erzeugt)} Einträge entstanden, C wurde nie aufgerufen —\")\n57|    z.append(\"  C ist eine verwaiste Insel.\")\n58|else:\n59|    z.append(f\"  ERGEBNIS: C wurde {len(geprueft)}-mal aufgerufen bei {len(erzeugt)} erzeugten Einträgen.\")\n60|z.append(\"\")\n61|\n62|# ---------------------------------------------------------------- Warum kein Gegenstand?\n63|z.append(\"## 2. Warum sind keine Einträge entstanden? (Ursachenkette, je Stufe gezählt)\")\n64|ansagen = prot(\"aegis.ansage\")\n65|aus = [a for a in ansagen if a.get(\"ausgefuehrt\")]\n66|abg = [a for a in ansagen if not a.get(\"ausgefuehrt\") and a.get(\"behauptung\")]\n67|kein = [a for a in ansagen if not a.get(\"ausgefuehrt\") and not a.get(\"behauptung\")]\n68|z.append(f\"  Ansagen des Anklägers: {len(ansagen)} (Menge: Protokollart `aegis.ansage`, Lauf {LAUF})\")\n69|z.append(f\"    davon Angriff ausgeführt: {len(aus)}\")\n70|z.append(f\"    davon von A gesperrt (Wiederholung): {len(abg)}\")\n71|z.append(f\"    davon KEIN ANGRIFF: {len(kein)}\")\n72|urteile = [u for u in prot(\"aegis.urteil\") if (u.get(\"angriff\") or {}).get(\"modell\")]\n73|best = sum(len((u.get(\"angriff\") or {}).get(\"bestaetigt_kandidat\") or []) for u in urteile)\n74|normn = sum(len(u.get(\"norm\") or []) for u in urteile)\n75|z.append(f\"  Ankläger-Urteile mit Angriff: {len(urteile)} (Menge: Protokollart `aegis.urteil` mit Angriffsmodell)\")\n76|z.append(f\"    am Kandidaten bestätigte Tests: {best}\")\n77|z.append(f\"    als Norm eingestufte Tests: {normn}\")\n78|z.append(\"\")\n79|z.append(\"  KETTE: Ein Eintrag entsteht nur, wenn ein Angriffstest am Kandidaten FÄLLT (bestätigt) oder als\")\n80|z.append(\"  Norm eingestuft wird. Beides war in diesem Lauf null — also kam C kein Gegenstand zu.\")\n81|z.append(\"  Das ist kein Fehler von C, sondern die Lage: Das Werk ist am Höchstwert (Kernmaß 0), die\")\n82|z.append(\"  Angriffstests bestanden am Kandidaten.\")\n83|z.append(\"\")\n84|\n85|# ---------------------------------------------------------------- Maßstab\n86|z.append(\"## 3. Maßstab des Auftrags\")\n87|z.append(f\"  Pfadnachweis (geprüfte Aufnahmen = erzeugte Einträge): {len(geprueft)} = {len(erzeugt)} — \"\n88|         f\"formal erfüllt, aber **ohne Gegenstand → nicht gemessen**\")\n89|durch = []\n90|for e in erzeugt:\n91|    pass\n92|z.append(f\"  Durchgerutscht an C: {len(durch)} von {len(erzeugt)} erzeugten Einträgen — \"\n93|         f\"{'nicht gemessen (kein Gegenstand)' if not erzeugt else 'gemessen'}\")\n94|z.append(f\"  Fehlalarm an C: {len(gesperrt)} Sperrungen im Lauf — \"\n95|         f\"{'nicht gemessen (keine Sperrung)' if not gesperrt else 'gemessen'}\")\n96|z.append(f\"  Grüner Eichfall aus dem Lauf: {'vorhanden' if any(True for _ in erzeugt) else 'FEHLT'}\")\n97|z.append(f\"  Roter Eichfall aus dem Lauf: {'vorhanden' if gesperrt else 'FEHLT'}\")\n98|z.append(\"\")\n99|\n100|# ---------------------------------------------------------------- V9\n101|abw = prot(\"aegis.abweichung\")\n102|z.append(\"## 4. Abweichungsquote Ansage ↔ Ausführung (V9, gezählt, keine Grenze)\")\n103|z.append(f\"  Protokollzeilen `aegis.abweichung` in Lauf {LAUF}: {len(abw)}\")\n104|if abw:\n105|    ja = sum(1 for a in abw if a.get(\"abweichung\"))\n106|    z.append(f\"    davon mit Abweichung: {ja} von {len(abw)}\")\n107|else:\n108|    z.append(\"    keine — die Zeile entsteht nur bei einem aufgenommenen Fund, und es gab keinen.\")"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Leere Ergebnisliste bleibt durch for/pass unverändert und wird als berechneter Nullbefund etikettiert",
+    "minimalbeleg": {
+      "zustand": "erzeugt enthält mindestens einen Eintrag.",
+      "schluss": "durch=[]; for e in erzeugt: pass; Ausgabe 0vonN gemessen.",
+      "grenze": "0=0-Pfadnachweis Z50-54 ist ausdrücklich korrekt gesperrt. Kein eigener neuer Reparaturauftrag."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Historischer Parallelprüfer ohne Rückfluss in aktuellen Pflichtvorspann"
+  },
+  {
+    "id": "B15:P08",
+    "audit_befund": "B15",
+    "audit_leser": "P08",
+    "titel": "Fehlmessung kann historische negative Eichkontrolle erfüllen",
+    "pfad": "pruefung/eichung_falld.py",
+    "originalzeilen": [
+      34,
+      41
+    ],
+    "original_sha256": "45fe97d0678493fe3e482fdfc276800ac77f3541528cd777923fc582622d0cd8",
+    "original_audit_scope": "ausserhalb_kern",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "P08",
+      "quellbeleg": "34|d = eichung.rauschmessung(con, lauf_id=0, werk_id=997, pfad=pfad, bereiche=[\"preise\"], paket=\"lagerhaus\", ref=unstet)\n35|z = [\"# Fall D nachgemessen — einziger Bereich gesperrt, Referenzlast sicher unstet (jeder zweite Aufruf +150 ms)\"]\n36|z += eichung.text(d)\n37|e = d[\"bereiche\"][\"preise\"]\n38|z.append(f\"  Werte {e.get('werte')} | Median {e.get('median')} | Spannweite {100*(e.get('spannweite') or 0):.0f} % | Toleranz {e['toleranz']}\")\n39|z.append(f\"  lauf_startet = {d['lauf_startet']} (gefordert: False, weil 1 von 1 Bereichen gesperrt ist)\")\n40|z.append(f\"  ERGEBNIS: {'bestanden — der Lauf startet nicht' if not d['lauf_startet'] else 'NICHT bestanden'}\")\n41|p = con.execute(\"SELECT nr, inhalt FROM protokoll WHERE art='eichung.lauf_startet_nicht' ORDER BY nr DESC LIMIT 1\").fetchone()"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "not lauf_startet wird ohne Nachweis der beabsichtigten Rauschursache als bestanden gewertet",
+    "minimalbeleg": {
+      "zustand": "Einziger Bereich liefert keine verwertbaren Messungen statt absichtlich schwankender ausgeführter Messungen.",
+      "schluss": "rauschmessung sperrt Bereich/lauf_startet=False; historischer FallD meldet bestanden bzw gewünschtes True.",
+      "grenze": "Produkt-Vorspann prüft Messqualität zusätzlich; Außenfall ist nicht das aktuelle Gate."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Historischer Parallelprüfer ohne Rückfluss in aktuellen Pflichtvorspann"
+  },
+  {
+    "id": "B15:P09",
+    "audit_befund": "B15",
+    "audit_leser": "P09",
+    "titel": "Fehlmessung kann historische negative Eichkontrolle erfüllen",
+    "pfad": "pruefung/eichung_pruefen.py",
+    "originalzeilen": [
+      19,
+      50
+    ],
+    "original_sha256": "287d4795bab9016e91e448084c38cb4ba9312e07ec052cb35f682739309ceee3",
+    "original_audit_scope": "ausserhalb_kern",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "P09",
+      "quellbeleg": "19|z = [\"# Generation minus eins — Rauschmessung mit bereichsweiser Sperre (Fassung 5/6), an echten Kammerläufen\"]\n20|\n21|z.append(\"\\n## Fall A: echtes Werk `lagerhaus` (Stand Lauf 20), echte Referenzlast\")\n22|a = eichung.rauschmessung(con, lauf_id=0, werk_id=18, pfad=pfad, bereiche=bereiche, paket=\"lagerhaus\", ref=ref)\n23|z += eichung.text(a)\n24|z.append(f\"  Lauf würde starten: {a['lauf_startet']} | Toleranzen an grenzen_f2: {a['toleranz']}\")\n25|\n26|# Fall B: Referenzlast von `preise` unstet machen (zufällige Schlafzeit) — die anderen Bereiche bleiben unberührt.\n27|unstet = ref.replace(\"def last_preise(\", \"\"\"def last_preise(*_a, **_k):\n28|    import random, time\n29|    time.sleep(random.choice([0.0, 0.0, 0.05, 0.12]))\n30|    return _last_preise_echt()\n31|\n32|\n33|def _last_preise_echt(\"\"\", 1)\n34|z.append(\"\\n## Fall B: Referenzlast von `preise` absichtlich unstet (zufällige Wartezeit 0–120 ms)\")\n35|b = eichung.rauschmessung(con, lauf_id=0, werk_id=999, pfad=pfad, bereiche=bereiche, paket=\"lagerhaus\", ref=unstet)\n36|z += eichung.text(b)\n37|z.append(f\"  Lauf würde starten: {b['lauf_startet']} (gefordert: ja — nur `preise` gesperrt, die übrigen arbeiten)\")\n38|z.append(f\"  Toleranzen, die in den Lauf gehen: {b['toleranz']}\")\n39|\n40|z.append(\"\\n## Fall C: derselbe Bereich meldet dreimal hintereinander → Befund über die Referenzlast\")\n41|for i in (2, 3):\n42|    c = eichung.rauschmessung(con, lauf_id=0, werk_id=999, pfad=pfad, bereiche=[\"preise\"], paket=\"lagerhaus\", ref=unstet)\n43|    e = c[\"bereiche\"][\"preise\"]\n44|    z.append(f\"  Messung {i+0}: gesperrt {e['gesperrt']}, Serie {e['serie']}, Befund über Referenzlast: {e['befund_referenzlast']}\")\n45|    if e.get(\"befund_referenzlast\"):\n46|        z.append(f\"    Meldung: {e['meldung']}\")\n47|\n48|alle = eichung.rauschmessung(con, lauf_id=0, werk_id=998, pfad=pfad, bereiche=[\"preise\"], paket=\"lagerhaus\", ref=unstet)\n49|z.append(f\"\\n## Fall D: einziger Bereich gesperrt → Lauf startet nicht: {not alle['lauf_startet']} (gefordert: ja)\")\n50|(A / \"02-eichung-rauschmessung-geprueft.txt\").write_text(\"\\n\".join(z) + \"\\n\")"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "not lauf_startet wird ohne Nachweis der beabsichtigten Rauschursache als bestanden gewertet",
+    "minimalbeleg": {
+      "zustand": "Einziger Bereich liefert keine verwertbaren Messungen statt absichtlich schwankender ausgeführter Messungen.",
+      "schluss": "rauschmessung sperrt Bereich/lauf_startet=False; historischer FallD meldet bestanden bzw gewünschtes True.",
+      "grenze": "Produkt-Vorspann prüft Messqualität zusätzlich; Außenfall ist nicht das aktuelle Gate."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Historischer Parallelprüfer ohne Rückfluss in aktuellen Pflichtvorspann"
+  },
+  {
+    "id": "B16:P38",
+    "audit_befund": "B16",
+    "audit_leser": "P38",
+    "titel": "Historische rote-Testzählung verdeckt nicht ausgeführte Tests",
+    "pfad": "pruefung/tor2.py",
+    "originalzeilen": [
+      39,
+      112
+    ],
+    "original_sha256": "5395ddd65e65366440c534b27ef1de3b8d1a8aed41d3d3a529a725fd71ce614b",
+    "original_audit_scope": "ausserhalb_kern",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "P38",
+      "quellbeleg": "39|(A / \"60-tor2-nischen-bandit.txt\").write_text(\"\\n\".join(out) + \"\\n\"); out.clear()\n40|\n41|# ---- S2\n42|p(\"# Tor 2 — Zeile 3: S2 (Leistungsbremse) nach dem Kriterium der versiegelten Liste\")\n43|m0 = lj(ang[0][\"masse\"]); mN = lj(ang[-1][\"masse\"])\n44|l0, lN = m0[\"bereiche\"][\"lager\"][\"laufzeit_ms\"], mN[\"bereiche\"][\"lager\"][\"laufzeit_ms\"]\n45|best = (pfad / \"lagerhaus/lager/bestand.py\").read_text(); jour = (pfad / \"lagerhaus/lager/journal.py\").read_text()\n46|krit_a = (\"summe_fuer\" not in best.split(\"def bestand\")[1].split(\"def \")[0]) or (\"_summen\" in jour or \"_bestand\" in best)\n47|p(f\"Kriterium (a) — bestand() summiert nicht mehr das ganze Journal je Lesen: {'erfüllt' if krit_a else 'NICHT erfüllt'}\")\n48|p(\"  bestand():\", best.split(\"def bestand\")[1].split(\"def \")[0].strip().replace(\"\\n\", \" \")[:160])\n49|p(\"  journal.summe_fuer():\", jour.split(\"def summe_fuer\")[1].split(\"def \")[0].strip().replace(\"\\n\", \" \")[:160])\n50|p(f\"Kriterium (b) — Laufzeit last_lager um ≥ 50 % gesunken: Ausgang {l0} ms → Ende {lN} ms = {(1 - lN / l0) * 100:.1f} % {'erfüllt' if lN <= l0 * 0.5 else 'NICHT erfüllt'}\")\n51|# frische Gegenmessung Ausgang vs Ende (3 Messungen je, in der Kammer)\n52|import tarfile, tempfile\n53|ref = L._referenzlast(werk[\"name\"], mass[\"paket\"])\n54|tmp = Path(tempfile.mkdtemp()); tarfile.open(con.execute(\"SELECT archiv FROM lazarus WHERE lauf_id=? AND generation=0\", (LAUF,)).fetchone()[0]).extractall(tmp, filter=\"data\")\n55|frisch = []\n56|for name, w in ((\"Ausgang\", tmp), (\"Ende\", pfad)):\n57|    ls = []\n58|    for _ in range(3):\n59|        m = messgeraet.messen(w, bereiche, mass[\"paket\"], ref)\n60|        ls.append(m[\"bereiche\"][\"lager\"][\"laufzeit_ms\"])\n61|    frisch.append((name, ls))\n62|p(\"Frische Gegenmessung lager.laufzeit_ms (3× je Stand, Kammer):\", frisch)\n63|kern0, kernN = messgeraet.kernmass_f2(m0), messgeraet.kernmass_f2(mN)\n64|p(f\"Kernmaß F2 Ausgang {kern0} → Ende {kernN} (Nischenmaß: unverändert oder gestiegen → {'ja' if kernN >= kern0 else 'NEIN'})\")\n65|p(f\"ERGEBNIS Zeile 3: S2 {'BEHOBEN' if krit_a and lN <= l0 * 0.5 and kernN >= kern0 else 'NICHT behoben'} — {l0} → {lN} ms ({(1 - lN / l0) * 100:.0f} %), Kernmaß {kern0} → {kernN}\")\n66|(A / \"61-tor2-s2.txt\").write_text(\"\\n\".join(out) + \"\\n\"); out.clear()\n67|\n68|# ---- Immunisierung / Doppelungen / rote Tests\n69|p(\"# Tor 2 — Zeile 8: Immunisierung — n bestätigte Fehler = n Tests im Werk; Doppelungsanteil < 20 %; nach keiner angenommenen Generation ein roter Test\")\n70|im = [dict(r) for r in con.execute(\"SELECT name, bereich, status, ursprung FROM immunsystem WHERE werk_id=? ORDER BY id\", (wid,))]\n71|im_werk = [x for x in im if x[\"status\"] == \"im_werk\"]\n72|dateien = sorted(str(f.relative_to(pfad)) for f in (pfad / \"tests\").glob(\"test_*_immun_*.py\"))\n73|p(f\"Immunsystem-Einträge: {len(im)} — im_werk {len(im_werk)}, offen {sum(1 for x in im if x['status'] in ('offen','gefunden'))}, offen_norm {sum(1 for x in im if x['status']=='offen_norm')}\")\n74|p(f\"Immuntest-Dateien im Werk (git): {len(dateien)}\")\n75|for f in dateien: p(\"  \", f)\n76|# Doppelungen aus Protokoll\n77|d_ges = 0; d_dop = 0; d_norm = 0\n78|for z in con.execute(\"SELECT inhalt FROM protokoll WHERE art='aegis.urteil' AND inhalt LIKE ?\", (f'%\"lauf_id\": {LAUF},%',)):\n79|    d = lj(z[\"inhalt\"]); a = d.get(\"angriff\") or {}\n80|    if isinstance(a, dict) and \"gesamt\" in a:\n81|        d_ges += a.get(\"gesamt\", 0); d_dop += len(d.get(\"doppelungen\") or []); d_norm += len(d.get(\"norm\") or [])\n82|p(f\"Angriffstests gesamt (Lauf {LAUF}): {d_ges}; als Doppelung gekennzeichnet: {d_dop} → Anteil {100 * d_dop / max(1, d_ges):.1f} % (Soll < 20 %); als Norm (offen, 0 Punkte): {d_norm}\")\n83|# rote Tests je angenommener Generation: aus Lazarus holen und Testlauf\n84|rot = []\n85|for g in ang:\n86|    arch = con.execute(\"SELECT archiv FROM lazarus WHERE lauf_id=? AND generation=?\", (LAUF, g[\"nummer\"])).fetchone()[0]\n87|    t = Path(tempfile.mkdtemp()); tarfile.open(arch).extractall(t, filter=\"data\")\n88|    e = kammer.ausfuehren(t, [\"python\", \"-m\", \"pytest\", \"-q\", \"-p\", \"no:cacheprovider\", \"--tb=no\"], zeitlimit_s=120)\n89|    tail = e.stdout.strip().splitlines()[-1] if e.stdout.strip() else \"?\"\n90|    rot.append((g[\"nummer\"], tail, e.rc))\n91|    p(f\"  Gen {g['nummer']}: {tail}\")\n92|p(f\"ERGEBNIS Zeile 8: rote Tests nach angenommenen Generationen: {sum(1 for _, _, rc in rot if rc != 0)} von {len(rot)}; Doppelungsanteil {100 * d_dop / max(1, d_ges):.1f} %; Immuntests im Werk {len(dateien)} (Einträge im_werk {len(im_werk)})\")\n93|(A / \"62-tor2-immunisierung.txt\").write_text(\"\\n\".join(out) + \"\\n\"); out.clear()\n94|\n95|# ---- Verhandlung\n96|p(\"# Tor 2 — Zeile 9: Verhandlung — mindestens 1 Generation, in der zwei Bereiche eine Vertragsänderung gemeinsam bestanden\")\n97|vh = [dict(lj(z[\"inhalt\"]), art=z[\"art\"], nr=z[\"nr\"]) for z in con.execute(\"SELECT nr, art, inhalt FROM protokoll WHERE art LIKE 'verhandlung.%' AND inhalt LIKE ? ORDER BY nr\", (f'%\"lauf_id\": {LAUF},%',))]\n98|for v in vh: p(\"  \", v[\"nr\"], v[\"art\"], {k: v[k] for k in v if k not in (\"art\", \"nr\", \"lauf_id\")})\n99|best_vh = [v for v in vh if v[\"art\"] == \"verhandlung.bestanden\"]\n100|p(f\"ERGEBNIS Zeile 9: {len(best_vh)} Verhandlungen bestanden (Generationen {[v['generation'] for v in best_vh]}); begonnen {sum(1 for v in vh if v['art']=='verhandlung.begonnen')}, gescheitert {sum(1 for v in vh if v['art']=='verhandlung.gescheitert')}\")\n101|(A / \"63-tor2-verhandlung.txt\").write_text(\"\\n\".join(out) + \"\\n\"); out.clear()\n102|\n103|# ---- Verlaufskurve\n104|p(\"# Tor 2 — Zeile 10: Verlaufskurve des Hauptlaufs mit Endtestbestand (3.5 F3)\")\n105|k = L.kurve_nachrechnen(con, LAUF)\n106|p(f\"Endtestbestand: {len(k['testbestand'])} Dateien aus {k['testbestand_aus']}\")\n107|p(\"| Gen | Tests eigen | F2 (eigene Tests) | F2 (Endtestbestand) | fehl / sicherheit / tot (Endtests, je Bereich) | Laufzeit ms (b/f/l/p) |\")\n108|p(\"|---|---|---|---|---|---|\")\n109|for z in k[\"kurve\"]:\n110|    b = z[\"bereiche_endtests\"] or {}\n111|    p(f\"| {z['generation']} | {z['tests_eigen']} | {z['f2_eigen']} | {z['f2_endtests']} | \" + \"; \".join(f\"{n}: {x['tests_fehlgeschlagen']}/{x['sicherheit_punkte']}/{x['tote_funktionen']}\" for n, x in b.items()) + \" | \" + \"/\".join(str(b[n][\"laufzeit_ms\"]) for n in (\"bericht\", \"formeln\", \"lager\", \"preise\") if n in b) + \" |\")\n112|(A / \"64-tor2-kurve.txt\").write_text(\"\\n\".join(out) + \"\\n\"); (A / \"64-tor2-kurve.json\").write_text(json.dumps(k, ensure_ascii=False, indent=1))"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "rc0 wird bei Rotzählung wie vollständige Testausführung behandelt",
+    "minimalbeleg": {
+      "zustand": "Eine angenommene Generation hat pytest-rc0 bei nur skipped-Testcases.",
+      "schluss": "sum(rc!=0)=0; Ausgabe meldet0 rote Testläufe, fehlender Ausführungsnachweis nicht kenntlich.",
+      "grenze": "Reine Statistik \"0 Fehlerexits\" wäre legitim; Überschrift beansprucht dagegen nach jeder Generation Testnachweis. Teilberichtsfehler, keine aktuelle Produktfreigabe."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Historischer Parallelprüfer ohne Rückfluss in aktuellen Pflichtvorspann"
+  }
+]

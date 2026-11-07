@@ -1,0 +1,398 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 151 (Teile 4–165 dieses Stands) · enthält R159 bis R159
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R159 · Alles, was seit Auftragsbeginn 14:44:20 außerhalb der drei erlaubten Stellen angelegt oder geändert wurde (Wurzeldateisystem, mtime oder ctime), gruppiert — Grundlage der Abweichungsliste FK41
+Beginn: 2026-09-25 18:22:08 CEST (UTC+0200)
+Ende:   2026-09-25 18:22:19 CEST (UTC+0200)
+Dauer:  11.2 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/sicherung/biotop-lage-01/arbeit/n12_aenderungen.sh
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/n12_aenderungen.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-LAGE-01 (nur lesend): Was wurde seit Auftragsbeginn (25.09.2026 14:44:20 CEST) auf HERMES-1 angelegt oder geändert,
+# außerhalb der drei erlaubten Stellen (Regel 2.1)? Grundlage für die Abweichungsliste unter FK41.
+# Kriterium: Änderungszeit (mtime) ODER Statusänderung (ctime) ab Beginn; ctime erfasst auch Verschieben, Umbenennen, Rechte.
+# Durchsucht: Wurzeldateisystem (-xdev). Nicht durchsucht, mit Grund: /proc /sys /dev /run (virtuell); /var/lib/docker
+# (Containerschichten, 0 Container laufen, R156). Die drei erlaubten Stellen werden nur gezählt.
+# Ausgabe je Gruppe: Anzahl, jüngster Zeitpunkt, ob alles bis zum Stichzeitpunkt (Ende S1c 17:29:59) geschah. Gruppen mit
+# höchstens 15 Einträgen einzeln; größere: jeder Eintrag nach dem Stichzeitpunkt einzeln (höchstens 30), dazu 2 Beispiele.
+set -u
+K=$(cat /etc/pruefkanal/schluessel)
+L=/var/pruefkanal/oeffentlich/_akte/$K/laeufe
+set -o noclobber
+LISTE=/root/sicherung/biotop-lage-01/tmp/aenderungen-$(date +%Y%m%d-%H%M%S).txt
+date '+== Zeitpunkt %Y-%m-%d %H:%M:%S %Z (UTC%z)'
+echo "== Wurzeldateisystem: $(findmnt -n -o SOURCE,FSTYPE /)"
+echo '== Weitere Dateisysteme mit Datenträger (nicht durchsucht):'
+findmnt -rn -o TARGET,FSTYPE | awk '$2 ~ /^(ext[234]|xfs|btrfs|vfat|zfs|nfs4?|cifs)$/ && $1 != "/"'
+find / -xdev \( -path /proc -o -path /sys -o -path /dev -o -path /run -o -path /var/lib/docker \) -prune -o \
+  \( -newermt '2026-09-25 14:44:20' -o -newerct '2026-09-25 14:44:20' \) \
+  -printf '%TY-%Tm-%Td %TH:%TM:%TS|%CY-%Cm-%Cd %CH:%CM:%CS|%y|%s|%p\n' 2>/dev/null > "$LISTE"
+echo "Fundstellen gesamt: $(wc -l < "$LISTE") · vollständige Liste: $LISTE"
+python3 - "$LISTE" "$L" <<'EOF'
+import collections
+import sys
+liste, L = sys.argv[1], sys.argv[2]
+STICH = '2026-09-25 17:29:59'
+erlaubt = {'/root/sicherung/biotop-lage-01': 'Arbeitsordner', L + '/biotop-lage-01': 'Abschlussordner',
+           L + '/gedaechtnis': 'Gedächtnis'}
+kurz = lambda p: p.replace(L, 'laeufe')
+
+
+def gruppe(p):
+    t = p.split('/')
+    if p.startswith('/root/.hermes/'):
+        return '/'.join(t[:5])
+    if p.startswith(L + '/'):
+        return kurz('/'.join(t[:len(L.split('/')) + 1]))
+    if p.startswith('/tmp/'):
+        return '/'.join(t[:3])
+    return '/'.join(t[:4])
+
+
+z = [l.rstrip('\n').split('|', 4) for l in open(liste, encoding='utf-8', errors='replace')]
+n_erl, rest = collections.Counter(), []
+for m, c, typ, size, p in z:
+    k = next((v for e, v in erlaubt.items() if p == e or p.startswith(e + '/')), None)
+    if k:
+        n_erl[k] += 1
+    else:
+        rest.append((m[:19], c[:19], typ, size, p))
+print('== In den drei erlaubten Stellen (nur gezählt):', dict(n_erl), f'· Summe {sum(n_erl.values())} von {len(z)}')
+g = collections.defaultdict(list)
+for e in rest:
+    g[gruppe(e[4])].append(e)
+nach = sum(1 for e in rest if max(e[0], e[1]) > STICH)
+print(f'== Außerhalb: {len(rest)} von {len(z)} Einträgen in {len(g)} Gruppen; davon nach dem Stichzeitpunkt {STICH}: {nach} von {len(rest)}')
+print('   Format: Gruppe · Anzahl · jüngster Zeitpunkt (Änderung/Statusänderung) · alles bis Stichzeitpunkt')
+fmt = lambda e: f'      {e[0]} | {e[1]} | {e[2]} | {e[3]} B | {kurz(e[4])}'
+for k in sorted(g):
+    es = sorted(g[k], key=lambda e: max(e[0], e[1]))
+    j = max(max(e[0], e[1]) for e in es)
+    print(f'-- {k} · {len(es)} · jüngste {j} · bis Stich: {"ja" if j <= STICH else "NEIN"}')
+    if len(es) <= 15:
+        for e in es:
+            print(fmt(e))
+    else:
+        spaet = [e for e in es if max(e[0], e[1]) > STICH]
+        for e in es[:2]:
+            print(fmt(e) + '   (Beispiel)')
+        for e in spaet[:30]:
+            print(fmt(e) + '   (nach Stich)')
+        if len(spaet) > 30:
+            print(f'      … weitere {len(spaet) - 30} nach dem Stichzeitpunkt (vollständig in der Liste)')
+EOF
+--- Ende /root/sicherung/biotop-lage-01/arbeit/n12_aenderungen.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== Zeitpunkt 2026-09-25 18:22:08 CEST (UTC+0200)
+== Wurzeldateisystem: /dev/vda1 ext4
+== Weitere Dateisysteme mit Datenträger (nicht durchsucht):
+/boot ext4
+/boot/efi vfat
+Fundstellen gesamt: 1751 · vollständige Liste: /root/sicherung/biotop-lage-01/tmp/aenderungen-20260925-182208.txt
+== In den drei erlaubten Stellen (nur gezählt): {'Abschlussordner': 11, 'Arbeitsordner': 877} · Summe 888 von 1751
+== Außerhalb: 863 von 1751 Einträgen in 97 Gruppen; davon nach dem Stichzeitpunkt 2026-09-25 17:29:59: 112 von 863
+   Format: Gruppe · Anzahl · jüngster Zeitpunkt (Änderung/Statusänderung) · alles bis Stichzeitpunkt
+-- /root · 1 · jüngste 2026-09-25 14:48:39 · bis Stich: ja
+      2026-09-25 14:48:39 | 2026-09-25 14:48:39 | d | 4096 B | /root
+-- /root/.hermes · 1 · jüngste 2026-09-25 18:22:10 · bis Stich: NEIN
+      2026-09-25 18:22:10 | 2026-09-25 18:22:10 | d | 4096 B | /root/.hermes
+-- /root/.hermes/.curator_backups/blobs · 18 · jüngste 2026-09-25 17:02:06 · bis Stich: ja
+      2026-09-25 17:01:22 | 2026-09-25 17:01:22 | f | 5548 B | /root/.hermes/.curator_backups/blobs/b5e6888276fb7155c58526fcf2875bf096fde5dcd090542d20ddbdb9bf45b8e3   (Beispiel)
+      2026-09-25 17:01:22 | 2026-09-25 17:01:22 | f | 6968 B | /root/.hermes/.curator_backups/blobs/3211f18244de06e0075b9201451ad355555e02611fb390d919f657dc70e0e33b   (Beispiel)
+-- /root/.hermes/.skills_prompt_snapshot.json · 1 · jüngste 2026-09-25 17:21:56 · bis Stich: ja
+      2026-09-25 17:21:56 | 2026-09-25 17:21:56 | f | 38555 B | /root/.hermes/.skills_prompt_snapshot.json
+-- /root/.hermes/audio_cache · 1 · jüngste 2026-09-25 18:22:10 · bis Stich: NEIN
+      2026-09-14 00:16:13 | 2026-09-25 18:22:10 | d | 4096 B | /root/.hermes/audio_cache
+-- /root/.hermes/auth.json · 1 · jüngste 2026-09-25 16:10:47 · bis Stich: ja
+      2026-09-25 16:10:47 | 2026-09-25 16:10:47 | f | 8133 B | /root/.hermes/auth.json
+-- /root/.hermes/cache · 1 · jüngste 2026-09-25 18:15:14 · bis Stich: NEIN
+      2026-09-25 18:15:14 | 2026-09-25 18:15:14 | d | 4096 B | /root/.hermes/cache
+-- /root/.hermes/cache/delegation · 16 · jüngste 2026-09-25 18:20:03 · bis Stich: NEIN
+      2026-09-25 16:10:47 | 2026-09-25 16:10:47 | d | 4096 B | /root/.hermes/cache/delegation/live/deleg_bbbc3cef   (Beispiel)
+      2026-09-25 16:10:47 | 2026-09-25 16:10:47 | f | 2775 B | /root/.hermes/cache/delegation/live/deleg_bbbc3cef/manifest.json   (Beispiel)
+      2026-09-25 17:42:52 | 2026-09-25 17:42:52 | f | 101139 B | /root/.hermes/cache/delegation/live/deleg_bbbc3cef/task-1.log   (nach Stich)
+      2026-09-25 17:45:46 | 2026-09-25 17:45:46 | f | 617 B | /root/.hermes/cache/delegation/live/deleg_69c683dc/manifest.json   (nach Stich)
+      2026-09-25 17:45:46 | 2026-09-25 17:45:46 | f | 92120 B | /root/.hermes/cache/delegation/live/deleg_69c683dc/task-0.log   (nach Stich)
+      2026-09-25 17:46:56 | 2026-09-25 17:46:56 | f | 112217 B | /root/.hermes/cache/delegation/live/deleg_bbbc3cef/task-7.log   (nach Stich)
+      2026-09-25 17:47:03 | 2026-09-25 17:47:03 | f | 100201 B | /root/.hermes/cache/delegation/live/deleg_bbbc3cef/task-0.log   (nach Stich)
+      2026-09-25 17:49:12 | 2026-09-25 17:49:12 | f | 95474 B | /root/.hermes/cache/delegation/live/deleg_bbbc3cef/task-3.log   (nach Stich)
+      2026-09-25 18:11:02 | 2026-09-25 18:11:02 | f | 84404 B | /root/.hermes/cache/delegation/live/deleg_bbbc3cef/task-5.log   (nach Stich)
+      2026-09-25 18:16:12 | 2026-09-25 18:16:12 | f | 106565 B | /root/.hermes/cache/delegation/live/deleg_bbbc3cef/task-6.log   (nach Stich)
+      2026-09-25 18:20:03 | 2026-09-25 18:20:03 | f | 79193 B | /root/.hermes/cache/delegation/live/deleg_bbbc3cef/task-4.log   (nach Stich)
+-- /root/.hermes/cache/documents · 2 · jüngste 2026-09-25 14:44:20 · bis Stich: ja
+      2026-09-25 14:44:20 | 2026-09-25 14:44:20 | d | 4096 B | /root/.hermes/cache/documents
+      2026-09-25 14:44:20 | 2026-09-25 14:44:20 | f | 41239 B | /root/.hermes/cache/documents/doc_5bf902863a6d_BIOTOP-LAGE-01-Auftrag-v2.md
+-- /root/.hermes/cache/model_catalog.json · 1 · jüngste 2026-09-25 18:15:14 · bis Stich: NEIN
+      2026-09-25 18:15:14 | 2026-09-25 18:15:14 | f | 9852 B | /root/.hermes/cache/model_catalog.json
+-- /root/.hermes/cache/nous_recommended_cache.json · 1 · jüngste 2026-09-25 18:15:14 · bis Stich: NEIN
+      2026-09-25 18:15:14 | 2026-09-25 18:15:14 | f | 14420 B | /root/.hermes/cache/nous_recommended_cache.json
+-- /root/.hermes/cache/openrouter_curated_catalog.json · 1 · jüngste 2026-09-25 18:15:14 · bis Stich: NEIN
+      2026-09-25 18:15:14 | 2026-09-25 18:15:14 | f | 3009 B | /root/.hermes/cache/openrouter_curated_catalog.json
+-- /root/.hermes/cache/openrouter_model_metadata.json · 1 · jüngste 2026-09-25 17:01:24 · bis Stich: ja
+      2026-09-25 17:01:24 | 2026-09-25 17:01:24 | f | 351847 B | /root/.hermes/cache/openrouter_model_metadata.json
+-- /root/.hermes/cache/reasoning_caps.json · 1 · jüngste 2026-09-25 18:15:14 · bis Stich: NEIN
+      2026-09-25 18:15:14 | 2026-09-25 18:15:14 | f | 47131 B | /root/.hermes/cache/reasoning_caps.json
+-- /root/.hermes/cache/terminal · 2 · jüngste 2026-09-25 18:22:07 · bis Stich: NEIN
+      2026-09-25 18:22:07 | 2026-09-25 18:22:07 | d | 4096 B | /root/.hermes/cache/terminal
+      2026-09-25 18:22:07 | 2026-09-25 18:22:07 | f | 3804 B | /root/.hermes/cache/terminal/hermes-snap-bad0fb4d6404.sh
+-- /root/.hermes/cache/terminal-output · 2 · jüngste 2026-09-25 16:14:42 · bis Stich: ja
+      2026-09-25 16:14:42 | 2026-09-25 16:14:42 | d | 4096 B | /root/.hermes/cache/terminal-output
+      2026-09-25 16:14:42 | 2026-09-25 16:14:42 | f | 200123 B | /root/.hermes/cache/terminal-output/out-1790345682-389803-1fa0.log
+-- /root/.hermes/channel_directory.json · 1 · jüngste 2026-09-25 18:22:10 · bis Stich: NEIN
+      2026-09-25 18:22:10 | 2026-09-25 18:22:10 | f | 211 B | /root/.hermes/channel_directory.json
+-- /root/.hermes/cron · 1 · jüngste 2026-09-25 18:22:11 · bis Stich: NEIN
+      2026-09-25 18:22:11 | 2026-09-25 18:22:11 | d | 4096 B | /root/.hermes/cron
+-- /root/.hermes/cron/.fire-a924b85d463f535a8e46aec473514377.lock · 1 · jüngste 2026-09-25 15:12:04 · bis Stich: ja
+      2026-09-25 15:12:04 | 2026-09-25 15:12:04 | f | 0 B | /root/.hermes/cron/.fire-a924b85d463f535a8e46aec473514377.lock
+-- /root/.hermes/cron/.tick.lock · 1 · jüngste 2026-09-25 18:22:10 · bis Stich: NEIN
+      2026-09-25 18:22:10 | 2026-09-25 18:22:10 | f | 0 B | /root/.hermes/cron/.tick.lock
+-- /root/.hermes/cron/deliveries.db · 1 · jüngste 2026-09-25 18:22:10 · bis Stich: NEIN
+      2026-09-25 15:13:04 | 2026-09-25 18:22:10 | f | 20480 B | /root/.hermes/cron/deliveries.db
+-- /root/.hermes/cron/executions.db · 1 · jüngste 2026-09-25 18:22:11 · bis Stich: NEIN
+      2026-09-25 18:22:11 | 2026-09-25 18:22:11 | f | 724992 B | /root/.hermes/cron/executions.db
+-- /root/.hermes/cron/external-workers · 1 · jüngste 2026-09-25 18:22:10 · bis Stich: NEIN
+      2026-09-25 18:22:10 | 2026-09-25 18:22:10 | d | 4096 B | /root/.hermes/cron/external-workers
+-- /root/.hermes/cron/jobs.json · 1 · jüngste 2026-09-25 18:22:11 · bis Stich: NEIN
+      2026-09-25 18:22:11 | 2026-09-25 18:22:11 | f | 3196 B | /root/.hermes/cron/jobs.json
+-- /root/.hermes/cron/output · 52 · jüngste 2026-09-25 18:22:11 · bis Stich: NEIN
+      2026-09-25 16:44:08 | 2026-09-25 16:44:08 | f | 159 B | /root/.hermes/cron/output/26fbb1513a1a/2026-09-25_16-44-08.md   (Beispiel)
+      2026-09-25 16:46:08 | 2026-09-25 16:46:08 | f | 159 B | /root/.hermes/cron/output/26fbb1513a1a/2026-09-25_16-46-08.md   (Beispiel)
+      2026-09-25 17:30:10 | 2026-09-25 17:30:10 | f | 159 B | /root/.hermes/cron/output/26fbb1513a1a/2026-09-25_17-30-10.md   (nach Stich)
+      2026-09-25 17:32:10 | 2026-09-25 17:32:10 | f | 159 B | /root/.hermes/cron/output/26fbb1513a1a/2026-09-25_17-32-10.md   (nach Stich)
+      2026-09-25 17:34:10 | 2026-09-25 17:34:10 | f | 159 B | /root/.hermes/cron/output/26fbb1513a1a/2026-09-25_17-34-10.md   (nach Stich)
+      2026-09-25 17:36:10 | 2026-09-25 17:36:10 | f | 159 B | /root/.hermes/cron/output/26fbb1513a1a/2026-09-25_17-36-10.md   (nach Stich)
+      2026-09-25 17:38:10 | 2026-09-25 17:38:10 | f | 159 B | /root/.hermes/cron/output/26fbb1513a1a/2026-09-25_17-38-10.md   (nach Stich)
+      2026-09-25 17:40:10 | 2026-09-25 17:40:10 | f | 159 B | /root/.hermes/cron/output/26fbb1513a1a/2026-09-25_17-40-10.md   (nach Stich)
+      2026-09-25 17:42:10 | 2026-09-25 17:42:10 | f | 159 B | /root/.hermes/cron/output/26fbb1513a1a/2026-09-25_17-42-10.md   (nach Stich)
+      2026-09-25 17:44:10 | 2026-09-25 17:44:10 | f | 159 B | /root/.hermes/cron/output/26fbb1513a1a/2026-09-25_17-44-10.md   (nach Stich)
+      2026-09-25 17:46:10 | 2026-09-25 17:46:10 | f | 159 B | /root/.hermes/cron/output/26fbb1513a1a/2026-09-25_17-46-10.md   (nach Stich)
+      2026-09-25 17:48:10 | 2026-09-25 17:48:10 | f | 159 B | /root/.hermes/cron/output/26fbb1513a1a/2026-09-25_17-48-10.md   (nach Stich)
+      2026-09-25 17:50:10 | 2026-09-25 17:50:10 | f | 159 B | /root/.hermes/cron/output/26fbb1513a1a/2026-09-25_17-50-10.md   (nach Stich)
+      2026-09-25 17:52:10 | 2026-09-25 17:52:10 | f | 159 B | /root/.hermes/cron/output/26fbb1513a1a/2026-09-25_17-52-10.md   (nach Stich)
+      2026-09-25 17:54:10 | 2026-09-25 17:54:10 | f | 159 B | /root/.hermes/cron/output/26fbb1513a1a/2026-09-25_17-54-10.md   (nach Stich)
+      2026-09-25 17:56:10 | 2026-09-25 17:56:10 | f | 159 B | /root/.hermes/cron/output/26fbb1513a1a/2026-09-25_17-56-10.md   (nach Stich)
+      2026-09-25 17:58:10 | 2026-09-25 17:58:10 | f | 159 B | /root/.hermes/cron/output/26fbb1513a1a/2026-09-25_17-58-10.md   (nach Stich)
+      2026-09-25 18:00:10 | 2026-09-25 18:00:10 | f | 159 B | /root/.hermes/cron/output/26fbb1513a1a/2026-09-25_18-00-10.md   (nach Stich)
+      2026-09-25 18:02:11 | 2026-09-25 18:02:11 | f | 159 B | /root/.hermes/cron/output/26fbb1513a1a/2026-09-25_18-02-11.md   (nach Stich)
+      2026-09-25 18:04:10 | 2026-09-25 18:04:10 | f | 159 B | /root/.hermes/cron/output/26fbb1513a1a/2026-09-25_18-04-10.md   (nach Stich)
+      2026-09-25 18:06:10 | 2026-09-25 18:06:10 | f | 159 B | /root/.hermes/cron/output/26fbb1513a1a/2026-09-25_18-06-10.md   (nach Stich)
+      2026-09-25 18:08:11 | 2026-09-25 18:08:11 | f | 159 B | /root/.hermes/cron/output/26fbb1513a1a/2026-09-25_18-08-11.md   (nach Stich)
+      2026-09-25 18:10:11 | 2026-09-25 18:10:11 | f | 159 B | /root/.hermes/cron/output/26fbb1513a1a/2026-09-25_18-10-11.md   (nach Stich)
+      2026-09-25 18:12:11 | 2026-09-25 18:12:11 | f | 159 B | /root/.hermes/cron/output/26fbb1513a1a/2026-09-25_18-12-11.md   (nach Stich)
+      2026-09-25 18:14:11 | 2026-09-25 18:14:11 | f | 159 B | /root/.hermes/cron/output/26fbb1513a1a/2026-09-25_18-14-11.md   (nach Stich)
+      2026-09-25 18:16:11 | 2026-09-25 18:16:11 | f | 159 B | /root/.hermes/cron/output/26fbb1513a1a/2026-09-25_18-16-11.md   (nach Stich)
+      2026-09-25 18:18:11 | 2026-09-25 18:18:11 | f | 159 B | /root/.hermes/cron/output/26fbb1513a1a/2026-09-25_18-18-11.md   (nach Stich)
+      2026-09-25 18:20:11 | 2026-09-25 18:20:11 | f | 159 B | /root/.hermes/cron/output/26fbb1513a1a/2026-09-25_18-20-11.md   (nach Stich)
+      2026-09-25 17:57:00 | 2026-09-25 18:22:11 | d | 4096 B | /root/.hermes/cron/output   (nach Stich)
+      2026-09-25 18:22:11 | 2026-09-25 18:22:11 | d | 4096 B | /root/.hermes/cron/output/26fbb1513a1a   (nach Stich)
+      2026-09-25 18:22:11 | 2026-09-25 18:22:11 | f | 159 B | /root/.hermes/cron/output/26fbb1513a1a/2026-09-25_18-22-11.md   (nach Stich)
+-- /root/.hermes/cron/ticker_heartbeat · 1 · jüngste 2026-09-25 18:22:10 · bis Stich: NEIN
+      2026-09-25 18:22:10 | 2026-09-25 18:22:10 | f | 18 B | /root/.hermes/cron/ticker_heartbeat
+-- /root/.hermes/cron/ticker_last_success · 1 · jüngste 2026-09-25 18:22:10 · bis Stich: NEIN
+      2026-09-25 18:22:10 | 2026-09-25 18:22:10 | f | 18 B | /root/.hermes/cron/ticker_last_success
+-- /root/.hermes/gateway_state.json · 1 · jüngste 2026-09-25 17:08:21 · bis Stich: ja
+      2026-09-25 17:08:21 | 2026-09-25 17:08:21 | f | 661 B | /root/.hermes/gateway_state.json
+-- /root/.hermes/hooks · 1 · jüngste 2026-09-25 18:22:10 · bis Stich: NEIN
+      2026-09-14 00:16:13 | 2026-09-25 18:22:10 | d | 4096 B | /root/.hermes/hooks
+-- /root/.hermes/image_cache · 1 · jüngste 2026-09-25 18:22:10 · bis Stich: NEIN
+      2026-09-14 00:16:13 | 2026-09-25 18:22:10 | d | 4096 B | /root/.hermes/image_cache
+-- /root/.hermes/logs · 1 · jüngste 2026-09-25 18:22:10 · bis Stich: NEIN
+      2026-09-25 17:03:53 | 2026-09-25 18:22:10 | d | 4096 B | /root/.hermes/logs
+-- /root/.hermes/logs/agent.log · 1 · jüngste 2026-09-25 18:22:10 · bis Stich: NEIN
+      2026-09-25 18:22:10 | 2026-09-25 18:22:10 | f | 246150 B | /root/.hermes/logs/agent.log
+-- /root/.hermes/logs/agent.log.1 · 1 · jüngste 2026-09-25 17:03:53 · bis Stich: ja
+      2026-09-25 17:03:53 | 2026-09-25 17:03:53 | f | 5242869 B | /root/.hermes/logs/agent.log.1
+-- /root/.hermes/logs/agent.log.2 · 1 · jüngste 2026-09-25 17:03:53 · bis Stich: ja
+      2026-09-21 04:13:12 | 2026-09-25 17:03:53 | f | 5242615 B | /root/.hermes/logs/agent.log.2
+-- /root/.hermes/logs/curator · 1 · jüngste 2026-09-25 18:22:10 · bis Stich: NEIN
+      2026-09-21 02:17:22 | 2026-09-25 18:22:10 | d | 4096 B | /root/.hermes/logs/curator
+-- /root/.hermes/logs/errors.log · 1 · jüngste 2026-09-25 18:22:10 · bis Stich: NEIN
+      2026-09-25 18:22:10 | 2026-09-25 18:22:10 | f | 1441418 B | /root/.hermes/logs/errors.log
+-- /root/.hermes/logs/gateway.log · 1 · jüngste 2026-09-25 17:45:48 · bis Stich: NEIN
+      2026-09-25 17:45:48 | 2026-09-25 17:45:48 | f | 267725 B | /root/.hermes/logs/gateway.log
+-- /root/.hermes/memories · 1 · jüngste 2026-09-25 18:22:10 · bis Stich: NEIN
+      2026-09-23 21:46:55 | 2026-09-25 18:22:10 | d | 4096 B | /root/.hermes/memories
+-- /root/.hermes/models_dev_cache.etag · 1 · jüngste 2026-09-25 14:52:52 · bis Stich: ja
+      2026-09-25 14:52:52 | 2026-09-25 14:52:52 | f | 36 B | /root/.hermes/models_dev_cache.etag
+-- /root/.hermes/models_dev_cache.json · 1 · jüngste 2026-09-25 14:52:52 · bis Stich: ja
+      2026-09-25 14:52:52 | 2026-09-25 14:52:52 | f | 4928487 B | /root/.hermes/models_dev_cache.json
+-- /root/.hermes/pairing · 1 · jüngste 2026-09-25 18:22:10 · bis Stich: NEIN
+      2026-09-14 00:16:13 | 2026-09-25 18:22:10 | d | 4096 B | /root/.hermes/pairing
+-- /root/.hermes/runtime · 1 · jüngste 2026-09-25 17:09:25 · bis Stich: ja
+      2026-09-25 17:09:25 | 2026-09-25 17:09:25 | d | 4096 B | /root/.hermes/runtime
+-- /root/.hermes/runtime/active_sessions.json · 1 · jüngste 2026-09-25 17:09:25 · bis Stich: ja
+      2026-09-25 17:09:25 | 2026-09-25 17:09:25 | f | 15 B | /root/.hermes/runtime/active_sessions.json
+-- /root/.hermes/scripts · 1 · jüngste 2026-09-25 18:03:20 · bis Stich: NEIN
+      2026-09-25 18:03:20 | 2026-09-25 18:03:20 | d | 4096 B | /root/.hermes/scripts
+-- /root/.hermes/sessions · 1 · jüngste 2026-09-25 18:22:10 · bis Stich: NEIN
+      2026-09-25 03:38:05 | 2026-09-25 18:22:10 | d | 4096 B | /root/.hermes/sessions
+-- /root/.hermes/skills · 1 · jüngste 2026-09-25 18:22:10 · bis Stich: NEIN
+      2026-09-25 17:02:06 | 2026-09-25 18:22:10 | d | 4096 B | /root/.hermes/skills
+-- /root/.hermes/skills/.curator_ledger.jsonl · 1 · jüngste 2026-09-25 17:02:06 · bis Stich: ja
+      2026-09-25 17:02:06 | 2026-09-25 17:02:06 | f | 1116612 B | /root/.hermes/skills/.curator_ledger.jsonl
+-- /root/.hermes/skills/.usage.json · 1 · jüngste 2026-09-25 17:02:06 · bis Stich: ja
+      2026-09-25 17:02:06 | 2026-09-25 17:02:06 | f | 25925 B | /root/.hermes/skills/.usage.json
+-- /root/.hermes/skills/software-development · 15 · jüngste 2026-09-25 17:02:06 · bis Stich: ja
+      2026-09-25 17:01:22 | 2026-09-25 17:01:22 | d | 4096 B | /root/.hermes/skills/software-development/audit-channel-delivery
+      2026-09-25 17:01:22 | 2026-09-25 17:01:22 | d | 4096 B | /root/.hermes/skills/software-development/audit-channel-delivery/templates
+      2026-09-25 17:01:22 | 2026-09-25 17:01:22 | f | 3453 B | /root/.hermes/skills/software-development/audit-channel-delivery/templates/rohbeleg.py
+      2026-09-25 17:01:22 | 2026-09-25 17:01:22 | f | 19380 B | /root/.hermes/skills/software-development/audit-channel-delivery/SKILL.md
+      2026-09-25 17:01:22 | 2026-09-25 17:01:22 | d | 4096 B | /root/.hermes/skills/software-development/audit-channel-delivery/references
+      2026-09-25 17:01:22 | 2026-09-25 17:01:22 | f | 5548 B | /root/.hermes/skills/software-development/audit-channel-delivery/references/disclosure-orders.md
+      2026-09-25 17:01:23 | 2026-09-25 17:01:23 | d | 4096 B | /root/.hermes/skills/software-development/delegated-build-orchestration
+      2026-09-25 17:01:23 | 2026-09-25 17:01:23 | f | 8697 B | /root/.hermes/skills/software-development/delegated-build-orchestration/SKILL.md
+      2026-09-25 17:01:23 | 2026-09-25 17:01:23 | d | 4096 B | /root/.hermes/skills/software-development/delegated-build-orchestration/references
+      2026-09-25 17:01:23 | 2026-09-25 17:01:23 | f | 5295 B | /root/.hermes/skills/software-development/delegated-build-orchestration/references/session-db-forensics.md
+      2026-09-25 17:01:49 | 2026-09-25 17:01:49 | d | 4096 B | /root/.hermes/skills/software-development
+      2026-09-25 17:01:49 | 2026-09-25 17:01:49 | d | 4096 B | /root/.hermes/skills/software-development/verified-backup-restore
+      2026-09-25 17:01:49 | 2026-09-25 17:01:49 | f | 8366 B | /root/.hermes/skills/software-development/verified-backup-restore/SKILL.md
+      2026-09-25 17:02:06 | 2026-09-25 17:02:06 | d | 4096 B | /root/.hermes/skills/software-development/measurement-harness-discipline/references
+      2026-09-25 17:02:06 | 2026-09-25 17:02:06 | f | 10258 B | /root/.hermes/skills/software-development/measurement-harness-discipline/references/read-only-inventory-and-reconciliation.md
+-- /root/.hermes/state · 1 · jüngste 2026-09-25 18:22:02 · bis Stich: NEIN
+      2026-09-25 18:22:02 | 2026-09-25 18:22:02 | d | 4096 B | /root/.hermes/state
+-- /root/.hermes/state.db · 1 · jüngste 2026-09-25 18:22:09 · bis Stich: NEIN
+      2026-09-25 18:22:09 | 2026-09-25 18:22:09 | f | 427716608 B | /root/.hermes/state.db
+-- /root/.hermes/state/gateway.heartbeat · 1 · jüngste 2026-09-25 18:22:02 · bis Stich: NEIN
+      2026-09-25 18:22:02 | 2026-09-25 18:22:02 | f | 293 B | /root/.hermes/state/gateway.heartbeat
+-- /root/.hermes/zwischenbericht · 1 · jüngste 2026-09-25 18:20:11 · bis Stich: NEIN
+      2026-09-25 18:20:11 | 2026-09-25 18:20:11 | d | 4096 B | /root/.hermes/zwischenbericht
+-- /root/.hermes/zwischenbericht/auftrag.json · 1 · jüngste 2026-09-25 17:47:32 · bis Stich: NEIN
+      2026-09-24 23:52:05 | 2026-09-25 17:47:32 | f | 274 B | /root/.hermes/zwischenbericht/auftrag.json
+-- /root/.hermes/zwischenbericht/ausgeloest.json · 1 · jüngste 2026-09-25 18:20:11 · bis Stich: NEIN
+      2026-09-25 18:20:11 | 2026-09-25 18:20:11 | f | 15671 B | /root/.hermes/zwischenbericht/ausgeloest.json
+-- /root/.hermes/zwischenbericht/herzschlag.json · 1 · jüngste 2026-09-25 18:20:11 · bis Stich: NEIN
+      2026-09-25 18:20:11 | 2026-09-25 18:20:11 | f | 769 B | /root/.hermes/zwischenbericht/herzschlag.json
+-- /root/.local/share · 4 · jüngste 2026-09-25 18:22:08 · bis Stich: NEIN
+      2026-09-25 17:49:59 | 2026-09-25 17:49:59 | f | 1573 B | /root/.local/share/tirith/last_trigger.json
+      2026-09-25 18:22:07 | 2026-09-25 18:22:07 | f | 2493538 B | /root/.local/share/tirith/log.jsonl
+      2026-09-25 18:22:08 | 2026-09-25 18:22:08 | d | 4096 B | /root/.local/share/tirith
+      2026-09-25 18:22:07 | 2026-09-25 18:22:08 | f | 117 B | /root/.local/share/tirith/log.jsonl.head
+-- /root/.local/state · 2 · jüngste 2026-09-25 15:52:14 · bis Stich: ja
+      2026-09-25 15:52:14 | 2026-09-25 15:52:14 | d | 4096 B | /root/.local/state/tirith/sessions
+      2026-09-25 15:52:14 | 2026-09-25 15:52:14 | f | 37 B | /root/.local/state/tirith/sessions/fallback-unknown-953b5793.id
+-- /root/biotop-t3/BEFUNDKLASSE-TS.json · 1 · jüngste 2026-09-25 17:06:22 · bis Stich: ja
+      2026-09-25 17:06:22 | 2026-09-25 17:06:22 | f | 34653 B | /root/biotop-t3/BEFUNDKLASSE-TS.json
+-- /root/biotop-t3/repo-sicherung-vor-commits · 2 · jüngste 2026-09-25 15:20:19 · bis Stich: ja
+      2026-09-20 04:54:58 | 2026-09-25 15:20:19 | f | 0 B | /root/biotop-t3/repo-sicherung-vor-commits/daten/biotop.db-wal
+      2026-09-25 15:20:19 | 2026-09-25 15:20:19 | f | 32768 B | /root/biotop-t3/repo-sicherung-vor-commits/daten/biotop.db-shm
+-- /root/biotop-t3/schnappschuss-abschluss3 · 2 · jüngste 2026-09-25 15:20:18 · bis Stich: ja
+      2026-09-25 15:20:18 | 2026-09-25 15:20:18 | f | 32768 B | /root/biotop-t3/schnappschuss-abschluss3/t3.db-shm
+      2026-09-23 12:52:20 | 2026-09-25 15:20:18 | f | 0 B | /root/biotop-t3/schnappschuss-abschluss3/t3.db-wal
+-- /root/biotop-t3/t3.db-shm · 1 · jüngste 2026-09-25 18:14:31 · bis Stich: NEIN
+      2026-09-25 18:14:31 | 2026-09-25 18:14:31 | f | 32768 B | /root/biotop-t3/t3.db-shm
+-- /root/biotop-t3/t3.db-wal · 1 · jüngste 2026-09-25 18:14:31 · bis Stich: NEIN
+      2026-09-22 21:26:11 | 2026-09-25 18:14:31 | f | 13221112 B | /root/biotop-t3/t3.db-wal
+-- /root/biotop-vor-t4-06/bau · 24 · jüngste 2026-09-25 17:25:07 · bis Stich: ja
+      2026-09-25 15:12:57 | 2026-09-25 15:12:57 | f | 7871 B | /root/biotop-vor-t4-06/bau/r6_s1c_spez_n5.py   (Beispiel)
+      2026-09-25 15:18:49 | 2026-09-25 15:18:49 | f | 5613 B | /root/biotop-vor-t4-06/bau/r6_s1c_spez_n6.py   (Beispiel)
+-- /root/biotop/.git · 1 · jüngste 2026-09-25 17:50:15 · bis Stich: NEIN
+      2026-09-25 17:50:15 | 2026-09-25 17:50:15 | d | 4096 B | /root/biotop/.git
+-- /root/biotop/biotop · 10 · jüngste 2026-09-25 17:06:04 · bis Stich: ja
+      2026-09-25 16:40:47 | 2026-09-25 16:40:47 | d | 4096 B | /root/biotop/biotop/kern/py
+      2026-09-25 16:40:47 | 2026-09-25 16:40:47 | f | 115144 B | /root/biotop/biotop/kern/py/verhalten.py
+      2026-09-25 16:40:48 | 2026-09-25 16:40:48 | d | 4096 B | /root/biotop/biotop/organe
+      2026-09-25 16:40:48 | 2026-09-25 16:40:48 | f | 140896 B | /root/biotop/biotop/organe/verhaltensvergleich.py
+      2026-09-25 16:42:08 | 2026-09-25 16:42:08 | d | 4096 B | /root/biotop/biotop/kern/py/__pycache__
+      2026-09-25 16:42:08 | 2026-09-25 16:42:08 | f | 160679 B | /root/biotop/biotop/kern/py/__pycache__/verhalten.cpython-312.pyc
+      2026-09-25 16:42:08 | 2026-09-25 16:42:08 | d | 4096 B | /root/biotop/biotop/organe/__pycache__
+      2026-09-25 16:42:08 | 2026-09-25 16:42:08 | f | 180300 B | /root/biotop/biotop/organe/__pycache__/verhaltensvergleich.cpython-312.pyc
+      2026-09-25 17:06:04 | 2026-09-25 17:06:04 | d | 4096 B | /root/biotop/biotop/__pycache__
+      2026-09-25 17:06:04 | 2026-09-25 17:06:04 | f | 19847 B | /root/biotop/biotop/__pycache__/__main__.cpython-312.pyc
+-- /root/biotop/daten · 2 · jüngste 2026-09-25 15:55:06 · bis Stich: ja
+      2026-09-20 04:54:58 | 2026-09-25 15:55:06 | f | 0 B | /root/biotop/daten/biotop.db-wal
+      2026-09-25 15:55:06 | 2026-09-25 15:55:06 | f | 32768 B | /root/biotop/daten/biotop.db-shm
+-- /root/biotop/tests · 11 · jüngste 2026-09-25 17:25:08 · bis Stich: ja
+      2026-09-25 16:40:47 | 2026-09-25 16:40:47 | f | 16188 B | /root/biotop/tests/test_t3_verhaltensvergleich.py
+      2026-09-25 16:40:48 | 2026-09-25 16:40:48 | f | 33281 B | /root/biotop/tests/test_vor_t4_03.py
+      2026-09-25 16:42:08 | 2026-09-25 16:42:08 | f | 79041 B | /root/biotop/tests/__pycache__/test_vor_t4_03.cpython-312-pytest-9.1.1.pyc
+      2026-09-25 16:55:47 | 2026-09-25 16:55:47 | f | 49342 B | /root/biotop/tests/__pycache__/test_t3_verhaltensvergleich.cpython-312-pytest-9.1.1.pyc
+      2026-09-25 16:55:47 | 2026-09-25 16:55:47 | f | 21546 B | /root/biotop/tests/__pycache__/test_t3_python_annahmen.cpython-312-pytest-9.1.1.pyc
+      2026-09-25 17:01:35 | 2026-09-25 17:01:35 | f | 115519 B | /root/biotop/tests/__pycache__/test_vor_t4_06_register.cpython-312-pytest-9.1.1.pyc
+      2026-09-25 17:13:41 | 2026-09-25 17:13:41 | f | 40705 B | /root/biotop/tests/__pycache__/test_vor_t4_03.cpython-312.pyc
+      2026-09-25 17:25:07 | 2026-09-25 17:25:07 | d | 4096 B | /root/biotop/tests
+      2026-09-25 17:25:07 | 2026-09-25 17:25:07 | f | 111290 B | /root/biotop/tests/test_vor_t4_06.py
+      2026-09-25 17:25:08 | 2026-09-25 17:25:08 | d | 12288 B | /root/biotop/tests/__pycache__
+      2026-09-25 17:25:08 | 2026-09-25 17:25:08 | f | 318532 B | /root/biotop/tests/__pycache__/test_vor_t4_06.cpython-312-pytest-9.1.1.pyc
+-- /root/gesamtstand-01/bestand.db-shm · 1 · jüngste 2026-09-25 15:20:19 · bis Stich: ja
+      2026-09-25 15:20:19 | 2026-09-25 15:20:19 | f | 32768 B | /root/gesamtstand-01/bestand.db-shm
+-- /root/gesamtstand-01/bestand.db-wal · 1 · jüngste 2026-09-25 15:20:19 · bis Stich: ja
+      2026-09-20 06:43:06 | 2026-09-25 15:20:19 | f | 0 B | /root/gesamtstand-01/bestand.db-wal
+-- /root/phase-4-vorbedingung-1/privat · 2 · jüngste 2026-09-25 17:43:13 · bis Stich: NEIN
+      2026-09-20 22:16:10 | 2026-09-25 17:43:13 | f | 4140632 B | /root/phase-4-vorbedingung-1/privat/biotop.db-wal
+      2026-09-25 17:43:13 | 2026-09-25 17:43:13 | f | 32768 B | /root/phase-4-vorbedingung-1/privat/biotop.db-shm
+-- /root/reparatur-02/privat-cli · 2 · jüngste 2026-09-25 16:58:22 · bis Stich: ja
+      2026-09-21 06:25:38 | 2026-09-25 16:58:22 | f | 0 B | /root/reparatur-02/privat-cli/privat.db-wal
+      2026-09-25 16:58:22 | 2026-09-25 16:58:22 | f | 32768 B | /root/reparatur-02/privat-cli/privat.db-shm
+-- /root/sicherung · 1 · jüngste 2026-09-25 14:48:39 · bis Stich: ja
+      2026-09-25 14:48:39 | 2026-09-25 14:48:39 | d | 4096 B | /root/sicherung
+-- /tmp · 1 · jüngste 2026-09-25 18:04:56 · bis Stich: NEIN
+      2026-09-25 18:04:56 | 2026-09-25 18:04:56 | d | 200704 B | /tmp
+-- /tmp/hermes_kernel_l4dxywo7 · 3 · jüngste 2026-09-25 18:04:56 · bis Stich: NEIN
+      2026-09-25 18:04:56 | 2026-09-25 18:04:56 | d | 4096 B | /tmp/hermes_kernel_l4dxywo7
+      2026-09-25 18:04:56 | 2026-09-25 18:04:56 | f | 6894 B | /tmp/hermes_kernel_l4dxywo7/hermes_tools.py
+      2026-09-25 18:04:56 | 2026-09-25 18:04:56 | f | 6061 B | /tmp/hermes_kernel_l4dxywo7/hermes_kernel_runner.py
+-- /tmp/hermes_kernel_neecs_j6 · 3 · jüngste 2026-09-25 17:42:17 · bis Stich: NEIN
+      2026-09-25 17:42:17 | 2026-09-25 17:42:17 | d | 4096 B | /tmp/hermes_kernel_neecs_j6
+      2026-09-25 17:42:17 | 2026-09-25 17:42:17 | f | 6894 B | /tmp/hermes_kernel_neecs_j6/hermes_tools.py
+      2026-09-25 17:42:17 | 2026-09-25 17:42:17 | f | 6061 B | /tmp/hermes_kernel_neecs_j6/hermes_kernel_runner.py
+-- /tmp/hermes_kernel_s5mbsd8c · 3 · jüngste 2026-09-25 17:36:10 · bis Stich: NEIN
+      2026-09-25 17:36:10 | 2026-09-25 17:36:10 | d | 4096 B | /tmp/hermes_kernel_s5mbsd8c
+      2026-09-25 17:36:10 | 2026-09-25 17:36:10 | f | 6894 B | /tmp/hermes_kernel_s5mbsd8c/hermes_tools.py
+      2026-09-25 17:36:10 | 2026-09-25 17:36:10 | f | 6061 B | /tmp/hermes_kernel_s5mbsd8c/hermes_kernel_runner.py
+-- /tmp/hermes_rpc_4f4ec1dc2b0849b48b1af553fe88c678.sock · 1 · jüngste 2026-09-25 17:36:10 · bis Stich: NEIN
+      2026-09-25 17:36:10 | 2026-09-25 17:36:10 | s | 0 B | /tmp/hermes_rpc_4f4ec1dc2b0849b48b1af553fe88c678.sock
+-- /tmp/hermes_rpc_5fd04c84aef04798ad99a55911bec81c.sock · 1 · jüngste 2026-09-25 17:42:17 · bis Stich: NEIN
+      2026-09-25 17:42:17 | 2026-09-25 17:42:17 | s | 0 B | /tmp/hermes_rpc_5fd04c84aef04798ad99a55911bec81c.sock
+-- /tmp/hermes_rpc_f0ad392bfe15449da002e8247f8ef406.sock · 1 · jüngste 2026-09-25 18:04:56 · bis Stich: NEIN
+      2026-09-25 18:04:56 | 2026-09-25 18:04:56 | s | 0 B | /tmp/hermes_rpc_f0ad392bfe15449da002e8247f8ef406.sock
+-- /tmp/r6-s1c · 599 · jüngste 2026-09-25 17:25:50 · bis Stich: ja
+      2026-09-25 14:44:21 | 2026-09-25 14:44:21 | f | 1942 B | /tmp/r6-s1c/w-vorher-baum-ef.txt   (Beispiel)
+      2026-09-25 14:44:31 | 2026-09-25 14:44:31 | f | 400 B | /tmp/r6-s1c/w_vorher_alle.sh   (Beispiel)
+-- /usr/local/lib · 2 · jüngste 2026-09-25 17:57:00 · bis Stich: NEIN
+      2026-09-25 17:57:00 | 2026-09-25 17:57:00 | d | 4096 B | /usr/local/lib/hermes-agent/cron/__pycache__
+      2026-09-25 17:57:00 | 2026-09-25 17:57:00 | f | 8687 B | /usr/local/lib/hermes-agent/cron/__pycache__/notepad.cpython-312.pyc
+-- /var/cache/fwupd · 2 · jüngste 2026-09-25 17:10:01 · bis Stich: ja
+      2026-09-25 17:10:01 | 2026-09-25 17:10:01 | d | 4096 B | /var/cache/fwupd
+      2026-09-25 17:10:01 | 2026-09-25 17:10:01 | f | 0 B | /var/cache/fwupd/devices.json
+-- /var/lib/apt · 1 · jüngste 2026-09-25 16:38:00 · bis Stich: ja
+      2026-09-25 16:38:00 | 2026-09-25 16:38:00 | f | 0 B | /var/lib/apt/daily_lock
+-- /var/lib/containerd · 4 · jüngste 2026-09-25 17:25:50 · bis Stich: ja
+      2026-09-25 17:25:50 | 2026-09-25 17:25:50 | d | 4096 B | /var/lib/containerd/io.containerd.runtime.v2.task/moby
+      2026-09-25 17:25:50 | 2026-09-25 17:25:50 | f | 8388608 B | /var/lib/containerd/io.containerd.metadata.v1.bolt/meta.db
+      2026-09-25 17:25:50 | 2026-09-25 17:25:50 | d | 4096 B | /var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots
+      2026-09-25 17:25:50 | 2026-09-25 17:25:50 | f | 131072 B | /var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/metadata.db
+-- /var/lib/seiten-wache · 1 · jüngste 2026-09-25 18:20:31 · bis Stich: NEIN
+      2026-09-25 18:20:31 | 2026-09-25 18:20:31 | f | 36 B | /var/lib/seiten-wache/zustand
+-- /var/lib/systemd · 5 · jüngste 2026-09-25 18:21:40 · bis Stich: NEIN
+      2026-09-25 16:38:00 | 2026-09-25 16:38:00 | f | 0 B | /var/lib/systemd/timers/stamp-apt-daily.timer
+      2026-09-25 17:10:00 | 2026-09-25 17:10:00 | f | 0 B | /var/lib/systemd/timers/stamp-fwupd-refresh.timer
+      2026-09-25 18:10:27 | 2026-09-25 18:10:27 | f | 0 B | /var/lib/systemd/timers/stamp-melder-wache.timer
+      2026-09-25 18:20:30 | 2026-09-25 18:20:30 | f | 0 B | /var/lib/systemd/timers/stamp-anfragen-melder.timer
+      2026-09-25 18:21:40 | 2026-09-25 18:21:40 | f | 0 B | /var/lib/systemd/timesync/clock
+-- /var/log/auth.log · 1 · jüngste 2026-09-25 18:21:06 · bis Stich: NEIN
+      2026-09-25 18:21:06 | 2026-09-25 18:21:06 | f | 1849806 B | /var/log/auth.log
+-- /var/log/btmp · 1 · jüngste 2026-09-25 18:21:06 · bis Stich: NEIN
+      2026-09-25 18:21:06 | 2026-09-25 18:21:06 | f | 141871872 B | /var/log/btmp
+-- /var/log/hermes-speicher.log · 1 · jüngste 2026-09-25 18:21:40 · bis Stich: NEIN
+      2026-09-25 18:21:40 | 2026-09-25 18:21:40 | f | 3995819 B | /var/log/hermes-speicher.log
+-- /var/log/journal · 3 · jüngste 2026-09-25 18:21:41 · bis Stich: NEIN
+      2026-09-25 15:49:03 | 2026-09-25 15:49:03 | d | 12288 B | /var/log/journal/b85e99b866a54b5f8f34c79b0811f4eb
+      2026-09-25 15:49:03 | 2026-09-25 15:49:03 | f | 67108864 B | /var/log/journal/b85e99b866a54b5f8f34c79b0811f4eb/system@e92957ac28fc4bd8a091f1f9af1b193d-0000000000433e3e-00065c46d661589b.journal
+      2026-09-25 18:21:41 | 2026-09-25 18:21:41 | f | 25165824 B | /var/log/journal/b85e99b866a54b5f8f34c79b0811f4eb/system.journal
+-- /var/log/kern.log · 1 · jüngste 2026-09-25 17:56:53 · bis Stich: NEIN
+      2026-09-25 17:56:53 | 2026-09-25 17:56:53 | f | 17822 B | /var/log/kern.log
+-- /var/log/syslog · 1 · jüngste 2026-09-25 18:21:40 · bis Stich: NEIN
+      2026-09-25 18:21:40 | 2026-09-25 18:21:40 | f | 27163203 B | /var/log/syslog
+-- /var/log/sysstat · 1 · jüngste 2026-09-25 18:20:00 · bis Stich: NEIN
+      2026-09-25 18:20:00 | 2026-09-25 18:20:00 | f | 212476 B | /var/log/sysstat/sa25
+-- /var/log/ufw.log · 1 · jüngste 2026-09-25 17:56:53 · bis Stich: NEIN
+      2026-09-25 17:56:53 | 2026-09-25 17:56:53 | f | 195998 B | /var/log/ufw.log
+-- /var/pruefkanal/oeffentlich · 1 · jüngste 2026-09-25 15:09:49 · bis Stich: ja
+      2026-09-25 15:09:49 | 2026-09-25 15:09:49 | d | 4096 B | laeufe
+-- /var/tmp · 1 · jüngste 2026-09-25 17:48:55 · bis Stich: NEIN
+      2026-09-25 17:48:55 | 2026-09-25 17:48:55 | d | 4096 B | /var/tmp
+=== Ende R159 ===

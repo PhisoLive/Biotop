@@ -1,0 +1,300 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 56 (Teile 4–165 dieses Stands) · enthält R50 bis R50
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R50 · Teil B: Verfassungen in den Kassen-Datenbanken (verfassung_werk, Protokoll), nur lesend — zweiter Lauf nach Behebung eines Sortierfehlers im eigenen Skript (R49 rc=1)
+Beginn: 2026-09-25 16:15:43 CEST (UTC+0200)
+Ende:   2026-09-25 16:15:44 CEST (UTC+0200)
+Dauer:  0.5 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/verfassungen/b3_datenbanken.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/verfassungen/b3_datenbanken.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil B (nur lesend): Verfassungen in den Kassen-Datenbanken (Tabelle verfassung_werk, Protokoll).
+
+Regeln: STAMM nur mit mode=ro&immutable=1 und nur, wenn biotop.db-wal 0 Bytes hat (vorher geprüft);
+alle anderen Datenbanken mit mode=ro. Nichts wird geschrieben. Kein Biotop-Code wird importiert.
+Ausgabe: je Zweig Tabellen mit „verfass“, Schema, Zeilen (werk_id, Werkname, Textlänge, SHA-256 von Text und Regeln,
+Quelle, eingelegt_am, eingelegt_von), Abgleich mit den Dateien, Protokollzeilen „verfassung.eingelegt“,
+Läufe je werk_id; Wortlaut jedes Textes und jeder Regel, der keiner bekannten Datei entspricht.
+"""
+import hashlib
+import json
+import os
+import sqlite3
+import sys
+
+STAMM = '/root/biotop/daten/biotop.db'
+ZWEIGE = [('STAMM', STAMM), ('VB1', '/root/phase-4-vorbedingung-1/privat/biotop.db'),
+          ('R02', '/root/reparatur-02/privat-cli/privat.db'), ('T3', '/root/biotop-t3/t3.db')]
+DATEIEN = {
+    'lagerhaus.md': '/root/biotop/verfassungen/lagerhaus.md',
+    'lagerhaus.regeln.json': '/root/biotop/verfassungen/lagerhaus.regeln.json',
+    'logmuehle.md': '/root/biotop/verfassungen/logmuehle.md',
+    'logmuehle.regeln.json': '/root/biotop/verfassungen/logmuehle.regeln.json',
+    'VB1 privat/verfassung.md': '/root/phase-4-vorbedingung-1/privat/verfassung.md',
+    'VB1 privat/verfassung.regeln.json': '/root/phase-4-vorbedingung-1/privat/verfassung.regeln.json',
+    'VERFASSUNG-T3-ENTWURF.md': '/root/biotop-t3/VERFASSUNG-T3-ENTWURF.md',
+    'VERFASSUNG-T3-02.md': '/root/biotop-t3/VERFASSUNG-T3-02.md',
+    'VERFASSUNG-T3-02.regeln.json': '/root/biotop-t3/VERFASSUNG-T3-02.regeln.json',
+}
+
+
+def h(b: bytes) -> str:
+    return hashlib.sha256(b).hexdigest()
+
+
+text_bek, regel_bek = {}, {}
+for k, p in DATEIEN.items():
+    b = open(p, 'rb').read()
+    if p.endswith('.json'):
+        kk = json.dumps(json.loads(b), sort_keys=True, ensure_ascii=False)
+        regel_bek[kk] = (regel_bek[kk] + ' = ' + k) if kk in regel_bek else k
+    else:
+        for hh, name in ((h(b), k), (h(b.rstrip(b'\n')), k + ' (ohne Schluss-Zeilenumbruch)')):
+            text_bek[hh] = (text_bek[hh] + ' = ' + name) if hh in text_bek else name
+print('Bekannte Regeldateien (kanonisches JSON gleich):', sorted(regel_bek.values()))
+print('Bekannte Textdateien (SHA-256 gleich):', sorted(text_bek.values()))
+
+wal = STAMM + '-wal'
+wal_groesse = os.path.getsize(wal) if os.path.exists(wal) else -1
+print(f'Vorprüfung: {wal} = {wal_groesse} Bytes')
+
+unbekannt_text, unbekannt_regel = {}, {}
+for name, db in ZWEIGE:
+    print(f'\n########## {name}: {db}')
+    if not os.path.exists(db):
+        print('  NICHT GEFUNDEN')
+        continue
+    if name == 'STAMM':
+        if wal_groesse != 0:
+            print('  NICHT GEÖFFNET: WAL nicht 0 Bytes')
+            continue
+        uri = f'file:{db}?mode=ro&immutable=1'
+    else:
+        uri = f'file:{db}?mode=ro'
+    print(f'  URI: {uri}')
+    c = sqlite3.connect(uri, uri=True)
+    c.row_factory = sqlite3.Row
+    tab = [r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")]
+    print(f'  Tabellen gesamt: {len(tab)}; mit „verfass“: {[t for t in tab if "verfass" in t.lower()]}')
+    spalten = {}
+    for t in tab:
+        cols = [r[1] for r in c.execute(f'PRAGMA table_info("{t}")')]
+        treffer = [x for x in cols if 'verfass' in x.lower() or 'bestaet' in x.lower()]
+        if treffer:
+            spalten[t] = treffer
+    print(f'  Spalten mit „verfass“/„bestaet“: {spalten}')
+    if 'verfassung_werk' not in tab:
+        print('  verfassung_werk: NICHT VORHANDEN')
+        c.close()
+        continue
+    print('  Schema:', c.execute("SELECT sql FROM sqlite_master WHERE name='verfassung_werk'").fetchone()[0].strip())
+    werke = {r['id']: r['name'] for r in c.execute('SELECT id, name FROM werke')}
+    zeilen = c.execute('SELECT * FROM verfassung_werk ORDER BY werk_id').fetchall()
+    print(f'  Zeilen verfassung_werk: {len(zeilen)} (Werke in Tabelle werke: {len(werke)})')
+    print('  werk_id | Werk | Text Bytes | SHA-256 Text | Text = Datei | Regeln = Datei | Quelle | eingelegt_am | eingelegt_von')
+    for r in zeilen:
+        tb = (r['text'] or '').encode()
+        ht = h(tb)
+        try:
+            rk = json.dumps(json.loads(r['regeln'] or 'null'), sort_keys=True, ensure_ascii=False)
+        except ValueError:
+            rk = 'UNLESBAR:' + str(r['regeln'])[:60]
+        tdat = text_bek.get(ht, 'KEINE')
+        rdat = regel_bek.get(rk, 'KEINE')
+        if tdat == 'KEINE':
+            unbekannt_text.setdefault(ht, (r['text'], []))[1].append(f'{name}:{r["werk_id"]}')
+        if rdat == 'KEINE':
+            unbekannt_regel.setdefault(rk, []).append(f'{name}:{r["werk_id"]}')
+        print(f'  {r["werk_id"]} | {werke.get(r["werk_id"])} | {len(tb)} | {ht} | {tdat} | {rdat} | {r["quelle"]} | '
+              f'{r["eingelegt_am"]} | {r["eingelegt_von"]}')
+    werke_ohne = sorted(set(werke) - {r['werk_id'] for r in zeilen})
+    print(f'  Werke ohne Verfassungszeile: {[(w, werke[w]) for w in werke_ohne]}')
+    print('  Protokoll art=verfassung.eingelegt: nr | zeit | inhalt')
+    n = 0
+    for r in c.execute("SELECT nr, zeit, inhalt FROM protokoll WHERE art='verfassung.eingelegt' ORDER BY nr"):
+        n += 1
+        print(f'    {r["nr"]} | {r["zeit"]} | {r["inhalt"]}')
+    print(f'  Protokollzeilen verfassung.eingelegt: {n}')
+    print('  Läufe je werk_id (id-Liste):')
+    lj = {}
+    for r in c.execute('SELECT id, werk_id FROM laeufe ORDER BY id'):
+        lj.setdefault(r['werk_id'], []).append(r['id'])
+    for w in sorted(lj, key=lambda x: (x is None, x or 0)):
+        print(f'    werk {w} ({werke.get(w)}): Läufe {lj[w]}')
+    c.close()
+
+print('\n########## Texte ohne passende Datei (Wortlaut):', len(unbekannt_text))
+for ht, (t, wo) in unbekannt_text.items():
+    print(f'--- SHA-256 {ht} · Bytes {len((t or "").encode())} · Vorkommen {wo}')
+    print(t)
+    print('--- Ende')
+print('\n########## Regeln ohne passende Datei (kanonisches JSON):', len(unbekannt_regel))
+for rk, wo in unbekannt_regel.items():
+    print(f'--- Vorkommen {wo}')
+    print(rk)
+    print('--- Ende')
+print('\nNachprüfung WAL STAMM:', os.path.getsize(wal) if os.path.exists(wal) else -1, 'Bytes')
+sys.exit(0)
+--- Ende /root/sicherung/biotop-lage-01/entwurf/verfassungen/b3_datenbanken.py ---
+Ausgabe (vollständig, stdout und stderr):
+Bekannte Regeldateien (kanonisches JSON gleich): ['VERFASSUNG-T3-02.regeln.json', 'lagerhaus.regeln.json = VB1 privat/verfassung.regeln.json', 'logmuehle.regeln.json']
+Bekannte Textdateien (SHA-256 gleich): ['VERFASSUNG-T3-02.md', 'VERFASSUNG-T3-02.md (ohne Schluss-Zeilenumbruch)', 'VERFASSUNG-T3-ENTWURF.md', 'VERFASSUNG-T3-ENTWURF.md (ohne Schluss-Zeilenumbruch)', 'lagerhaus.md (ohne Schluss-Zeilenumbruch) = VB1 privat/verfassung.md (ohne Schluss-Zeilenumbruch)', 'lagerhaus.md = VB1 privat/verfassung.md', 'logmuehle.md', 'logmuehle.md (ohne Schluss-Zeilenumbruch)']
+Vorprüfung: /root/biotop/daten/biotop.db-wal = 0 Bytes
+
+########## STAMM: /root/biotop/daten/biotop.db
+  URI: file:/root/biotop/daten/biotop.db?mode=ro&immutable=1
+  Tabellen gesamt: 27; mit „verfass“: ['verfassung_werk']
+  Spalten mit „verfass“/„bestaet“: {}
+  Schema: CREATE TABLE verfassung_werk (
+  werk_id INTEGER PRIMARY KEY, text TEXT, regeln TEXT, quelle TEXT, eingelegt_am TEXT, eingelegt_von TEXT)
+  Zeilen verfassung_werk: 18 (Werke in Tabelle werke: 22)
+  werk_id | Werk | Text Bytes | SHA-256 Text | Text = Datei | Regeln = Datei | Quelle | eingelegt_am | eingelegt_von
+  5 | lagerhaus-nachlauf | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | lagerhaus.md = VB1 privat/verfassung.md | lagerhaus.regeln.json = VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-18T22:48:45.943+00:00 | Chat-Claude (Anhang A, Masterprompt v2), eingelegt durch Hermes
+  6 | lagerhaus-nachlauf2 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | lagerhaus.md = VB1 privat/verfassung.md | lagerhaus.regeln.json = VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-18T23:20:31.794+00:00 | Chat-Claude (Anhang A, Masterprompt v2), eingelegt durch Hermes
+  7 | lagerhaus-nachlauf8 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | lagerhaus.md = VB1 privat/verfassung.md | lagerhaus.regeln.json = VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-18T23:33:24.936+00:00 | Chat-Claude (Anhang A, Masterprompt v2), eingelegt durch Hermes
+  8 | lagerhaus-nachlauf9 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | lagerhaus.md = VB1 privat/verfassung.md | lagerhaus.regeln.json = VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-18T23:53:47.793+00:00 | Chat-Claude (Anhang A, Masterprompt v2), eingelegt durch Hermes
+  9 | lagerhaus-kasse3 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | lagerhaus.md = VB1 privat/verfassung.md | lagerhaus.regeln.json = VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-19T00:09:32.022+00:00 | Chat-Claude (Anhang A)
+  10 | lagerhaus-p2 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | lagerhaus.md = VB1 privat/verfassung.md | lagerhaus.regeln.json = VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-19T00:42:11.160+00:00 | Chat-Claude (Anhang A, Masterprompt v3), eingelegt durch Hermes
+  11 | lagerhaus-p2-13 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | lagerhaus.md = VB1 privat/verfassung.md | lagerhaus.regeln.json = VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-19T01:47:26.985+00:00 | Chat-Claude (Anhang A, Masterprompt v3), eingelegt durch Hermes
+  12 | lagerhaus-p3-14 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | lagerhaus.md = VB1 privat/verfassung.md | lagerhaus.regeln.json = VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-19T11:03:26.026+00:00 | Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes
+  13 | lagerhaus-p3-15 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | lagerhaus.md = VB1 privat/verfassung.md | lagerhaus.regeln.json = VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-19T11:09:30.426+00:00 | Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes
+  14 | lagerhaus-p3-16 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | lagerhaus.md = VB1 privat/verfassung.md | lagerhaus.regeln.json = VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-19T11:26:25.066+00:00 | Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes
+  15 | logmuehle-17 | 1841 | 0ce7f8651ae70ad0783cb6caa8f54b9ebbcf789b5e6b116d6df6fb63242bc803 | logmuehle.md | logmuehle.regeln.json | /root/biotop/verfassungen/logmuehle.md + /root/biotop/verfassungen/logmuehle.regeln.json | 2026-09-19T11:55:53.396+00:00 | Hermes (Entwurf, Masterprompt v4 Phase 3; Chat-Claude bestätigt am Bericht)
+  16 | lagerhaus-p3-18 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | lagerhaus.md = VB1 privat/verfassung.md | lagerhaus.regeln.json = VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-19T14:41:23.062+00:00 | Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes
+  17 | lagerhaus-p3-19 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | lagerhaus.md = VB1 privat/verfassung.md | lagerhaus.regeln.json = VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-19T15:06:37.763+00:00 | Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes
+  18 | lagerhaus-p3-20 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | lagerhaus.md = VB1 privat/verfassung.md | lagerhaus.regeln.json = VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-19T15:40:22.795+00:00 | Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes
+  19 | lagerhaus-p3-22 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | lagerhaus.md = VB1 privat/verfassung.md | lagerhaus.regeln.json = VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-19T20:58:00.295+00:00 | Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes
+  20 | logmuehle-23 | 1841 | 0ce7f8651ae70ad0783cb6caa8f54b9ebbcf789b5e6b116d6df6fb63242bc803 | logmuehle.md | logmuehle.regeln.json | /root/biotop/verfassungen/logmuehle.md + /root/biotop/verfassungen/logmuehle.regeln.json | 2026-09-19T21:33:14.053+00:00 | Hermes (Entwurf, Chat-Claude bestaetigt am Bericht)
+  21 | lagerhaus-zeile8-24 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | lagerhaus.md = VB1 privat/verfassung.md | lagerhaus.regeln.json = VB1 privat/verfassung.regeln.json | verfassungen/lagerhaus.md + verfassungen/lagerhaus.regeln.json | 2026-09-19T22:59:01.160+00:00 | Chat-Claude (Anhang A)
+  22 | lagerhaus-c-25 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | lagerhaus.md = VB1 privat/verfassung.md | lagerhaus.regeln.json = VB1 privat/verfassung.regeln.json | verfassungen/lagerhaus.md + verfassungen/lagerhaus.regeln.json | 2026-09-20T01:13:48.308+00:00 | Chat-Claude (Anhang A)
+  Werke ohne Verfassungszeile: [(1, 'lagerhaus'), (2, 'lagerhaus-ohne-tests'), (3, 'lagerhaus-kasse'), (4, 'lagerhaus-kasse2')]
+  Protokoll art=verfassung.eingelegt: nr | zeit | inhalt
+    838 | 2026-09-18T22:48:45.944+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v2), eingelegt durch Hermes", "werk_id": 5}
+    1462 | 2026-09-18T23:20:31.796+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v2), eingelegt durch Hermes", "werk_id": 6}
+    1758 | 2026-09-18T23:33:24.938+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v2), eingelegt durch Hermes", "werk_id": 7}
+    2202 | 2026-09-18T23:53:47.794+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v2), eingelegt durch Hermes", "werk_id": 8}
+    2566 | 2026-09-19T00:09:32.024+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A)", "werk_id": 9}
+    2674 | 2026-09-19T00:42:11.162+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v3), eingelegt durch Hermes", "werk_id": 10}
+    4582 | 2026-09-19T01:47:26.988+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v3), eingelegt durch Hermes", "werk_id": 11}
+    7291 | 2026-09-19T11:03:26.028+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes", "werk_id": 12}
+    7338 | 2026-09-19T11:09:30.428+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes", "werk_id": 13}
+    7431 | 2026-09-19T11:26:25.068+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes", "werk_id": 14}
+    7547 | 2026-09-19T11:55:53.397+00:00 | {"quelle": "/root/biotop/verfassungen/logmuehle.md + /root/biotop/verfassungen/logmuehle.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 3.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Hermes (Entwurf, Masterprompt v4 Phase 3; Chat-Claude bestätigt am Bericht)", "werk_id": 15}
+    9893 | 2026-09-19T14:41:23.064+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes", "werk_id": 16}
+    10525 | 2026-09-19T15:06:37.765+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes", "werk_id": 17}
+    11456 | 2026-09-19T15:40:22.797+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes", "werk_id": 18}
+    12514 | 2026-09-19T20:58:00.297+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes", "werk_id": 19}
+    13334 | 2026-09-19T21:33:14.055+00:00 | {"quelle": "/root/biotop/verfassungen/logmuehle.md + /root/biotop/verfassungen/logmuehle.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 3.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Hermes (Entwurf, Chat-Claude bestaetigt am Bericht)", "werk_id": 20}
+    14472 | 2026-09-19T22:59:01.162+00:00 | {"quelle": "verfassungen/lagerhaus.md + verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A)", "werk_id": 21}
+    15268 | 2026-09-20T01:13:48.310+00:00 | {"quelle": "verfassungen/lagerhaus.md + verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A)", "werk_id": 22}
+  Protokollzeilen verfassung.eingelegt: 18
+  Läufe je werk_id (id-Liste):
+    werk 1 (lagerhaus): Läufe [1, 2]
+    werk 3 (lagerhaus-kasse): Läufe [4]
+    werk 4 (lagerhaus-kasse2): Läufe [5]
+    werk 5 (lagerhaus-nachlauf): Läufe [6]
+    werk 6 (lagerhaus-nachlauf2): Läufe [7]
+    werk 7 (lagerhaus-nachlauf8): Läufe [8]
+    werk 8 (lagerhaus-nachlauf9): Läufe [9]
+    werk 9 (lagerhaus-kasse3): Läufe [10]
+    werk 10 (lagerhaus-p2): Läufe [12]
+    werk 11 (lagerhaus-p2-13): Läufe [13]
+    werk 12 (lagerhaus-p3-14): Läufe [14]
+    werk 13 (lagerhaus-p3-15): Läufe [15]
+    werk 14 (lagerhaus-p3-16): Läufe [16]
+    werk 15 (logmuehle-17): Läufe [17]
+    werk 16 (lagerhaus-p3-18): Läufe [18]
+    werk 17 (lagerhaus-p3-19): Läufe [19]
+    werk 18 (lagerhaus-p3-20): Läufe [20, 21]
+    werk 19 (lagerhaus-p3-22): Läufe [22]
+    werk 20 (logmuehle-23): Läufe [23]
+    werk 21 (lagerhaus-zeile8-24): Läufe [24]
+    werk 22 (lagerhaus-c-25): Läufe [25]
+    werk None (None): Läufe [3, 11]
+
+########## VB1: /root/phase-4-vorbedingung-1/privat/biotop.db
+  URI: file:/root/phase-4-vorbedingung-1/privat/biotop.db?mode=ro
+  Tabellen gesamt: 28; mit „verfass“: ['verfassung_werk']
+  Spalten mit „verfass“/„bestaet“: {}
+  Schema: CREATE TABLE verfassung_werk (
+  werk_id INTEGER PRIMARY KEY, text TEXT, regeln TEXT, quelle TEXT, eingelegt_am TEXT, eingelegt_von TEXT)
+  Zeilen verfassung_werk: 19 (Werke in Tabelle werke: 23)
+  werk_id | Werk | Text Bytes | SHA-256 Text | Text = Datei | Regeln = Datei | Quelle | eingelegt_am | eingelegt_von
+  5 | lagerhaus-nachlauf | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | lagerhaus.md = VB1 privat/verfassung.md | lagerhaus.regeln.json = VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-18T22:48:45.943+00:00 | Chat-Claude (Anhang A, Masterprompt v2), eingelegt durch Hermes
+  6 | lagerhaus-nachlauf2 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | lagerhaus.md = VB1 privat/verfassung.md | lagerhaus.regeln.json = VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-18T23:20:31.794+00:00 | Chat-Claude (Anhang A, Masterprompt v2), eingelegt durch Hermes
+  7 | lagerhaus-nachlauf8 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | lagerhaus.md = VB1 privat/verfassung.md | lagerhaus.regeln.json = VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-18T23:33:24.936+00:00 | Chat-Claude (Anhang A, Masterprompt v2), eingelegt durch Hermes
+  8 | lagerhaus-nachlauf9 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | lagerhaus.md = VB1 privat/verfassung.md | lagerhaus.regeln.json = VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-18T23:53:47.793+00:00 | Chat-Claude (Anhang A, Masterprompt v2), eingelegt durch Hermes
+  9 | lagerhaus-kasse3 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | lagerhaus.md = VB1 privat/verfassung.md | lagerhaus.regeln.json = VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-19T00:09:32.022+00:00 | Chat-Claude (Anhang A)
+  10 | lagerhaus-p2 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | lagerhaus.md = VB1 privat/verfassung.md | lagerhaus.regeln.json = VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-19T00:42:11.160+00:00 | Chat-Claude (Anhang A, Masterprompt v3), eingelegt durch Hermes
+  11 | lagerhaus-p2-13 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | lagerhaus.md = VB1 privat/verfassung.md | lagerhaus.regeln.json = VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-19T01:47:26.985+00:00 | Chat-Claude (Anhang A, Masterprompt v3), eingelegt durch Hermes
+  12 | lagerhaus-p3-14 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | lagerhaus.md = VB1 privat/verfassung.md | lagerhaus.regeln.json = VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-19T11:03:26.026+00:00 | Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes
+  13 | lagerhaus-p3-15 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | lagerhaus.md = VB1 privat/verfassung.md | lagerhaus.regeln.json = VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-19T11:09:30.426+00:00 | Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes
+  14 | lagerhaus-p3-16 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | lagerhaus.md = VB1 privat/verfassung.md | lagerhaus.regeln.json = VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-19T11:26:25.066+00:00 | Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes
+  15 | logmuehle-17 | 1841 | 0ce7f8651ae70ad0783cb6caa8f54b9ebbcf789b5e6b116d6df6fb63242bc803 | logmuehle.md | logmuehle.regeln.json | /root/biotop/verfassungen/logmuehle.md + /root/biotop/verfassungen/logmuehle.regeln.json | 2026-09-19T11:55:53.396+00:00 | Hermes (Entwurf, Masterprompt v4 Phase 3; Chat-Claude bestätigt am Bericht)
+  16 | lagerhaus-p3-18 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | lagerhaus.md = VB1 privat/verfassung.md | lagerhaus.regeln.json = VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-19T14:41:23.062+00:00 | Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes
+  17 | lagerhaus-p3-19 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | lagerhaus.md = VB1 privat/verfassung.md | lagerhaus.regeln.json = VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-19T15:06:37.763+00:00 | Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes
+  18 | lagerhaus-p3-20 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | lagerhaus.md = VB1 privat/verfassung.md | lagerhaus.regeln.json = VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-19T15:40:22.795+00:00 | Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes
+  19 | lagerhaus-p3-22 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | lagerhaus.md = VB1 privat/verfassung.md | lagerhaus.regeln.json = VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-19T20:58:00.295+00:00 | Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes
+  20 | logmuehle-23 | 1841 | 0ce7f8651ae70ad0783cb6caa8f54b9ebbcf789b5e6b116d6df6fb63242bc803 | logmuehle.md | logmuehle.regeln.json | /root/biotop/verfassungen/logmuehle.md + /root/biotop/verfassungen/logmuehle.regeln.json | 2026-09-19T21:33:14.053+00:00 | Hermes (Entwurf, Chat-Claude bestaetigt am Bericht)
+  21 | lagerhaus-zeile8-24 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | lagerhaus.md = VB1 privat/verfassung.md | lagerhaus.regeln.json = VB1 privat/verfassung.regeln.json | verfassungen/lagerhaus.md + verfassungen/lagerhaus.regeln.json | 2026-09-19T22:59:01.160+00:00 | Chat-Claude (Anhang A)
+  22 | lagerhaus-c-25 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | lagerhaus.md = VB1 privat/verfassung.md | lagerhaus.regeln.json = VB1 privat/verfassung.regeln.json | verfassungen/lagerhaus.md + verfassungen/lagerhaus.regeln.json | 2026-09-20T01:13:48.308+00:00 | Chat-Claude (Anhang A)
+  23 | lagerhaus-vorbedingung1-26 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | lagerhaus.md = VB1 privat/verfassung.md | lagerhaus.regeln.json = VB1 privat/verfassung.regeln.json | /root/phase-4-vorbedingung-1/privat/verfassung.md + /root/phase-4-vorbedingung-1/privat/verfassung.regeln.json | 2026-09-20T19:32:13.349+00:00 | Hermes: unverändert bestätigter Anhang A, Übungswerk-Vollmacht
+  Werke ohne Verfassungszeile: [(1, 'lagerhaus'), (2, 'lagerhaus-ohne-tests'), (3, 'lagerhaus-kasse'), (4, 'lagerhaus-kasse2')]
+  Protokoll art=verfassung.eingelegt: nr | zeit | inhalt
+    838 | 2026-09-18T22:48:45.944+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v2), eingelegt durch Hermes", "werk_id": 5}
+    1462 | 2026-09-18T23:20:31.796+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v2), eingelegt durch Hermes", "werk_id": 6}
+    1758 | 2026-09-18T23:33:24.938+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v2), eingelegt durch Hermes", "werk_id": 7}
+    2202 | 2026-09-18T23:53:47.794+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v2), eingelegt durch Hermes", "werk_id": 8}
+    2566 | 2026-09-19T00:09:32.024+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A)", "werk_id": 9}
+    2674 | 2026-09-19T00:42:11.162+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v3), eingelegt durch Hermes", "werk_id": 10}
+    4582 | 2026-09-19T01:47:26.988+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v3), eingelegt durch Hermes", "werk_id": 11}
+    7291 | 2026-09-19T11:03:26.028+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes", "werk_id": 12}
+    7338 | 2026-09-19T11:09:30.428+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes", "werk_id": 13}
+    7431 | 2026-09-19T11:26:25.068+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes", "werk_id": 14}
+    7547 | 2026-09-19T11:55:53.397+00:00 | {"quelle": "/root/biotop/verfassungen/logmuehle.md + /root/biotop/verfassungen/logmuehle.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 3.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Hermes (Entwurf, Masterprompt v4 Phase 3; Chat-Claude bestätigt am Bericht)", "werk_id": 15}
+    9893 | 2026-09-19T14:41:23.064+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes", "werk_id": 16}
+    10525 | 2026-09-19T15:06:37.765+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes", "werk_id": 17}
+    11456 | 2026-09-19T15:40:22.797+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes", "werk_id": 18}
+    12514 | 2026-09-19T20:58:00.297+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes", "werk_id": 19}
+    13334 | 2026-09-19T21:33:14.055+00:00 | {"quelle": "/root/biotop/verfassungen/logmuehle.md + /root/biotop/verfassungen/logmuehle.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 3.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Hermes (Entwurf, Chat-Claude bestaetigt am Bericht)", "werk_id": 20}
+    14472 | 2026-09-19T22:59:01.162+00:00 | {"quelle": "verfassungen/lagerhaus.md + verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A)", "werk_id": 21}
+    15268 | 2026-09-20T01:13:48.310+00:00 | {"quelle": "verfassungen/lagerhaus.md + verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A)", "werk_id": 22}
+    16068 | 2026-09-20T19:32:13.350+00:00 | {"quelle": "/root/phase-4-vorbedingung-1/privat/verfassung.md + /root/phase-4-vorbedingung-1/privat/verfassung.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Hermes: unverändert bestätigter Anhang A, Übungswerk-Vollmacht", "werk_id": 23}
+  Protokollzeilen verfassung.eingelegt: 19
+  Läufe je werk_id (id-Liste):
+    werk 1 (lagerhaus): Läufe [1, 2]
+    werk 3 (lagerhaus-kasse): Läufe [4]
+    werk 4 (lagerhaus-kasse2): Läufe [5]
+    werk 5 (lagerhaus-nachlauf): Läufe [6]
+    werk 6 (lagerhaus-nachlauf2): Läufe [7]
+    werk 7 (lagerhaus-nachlauf8): Läufe [8]
+    werk 8 (lagerhaus-nachlauf9): Läufe [9]
+    werk 9 (lagerhaus-kasse3): Läufe [10]
+    werk 10 (lagerhaus-p2): Läufe [12]
+    werk 11 (lagerhaus-p2-13): Läufe [13]
+    werk 12 (lagerhaus-p3-14): Läufe [14]
+    werk 13 (lagerhaus-p3-15): Läufe [15]
+    werk 14 (lagerhaus-p3-16): Läufe [16]
+    werk 15 (logmuehle-17): Läufe [17]
+    werk 16 (lagerhaus-p3-18): Läufe [18]
+    werk 17 (lagerhaus-p3-19): Läufe [19]
+    werk 18 (lagerhaus-p3-20): Läufe [20, 21]
+    werk 19 (lagerhaus-p3-22): Läufe [22]
+    werk 20 (logmuehle-23): Läufe [23]
+    werk 21 (lagerhaus-zeile8-24): Läufe [24]
+    werk 22 (lagerhaus-c-25): Läufe [25]
+    werk 23 (lagerhaus-vorbedingung1-26): Läufe [26]
+    werk None (None): Läufe [3, 11]
+
+########## R02: /root/reparatur-02/privat-cli/privat.db
+  URI: file:/root/reparatur-02/privat-cli/privat.db?mode=ro
+  Tabellen gesamt: 28; mit „verfass“: ['verfassung_werk']
+  Spalten mit „verfass“/„bestaet“: {}
+  Schema: CREATE TABLE verfassung_werk (
+  werk_id INTEGER PRIMARY KEY, text TEXT, regeln TEXT, quelle TEXT, eingelegt_am TEXT, eingelegt_von TEXT)
+  Zeilen verfassung_werk: 18 (Werke in Tabelle werke: 22)
+  werk_id | Werk | Text Bytes | SHA-256 Text | Text = Datei | Regeln = Datei | Quelle | eingelegt_am | eingelegt_von

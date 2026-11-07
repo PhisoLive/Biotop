@@ -1,0 +1,40 @@
+FF..                                                                     [100%]
+=================================== FAILURES ===================================
+_ test_skipped_junit_ist_keine_gueltige_messung[@pytest.mark.skip(reason='keine Ausfuehrung')] _
+
+messen_werk = <function messen_werk.<locals>.messen at 0x7912f0f67ce0>
+skip = "@pytest.mark.skip(reason='keine Ausfuehrung')"
+
+    @pytest.mark.integration
+    @pytest.mark.parametrize("skip", ["@pytest.mark.skip(reason='keine Ausfuehrung')", "@pytest.mark.xfail(reason='nicht ausgefuehrt', run=False)"])
+    def test_skipped_junit_ist_keine_gueltige_messung(messen_werk, skip):
+        test = GUTER_TEST.replace("def test_wert():", skip + "\ndef test_wert():")
+        m, roh = messen_werk("import pytest\n" + test)
+        assert roh["rc"] == 0 and "<skipped" in roh["stdout"]
+        assert "@@ROHDATEI@@/tmp/ausgefuehrt:<fehlt>" in roh["stdout"]
+>       assert m["gueltig"] is False, m
+E       AssertionError: {'bereiche': {'alpha': {'tests_bestanden': 1, 'tests_fehlgeschlagen': 0, 'tests_gesamt': 1, 'sicherheit_punkte': 0, .....uzeit_ms': 20.7, 'baut': True, 'bau_fehler': '', 'tests_ohne_bereich': [], ...}, 'gueltig': True, 'dauer_s': 0.99, ...}
+E       assert True is False
+
+tests/test_messnachweise.py:72: AssertionError
+_ test_skipped_junit_ist_keine_gueltige_messung[@pytest.mark.xfail(reason='nicht ausgefuehrt', run=False)] _
+
+messen_werk = <function messen_werk.<locals>.messen at 0x7912f10013a0>
+skip = "@pytest.mark.xfail(reason='nicht ausgefuehrt', run=False)"
+
+    @pytest.mark.integration
+    @pytest.mark.parametrize("skip", ["@pytest.mark.skip(reason='keine Ausfuehrung')", "@pytest.mark.xfail(reason='nicht ausgefuehrt', run=False)"])
+    def test_skipped_junit_ist_keine_gueltige_messung(messen_werk, skip):
+        test = GUTER_TEST.replace("def test_wert():", skip + "\ndef test_wert():")
+        m, roh = messen_werk("import pytest\n" + test)
+        assert roh["rc"] == 0 and "<skipped" in roh["stdout"]
+        assert "@@ROHDATEI@@/tmp/ausgefuehrt:<fehlt>" in roh["stdout"]
+>       assert m["gueltig"] is False, m
+E       AssertionError: {'bereiche': {'alpha': {'tests_bestanden': 1, 'tests_fehlgeschlagen': 0, 'tests_gesamt': 1, 'sicherheit_punkte': 0, .....uzeit_ms': 19.3, 'baut': True, 'bau_fehler': '', 'tests_ohne_bereich': [], ...}, 'gueltig': True, 'dauer_s': 1.09, ...}
+E       assert True is False
+
+tests/test_messnachweise.py:72: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_messnachweise.py::test_skipped_junit_ist_keine_gueltige_messung[@pytest.mark.skip(reason='keine Ausfuehrung')]
+FAILED tests/test_messnachweise.py::test_skipped_junit_ist_keine_gueltige_messung[@pytest.mark.xfail(reason='nicht ausgefuehrt', run=False)]
+2 failed, 2 passed in 4.19s

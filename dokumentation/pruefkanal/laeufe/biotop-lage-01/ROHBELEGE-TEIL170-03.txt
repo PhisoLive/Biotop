@@ -1,0 +1,484 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 03 · Teil 170 (Teile 166–239 dieses Stands) · enthält R176 bis R179
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 2 Stellen (je Beleg: R178: 2).
+
+R176 · Selbsttest 02 von arbeit/sich.py (nach der Änderung der Auslassung: auch .env.*-Sicherungskopien) an einem erfundenen Baum
+Beginn: 2026-09-25 19:38:29 CEST (UTC+0200)
+Ende:   2026-09-25 19:38:29 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/sich_selbsttest.py 02
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/sich_selbsttest.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01: Selbsttest von arbeit/sich.py an einem erfundenen Baum, bevor die echte Sicherung läuft.
+Alles entsteht unter tmp/selbsttest-01/ (exklusiv angelegt). Geprüft werden: Auslassung von Geheimnis- und
+Abhängigkeitsdateien, Datenbank-Backup mit leerer und mit gefüllter -wal-Datei (Original danach unverändert),
+integrity_check, Manifest, Packen, Wiederherstellungsprobe (Unterschied leer) und Gegenprobe (genau eine Datei).
+Dazu die Gegenprobe der Prüfsummen-Vergleichsfunktion (vergleich) mit einer geänderten Liste."""
+import hashlib
+import os
+import sqlite3
+import sys
+from pathlib import Path
+
+sys.path.insert(0, '/root/sicherung/biotop-lage-01/arbeit')
+import sich  # noqa: E402
+
+NN = sys.argv[1] if len(sys.argv) > 1 else '01'
+T = sich.W / 'tmp' / f'selbsttest-{NN}'
+T.mkdir(parents=True, exist_ok=False)
+Q = T / 'quelle'
+(Q / 'code' / 'unter').mkdir(parents=True)
+(Q / 'code' / 'node_modules' / 'x').mkdir(parents=True)
+(Q / 'code' / '__pycache__').mkdir()
+(Q / 'code' / 'a.py').write_text('print(1)\n')
+(Q / 'code' / 'unter' / 'b.txt').write_text('b\n' * 1000)
+(Q / 'code' / 'node_modules' / 'x' / 'dep.js').write_text('dep')
+(Q / 'code' / '__pycache__' / 'a.pyc').write_bytes(b'\x00' * 10)
+(Q / 'code' / '.env').write_text('GEHEIM=erfunden\n')
+(Q / 'code' / 'auth.json').write_text('{}')
+(Q / 'code' / '.env.sicherung-2026-09-18').write_text('GEHEIM=kopie\n')  # ab Stand 02: Sicherungskopie einer .env
+os.symlink('a.py', Q / 'code' / 'verweis.py')
+# Datenbank 1: WAL-Modus, Daten nur in der -wal-Datei (Verbindung bleibt offen, kein Checkpoint)
+d1 = Q / 'code' / 'mitwal.db'
+c1 = sqlite3.connect(d1)
+c1.execute('PRAGMA journal_mode=wal')
+c1.execute('PRAGMA wal_autocheckpoint=0')
+c1.execute('CREATE TABLE t(x)')
+c1.executemany('INSERT INTO t VALUES (?)', [(i,) for i in range(500)])
+c1.commit()
+# Datenbank 2: Rollback-Journal, ohne -wal
+d2 = Q / 'code' / 'ohnewal.db'
+c2 = sqlite3.connect(d2)
+c2.execute('CREATE TABLE t(x)')
+c2.executemany('INSERT INTO t VALUES (?)', [(i,) for i in range(50)])
+c2.commit()
+c2.close()
+vorher = {p: hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in (d1, str(d1) + '-wal', d2)}
+print('Quelle: mitwal.db-wal Bytes', os.path.getsize(str(d1) + '-wal'))
+
+sich.S = T / 's'
+sich.STUFE = sich.S / 'stufe'
+sich.PROBE = sich.S / 'probe'
+sich.GEGEN = sich.S / 'gegenprobe'
+sich.ARCHIV = T / 'selbsttest.tar.gz'
+sich.S.mkdir()
+sich.teile = lambda: {'t': [Q]}
+
+print('--- dbliste'); sich.dbliste()
+print('--- stufe'); sich.stufe('t')
+print('--- integritaet'); sich.integritaet()
+k1 = sqlite3.connect(f'file:{sich.STUFE}/{str(d1).lstrip("/")}?mode=ro&immutable=1', uri=True)
+print('Zeilen in der Kopie von mitwal.db (erwartet 500):', k1.execute('SELECT count(*) FROM t').fetchone()[0])
+k1.close()
+nachher = {p: hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in vorher}
+print('Originale (db, -wal, db) unverändert:', vorher == nachher)
+im = sorted(str(p.relative_to(sich.STUFE)) for p in sich.STUFE.rglob('*'))
+print('Stufe enthält:', im)
+print('Auslassung geprüft: .env fehlt', not any(x.endswith('/.env') for x in im), '· .env.sicherung-* fehlt',
+      not any('.env.sicherung' in x for x in im), '· auth.json fehlt',
+      not any(x.endswith('auth.json') for x in im), '· node_modules fehlt', not any('node_modules' in x for x in im),
+      '· __pycache__ fehlt', not any('__pycache__' in x for x in im), '· -wal fehlt', not any(x.endswith('-wal') for x in im))
+print('--- packen'); sich.packen()
+print('--- probe'); sich.probe()
+print('--- gegenprobe'); sich.gegenprobe(f'{str(Q).lstrip("/")}/code/unter/b.txt')
+c1.close()
+
+# Gegenprobe der Vergleichsfunktion für VORHER/NACHHER: zwei Listen, eine Zeile geändert
+(sich.W / 'pruefsummen').mkdir(exist_ok=True)
+a = sich.W / 'pruefsummen' / f'SELBSTTEST-{NN}-A.txt'
+b = sich.W / 'pruefsummen' / f'SELBSTTEST-{NN}-B.txt'
+sich.exklusiv_schreiben(a, 'aa  x/eins\nbb  x/zwei\n')
+sich.exklusiv_schreiben(b, 'aa  x/eins\ncc  x/zwei\n')
+print('--- vergleich (erwartet: genau x/zwei verschieden)'); sich.vergleich(f'SELBSTTEST-{NN}-A', f'SELBSTTEST-{NN}-B')
+--- Ende /root/sicherung/biotop-lage-01/arbeit/sich_selbsttest.py ---
+Ausgabe (vollständig, stdout und stderr):
+Quelle: mitwal.db-wal Bytes 24752
+--- dbliste
+Zeitpunkt: 2026-09-25 19:38:29 CEST (UTC+0200) · SQLite-Dateien im Umfang: 2 · je Teil: {'t': 2}
+davon mit nicht leerer -wal-Datei: 1
+  /root/sicherung/biotop-lage-01/tmp/selbsttest-02/quelle/code/mitwal.db {'-wal': 24752, '-shm': 32768}
+davon mit -journal-Datei: 0 []
+Liste: /root/sicherung/biotop-lage-01/tmp/selbsttest-02/s/dbliste.json
+--- stufe
+Teil t · 2026-09-25 19:38:29 CEST (UTC+0200) · Dauer 0.0 s
+Wurzeln: ['/root/sicherung/biotop-lage-01/tmp/selbsttest-02/quelle']
+Zählung: {'ordner': 3, 'datei': 2, 'datenbank': 2, 'verweis': 1, 'sonder': 0, 'aus-ordner': 2, 'aus-geheim': 3, 'aus-hermes': 0, 'aus-begleit': 2} · Bytes in der Stufe: 26585
+Protokoll: /root/sicherung/biotop-lage-01/tmp/selbsttest-02/s/protokoll-stufe-t.txt (9 Zeilen)
+Ausgelassene Geheimnisdateien (3):
+  AUSGELASSEN (Geheimnisdatei, nur Pfad): /root/sicherung/biotop-lage-01/tmp/selbsttest-02/quelle/code/.env
+  AUSGELASSEN (Geheimnisdatei, nur Pfad): /root/sicherung/biotop-lage-01/tmp/selbsttest-02/quelle/code/.env.sicherung-2026-09-18
+  AUSGELASSEN (Geheimnisdatei, nur Pfad): /root/sicherung/biotop-lage-01/tmp/selbsttest-02/quelle/code/auth.json
+Ausgelassene Ordner nach Name: {".mypy_cache": 0, ".pytest_cache": 0, ".ruff_cache": 0, ".venv": 0, "__pycache__": 1, "node_modules": 1, "venv": 0}
+Weitere Protokollzeilen (2), höchstens 40:
+  AUSGELASSEN (Begleitdatei einer Datenbank, Inhalt steckt in der Backup-Kopie): /root/sicherung/biotop-lage-01/tmp/selbsttest-02/quelle/code/mitwal.db-shm
+  AUSGELASSEN (Begleitdatei einer Datenbank, Inhalt steckt in der Backup-Kopie): /root/sicherung/biotop-lage-01/tmp/selbsttest-02/quelle/code/mitwal.db-wal
+--- integritaet
+2026-09-25 19:38:29 CEST (UTC+0200) · PRAGMA integrity_check über 2 Datenbankkopien in /root/sicherung/biotop-lage-01/tmp/selbsttest-02/s/stufe
+Ergebnis „ok“: 2 von 2 · nicht ok: 0 · Kopie fehlt: 0
+Einzeln (alle Datenbanken außer Testzwischenständen unter pytest/tmp, und alle > 20 MB): 0
+
+Zeilen in der Kopie von mitwal.db (erwartet 500): 500
+Originale (db, -wal, db) unverändert: True
+Stufe enthält: ['root', 'root/sicherung', 'root/sicherung/biotop-lage-01', 'root/sicherung/biotop-lage-01/tmp', 'root/sicherung/biotop-lage-01/tmp/selbsttest-02', 'root/sicherung/biotop-lage-01/tmp/selbsttest-02/quelle', 'root/sicherung/biotop-lage-01/tmp/selbsttest-02/quelle/code', 'root/sicherung/biotop-lage-01/tmp/selbsttest-02/quelle/code/a.py', 'root/sicherung/biotop-lage-01/tmp/selbsttest-02/quelle/code/mitwal.db', 'root/sicherung/biotop-lage-01/tmp/selbsttest-02/quelle/code/ohnewal.db', 'root/sicherung/biotop-lage-01/tmp/selbsttest-02/quelle/code/unter', 'root/sicherung/biotop-lage-01/tmp/selbsttest-02/quelle/code/unter/b.txt', 'root/sicherung/biotop-lage-01/tmp/selbsttest-02/quelle/code/verweis.py']
+Auslassung geprüft: .env fehlt True · .env.sicherung-* fehlt True · auth.json fehlt True · node_modules fehlt True · __pycache__ fehlt True · -wal fehlt True
+--- packen
+Beginn 2026-09-25 19:38:29 CEST (UTC+0200)
+{"baum": "/root/sicherung/biotop-lage-01/tmp/selbsttest-02/s/stufe", "ziel": "/root/sicherung/biotop-lage-01/tmp/selbsttest-02/s/MANIFEST-PACKEN.tsv", "eintraege": 14, "verzeichnisse": 9, "dateien": 4, "verweise": 1, "sonder": 0, "bytes": 26585, "sha256_manifest": "af608f5262a5b5b223021aa1e6b599d141fec540ca7a90afecce080a2cc48c3d", "dauer_s": 0.0}
+tar rc=0 · pigz rc=0 · Dauer 0.0 s
+Archiv /root/sicherung/biotop-lage-01/tmp/selbsttest-02/selbsttest.tar.gz: 3783 Bytes · SHA-256 17219df727eda91afc2955fa1a7dc4863e619cf1510d32fbca4b56bb413a0398
+Einträge laut tar -t: 14 (Manifest: 14 Einträge = 9 Verzeichnisse + 4 Dateien + 1 Verweise + 0 Sonder)
+Ende 2026-09-25 19:38:29 CEST (UTC+0200)
+--- probe
+Beginn 2026-09-25 19:38:29 CEST (UTC+0200)
+Entpacken rc=0 · Dauer 0.0 s · stderr: (leer)
+{"baum": "/root/sicherung/biotop-lage-01/tmp/selbsttest-02/s/probe", "ziel": "/root/sicherung/biotop-lage-01/tmp/selbsttest-02/s/MANIFEST-PROBE.tsv", "eintraege": 14, "verzeichnisse": 9, "dateien": 4, "verweise": 1, "sonder": 0, "bytes": 26585, "sha256_manifest": "af608f5262a5b5b223021aa1e6b599d141fec540ca7a90afecce080a2cc48c3d", "dauer_s": 0.0}
+gepackt: 14 Einträge, davon 4 Dateien · entpackt: 14 Einträge, davon 4 Dateien
+nur gepackt: 0 · nur entpackt: 0 · verschieden: 0
+ERGEBNIS: Unterschied leer
+Ende 2026-09-25 19:38:29 CEST (UTC+0200)
+--- gegenprobe
+Beginn 2026-09-25 19:38:29 CEST (UTC+0200)
+cp -al probe gegenprobe rc=0 
+Geändert: root/sicherung/biotop-lage-01/tmp/selbsttest-02/quelle/code/unter/b.txt · Byte 0: 0x62 → 0x63 · probe/ dieselbe Datei danach unverändert: True
+{"baum": "/root/sicherung/biotop-lage-01/tmp/selbsttest-02/s/gegenprobe", "ziel": "/root/sicherung/biotop-lage-01/tmp/selbsttest-02/s/MANIFEST-GEGENPROBE.tsv", "eintraege": 14, "verzeichnisse": 9, "dateien": 4, "verweise": 1, "sonder": 0, "bytes": 26585, "sha256_manifest": "ff43f62355a776bcf69b346dd555a40eade9ac935d5143c082810b3af6f48ecb", "dauer_s": 0.0}
+gepackt: 14 Einträge, davon 4 Dateien · gegenprobe: 14 Einträge, davon 4 Dateien
+nur gepackt: 0 · nur gegenprobe: 0 · verschieden: 1
+  VERSCHIEDEN: root/sicherung/biotop-lage-01/tmp/selbsttest-02/quelle/code/unter/b.txt · 3a19faa4ec704eef… → 09f8f43d3cbe4ca3…
+ERGEBNIS: Unterschied NICHT leer (1 Einträge)
+GEGENPROBE ANGESCHLAGEN: genau die geänderte Datei gemeldet
+Ende 2026-09-25 19:38:29 CEST (UTC+0200)
+--- vergleich (erwartet: genau x/zwei verschieden)
+SELBSTTEST-02-A: 2 Einträge, SHA-256 der Liste 68c00f6e22596257a5f2e24d83f65c6d27bd27126ae50547cb65d8d4406da0dd
+SELBSTTEST-02-B: 2 Einträge, SHA-256 der Liste 46e1492d407d14f3c20bfe677ab9333b4d5639b0d5f219743f7162c152639794
+nur in SELBSTTEST-02-A: 0 · nur in SELBSTTEST-02-B: 0 · Inhalt verschieden: 1
+  VERSCHIEDEN: x/zwei  bb… → cc…
+ERGEBNIS: Unterschied NICHT leer
+=== Ende R176 ===
+
+
+R177 · Abschnitt 4 Vorgehen 1: Plattenplatz und Größe jedes Umfangsteils genau wie sich.py (dieselben Wurzeln und Auslassungen), Dateien mit Geheimnis-Verdacht im Namen (nur Pfad); ohne Öffnen von Datenbanken
+Beginn: 2026-09-25 19:38:29 CEST (UTC+0200)
+Ende:   2026-09-25 19:38:31 CEST (UTC+0200)
+Dauer:  2.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/s3_platz.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/s3_platz.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Vorgehen 1 in Abschnitt 4. Misst den Plattenplatz und die Größe jedes Umfangsteils
+genau so, wie arbeit/sich.py ihn sichert: dieselben Wurzeln (sich.teile()), dieselbe Auslassung (sich.laufe()).
+Öffnet keine Datenbank; s2_platz.sh tat das mit bloßem mode=ro, deshalb wird es nicht wiederholt (A6).
+Dazu werden Dateien genannt, deren Name auf ein Geheimnis deuten kann (nur Pfad, nie Inhalt), jeweils mit dem Hinweis,
+ob sich.py sie auslässt."""
+import os
+import re
+import shutil
+import subprocess
+import sys
+import time
+from collections import Counter
+
+sys.path.insert(0, '/root/sicherung/biotop-lage-01/arbeit')
+import sich  # noqa: E402
+
+print(time.strftime('== Zeitpunkt %Y-%m-%d %H:%M:%S %Z (UTC%z)'))
+print(subprocess.run(['df', '-h', '/'], capture_output=True, text=True).stdout.rstrip())
+gesamt_b, gesamt_n = 0, 0
+verdacht = re.compile(r'(token|secret|credential|passw|\.pem$|\.key$|^id_(rsa|ed25519|ecdsa|dsa)|cookie|oauth)', re.I)
+funde = []
+for teil, wurzeln in sich.teile().items():
+    z, byt = Counter(), 0
+    for wz in wurzeln:
+        if not wz.exists():
+            z['wurzel-fehlt'] += 1
+            continue
+        for art, p in sich.laufe(wz, teil):
+            z[art] += 1
+            name = os.path.basename(p)
+            if art in ('datei', 'aus-geheim') and verdacht.search(name) and teil != '1-biotop':
+                funde.append((teil, art, p))
+            if art == 'datei':
+                try:
+                    byt += os.lstat(p).st_size
+                except OSError:
+                    z['verschwunden'] += 1
+    gesamt_b += byt
+    gesamt_n += z['datei']
+    print(f'-- {teil}: {len(wurzeln)} Wurzeln · Bytes der Dateien {byt} ({byt / 2**30:.2f} GiB) · {dict(z)}')
+frei = shutil.disk_usage('/').free
+print(f'Summe: {gesamt_n} Dateien · {gesamt_b} Bytes ({gesamt_b / 2**30:.2f} GiB)')
+print(f'Bedarf (gerechnet): Zwischenstand + entpackte Probe = {2 * gesamt_b / 2**30:.2f} GiB, dazu das Archiv (höchstens '
+      f'{gesamt_b / 2**30:.2f} GiB); die Gegenprobe nutzt harte Verweise. Frei: {frei / 2**30:.2f} GiB → reicht: '
+      f'{"ja" if frei > 3 * gesamt_b + 5 * 2**30 else "NEIN"} (Rechnung: frei > 3 × Umfang + 5 GiB Reserve)')
+print(f'== Dateien mit Geheimnis-Verdacht im Namen (Teile 2–5; nur Pfad): {len(funde)}')
+for teil, art, p in funde[:60]:
+    print(f'   {teil} · {"ausgelassen" if art == "aus-geheim" else "WIRD GESICHERT"} · {p}')
+--- Ende /root/sicherung/biotop-lage-01/arbeit/s3_platz.py ---
+Ausgabe (vollständig, stdout und stderr):
+== Zeitpunkt 2026-09-25 19:38:29 CEST (UTC+0200)
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/vda1       116G   29G   87G  25% /
+-- 1-biotop: 1 Wurzeln · Bytes der Dateien 38904363 (0.04 GiB) · {'ordner': 1941, 'datei': 3925, 'aus-ordner': 6}
+-- 2-auftraege-arbeitsordner: 28 Wurzeln · Bytes der Dateien 1829639488 (1.70 GiB) · {'ordner': 20699, 'datei': 37326, 'aus-ordner': 114, 'verweis': 1479}
+-- 2b-tmp: 233 Wurzeln · Bytes der Dateien 636971178 (0.59 GiB) · {'ordner': 8197, 'datei': 23069, 'aus-ordner': 224, 'verweis': 941}
+-- 3-pruefkanal: 20 Wurzeln · Bytes der Dateien 173282930 (0.16 GiB) · {'ordner': 2113, 'datei': 11344}
+-- 4-sitzungsdatenbank: 1 Wurzeln · Bytes der Dateien 433475584 (0.40 GiB) · {'datei': 1}
+-- 5-hermes-rest: 1 Wurzeln · Bytes der Dateien 360699270 (0.34 GiB) · {'ordner': 838, 'datei': 3932, 'aus-geheim': 3, 'sonder': 2, 'aus-hermes': 1, 'aus-ordner': 5, 'verweis': 6}
+Summe: 79597 Dateien · 3472972813 Bytes (3.23 GiB)
+Bedarf (gerechnet): Zwischenstand + entpackte Probe = 6.47 GiB, dazu das Archiv (höchstens 3.23 GiB); die Gegenprobe nutzt harte Verweise. Frei: 86.60 GiB → reicht: ja (Rechnung: frei > 3 × Umfang + 5 GiB Reserve)
+== Dateien mit Geheimnis-Verdacht im Namen (Teile 2–5; nur Pfad): 3
+   2-auftraege-arbeitsordner · WIRD GESICHERT · /root/w7/07-codex-token.txt
+   5-hermes-rest · WIRD GESICHERT · /root/.hermes/skills/productivity/box/references/oauth-setup.md
+   5-hermes-rest · WIRD GESICHERT · /root/.hermes/skills/software-development/github/scripts/git-credential-token.py
+=== Ende R177 ===
+
+
+R178 · Prüfung der 3 Dateien mit Geheimnis-Verdacht im Namen (ohne Inhalt): Größe, Zeichenklassen, Geheimnissuche maskiert; /root/w7 Einträge
+Beginn: 2026-09-25 19:39:10 CEST (UTC+0200)
+Ende:   2026-09-25 19:39:11 CEST (UTC+0200)
+Dauer:  0.3 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/s3_verdacht.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/s3_verdacht.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Prüfung der 3 Dateien mit Geheimnis-Verdacht im Namen (R177), ohne Inhalt auszugeben.
+Je Datei: Bytes, Zeilen, Länge der längsten Zeile, Zeichenklassen, Treffer der Geheimnissuche (geheimnis.py: Muster und
+Werte aus .env/auth.json, nur maskiert). Für /root/w7: erste Zeile der Übergabe/README (Zuordnung) und Dateiliste."""
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+DATEIEN = ['/root/w7/07-codex-token.txt', '/root/.hermes/skills/productivity/box/references/oauth-setup.md',
+           '/root/.hermes/skills/software-development/github/scripts/git-credential-token.py']
+for p in DATEIEN:
+    b = Path(p).read_bytes()
+    t = b.decode('utf-8', errors='replace')
+    zeilen = t.splitlines()
+    klassen = {'klein': bool(re.search(r'[a-z]', t)), 'gross': bool(re.search(r'[A-Z]', t)),
+               'ziffer': bool(re.search(r'\d', t)), 'leer': ' ' in t,
+               'nur_tokenzeichen': bool(re.fullmatch(r'[A-Za-z0-9._\-=+/:]+\s*', t))}
+    st = os.stat(p)
+    print(f'-- {p}: {len(b)} B · {len(zeilen)} Zeilen · längste Zeile {max((len(z) for z in zeilen), default=0)} Zeichen · '
+          f'Rechte {oct(st.st_mode)[-3:]} · Zeichenklassen {klassen}')
+g = subprocess.run([sys.executable, '/root/sicherung/biotop-lage-01/arbeit/geheimnis.py'] + DATEIEN, capture_output=True, text=True)
+print('== Geheimnissuche (maskiert):')
+print(g.stdout.rstrip())
+print('== /root/w7: Einträge (Name, Bytes) und Kopfzeile der Beschreibung')
+for e in sorted(os.scandir('/root/w7'), key=lambda e: e.name):
+    print(f'   {e.name} · {"Ordner" if e.is_dir() else str(e.stat().st_size) + " B"}')
+for kandidat in ('UEBERGABE.md', 'README.md', 'BERICHT.md', 'README.txt'):
+    q = Path('/root/w7') / kandidat
+    if q.exists():
+        print(f'   {kandidat}, Zeile 1: {q.read_text(errors="replace").splitlines()[0][:160]}')
+--- Ende /root/sicherung/biotop-lage-01/arbeit/s3_verdacht.py ---
+Ausgabe (vollständig, stdout und stderr):
+-- /root/w7/07-codex-token.txt: 2001 B · 29 Zeilen · längste Zeile 611 Zeichen · Rechte 644 · Zeichenklassen {'klein': True, 'gross': True, 'ziffer': True, 'leer': True, 'nur_tokenzeichen': False}
+-- /root/.hermes/skills/productivity/box/references/oauth-setup.md: 6569 B · 83 Zeilen · längste Zeile 459 Zeichen · Rechte 644 · Zeichenklassen {'klein': True, 'gross': True, 'ziffer': True, 'leer': True, 'nur_tokenzeichen': False}
+-- /root/.hermes/skills/software-development/github/scripts/git-credential-token.py: 1788 B · 65 Zeilen · längste Zeile 102 Zeichen · Rechte 644 · Zeichenklassen {'klein': True, 'gross': True, 'ziffer': True, 'leer': True, 'nur_tokenzeichen': False}
+== Geheimnissuche (maskiert):
+Werte aus .env/auth.json geladen: 14 (nicht ausgegeben)
+Ausgelassen als Variablenname (nur Großbuchstaben/Ziffern/_): 2 — Fundorte: /root/.hermes/auth.json:auth.credential_pool.anthropic[1].label, /root/.hermes/auth.json:auth.credential_pool.openrouter[0].label
+TREFFER Wert aus /root/.hermes/auth.json:auth.active_provider: /root/w7/07-codex-token.txt:1: [GESCHWÄRZT, 12 Zeichen]
+TREFFER Wert aus /root/.hermes/auth.json:auth.providers.[GESCHWÄRZT: Wert aus /root/.hermes/auth.json].tokens.account_id: /root/w7/07-codex-token.txt:4: [GESCHWÄRZT, 36 Zeichen]
+TREFFER Wert aus /root/.hermes/auth.json:auth.providers.[GESCHWÄRZT: Wert aus /root/.hermes/auth.json].tokens.account_id: /root/w7/07-codex-token.txt:7: [GESCHWÄRZT, 36 Zeichen]
+TREFFER Wert aus /root/.hermes/auth.json:auth.active_provider: /root/w7/07-codex-token.txt:11: [GESCHWÄRZT, 12 Zeichen]
+Durchsucht: 3 Dateien · Treffer: 4
+== /root/w7: Einträge (Name, Bytes) und Kopfzeile der Beschreibung
+   01-auth-list.err · 0 B
+   01-auth-list.txt · 423 B
+   02-config-get-model.err · 0 B
+   02-config-get-model.txt · 46 B
+   03-config-get-fallback.err · 29 B
+   03-config-get-fallback.txt · 0 B
+   04-fallback-list.err · 0 B
+   04-fallback-list.txt · 76 B
+   05-config-get-auxiliary.err · 0 B
+   05-config-get-auxiliary.txt · 2372 B
+   06-doctor.err · 0 B
+   06-doctor.txt · 5345 B
+   07-codex-token.txt · 2001 B
+   08-db-modelle.txt · 6444 B
+   09-config-yaml.txt · 8892 B
+   10-routing.txt · 1234 B
+   10b-routing-voll.txt · 1284 B
+   11-config-fallback_model.err · 35 B
+   11-config-fallback_model.txt · 0 B
+   12-config-moa.err · 0 B
+   12-config-moa.txt · 626 B
+   13-moa-status.err · 196 B
+   13-moa-status.txt · 0 B
+   14-moa-list.txt · 372 B
+   15-status.txt · 4460 B
+   16-modellwechsel.txt · 5141 B
+   17-stufe-aufloesung.txt · 297 B
+   18-aufloesung-nach-umstellung.txt · 512 B
+   18b.err · 0 B
+   18b.txt · 1037 B
+   19-cli-wire.err · 0 B
+   19-cli-wire.txt · 3 B
+   20-cli-wire-felder.txt · 906 B
+   21-cli-sitzung.txt · 1043 B
+   skripte · Ordner
+=== Ende R178 ===
+
+
+R179 · Selbsttest 03 von arbeit/sich.py nach den Änderungen für die echte Sicherung (Einzelpfad-Auslassung GEHEIM_PFADE, verschwundene Dateien, Rohkopie bei fehlgeschlagenem Datenbank-Backup)
+Beginn: 2026-09-25 19:41:17 CEST (UTC+0200)
+Ende:   2026-09-25 19:41:17 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/sich_selbsttest.py 03
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/sich_selbsttest.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01: Selbsttest von arbeit/sich.py an einem erfundenen Baum, bevor die echte Sicherung läuft.
+Alles entsteht unter tmp/selbsttest-01/ (exklusiv angelegt). Geprüft werden: Auslassung von Geheimnis- und
+Abhängigkeitsdateien, Datenbank-Backup mit leerer und mit gefüllter -wal-Datei (Original danach unverändert),
+integrity_check, Manifest, Packen, Wiederherstellungsprobe (Unterschied leer) und Gegenprobe (genau eine Datei).
+Dazu die Gegenprobe der Prüfsummen-Vergleichsfunktion (vergleich) mit einer geänderten Liste."""
+import hashlib
+import os
+import sqlite3
+import sys
+from pathlib import Path
+
+sys.path.insert(0, '/root/sicherung/biotop-lage-01/arbeit')
+import sich  # noqa: E402
+
+NN = sys.argv[1] if len(sys.argv) > 1 else '01'
+T = sich.W / 'tmp' / f'selbsttest-{NN}'
+T.mkdir(parents=True, exist_ok=False)
+Q = T / 'quelle'
+(Q / 'code' / 'unter').mkdir(parents=True)
+(Q / 'code' / 'node_modules' / 'x').mkdir(parents=True)
+(Q / 'code' / '__pycache__').mkdir()
+(Q / 'code' / 'a.py').write_text('print(1)\n')
+(Q / 'code' / 'unter' / 'b.txt').write_text('b\n' * 1000)
+(Q / 'code' / 'node_modules' / 'x' / 'dep.js').write_text('dep')
+(Q / 'code' / '__pycache__' / 'a.pyc').write_bytes(b'\x00' * 10)
+(Q / 'code' / '.env').write_text('GEHEIM=erfunden\n')
+(Q / 'code' / 'auth.json').write_text('{}')
+(Q / 'code' / '.env.sicherung-2026-09-18').write_text('GEHEIM=kopie\n')  # ab Stand 02: Sicherungskopie einer .env
+os.symlink('a.py', Q / 'code' / 'verweis.py')
+# Datenbank 1: WAL-Modus, Daten nur in der -wal-Datei (Verbindung bleibt offen, kein Checkpoint)
+d1 = Q / 'code' / 'mitwal.db'
+c1 = sqlite3.connect(d1)
+c1.execute('PRAGMA journal_mode=wal')
+c1.execute('PRAGMA wal_autocheckpoint=0')
+c1.execute('CREATE TABLE t(x)')
+c1.executemany('INSERT INTO t VALUES (?)', [(i,) for i in range(500)])
+c1.commit()
+# Datenbank 2: Rollback-Journal, ohne -wal
+d2 = Q / 'code' / 'ohnewal.db'
+c2 = sqlite3.connect(d2)
+c2.execute('CREATE TABLE t(x)')
+c2.executemany('INSERT INTO t VALUES (?)', [(i,) for i in range(50)])
+c2.commit()
+c2.close()
+vorher = {p: hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in (d1, str(d1) + '-wal', d2)}
+print('Quelle: mitwal.db-wal Bytes', os.path.getsize(str(d1) + '-wal'))
+
+sich.S = T / 's'
+sich.STUFE = sich.S / 'stufe'
+sich.PROBE = sich.S / 'probe'
+sich.GEGEN = sich.S / 'gegenprobe'
+sich.ARCHIV = T / 'selbsttest.tar.gz'
+sich.S.mkdir()
+sich.teile = lambda: {'t': [Q]}
+
+print('--- dbliste'); sich.dbliste()
+print('--- stufe'); sich.stufe('t')
+print('--- integritaet'); sich.integritaet()
+k1 = sqlite3.connect(f'file:{sich.STUFE}/{str(d1).lstrip("/")}?mode=ro&immutable=1', uri=True)
+print('Zeilen in der Kopie von mitwal.db (erwartet 500):', k1.execute('SELECT count(*) FROM t').fetchone()[0])
+k1.close()
+nachher = {p: hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in vorher}
+print('Originale (db, -wal, db) unverändert:', vorher == nachher)
+im = sorted(str(p.relative_to(sich.STUFE)) for p in sich.STUFE.rglob('*'))
+print('Stufe enthält:', im)
+print('Auslassung geprüft: .env fehlt', not any(x.endswith('/.env') for x in im), '· .env.sicherung-* fehlt',
+      not any('.env.sicherung' in x for x in im), '· auth.json fehlt',
+      not any(x.endswith('auth.json') for x in im), '· node_modules fehlt', not any('node_modules' in x for x in im),
+      '· __pycache__ fehlt', not any('__pycache__' in x for x in im), '· -wal fehlt', not any(x.endswith('-wal') for x in im))
+print('--- packen'); sich.packen()
+print('--- probe'); sich.probe()
+print('--- gegenprobe'); sich.gegenprobe(f'{str(Q).lstrip("/")}/code/unter/b.txt')
+c1.close()
+
+# Gegenprobe der Vergleichsfunktion für VORHER/NACHHER: zwei Listen, eine Zeile geändert
+(sich.W / 'pruefsummen').mkdir(exist_ok=True)
+a = sich.W / 'pruefsummen' / f'SELBSTTEST-{NN}-A.txt'
+b = sich.W / 'pruefsummen' / f'SELBSTTEST-{NN}-B.txt'
+sich.exklusiv_schreiben(a, 'aa  x/eins\nbb  x/zwei\n')
+sich.exklusiv_schreiben(b, 'aa  x/eins\ncc  x/zwei\n')
+print('--- vergleich (erwartet: genau x/zwei verschieden)'); sich.vergleich(f'SELBSTTEST-{NN}-A', f'SELBSTTEST-{NN}-B')
+--- Ende /root/sicherung/biotop-lage-01/arbeit/sich_selbsttest.py ---
+Ausgabe (vollständig, stdout und stderr):
+Quelle: mitwal.db-wal Bytes 24752
+--- dbliste
+Zeitpunkt: 2026-09-25 19:41:17 CEST (UTC+0200) · SQLite-Dateien im Umfang: 2 · je Teil: {'t': 2}
+davon mit nicht leerer -wal-Datei: 1
+  /root/sicherung/biotop-lage-01/tmp/selbsttest-03/quelle/code/mitwal.db {'-wal': 24752, '-shm': 32768}
+davon mit -journal-Datei: 0 []
+Liste: /root/sicherung/biotop-lage-01/tmp/selbsttest-03/s/dbliste.json
+--- stufe
+Teil t · 2026-09-25 19:41:17 CEST (UTC+0200) · Dauer 0.0 s
+Wurzeln: ['/root/sicherung/biotop-lage-01/tmp/selbsttest-03/quelle']
+Zählung: {'ordner': 3, 'datei': 2, 'datenbank': 2, 'verweis': 1, 'sonder': 0, 'aus-ordner': 2, 'aus-geheim': 3, 'aus-hermes': 0, 'aus-begleit': 2, 'verschwunden': 0, 'db-roh': 0} · Bytes in der Stufe: 26585
+Protokoll: /root/sicherung/biotop-lage-01/tmp/selbsttest-03/s/protokoll-stufe-t.txt (9 Zeilen)
+Ausgelassene Geheimnisdateien (3):
+  AUSGELASSEN (Geheimnisdatei, nur Pfad): /root/sicherung/biotop-lage-01/tmp/selbsttest-03/quelle/code/.env
+  AUSGELASSEN (Geheimnisdatei, nur Pfad): /root/sicherung/biotop-lage-01/tmp/selbsttest-03/quelle/code/.env.sicherung-2026-09-18
+  AUSGELASSEN (Geheimnisdatei, nur Pfad): /root/sicherung/biotop-lage-01/tmp/selbsttest-03/quelle/code/auth.json
+Ausgelassene Ordner nach Name: {".mypy_cache": 0, ".pytest_cache": 0, ".ruff_cache": 0, ".venv": 0, "__pycache__": 1, "node_modules": 1, "venv": 0}
+Weitere Protokollzeilen (2), höchstens 40:
+  AUSGELASSEN (Begleitdatei einer Datenbank, Inhalt steckt in der Backup-Kopie): /root/sicherung/biotop-lage-01/tmp/selbsttest-03/quelle/code/mitwal.db-shm
+  AUSGELASSEN (Begleitdatei einer Datenbank, Inhalt steckt in der Backup-Kopie): /root/sicherung/biotop-lage-01/tmp/selbsttest-03/quelle/code/mitwal.db-wal
+--- integritaet
+2026-09-25 19:41:17 CEST (UTC+0200) · PRAGMA integrity_check über 2 Datenbankkopien in /root/sicherung/biotop-lage-01/tmp/selbsttest-03/s/stufe
+Ergebnis „ok“: 2 von 2 · nicht ok: 0 · Kopie fehlt: 0
+Einzeln (alle Datenbanken außer Testzwischenständen unter pytest/tmp, und alle > 20 MB): 0
+
+Zeilen in der Kopie von mitwal.db (erwartet 500): 500
+Originale (db, -wal, db) unverändert: True
+Stufe enthält: ['root', 'root/sicherung', 'root/sicherung/biotop-lage-01', 'root/sicherung/biotop-lage-01/tmp', 'root/sicherung/biotop-lage-01/tmp/selbsttest-03', 'root/sicherung/biotop-lage-01/tmp/selbsttest-03/quelle', 'root/sicherung/biotop-lage-01/tmp/selbsttest-03/quelle/code', 'root/sicherung/biotop-lage-01/tmp/selbsttest-03/quelle/code/a.py', 'root/sicherung/biotop-lage-01/tmp/selbsttest-03/quelle/code/mitwal.db', 'root/sicherung/biotop-lage-01/tmp/selbsttest-03/quelle/code/ohnewal.db', 'root/sicherung/biotop-lage-01/tmp/selbsttest-03/quelle/code/unter', 'root/sicherung/biotop-lage-01/tmp/selbsttest-03/quelle/code/unter/b.txt', 'root/sicherung/biotop-lage-01/tmp/selbsttest-03/quelle/code/verweis.py']
+Auslassung geprüft: .env fehlt True · .env.sicherung-* fehlt True · auth.json fehlt True · node_modules fehlt True · __pycache__ fehlt True · -wal fehlt True
+--- packen
+Beginn 2026-09-25 19:41:17 CEST (UTC+0200)
+{"baum": "/root/sicherung/biotop-lage-01/tmp/selbsttest-03/s/stufe", "ziel": "/root/sicherung/biotop-lage-01/tmp/selbsttest-03/s/MANIFEST-PACKEN.tsv", "eintraege": 14, "verzeichnisse": 9, "dateien": 4, "verweise": 1, "sonder": 0, "bytes": 26585, "sha256_manifest": "1fb8360ef20bceb576085ad39a8dab627e92c568d995bc92f9600cfa7fca43a6", "dauer_s": 0.0}
+tar rc=0 · pigz rc=0 · Dauer 0.0 s
+Archiv /root/sicherung/biotop-lage-01/tmp/selbsttest-03/selbsttest.tar.gz: 3783 Bytes · SHA-256 c10f5e41387d3dd33dae2827ec3ff3eb9fb81fb861f5077a237fea9824ac1868
+Einträge laut tar -t: 14 (Manifest: 14 Einträge = 9 Verzeichnisse + 4 Dateien + 1 Verweise + 0 Sonder)
+Ende 2026-09-25 19:41:17 CEST (UTC+0200)
+--- probe
+Beginn 2026-09-25 19:41:17 CEST (UTC+0200)
+Entpacken rc=0 · Dauer 0.0 s · stderr: (leer)
+{"baum": "/root/sicherung/biotop-lage-01/tmp/selbsttest-03/s/probe", "ziel": "/root/sicherung/biotop-lage-01/tmp/selbsttest-03/s/MANIFEST-PROBE.tsv", "eintraege": 14, "verzeichnisse": 9, "dateien": 4, "verweise": 1, "sonder": 0, "bytes": 26585, "sha256_manifest": "1fb8360ef20bceb576085ad39a8dab627e92c568d995bc92f9600cfa7fca43a6", "dauer_s": 0.0}
+gepackt: 14 Einträge, davon 4 Dateien · entpackt: 14 Einträge, davon 4 Dateien
+nur gepackt: 0 · nur entpackt: 0 · verschieden: 0
+ERGEBNIS: Unterschied leer
+Ende 2026-09-25 19:41:17 CEST (UTC+0200)
+--- gegenprobe
+Beginn 2026-09-25 19:41:17 CEST (UTC+0200)
+cp -al probe gegenprobe rc=0 
+Geändert: root/sicherung/biotop-lage-01/tmp/selbsttest-03/quelle/code/unter/b.txt · Byte 0: 0x62 → 0x63 · probe/ dieselbe Datei danach unverändert: True
+{"baum": "/root/sicherung/biotop-lage-01/tmp/selbsttest-03/s/gegenprobe", "ziel": "/root/sicherung/biotop-lage-01/tmp/selbsttest-03/s/MANIFEST-GEGENPROBE.tsv", "eintraege": 14, "verzeichnisse": 9, "dateien": 4, "verweise": 1, "sonder": 0, "bytes": 26585, "sha256_manifest": "a55c4c4f4cf3f382ad944fc2eed3ad041e7b7af596c4469667a9a8df6db192f5", "dauer_s": 0.0}
+gepackt: 14 Einträge, davon 4 Dateien · gegenprobe: 14 Einträge, davon 4 Dateien
+nur gepackt: 0 · nur gegenprobe: 0 · verschieden: 1
+  VERSCHIEDEN: root/sicherung/biotop-lage-01/tmp/selbsttest-03/quelle/code/unter/b.txt · 3a19faa4ec704eef… → 09f8f43d3cbe4ca3…
+ERGEBNIS: Unterschied NICHT leer (1 Einträge)
+GEGENPROBE ANGESCHLAGEN: genau die geänderte Datei gemeldet
+Ende 2026-09-25 19:41:17 CEST (UTC+0200)
+--- vergleich (erwartet: genau x/zwei verschieden)
+SELBSTTEST-03-A: 2 Einträge, SHA-256 der Liste 68c00f6e22596257a5f2e24d83f65c6d27bd27126ae50547cb65d8d4406da0dd
+SELBSTTEST-03-B: 2 Einträge, SHA-256 der Liste 46e1492d407d14f3c20bfe677ab9333b4d5639b0d5f219743f7162c152639794
+nur in SELBSTTEST-03-A: 0 · nur in SELBSTTEST-03-B: 0 · Inhalt verschieden: 1
+  VERSCHIEDEN: x/zwei  bb… → cc…
+ERGEBNIS: Unterschied NICHT leer
+=== Ende R179 ===

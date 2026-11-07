@@ -1,0 +1,59 @@
+EB76 · Schritt 6.5: Git im entpackten Repository (zweiter Durchgang)
+Beginn: 2026-09-26 02:21:42 CEST (UTC+0200)
+Ende:   2026-09-26 02:21:43 CEST (UTC+0200)
+Dauer:  0.5 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/biotop-einlagerung/arbeit/s6_git.sh /root/biotop-einlagerung/probe/entpackt/root/biotop
+--- Inhalt von /root/biotop-einlagerung/arbeit/s6_git.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-EINLAGERUNG-01 · Schritt 6.5 (nur lesend): Git im entpackten Repository <pfad>.
+# Erwartet: Markierungen runde-5 → 0c2f058…, eingelagert-20260925 → e8401af…, Zweig einlagerung/runde-6-stand ausgecheckt,
+# main → 0c2f058…, git status sauber, git fsck ohne Fehler. Vergleich mit dem Original (Refs und Objektzahl).
+set -u
+R=$1
+g() { git -C "$R" --no-optional-locks -c safe.directory='*' "$@"; }
+o() { git -C /root/biotop --no-optional-locks "$@"; }
+echo "== $(date '+%Y-%m-%d %H:%M:%S %Z') · $R"
+echo "HEAD: $(g rev-parse HEAD) · Zweig: $(g symbolic-ref --short HEAD)"
+echo "runde-5 → $(g rev-parse runde-5^{commit}) · eingelagert-20260925 → $(g rev-parse eingelagert-20260925^{commit})"
+echo "main → $(g rev-parse main) · einlagerung/runde-6-stand → $(g rev-parse einlagerung/runde-6-stand)"
+echo "-- Zweige"; g branch -a --format='%(refname) %(objectname)'
+echo "-- Markierungen"; g tag -l --format='%(refname) %(objectname)'
+st=$(g status --short --untracked-files=all | wc -l)
+echo "git status --short (mit unverfolgten): $st Einträge"; g status --short --untracked-files=all | head -20
+echo "-- ignorierte, aber vorhandene Dateien (Datenbanken u. a.): $(g status --short --ignored | grep -c '^!!')"
+echo "-- git fsck --full"; g fsck --full 2>&1 | tail -5; echo "fsck rc=${PIPESTATUS[0]}"
+echo "-- Vergleich mit dem Original /root/biotop"
+a=$(g for-each-ref --format='%(refname) %(objectname)' | sort | sha256sum | cut -c1-64)
+b=$(o for-each-ref --format='%(refname) %(objectname)' | sort | sha256sum | cut -c1-64)
+echo "Refs gleich: $([ "$a" = "$b" ] && echo ja || echo NEIN) ($a)"
+echo "Objekte entpackt: $(g count-objects -v | tr '\n' ' ')"
+echo "Objekte Original: $(o count-objects -v | tr '\n' ' ')"
+[ "$st" -eq 0 ] && [ "$(g rev-parse runde-5^{commit})" = 0c2f058d57f68b8891b535d6e00214172c82fefa ] \
+  && [ "$(g rev-parse eingelagert-20260925^{commit})" = e8401afda5907a997eae96537394f7dbf4e8af3f ] \
+  && [ "$(g symbolic-ref --short HEAD)" = einlagerung/runde-6-stand ] && echo "ERGEBNIS: Git im entpackten Stand wie verlangt" \
+  || echo "ERGEBNIS: Git im entpackten Stand NICHT wie verlangt"
+--- Ende /root/biotop-einlagerung/arbeit/s6_git.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== 2026-09-26 02:21:42 CEST · /root/biotop-einlagerung/probe/entpackt/root/biotop
+HEAD: e8401afda5907a997eae96537394f7dbf4e8af3f · Zweig: einlagerung/runde-6-stand
+runde-5 → 0c2f058d57f68b8891b535d6e00214172c82fefa · eingelagert-20260925 → e8401afda5907a997eae96537394f7dbf4e8af3f
+main → 0c2f058d57f68b8891b535d6e00214172c82fefa · einlagerung/runde-6-stand → e8401afda5907a997eae96537394f7dbf4e8af3f
+-- Zweige
+refs/heads/einlagerung/runde-6-stand e8401afda5907a997eae96537394f7dbf4e8af3f
+refs/heads/main 0c2f058d57f68b8891b535d6e00214172c82fefa
+-- Markierungen
+refs/tags/eingelagert-20260925 e8401afda5907a997eae96537394f7dbf4e8af3f
+refs/tags/runde-5 0c2f058d57f68b8891b535d6e00214172c82fefa
+git status --short (mit unverfolgten): 0 Einträge
+-- ignorierte, aber vorhandene Dateien (Datenbanken u. a.): 1
+-- git fsck --full
+dangling commit 017f27797cafc6109e97443c75c45cde78f6deb6
+fsck rc=0
+-- Vergleich mit dem Original /root/biotop
+Refs gleich: ja (3cd86cdb2f6bd5597d1e5a1dbc865aabea5050c4253c385e31b59c97873c79d1)
+Objekte entpackt: count: 903 size: 5520 in-pack: 0 packs: 0 size-pack: 0 prune-packable: 0 garbage: 0 size-garbage: 0 
+Objekte Original: count: 903 size: 5520 in-pack: 0 packs: 0 size-pack: 0 prune-packable: 0 garbage: 0 size-garbage: 0 
+ERGEBNIS: Git im entpackten Stand wie verlangt
+=== Ende EB76 ===

@@ -1,0 +1,31 @@
+        con = verbinden()
+        g = con.execute("SELECT nummer, status FROM generationen WHERE lauf_id=1 ORDER BY nummer DESC LIMIT 1").fetchone()
+        assert tuple(g) == (1, "vorgelegt"), tuple(g)
+        rc = cli.main(["freigabe", "1", "1", "frei", "--von", "Verdrahtungsnachweis", "--grund", "Nachspiel"])
+        capsys.readouterr()
+        assert rc == 0
+    
+        fehlend = nie_gerufen(organe, gerufen)
+        jury_zeilen = con.execute("SELECT einstimmig, gewinner FROM jury").fetchall()
+        beleg = {"organe": len(organe), "gerufen": len(organe) - len(fehlend), "nie_gerufen": fehlend,
+                 "erster_aufruf": dict(sorted(gerufen.items())), "schritte": protokoll,
+                 "anbietergrenze": grenze.anfragen, "jury": [tuple(z) for z in jury_zeilen],
+                 "modellkosten_eur": con.execute("SELECT COALESCE(SUM(kosten_eur),0) FROM kasse").fetchone()[0]}
+        ziel = os.environ.get("T3_VERDRAHTUNG_BELEG")
+        if ziel:
+            Path(ziel).write_text(json.dumps(beleg, ensure_ascii=False, indent=1))
+>       assert fehlend == [], f"Organ existiert und wird im Lauf nie gerufen: {fehlend} (gerufen {len(organe) - len(fehlend)} von {len(organe)})"
+E       AssertionError: Organ existiert und wird im Lauf nie gerufen: ['masseichung', 'verhaltensvergleich'] (gerufen 21 von 23)
+E       assert ['masseichung...ensvergleich'] == []
+E         
+E         Left contains 2 more items, first extra item: 'masseichung'
+E         Use -v to get more diff
+
+tests/test_verdrahtung.py:210: AssertionError
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED tests/test_verdrahtung.py::test_pruefwerkzeug_meldet_organ_das_existiert_und_nie_gerufen_wird
+PASSED tests/test_verdrahtung.py::test_organliste_kommt_aus_dem_verzeichnis
+FAILED tests/test_verdrahtung.py::test_jedes_organ_wird_im_lauf_aufgerufen - ...
+1 failed, 2 passed in 643.55s (0:10:43)
+pytest-rc=1

@@ -1,0 +1,76 @@
+EB3 · OpenRouter-Stand VORHER (Kontoanzeige, kein Modellaufruf)
+Beginn: 2026-09-25 23:31:57 CEST (UTC+0200)
+Ende:   2026-09-25 23:31:58 CEST (UTC+0200)
+Dauer:  0.3 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/biotop-einlagerung/arbeit/or_stand.py vorher-einlagerung
+--- Inhalt von /root/biotop-einlagerung/arbeit/or_stand.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-EINLAGERUNG-01: Stand der OpenRouter-Nutzungsanzeige (kein Modellaufruf; Abfrage der Kontoanzeige).
+Vorlage: /root/sicherung/biotop-lage-01/arbeit/or_stand.py (unverändert bis auf die Zieldatei).
+Der Schlüssel wird aus /root/.hermes/.env gelesen und nie ausgegeben. Ausgegeben werden nur die Zahlen der Anzeige:
+/api/v1/key (usage gesamt, heute, Woche, Monat; Limit) und /api/v1/credits (gekauft, verbraucht).
+Aufruf: python3 or_stand.py <marke>   — hängt eine JSON-Zeile an /root/biotop-einlagerung/arbeit/OR-STAND.jsonl."""
+import json
+import sys
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+schluessel = None
+for z in Path('/root/.hermes/.env').read_text().splitlines():
+    if z.startswith('OPENROUTER_API_KEY='):
+        schluessel = z.split('=', 1)[1].strip().strip('"').strip("'")
+if not schluessel:
+    sys.exit('OPENROUTER_API_KEY fehlt in /root/.hermes/.env')
+
+
+def hole(url):
+    q = urllib.request.Request(url, headers={'Authorization': f'Bearer {schluessel}'})
+    try:
+        with urllib.request.urlopen(q, timeout=60) as r:
+            return r.status, json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        return e.code, {'fehler': e.read().decode('utf-8', 'replace')[:300]}
+
+
+marke = sys.argv[1] if len(sys.argv) > 1 else 'stand'
+zeile = {'zeit': time.strftime('%Y-%m-%dT%H:%M:%S%z'), 'marke': marke}
+st, k = hole('https://openrouter.ai/api/v1/key')
+d = k.get('data') or {}
+zeile['key_http'] = st
+for f in ('usage', 'usage_daily', 'usage_weekly', 'usage_monthly', 'byok_usage', 'limit', 'limit_remaining',
+          'limit_reset', 'is_free_tier', 'label'):
+    if f in d:
+        zeile['key_' + f] = d[f] if f != 'label' else '[GESCHWÄRZT: Schlüsselbezeichnung]'
+st, c = hole('https://openrouter.ai/api/v1/credits')
+zeile['credits_http'] = st
+cd = c.get('data') or {}
+zeile['credits_total_credits'] = cd.get('total_credits')
+zeile['credits_total_usage'] = cd.get('total_usage')
+with open('/root/biotop-einlagerung/arbeit/OR-STAND.jsonl', 'a') as f:
+    f.write(json.dumps(zeile, ensure_ascii=False) + '\n')
+print(json.dumps(zeile, ensure_ascii=False, indent=1))
+--- Ende /root/biotop-einlagerung/arbeit/or_stand.py ---
+Ausgabe (vollständig, stdout und stderr):
+{
+ "zeit": "2026-09-25T23:31:57+0200",
+ "marke": "vorher-einlagerung",
+ "key_http": 200,
+ "key_usage": 21.067113777,
+ "key_usage_daily": 0.83868075,
+ "key_usage_weekly": 11.302344459,
+ "key_usage_monthly": 21.067113777,
+ "key_byok_usage": 0,
+ "key_limit": null,
+ "key_limit_remaining": null,
+ "key_limit_reset": null,
+ "key_is_free_tier": false,
+ "key_label": "[GESCHWÄRZT: Schlüsselbezeichnung]",
+ "credits_http": 200,
+ "credits_total_credits": 240,
+ "credits_total_usage": 195.912845737
+}
+=== Ende EB3 ===

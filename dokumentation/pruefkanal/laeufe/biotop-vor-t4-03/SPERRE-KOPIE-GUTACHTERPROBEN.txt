@@ -1,0 +1,45 @@
+Sperre in der Behebungsrunde 3 vor T4 — wörtlich (Befehl und Meldung), Einordnung
+=====================================================================================
+
+Zeit: 2026-09-24, zwischen 08:37 und 08:44 (nach dem Ende des Reviews, vor 08:44:08).
+Werkzeug: terminal (Hermes), Arbeitsverzeichnis /root/biotop.
+
+Befehl (wörtlich):
+-----------------
+mkdir -p /root/biotop-vor-t4-03/review-proben && cd /tmp/review-vor-t4-03 && for f in *.py *.json *.txt *.sh; do cp -p "$f" /root/biotop-vor-t4-03/review-proben/; done; cd /root/biotop-vor-t4-03/review-proben && ls | wc -l && for f in *; do [ "$(sha256sum < $f)" = "$(sha256sum < /tmp/review-vor-t4-03/$f)" ] || echo "ABWEICHUNG $f"; done; echo "kopien geprueft"; /root/biotop-t3/venv/bin/python - <<'EOF'
+import json, collections
+from pathlib import Path
+p = Path('/root/.local/share/tirith/log.jsonl')
+zeilen = p.read_text(errors='replace').splitlines()
+print('eintraege', len(zeilen))
+probe = None
+for z in reversed(zeilen):
+    try:
+        probe = json.loads(z); break
+    except Exception:
+        pass
+print('schluessel', sorted(probe)[:20] if isinstance(probe, dict) else type(probe))
+EOF
+
+Meldung (wörtlich):
+------------------
+Blocked: command or referenced script cannot restart, stop, or uninstall the gateway from inside the gateway process. The gateway would kill this command before it could complete (SIGTERM propagates to child processes). Run `hermes gateway restart` from a separate shell outside the running gateway.
+
+Zweck des Befehls:
+-----------------
+1. Die Proben und Ausgaben des Prüfers (Review Runde 3) aus /tmp/review-vor-t4-03/ nach
+   /root/biotop-vor-t4-03/review-proben/ kopieren, damit sie als Belege der Befunde im Abschlussordner liegen (wie in
+   Runde 2), und jede Kopie per sha256 gegen das Original prüfen.
+2. Das Protokoll der Ausführungsschicht /root/.local/share/tirith/log.jsonl lesen (Zahl der Einträge, Schlüssel des
+   letzten Eintrags): Der Prüfer hatte gemeldet, dass es sich während seines Durchgangs geändert hat.
+
+Einordnung:
+----------
+- Sicherheitsfilter, harte Linie 3. Der Befehl enthält keinen Gateway-Befehl (kein restart/stop/uninstall/kill); der
+  Auslöser ist mir unbekannt. Dieselbe Meldung traf in Runde 2 das nur lesende Skript r6.sh des Prüfers.
+- Nicht umgangen: kein Umformulieren, kein Teilbefehl, kein anderer Weg, kein anderes Werkzeug. Die Proben sind nicht
+  kopiert (Prüfung um 08:44:08: /root/biotop-vor-t4-03/review-proben fehlt), das Protokoll ist nicht gelesen.
+- Wartet: die Kopie der Gutachterproben in den Abschlussordner. Die Proben liegen unverändert unter
+  /tmp/review-vor-t4-03/ (Schreibort-Nachweis in REVIEW.md). Nach Freigabe durch Philipp: eigener Nachtragsordner mit
+  eigener Prüfsumme; der gelieferte Ordner laeufe/biotop-vor-t4-03/ bleibt unverändert.
+- Das übrige Veröffentlichen hängt nicht von dieser Kopie ab (eigene Entscheidung, BERICHT §12 Nr. 8).

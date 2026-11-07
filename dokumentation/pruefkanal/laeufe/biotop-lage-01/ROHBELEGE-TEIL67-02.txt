@@ -1,0 +1,365 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 67 (Teile 4–165 dieses Stands) · enthält R63 bis R63
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R63 · Teil C: FK28/FK29/FK27-Eichung — Abfragen STAMM (immutable), VB1, T3 (mode=ro)
+Beginn: 2026-09-25 16:20:42 CEST (UTC+0200)
+Ende:   2026-09-25 16:20:42 CEST (UTC+0200)
+Dauer:  0.4 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/tore/c5_fk28_fk29.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/tore/c5_fk28_fk29.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil C (nur lesend): Abfragen für FK28 (Aufnahmesperre C, Abweichungsquote), FK29 (Art- und
+Projektgedächtnis) und FK27 (Stand der Eichung „Generation minus eins" vor dem letzten Lauf).
+Regeln: STAMM nur ?mode=ro&immutable=1 und nur bei -wal = 0 Bytes; VB1 und T3 ?mode=ro. Nichts wird geschrieben.
+Die SQL-Abfragen stehen wörtlich in diesem Skript (der Rohbeleg enthält den Skriptinhalt)."""
+import json
+import os
+import sqlite3
+
+ZWEIGE = [
+    ('STAMM', '/root/biotop/daten/biotop.db', 'immutable'),
+    ('VB1', '/root/phase-4-vorbedingung-1/privat/biotop.db', 'ro'),
+    ('T3', '/root/biotop-t3/t3.db', 'ro'),
+]
+
+
+def spalten(c, t):
+    return [r[1] for r in c.execute(f'PRAGMA table_info("{t}")')]
+
+
+def kurz(v, n=160):
+    s = str(v)
+    return s if len(s) <= n else s[:n] + f'…[{len(s)}]'
+
+
+for name, pfad, art in ZWEIGE:
+    wal = os.path.getsize(pfad + '-wal') if os.path.exists(pfad + '-wal') else None
+    print(f'\n#################### {name}: {pfad} (wal {wal} Bytes)')
+    if art == 'immutable':
+        if wal not in (None, 0):
+            print('NICHT GEÖFFNET: -wal nicht 0 Bytes')
+            continue
+        uri = f'file:{pfad}?mode=ro&immutable=1'
+    else:
+        uri = f'file:{pfad}?mode=ro'
+    print('URI:', uri)
+    c = sqlite3.connect(uri, uri=True)
+    werke = dict(c.execute('SELECT id, name FROM werke'))
+
+    # A. Aufnahmesperre C: jede Sperrung mit Kandidat (ist_probe, generation, nische, status)
+    print('\n== A. immun.aufnahme_gesperrt, jede Zeile')
+    sql_a = "SELECT nr, zeit, inhalt FROM protokoll WHERE art='immun.aufnahme_gesperrt' ORDER BY nr"
+    print('SQL:', sql_a)
+    for nr, zeit, inhalt in c.execute(sql_a).fetchall():
+        j = json.loads(inhalt)
+        k = c.execute('SELECT ist_probe, generation, nische, status FROM kandidaten WHERE id=?',
+                      (j.get('kandidat'),)).fetchone()
+        print(f"   #{nr} {zeit} lauf {j.get('lauf_id')} werk {j.get('werk_id')} kand {j.get('kandidat')} "
+              f"(ist_probe,gen,nische,status)={k} {j.get('bereich')} {j.get('sperrart')} "
+              f"{j.get('behauptung')} | {j.get('gegenstueck')} | test {kurz(j.get('test'), 70)}")
+
+    # B. geprüfte Aufnahmen je Lauf: Aufrufe und Summe der geprüften Tests
+    print('\n== B. immun.aufnahme_geprueft je Lauf (Aufrufe, Summe anzahl)')
+    sql_b = "SELECT inhalt FROM protokoll WHERE art='immun.aufnahme_geprueft'"
+    print('SQL:', sql_b)
+    je = {}
+    for (inhalt,) in c.execute(sql_b):
+        j = json.loads(inhalt)
+        a = je.setdefault(j.get('lauf_id'), [0, 0])
+        a[0] += 1
+        a[1] += int(j.get('anzahl') or 0)
+    for l in sorted(je, key=lambda x: (x is None, x)):
+        print(f'   Lauf {l}: {je[l][0]} Aufrufe, {je[l][1]} geprüfte Tests')
+
+    # C. Abweichung Ansage <-> Ausführung (V9-Zähler aegis.abweichung) je Lauf
+    print('\n== C. aegis.abweichung je Lauf (Zeilen, davon abweichung=true)')
+    sql_c = "SELECT inhalt FROM protokoll WHERE art='aegis.abweichung'"
+    print('SQL:', sql_c)
+    je = {}
+    for (inhalt,) in c.execute(sql_c):
+        j = json.loads(inhalt)
+        a = je.setdefault(j.get('lauf_id'), [0, 0])
+        a[0] += 1
+        a[1] += 1 if j.get('abweichung') else 0
+    for l in sorted(je, key=lambda x: (x is None, x)):
+        print(f'   Lauf {l}: {je[l][0]} Zeilen, abweichung=true {je[l][1]}')
+
+    # E. Artgedächtnis je Werk
+    print('\n== E. artgedaechtnis je Werk')
+    sql_e = ("SELECT werk, werkklasse, count(*), sum(CASE WHEN muster IS NOT NULL AND trim(muster)<>'' THEN 1 ELSE 0 END), "
+             "count(DISTINCT lauf_id), min(erstellt_am), max(erstellt_am) FROM artgedaechtnis GROUP BY werk, werkklasse ORDER BY werk")
+    print('SQL:', sql_e)
+    for r in c.execute(sql_e):
+        print('   ', r)
+    print('   ergebnis-Verteilung:', c.execute('SELECT ergebnis, count(*) FROM artgedaechtnis GROUP BY ergebnis').fetchall())
+    print('   gesamt:', c.execute('SELECT count(*), max(id), max(erstellt_am) FROM artgedaechtnis').fetchone())
+
+    # F. Projektgedächtnis je Werk
+    print('\n== F. projektgedaechtnis je Werk')
+    sql_f = ("SELECT werk, count(*), count(DISTINCT lauf_id), min(lauf_id), max(lauf_id), min(erstellt_am), max(erstellt_am) "
+             "FROM projektgedaechtnis GROUP BY werk ORDER BY werk")
+    print('SQL:', sql_f)
+    for r in c.execute(sql_f):
+        print('   ', r)
+    print('   gesamt:', c.execute('SELECT count(*), max(erstellt_am) FROM projektgedaechtnis').fetchone())
+    print('   gedaechtnis.wiederholung je Lauf (Protokoll, lauf_id aus inhalt):')
+    je = {}
+    for (inhalt,) in c.execute("SELECT inhalt FROM protokoll WHERE art='gedaechtnis.wiederholung'"):
+        try:
+            l = json.loads(inhalt).get('lauf_id')
+        except Exception:
+            l = '?'
+        je[l] = je.get(l, 0) + 1
+    print('   ', sorted(je.items(), key=lambda x: str(x[0]).zfill(4)))
+
+    # G. Mentor: je Aufruf Richtungen, davon mit werkübergreifendem Verweis
+    print('\n== G. mentor je Aufruf')
+    sql_g = 'SELECT id, lauf_id, werk_id, erstellt_am, modell, richtungen FROM mentor ORDER BY id'
+    print('SQL:', sql_g)
+    for mid, lid, wid, zeit, modell, rj in c.execute(sql_g).fetchall():
+        try:
+            rs = json.loads(rj)
+        except Exception:
+            rs = []
+        mit = [r for r in rs if r.get('_verweise_werkuebergreifend')]
+        refs = sorted({x for r in rs for x in (r.get('_verweise_werkuebergreifend') or [])})
+        schluessel = sorted({k for r in rs for k in r.keys() if k.startswith('_')})
+        erf = sum(len(r.get('_verweise_erfunden') or []) for r in rs) if any('_verweise_erfunden' in r for r in rs) else 'Feld fehlt'
+        print(f'   id {mid} lauf {lid} werk {wid}={werke.get(wid)} {zeit} {modell}: {len(mit)} von {len(rs)} Richtungen '
+              f'werkübergreifend {refs} | erfunden {erf} | Felder {schluessel}')
+
+    # H. Vorspann-Nachweise (Generation minus eins)
+    if 'vorspann_nachweise' in [r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table'")]:
+        sp = spalten(c, 'vorspann_nachweise')
+        print('\n== H. vorspann_nachweise, Spalten', sp)
+        for r in c.execute('SELECT * FROM vorspann_nachweise ORDER BY rowid'):
+            print('   ', ' | '.join(f'{k}={kurz(v, 220)}' for k, v in zip(sp, r)))
+    print('\n== I. eichung: Spalten', spalten(c, 'eichung'))
+    print('   je lauf_id:', c.execute('SELECT lauf_id, count(*), min(erstellt_am), max(erstellt_am) FROM eichung GROUP BY lauf_id').fetchall()
+          if 'erstellt_am' in spalten(c, 'eichung') else c.execute('SELECT lauf_id, count(*) FROM eichung GROUP BY lauf_id').fetchall())
+    print('\n== J. laeufe (letzte drei), Spalten', spalten(c, 'laeufe'))
+    for r in c.execute('SELECT * FROM laeufe ORDER BY id DESC LIMIT 3'):
+        print('   ', ' | '.join(f'{k}={kurz(v, 120)}' for k, v in zip(spalten(c, 'laeufe'), r)))
+    c.close()
+    print(f'   danach wal: {os.path.getsize(pfad + "-wal") if os.path.exists(pfad + "-wal") else None}')
+--- Ende /root/sicherung/biotop-lage-01/entwurf/tore/c5_fk28_fk29.py ---
+Ausgabe (vollständig, stdout und stderr):
+
+#################### STAMM: /root/biotop/daten/biotop.db (wal 0 Bytes)
+URI: file:/root/biotop/daten/biotop.db?mode=ro&immutable=1
+
+== A. immun.aufnahme_gesperrt, jede Zeile
+SQL: SELECT nr, zeit, inhalt FROM protokoll WHERE art='immun.aufnahme_gesperrt' ORDER BY nr
+   #15227 2026-09-20T00:49:04.962+00:00 lauf 9901 werk 9901 kand 9999 (ist_probe,gen,nische,status)=None lager fund reserviert|Eq:zahl | bereits im Vorrat des Bereichs | test test_reserviert_zaehlt_erneut_nach_einloesen
+   #15228 2026-09-20T00:49:04.963+00:00 lauf 9901 werk 9901 kand 9999 (ist_probe,gen,nische,status)=None lager fund reserviert|Eq:zahl | bereits im Vorrat des Bereichs | test test_reserviert_zaehlt_nach_einloesen_nicht_mehr
+   #15229 2026-09-20T00:49:04.974+00:00 lauf 9902 werk 9901 kand 9998 (ist_probe,gen,nische,status)=None lager fund reserviert|Eq:zahl | zweiter Test derselben Behauptung in diesem Kandidaten | test test_reserviert_zaehlt_nach_einloesen_nicht_mehr
+   #16011 2026-09-20T01:51:51.238+00:00 lauf 25 werk 22 kand 2680 (ist_probe,gen,nische,status)=None lager norm reserviert|Eq:zahl | bereits im Vorrat des Bereichs | test test_rot_wiederholt_vorhandene_behauptung
+   #16015 2026-09-20T01:52:33.864+00:00 lauf 25 werk 22 kand 2680 (ist_probe,gen,nische,status)=None lager norm reserviert|Eq:zahl | bereits im Vorrat des Bereichs | test test_rot_wiederholt_vorhandene_behauptung
+   #16020 2026-09-20T02:03:33.210+00:00 lauf 25 werk 22 kand 2680 (ist_probe,gen,nische,status)=None preise norm preis_fuer|GtE:zahl | bereits im Vorrat des Bereichs | test test_rot2_preis_fuer_wiederholte_behauptung
+   #16023 2026-09-20T02:04:02.765+00:00 lauf 25 werk 22 kand 2680 (ist_probe,gen,nische,status)=None preise norm preis_fuer|GtE:zahl | bereits im Vorrat des Bereichs | test test_rot2_preis_fuer_wiederholte_behauptung
+   #16027 2026-09-20T02:04:52.312+00:00 lauf 25 werk 22 kand 2680 (ist_probe,gen,nische,status)=None preise fund preis_fuer|GtE:zahl | bereits im Vorrat des Bereichs | test test_rot2_preis_fuer_wiederholte_behauptung
+
+== B. immun.aufnahme_geprueft je Lauf (Aufrufe, Summe anzahl)
+SQL: SELECT inhalt FROM protokoll WHERE art='immun.aufnahme_geprueft'
+   Lauf 25: 5 Aufrufe, 9 geprüfte Tests
+   Lauf 9902: 1 Aufrufe, 1 geprüfte Tests
+
+== C. aegis.abweichung je Lauf (Zeilen, davon abweichung=true)
+SQL: SELECT inhalt FROM protokoll WHERE art='aegis.abweichung'
+   Lauf 25: 1 Zeilen, abweichung=true 1
+
+== E. artgedaechtnis je Werk
+SQL: SELECT werk, werkklasse, count(*), sum(CASE WHEN muster IS NOT NULL AND trim(muster)<>'' THEN 1 ELSE 0 END), count(DISTINCT lauf_id), min(erstellt_am), max(erstellt_am) FROM artgedaechtnis GROUP BY werk, werkklasse ORDER BY werk
+    ('lagerhaus', 'python/klein/bibliothek', 569, 15, 8, '2026-09-19T11:58:12.805+00:00', '2026-09-20T01:43:33.238+00:00')
+    ('logmuehle', 'python/klein/bibliothek', 130, 7, 2, '2026-09-19T12:51:59.414+00:00', '2026-09-19T22:39:47.648+00:00')
+   ergebnis-Verteilung: [('abgelehnt', 630), ('angenommen', 24), ('ueberlebt', 45)]
+   gesamt: (699, 699, '2026-09-20T01:43:33.238+00:00')
+
+== F. projektgedaechtnis je Werk
+SQL: SELECT werk, count(*), count(DISTINCT lauf_id), min(lauf_id), max(lauf_id), min(erstellt_am), max(erstellt_am) FROM projektgedaechtnis GROUP BY werk ORDER BY werk
+    ('lagerhaus', 587, 8, 13, 25, '2026-09-19T11:55:25.465+00:00', '2026-09-20T01:43:33.237+00:00')
+    ('logmuehle', 99, 2, 17, 23, '2026-09-19T12:51:59.413+00:00', '2026-09-19T22:39:27.710+00:00')
+   gesamt: (686, '2026-09-20T01:43:33.237+00:00')
+   gedaechtnis.wiederholung je Lauf (Protokoll, lauf_id aus inhalt):
+    [(16, 21), (17, 17), (18, 13), (19, 18), (20, 9), (22, 18), (23, 3), (24, 11), (25, 18)]
+
+== G. mentor je Aufruf
+SQL: SELECT id, lauf_id, werk_id, erstellt_am, modell, richtungen FROM mentor ORDER BY id
+   id 1 lauf 16 werk 14=lagerhaus-p3-16 2026-09-19T12:00:42.587+00:00 anthropic/claude-sonnet-5: 0 von 4 Richtungen werkübergreifend [] | erfunden Feld fehlt | Felder []
+   id 2 lauf 17 werk 15=logmuehle-17 2026-09-19T12:01:02.633+00:00 anthropic/claude-sonnet-5: 0 von 5 Richtungen werkübergreifend [] | erfunden Feld fehlt | Felder []
+   id 3 lauf 16 werk 14=lagerhaus-p3-16 2026-09-19T12:45:34.846+00:00 anthropic/claude-sonnet-5: 0 von 5 Richtungen werkübergreifend [] | erfunden Feld fehlt | Felder ['_verweise_eigenes_werk', '_verweise_werkuebergreifend']
+   id 4 lauf 18 werk 16=lagerhaus-p3-18 2026-09-19T14:42:07.817+00:00 anthropic/claude-sonnet-5: 0 von 4 Richtungen werkübergreifend [] | erfunden Feld fehlt | Felder ['_verweise_eigenes_werk', '_verweise_werkuebergreifend']
+   id 5 lauf 18 werk 16=lagerhaus-p3-18 2026-09-19T14:45:52.911+00:00 anthropic/claude-sonnet-5: 0 von 5 Richtungen werkübergreifend [] | erfunden Feld fehlt | Felder ['_verweise_eigenes_werk', '_verweise_werkuebergreifend']
+   id 6 lauf 19 werk 17=lagerhaus-p3-19 2026-09-19T15:07:13.834+00:00 anthropic/claude-sonnet-5: 0 von 4 Richtungen werkübergreifend [] | erfunden Feld fehlt | Felder ['_verweise_eigenes_werk', '_verweise_werkuebergreifend']
+   id 7 lauf 20 werk 18=lagerhaus-p3-20 2026-09-19T15:41:06.239+00:00 anthropic/claude-sonnet-5: 0 von 4 Richtungen werkübergreifend [] | erfunden Feld fehlt | Felder ['_verweise_eigenes_werk', '_verweise_werkuebergreifend']
+   id 8 lauf 22 werk 19=lagerhaus-p3-22 2026-09-19T20:59:44.043+00:00 anthropic/claude-sonnet-5: 0 von 4 Richtungen werkübergreifend [] | erfunden Feld fehlt | Felder ['_verweise_eigenes_werk', '_verweise_werkuebergreifend']
+   id 9 lauf 22 werk 19=lagerhaus-p3-22 2026-09-19T21:32:31.041+00:00 anthropic/claude-sonnet-5: 0 von 4 Richtungen werkübergreifend [] | erfunden Feld fehlt | Felder ['_verweise_eigenes_werk', '_verweise_werkuebergreifend']
+   id 10 lauf 23 werk 20=logmuehle-23 2026-09-19T21:33:52.529+00:00 anthropic/claude-sonnet-5: 2 von 5 Richtungen werkübergreifend ['A132', 'A141', 'A249', 'A359', 'A6'] | erfunden Feld fehlt | Felder ['_verweise_eigenes_werk', '_verweise_werkuebergreifend']
+   id 11 lauf 22 werk 19=lagerhaus-p3-22 2026-09-19T22:45:33.318+00:00 anthropic/claude-sonnet-5: 3 von 4 Richtungen werkübergreifend ['A270', 'A271', 'A568', 'A569', 'A597'] | erfunden Feld fehlt | Felder ['_verweise_eigenes_werk', '_verweise_werkuebergreifend']
+   id 12 lauf 24 werk 21=lagerhaus-zeile8-24 2026-09-19T23:00:43.370+00:00 anthropic/claude-sonnet-5: 1 von 5 Richtungen werkübergreifend ['A569', 'A597'] | erfunden Feld fehlt | Felder ['_verweise_eigenes_werk', '_verweise_werkuebergreifend']
+   id 13 lauf 25 werk 22=lagerhaus-c-25 2026-09-20T01:15:08.017+00:00 anthropic/claude-sonnet-5: 1 von 5 Richtungen werkübergreifend ['A569', 'A597'] | erfunden Feld fehlt | Felder ['_verweise_eigenes_werk', '_verweise_werkuebergreifend']
+
+== I. eichung: Spalten ['id', 'lauf_id', 'werk_id', 'bereich', 'toleranz', 'spannweite', 'median', 'werte', 'aussetzer', 'nachgemessen', 'gesperrt', 'meldung', 'erstellt_am']
+   je lauf_id: [(0, 13, '2026-09-19T18:36:08.870+00:00', '2026-09-19T18:37:56.597+00:00'), (22, 4, '2026-09-19T20:58:44.303+00:00', '2026-09-19T20:58:44.306+00:00'), (904, 8, '2026-09-19T19:38:01.344+00:00', '2026-09-19T19:38:42.547+00:00')]
+
+== J. laeufe (letzte drei), Spalten ['id', 'werk_id', 'budget_eur', 'status', 'begonnen_am', 'beendet_am', 'mass', 'grund', 'richtung', 'freigabe']
+    id=25 | werk_id=22 | budget_eur=0.8 | status=bereit | begonnen_am=2026-09-20T01:13:30.138+00:00 | beendet_am=None | mass={"archivierung_offener_funde": "nach 5 Generationen (3.10 F4)", "bandit_kein_vorschlag": "neutral (3.6 F4)", "bereiche":…[1276] | grund=None | richtung={"_verweise_eigenes_werk": ["A33", "A651"], "_verweise_werkuebergreifend": [], "artgedaechtnis": [], "aufwand_generation…[862] | freigabe=None
+    id=24 | werk_id=21 | budget_eur=1.5 | status=bereit | begonnen_am=2026-09-19T22:57:49.320+00:00 | beendet_am=None | mass={"archivierung_offener_funde": "nach 5 Generationen (3.10 F4)", "bandit_kein_vorschlag": "neutral (3.6 F4)", "bereiche":…[1275] | grund=None | richtung={"_verweise_eigenes_werk": ["A33"], "_verweise_werkuebergreifend": [], "artgedaechtnis": [], "aufwand_generationen": 3, …[752] | freigabe=None
+    id=23 | werk_id=20 | budget_eur=2.0 | status=gesaettigt | begonnen_am=2026-09-19T21:32:55.853+00:00 | beendet_am=2026-09-19T22:39:48.061+00:00 | mass={"archivierung_offener_funde": "nach 5 Generationen (3.10 F4)", "bandit_kein_vorschlag": "neutral (3.6 F4)", "bereiche":…[1303] | grund=In dieser Richtung gesättigt: Generationen 1–5, Verbesserung 0.00 % (Schwelle 0.5 % über 5 Generationen), Kernmaß 0 = Hö…[287] | richtung={"_verweise_eigenes_werk": ["A311", "A331"], "_verweise_werkuebergreifend": ["A359", "A249", "A6", "A141"], "artgedaecht…[815] | freigabe=None
+   danach wal: 0
+
+#################### VB1: /root/phase-4-vorbedingung-1/privat/biotop.db (wal 4140632 Bytes)
+URI: file:/root/phase-4-vorbedingung-1/privat/biotop.db?mode=ro
+
+== A. immun.aufnahme_gesperrt, jede Zeile
+SQL: SELECT nr, zeit, inhalt FROM protokoll WHERE art='immun.aufnahme_gesperrt' ORDER BY nr
+   #15227 2026-09-20T00:49:04.962+00:00 lauf 9901 werk 9901 kand 9999 (ist_probe,gen,nische,status)=None lager fund reserviert|Eq:zahl | bereits im Vorrat des Bereichs | test test_reserviert_zaehlt_erneut_nach_einloesen
+   #15228 2026-09-20T00:49:04.963+00:00 lauf 9901 werk 9901 kand 9999 (ist_probe,gen,nische,status)=None lager fund reserviert|Eq:zahl | bereits im Vorrat des Bereichs | test test_reserviert_zaehlt_nach_einloesen_nicht_mehr
+   #15229 2026-09-20T00:49:04.974+00:00 lauf 9902 werk 9901 kand 9998 (ist_probe,gen,nische,status)=None lager fund reserviert|Eq:zahl | zweiter Test derselben Behauptung in diesem Kandidaten | test test_reserviert_zaehlt_nach_einloesen_nicht_mehr
+   #16011 2026-09-20T01:51:51.238+00:00 lauf 25 werk 22 kand 2680 (ist_probe,gen,nische,status)=(0, 1, 'sicher', 'leer') lager norm reserviert|Eq:zahl | bereits im Vorrat des Bereichs | test test_rot_wiederholt_vorhandene_behauptung
+   #16015 2026-09-20T01:52:33.864+00:00 lauf 25 werk 22 kand 2680 (ist_probe,gen,nische,status)=(0, 1, 'sicher', 'leer') lager norm reserviert|Eq:zahl | bereits im Vorrat des Bereichs | test test_rot_wiederholt_vorhandene_behauptung
+   #16020 2026-09-20T02:03:33.210+00:00 lauf 25 werk 22 kand 2680 (ist_probe,gen,nische,status)=(0, 1, 'sicher', 'leer') preise norm preis_fuer|GtE:zahl | bereits im Vorrat des Bereichs | test test_rot2_preis_fuer_wiederholte_behauptung
+   #16023 2026-09-20T02:04:02.765+00:00 lauf 25 werk 22 kand 2680 (ist_probe,gen,nische,status)=(0, 1, 'sicher', 'leer') preise norm preis_fuer|GtE:zahl | bereits im Vorrat des Bereichs | test test_rot2_preis_fuer_wiederholte_behauptung
+   #16027 2026-09-20T02:04:52.312+00:00 lauf 25 werk 22 kand 2680 (ist_probe,gen,nische,status)=(0, 1, 'sicher', 'leer') preise fund preis_fuer|GtE:zahl | bereits im Vorrat des Bereichs | test test_rot2_preis_fuer_wiederholte_behauptung
+
+== B. immun.aufnahme_geprueft je Lauf (Aufrufe, Summe anzahl)
+SQL: SELECT inhalt FROM protokoll WHERE art='immun.aufnahme_geprueft'
+   Lauf 25: 5 Aufrufe, 9 geprüfte Tests
+   Lauf 26: 3 Aufrufe, 3 geprüfte Tests
+   Lauf 9902: 1 Aufrufe, 1 geprüfte Tests
+
+== C. aegis.abweichung je Lauf (Zeilen, davon abweichung=true)
+SQL: SELECT inhalt FROM protokoll WHERE art='aegis.abweichung'
+   Lauf 25: 1 Zeilen, abweichung=true 1
+
+== E. artgedaechtnis je Werk
+SQL: SELECT werk, werkklasse, count(*), sum(CASE WHEN muster IS NOT NULL AND trim(muster)<>'' THEN 1 ELSE 0 END), count(DISTINCT lauf_id), min(erstellt_am), max(erstellt_am) FROM artgedaechtnis GROUP BY werk, werkklasse ORDER BY werk
+    ('lagerhaus', 'python/klein/bibliothek', 639, 18, 9, '2026-09-19T11:58:12.805+00:00', '2026-09-20T20:16:10.105+00:00')
+    ('logmuehle', 'python/klein/bibliothek', 130, 7, 2, '2026-09-19T12:51:59.414+00:00', '2026-09-19T22:39:47.648+00:00')
+   ergebnis-Verteilung: [('abgelehnt', 693), ('angenommen', 27), ('ueberlebt', 49)]
+   gesamt: (769, 769, '2026-09-20T20:16:10.105+00:00')
+
+== F. projektgedaechtnis je Werk
+SQL: SELECT werk, count(*), count(DISTINCT lauf_id), min(lauf_id), max(lauf_id), min(erstellt_am), max(erstellt_am) FROM projektgedaechtnis GROUP BY werk ORDER BY werk
+    ('lagerhaus', 650, 9, 13, 26, '2026-09-19T11:55:25.465+00:00', '2026-09-20T20:16:10.104+00:00')
+    ('logmuehle', 99, 2, 17, 23, '2026-09-19T12:51:59.413+00:00', '2026-09-19T22:39:27.710+00:00')
+   gesamt: (749, '2026-09-20T20:16:10.104+00:00')
+   gedaechtnis.wiederholung je Lauf (Protokoll, lauf_id aus inhalt):
+    [(16, 21), (17, 17), (18, 13), (19, 18), (20, 9), (22, 18), (23, 3), (24, 11), (25, 18), (26, 17)]
+
+== G. mentor je Aufruf
+SQL: SELECT id, lauf_id, werk_id, erstellt_am, modell, richtungen FROM mentor ORDER BY id
+   id 1 lauf 16 werk 14=lagerhaus-p3-16 2026-09-19T12:00:42.587+00:00 anthropic/claude-sonnet-5: 0 von 4 Richtungen werkübergreifend [] | erfunden Feld fehlt | Felder []
+   id 2 lauf 17 werk 15=logmuehle-17 2026-09-19T12:01:02.633+00:00 anthropic/claude-sonnet-5: 0 von 5 Richtungen werkübergreifend [] | erfunden Feld fehlt | Felder []
+   id 3 lauf 16 werk 14=lagerhaus-p3-16 2026-09-19T12:45:34.846+00:00 anthropic/claude-sonnet-5: 0 von 5 Richtungen werkübergreifend [] | erfunden Feld fehlt | Felder ['_verweise_eigenes_werk', '_verweise_werkuebergreifend']
+   id 4 lauf 18 werk 16=lagerhaus-p3-18 2026-09-19T14:42:07.817+00:00 anthropic/claude-sonnet-5: 0 von 4 Richtungen werkübergreifend [] | erfunden Feld fehlt | Felder ['_verweise_eigenes_werk', '_verweise_werkuebergreifend']
+   id 5 lauf 18 werk 16=lagerhaus-p3-18 2026-09-19T14:45:52.911+00:00 anthropic/claude-sonnet-5: 0 von 5 Richtungen werkübergreifend [] | erfunden Feld fehlt | Felder ['_verweise_eigenes_werk', '_verweise_werkuebergreifend']
+   id 6 lauf 19 werk 17=lagerhaus-p3-19 2026-09-19T15:07:13.834+00:00 anthropic/claude-sonnet-5: 0 von 4 Richtungen werkübergreifend [] | erfunden Feld fehlt | Felder ['_verweise_eigenes_werk', '_verweise_werkuebergreifend']
+   id 7 lauf 20 werk 18=lagerhaus-p3-20 2026-09-19T15:41:06.239+00:00 anthropic/claude-sonnet-5: 0 von 4 Richtungen werkübergreifend [] | erfunden Feld fehlt | Felder ['_verweise_eigenes_werk', '_verweise_werkuebergreifend']
+   id 8 lauf 22 werk 19=lagerhaus-p3-22 2026-09-19T20:59:44.043+00:00 anthropic/claude-sonnet-5: 0 von 4 Richtungen werkübergreifend [] | erfunden Feld fehlt | Felder ['_verweise_eigenes_werk', '_verweise_werkuebergreifend']
+   id 9 lauf 22 werk 19=lagerhaus-p3-22 2026-09-19T21:32:31.041+00:00 anthropic/claude-sonnet-5: 0 von 4 Richtungen werkübergreifend [] | erfunden Feld fehlt | Felder ['_verweise_eigenes_werk', '_verweise_werkuebergreifend']
+   id 10 lauf 23 werk 20=logmuehle-23 2026-09-19T21:33:52.529+00:00 anthropic/claude-sonnet-5: 2 von 5 Richtungen werkübergreifend ['A132', 'A141', 'A249', 'A359', 'A6'] | erfunden Feld fehlt | Felder ['_verweise_eigenes_werk', '_verweise_werkuebergreifend']
+   id 11 lauf 22 werk 19=lagerhaus-p3-22 2026-09-19T22:45:33.318+00:00 anthropic/claude-sonnet-5: 3 von 4 Richtungen werkübergreifend ['A270', 'A271', 'A568', 'A569', 'A597'] | erfunden Feld fehlt | Felder ['_verweise_eigenes_werk', '_verweise_werkuebergreifend']
+   id 12 lauf 24 werk 21=lagerhaus-zeile8-24 2026-09-19T23:00:43.370+00:00 anthropic/claude-sonnet-5: 1 von 5 Richtungen werkübergreifend ['A569', 'A597'] | erfunden Feld fehlt | Felder ['_verweise_eigenes_werk', '_verweise_werkuebergreifend']
+   id 13 lauf 25 werk 22=lagerhaus-c-25 2026-09-20T01:15:08.017+00:00 anthropic/claude-sonnet-5: 1 von 5 Richtungen werkübergreifend ['A569', 'A597'] | erfunden Feld fehlt | Felder ['_verweise_eigenes_werk', '_verweise_werkuebergreifend']
+   id 14 lauf 26 werk 23=lagerhaus-vorbedingung1-26 2026-09-20T19:36:38.502+00:00 anthropic/claude-sonnet-5: 3 von 5 Richtungen werkübergreifend ['A270', 'A281', 'A568', 'A569', 'A597'] | erfunden Feld fehlt | Felder ['_verweise_eigenes_werk', '_verweise_werkuebergreifend']
+
+== H. vorspann_nachweise, Spalten ['lauf_id', 'status', 'ergebnis', 'nachweis_sha256', 'protokoll_nr', 'mass_sha256']
+    lauf_id=26 | status=bestanden | ergebnis={"basis": {"bereiche": {"bericht": {"groesste_funktion": 18, "groesste_funktion_name": "lagerhaus/bericht/auswertung.py:lagerwert", "laufzeit_ms": 10.15, "laufzeit_roh": [7.6, 10.15, 34.6], "sicherheit_befunde": [], "sic…[354040] | nachweis_sha256=7449c0febfffabf74403d948735a35e28319a68e20b0f616caf60f4d8b428685 | protokoll_nr=16073 | mass_sha256=097311f8d233297b4503258aee05ae3b76c8bbcb7016fd4177f559b11a269231
+
+== I. eichung: Spalten ['id', 'lauf_id', 'werk_id', 'bereich', 'toleranz', 'spannweite', 'median', 'werte', 'aussetzer', 'nachgemessen', 'gesperrt', 'meldung', 'erstellt_am']
+   je lauf_id: [(0, 13, '2026-09-19T18:36:08.870+00:00', '2026-09-19T18:37:56.597+00:00'), (22, 4, '2026-09-19T20:58:44.303+00:00', '2026-09-19T20:58:44.306+00:00'), (26, 4, '2026-09-20T19:32:31.351+00:00', '2026-09-20T19:32:31.353+00:00'), (904, 8, '2026-09-19T19:38:01.344+00:00', '2026-09-19T19:38:42.547+00:00')]
+
+== J. laeufe (letzte drei), Spalten ['id', 'werk_id', 'budget_eur', 'status', 'begonnen_am', 'beendet_am', 'mass', 'grund', 'richtung', 'freigabe']
+    id=26 | werk_id=23 | budget_eur=3.0 | status=gesaettigt | begonnen_am=2026-09-20T19:31:54.969+00:00 | beendet_am=2026-09-20T20:16:10.117+00:00 | mass={"archivierung_offener_funde": "nach 5 Generationen (3.10 F4)", "bandit_kein_vorschlag": "neutral (3.6 F4)", "bereiche":…[1396] | grund=In dieser Richtung gesättigt: Generationen 1–5, Verbesserung 0.00 % (Schwelle 0.5 % über 5 Generationen), Kernmaß 0 = Hö…[287] | richtung={"_verweise_eigenes_werk": ["A175", "A141", "A249", "A6"], "_verweise_werkuebergreifend": ["A597", "A569", "A568"], "art…[859] | freigabe=None
+    id=25 | werk_id=22 | budget_eur=0.8 | status=bereit | begonnen_am=2026-09-20T01:13:30.138+00:00 | beendet_am=None | mass={"archivierung_offener_funde": "nach 5 Generationen (3.10 F4)", "bandit_kein_vorschlag": "neutral (3.6 F4)", "bereiche":…[1276] | grund=None | richtung={"_verweise_eigenes_werk": ["A33", "A651"], "_verweise_werkuebergreifend": [], "artgedaechtnis": [], "aufwand_generation…[862] | freigabe=None
+    id=24 | werk_id=21 | budget_eur=1.5 | status=bereit | begonnen_am=2026-09-19T22:57:49.320+00:00 | beendet_am=None | mass={"archivierung_offener_funde": "nach 5 Generationen (3.10 F4)", "bandit_kein_vorschlag": "neutral (3.6 F4)", "bereiche":…[1275] | grund=None | richtung={"_verweise_eigenes_werk": ["A33"], "_verweise_werkuebergreifend": [], "artgedaechtnis": [], "aufwand_generationen": 3, …[752] | freigabe=None
+   danach wal: 4140632
+
+#################### T3: /root/biotop-t3/t3.db (wal 13221112 Bytes)
+URI: file:/root/biotop-t3/t3.db?mode=ro
+
+== A. immun.aufnahme_gesperrt, jede Zeile
+SQL: SELECT nr, zeit, inhalt FROM protokoll WHERE art='immun.aufnahme_gesperrt' ORDER BY nr
+   #15227 2026-09-20T00:49:04.962+00:00 lauf 9901 werk 9901 kand 9999 (ist_probe,gen,nische,status)=None lager fund reserviert|Eq:zahl | bereits im Vorrat des Bereichs | test test_reserviert_zaehlt_erneut_nach_einloesen
+   #15228 2026-09-20T00:49:04.963+00:00 lauf 9901 werk 9901 kand 9999 (ist_probe,gen,nische,status)=None lager fund reserviert|Eq:zahl | bereits im Vorrat des Bereichs | test test_reserviert_zaehlt_nach_einloesen_nicht_mehr
+   #15229 2026-09-20T00:49:04.974+00:00 lauf 9902 werk 9901 kand 9998 (ist_probe,gen,nische,status)=None lager fund reserviert|Eq:zahl | zweiter Test derselben Behauptung in diesem Kandidaten | test test_reserviert_zaehlt_nach_einloesen_nicht_mehr
+   #16011 2026-09-20T01:51:51.238+00:00 lauf 25 werk 22 kand 2680 (ist_probe,gen,nische,status)=(0, 1, 'sicher', 'erzeugt') lager norm reserviert|Eq:zahl | bereits im Vorrat des Bereichs | test test_rot_wiederholt_vorhandene_behauptung
+   #16015 2026-09-20T01:52:33.864+00:00 lauf 25 werk 22 kand 2680 (ist_probe,gen,nische,status)=(0, 1, 'sicher', 'erzeugt') lager norm reserviert|Eq:zahl | bereits im Vorrat des Bereichs | test test_rot_wiederholt_vorhandene_behauptung
+   #16020 2026-09-20T02:03:33.210+00:00 lauf 25 werk 22 kand 2680 (ist_probe,gen,nische,status)=(0, 1, 'sicher', 'erzeugt') preise norm preis_fuer|GtE:zahl | bereits im Vorrat des Bereichs | test test_rot2_preis_fuer_wiederholte_behauptung
+   #16023 2026-09-20T02:04:02.765+00:00 lauf 25 werk 22 kand 2680 (ist_probe,gen,nische,status)=(0, 1, 'sicher', 'erzeugt') preise norm preis_fuer|GtE:zahl | bereits im Vorrat des Bereichs | test test_rot2_preis_fuer_wiederholte_behauptung
+   #16027 2026-09-20T02:04:52.312+00:00 lauf 25 werk 22 kand 2680 (ist_probe,gen,nische,status)=(0, 1, 'sicher', 'erzeugt') preise fund preis_fuer|GtE:zahl | bereits im Vorrat des Bereichs | test test_rot2_preis_fuer_wiederholte_behauptung
+   #16946 2026-09-21T15:06:36.785+00:00 lauf 32 werk 23 kand 2690 (ist_probe,gen,nische,status)=(0, 1, 'schnell', 'angenommen') planung norm eindeutig|toThrow:name | bereits im Vorrat des Bereichs | test test_eindeutig_wirft_bei_undefined_element
+   #18149 2026-09-21T20:42:04.427+00:00 lauf 36 werk 23 kand 2743 (ist_probe,gen,nische,status)=(0, 1, 'sicher', 'abgelehnt') bericht norm zusammenfassen|toBe:bool | bereits im Vorrat des Bereichs | test test_zusammenfassen durchschnitt nicht auf ganze cent gerundet Eq:name
+   #20745 2026-09-22T01:46:16.944+00:00 lauf 37 werk 23 kand 2840 (ist_probe,gen,nische,status)=(0, 2, 'sicher', 'abgelehnt') tarife norm ausdruck|toThrow:name | bereits im Vorrat des Bereichs | test test_ausdruck unausgeglichene öffnende Klammer wirft SyntaxError statt…[80]
+   #21446 2026-09-22T02:59:33.273+00:00 lauf 37 werk 23 kand 2906 (ist_probe,gen,nische,status)=(0, 5, 'wild', 'abgelehnt') planung norm auslastung|toThrow:leer | bereits im Vorrat des Bereichs | test test_auslastung wirft bei nicht-ganzzahligem Gewichtslimit
+   #22983 2026-09-22T15:33:29.122+00:00 lauf 38 werk 23 kand 3036 (ist_probe,gen,nische,status)=(0, 1, 'elegant', 'abgelehnt') planung norm reihenfolge|toThrow:name | bereits im Vorrat des Bereichs | test test_reihenfolge wirft TypeError bei doppelter Kennung in positionen
+   #23044 2026-09-22T15:38:43.790+00:00 lauf 38 werk 23 kand 3043 (ist_probe,gen,nische,status)=(0, 1, 'elegant', 'abgelehnt') tarife norm ausdruck|toThrow:name | bereits im Vorrat des Bereichs | test test_ausdruck wirft SyntaxError bei ungueltigem Zeichen
+   #23638 2026-09-22T16:24:52.193+00:00 lauf 38 werk 23 kand 3091 (ist_probe,gen,nische,status)=(0, 4, 'schnell', 'angenommen') planung norm eindeutig|toThrow:name | bereits im Vorrat des Bereichs | test test_eindeutig raises TypeError bei sparse array loch statt stillem ue…[78]
+   #25807 2026-09-22T18:46:52.828+00:00 lauf 38 werk 23 kand 3283 (ist_probe,gen,nische,status)=(0, 14, 'sicher', 'abgelehnt') zahlen fund quantil|toBe:zahl | bereits im Vorrat des Bereichs | test test_quantil Cache liefert veraltetes Ergebnis bei mutiertem Array gle…[100]
+   #26082 2026-09-22T19:02:49.686+00:00 lauf 38 werk 23 kand 3307 (ist_probe,gen,nische,status)=(0, 16, 'wild', 'abgelehnt') bericht norm jsonbericht|toThrow:name | zweiter Test derselben Behauptung in diesem Kandidaten | test test_jsonbericht wirft RangeError bei negativer Sendungsanzahl (Behaup…[105]
+
+== B. immun.aufnahme_geprueft je Lauf (Aufrufe, Summe anzahl)
+SQL: SELECT inhalt FROM protokoll WHERE art='immun.aufnahme_geprueft'
+   Lauf 25: 5 Aufrufe, 9 geprüfte Tests
+   Lauf 32: 8 Aufrufe, 8 geprüfte Tests
+   Lauf 36: 4 Aufrufe, 4 geprüfte Tests
+   Lauf 37: 13 Aufrufe, 14 geprüfte Tests
+   Lauf 38: 15 Aufrufe, 17 geprüfte Tests
+   Lauf 9902: 1 Aufrufe, 1 geprüfte Tests
+
+== C. aegis.abweichung je Lauf (Zeilen, davon abweichung=true)
+SQL: SELECT inhalt FROM protokoll WHERE art='aegis.abweichung'
+   Lauf 25: 1 Zeilen, abweichung=true 1
+   Lauf 32: 3 Zeilen, abweichung=true 3
+   Lauf 36: 1 Zeilen, abweichung=true 1
+   Lauf 37: 9 Zeilen, abweichung=true 9
+   Lauf 38: 7 Zeilen, abweichung=true 6
+
+== E. artgedaechtnis je Werk
+SQL: SELECT werk, werkklasse, count(*), sum(CASE WHEN muster IS NOT NULL AND trim(muster)<>'' THEN 1 ELSE 0 END), count(DISTINCT lauf_id), min(erstellt_am), max(erstellt_am) FROM artgedaechtnis GROUP BY werk, werkklasse ORDER BY werk
+    ('lagerhaus', 'python/klein/bibliothek', 569, 15, 8, '2026-09-19T11:58:12.805+00:00', '2026-09-20T01:43:33.238+00:00')
+    ('logmuehle', 'python/klein/bibliothek', 130, 7, 2, '2026-09-19T12:51:59.414+00:00', '2026-09-19T22:39:47.648+00:00')
+    ('versandwerk', 'typescript/klein/bibliothek', 495, 28, 4, '2026-09-21T14:55:39.301+00:00', '2026-09-22T19:26:11.508+00:00')
+   ergebnis-Verteilung: [('abgelehnt', 1053), ('angenommen', 54), ('ueberlebt', 87)]
+   gesamt: (1194, 1194, '2026-09-22T19:26:11.508+00:00')
+
+== F. projektgedaechtnis je Werk
+SQL: SELECT werk, count(*), count(DISTINCT lauf_id), min(lauf_id), max(lauf_id), min(erstellt_am), max(erstellt_am) FROM projektgedaechtnis GROUP BY werk ORDER BY werk
+    ('lagerhaus', 587, 8, 13, 25, '2026-09-19T11:55:25.465+00:00', '2026-09-20T01:43:33.237+00:00')
+    ('logmuehle', 99, 2, 17, 23, '2026-09-19T12:51:59.413+00:00', '2026-09-19T22:39:27.710+00:00')
+    ('versandwerk', 423, 4, 32, 38, '2026-09-21T14:55:39.311+00:00', '2026-09-22T19:26:11.499+00:00')
+   gesamt: (1109, '2026-09-22T19:26:11.499+00:00')
+   gedaechtnis.wiederholung je Lauf (Protokoll, lauf_id aus inhalt):
+    [(16, 21), (17, 17), (18, 13), (19, 18), (20, 9), (22, 18), (23, 3), (24, 11), (25, 18), (32, 4), (36, 5), (37, 28), (38, 52)]
+
+== G. mentor je Aufruf
+SQL: SELECT id, lauf_id, werk_id, erstellt_am, modell, richtungen FROM mentor ORDER BY id
+   id 1 lauf 16 werk 14=lagerhaus-p3-16 2026-09-19T12:00:42.587+00:00 anthropic/claude-sonnet-5: 0 von 4 Richtungen werkübergreifend [] | erfunden Feld fehlt | Felder []
+   id 2 lauf 17 werk 15=logmuehle-17 2026-09-19T12:01:02.633+00:00 anthropic/claude-sonnet-5: 0 von 5 Richtungen werkübergreifend [] | erfunden Feld fehlt | Felder []
+   id 3 lauf 16 werk 14=lagerhaus-p3-16 2026-09-19T12:45:34.846+00:00 anthropic/claude-sonnet-5: 0 von 5 Richtungen werkübergreifend [] | erfunden Feld fehlt | Felder ['_verweise_eigenes_werk', '_verweise_werkuebergreifend']
+   id 4 lauf 18 werk 16=lagerhaus-p3-18 2026-09-19T14:42:07.817+00:00 anthropic/claude-sonnet-5: 0 von 4 Richtungen werkübergreifend [] | erfunden Feld fehlt | Felder ['_verweise_eigenes_werk', '_verweise_werkuebergreifend']
+   id 5 lauf 18 werk 16=lagerhaus-p3-18 2026-09-19T14:45:52.911+00:00 anthropic/claude-sonnet-5: 0 von 5 Richtungen werkübergreifend [] | erfunden Feld fehlt | Felder ['_verweise_eigenes_werk', '_verweise_werkuebergreifend']
+   id 6 lauf 19 werk 17=lagerhaus-p3-19 2026-09-19T15:07:13.834+00:00 anthropic/claude-sonnet-5: 0 von 4 Richtungen werkübergreifend [] | erfunden Feld fehlt | Felder ['_verweise_eigenes_werk', '_verweise_werkuebergreifend']
+   id 7 lauf 20 werk 18=lagerhaus-p3-20 2026-09-19T15:41:06.239+00:00 anthropic/claude-sonnet-5: 0 von 4 Richtungen werkübergreifend [] | erfunden Feld fehlt | Felder ['_verweise_eigenes_werk', '_verweise_werkuebergreifend']
+   id 8 lauf 22 werk 19=lagerhaus-p3-22 2026-09-19T20:59:44.043+00:00 anthropic/claude-sonnet-5: 0 von 4 Richtungen werkübergreifend [] | erfunden Feld fehlt | Felder ['_verweise_eigenes_werk', '_verweise_werkuebergreifend']
+   id 9 lauf 22 werk 19=lagerhaus-p3-22 2026-09-19T21:32:31.041+00:00 anthropic/claude-sonnet-5: 0 von 4 Richtungen werkübergreifend [] | erfunden Feld fehlt | Felder ['_verweise_eigenes_werk', '_verweise_werkuebergreifend']
+   id 10 lauf 23 werk 20=logmuehle-23 2026-09-19T21:33:52.529+00:00 anthropic/claude-sonnet-5: 2 von 5 Richtungen werkübergreifend ['A132', 'A141', 'A249', 'A359', 'A6'] | erfunden Feld fehlt | Felder ['_verweise_eigenes_werk', '_verweise_werkuebergreifend']
+   id 11 lauf 22 werk 19=lagerhaus-p3-22 2026-09-19T22:45:33.318+00:00 anthropic/claude-sonnet-5: 3 von 4 Richtungen werkübergreifend ['A270', 'A271', 'A568', 'A569', 'A597'] | erfunden Feld fehlt | Felder ['_verweise_eigenes_werk', '_verweise_werkuebergreifend']
+   id 12 lauf 24 werk 21=lagerhaus-zeile8-24 2026-09-19T23:00:43.370+00:00 anthropic/claude-sonnet-5: 1 von 5 Richtungen werkübergreifend ['A569', 'A597'] | erfunden Feld fehlt | Felder ['_verweise_eigenes_werk', '_verweise_werkuebergreifend']
+   id 13 lauf 25 werk 22=lagerhaus-c-25 2026-09-20T01:15:08.017+00:00 anthropic/claude-sonnet-5: 1 von 5 Richtungen werkübergreifend ['A569', 'A597'] | erfunden Feld fehlt | Felder ['_verweise_eigenes_werk', '_verweise_werkuebergreifend']
+
+== H. vorspann_nachweise, Spalten ['lauf_id', 'status', 'ergebnis', 'nachweis_sha256', 'protokoll_nr', 'mass_sha256']
+    lauf_id=26 | status=gescheitert | ergebnis={"erstellt_am": "2026-09-21T03:46:45.029+00:00", "generation": -1, "lauf_id": 26, "regel": "F6 3.5; Verfassungssatz 2: neues Messgerät verlangt neuen Lauf"} | nachweis_sha256=None | protokoll_nr=None | mass_sha256=None
+    lauf_id=27 | status=gescheitert | ergebnis={"basis": {"abdeckung": {"eslint": {"beendet": true, "dateien": ["src/bericht/abstimmung.ts", "src/bericht/formate.ts", "src/bericht/tabelle.ts", "src/bericht/zusammenfassung.ts", "src/eingang/modell.ts", "src/eingang/no…[4408788] | nachweis_sha256=None | protokoll_nr=None | mass_sha256=None
+    lauf_id=28 | status=gescheitert | ergebnis={"basis": {"abdeckung": {"eslint": {"beendet": true, "dateien": ["src/bericht/abstimmung.ts", "src/bericht/formate.ts", "src/bericht/tabelle.ts", "src/bericht/zusammenfassung.ts", "src/eingang/modell.ts", "src/eingang/no…[4407580] | nachweis_sha256=None | protokoll_nr=None | mass_sha256=None
+    lauf_id=29 | status=ungueltig | ergebnis={"basis": {"abdeckung": {"eslint": {"beendet": true, "dateien": ["src/bericht/abstimmung.ts", "src/bericht/formate.ts", "src/bericht/tabelle.ts", "src/bericht/zusammenfassung.ts", "src/eingang/modell.ts", "src/eingang/no…[4435102] | nachweis_sha256=fb182da6fbe442b5e4266692b30fc040035eaa987cdc578a30ca1c35081ca081 | protokoll_nr=16128 | mass_sha256=None
+    lauf_id=30 | status=bestanden | ergebnis={"basis": {"abdeckung": {"eslint": {"beendet": true, "dateien": ["src/bericht/abstimmung.ts", "src/bericht/formate.ts", "src/bericht/tabelle.ts", "src/bericht/zusammenfassung.ts", "src/eingang/modell.ts", "src/eingang/no…[4435843] | nachweis_sha256=a0cd77188b2c753705fc466cca8e2d34f48be29a917457096f58e6c608e97e01 | protokoll_nr=16155 | mass_sha256=None
+    lauf_id=31 | status=bestanden | ergebnis={"basis": {"abdeckung": {"eslint": {"beendet": true, "dateien": ["src/bericht/abstimmung.ts", "src/bericht/formate.ts", "src/bericht/tabelle.ts", "src/bericht/zusammenfassung.ts", "src/eingang/modell.ts", "src/eingang/no…[4434655] | nachweis_sha256=bb67c0f244434728495fbbebf4b28ccb9c3c0cdbfea2758aab02285581c7d573 | protokoll_nr=16180 | mass_sha256=64e6c19e3c555cd3251a1cb79461cd2fe9c7759321c3726750b87ec5bfc0ce4f
+    lauf_id=32 | status=bestanden | ergebnis={"basis": {"abdeckung": {"eslint": {"beendet": true, "dateien": ["src/bericht/abstimmung.ts", "src/bericht/formate.ts", "src/bericht/tabelle.ts", "src/bericht/zusammenfassung.ts", "src/eingang/modell.ts", "src/eingang/no…[4439839] | nachweis_sha256=73de1046a3c8d71ba7a23c7784cf2d027824be6f215e53697ec997f8f5050845 | protokoll_nr=16579 | mass_sha256=759ba238b08597f2424100fbf04eaa46eca6923e33068c5b34667b075977b681
+    lauf_id=33 | status=laeuft | ergebnis=None | nachweis_sha256=None | protokoll_nr=None | mass_sha256=None
+    lauf_id=34 | status=laeuft | ergebnis=None | nachweis_sha256=None | protokoll_nr=None | mass_sha256=None

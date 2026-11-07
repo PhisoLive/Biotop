@@ -1,0 +1,177 @@
+# S1c: Schlussbericht (Stand 17:26, abgebrochen an der Iterationsgrenze)
+
+A bis F sind gebaut. Beim Aufzählen der Wege mit `tragfaehig: True` habe ich aber einen weiteren stillen Durchlass derselben Klasse gefunden (G). Dafür steht nur die rote Spezifikation, der Code fehlt. **Deshalb sind im Baum seit 17:25 zehn `test_w_g_*` rot, und nach der Startregel ist T4 damit nicht frei.**
+
+- **A–F:** Bau erst an der Kopie `/tmp/r6-s1c/bau`, dann am Baum. Kopie und Baum sind danach bytegleich (16:40; die Testdatei 06 noch einmal 17:25).
+- **Teillauf Durchgang 5:** alles grün (Zahlen unten). Kosten an allen vier Werken gemessen.
+- **Befund G:** Eine beobachtete, geänderte Funktion schreibt in ein fremdes Modul (`konst.RATE = 7`) oder ruft dort eine schreibende Funktion (`konst.setze_rate(7)`). Ein unverändertes Modul liest den Wert. Ergebnis durch aegis in der echten Kammer: `ueberlebt`, geurteilt „9 von 9 beobachtet“, ohne Enthaltung.
+  - Rohausgaben: `/tmp/r6-s1c/befund-fremdschreiben-schreibt-erstlauf.txt` und `/tmp/r6-s1c/befund-fremdschreiben-ruft.txt`.
+
+## Geänderte Dateien (sha256, vorher → nachher)
+
+**Code und Tests in `/root/biotop`:**
+- `biotop/organe/verhaltensvergleich.py`: 761b9a7c… → `53e676da9aa1284915634a803a79166152d0b76084edff5e9be04f483ee37b4f`
+- `biotop/kern/py/verhalten.py`: c4071c40… → `cbb88f428ab9c011633768cb949653ff94d4b18bbfe5684eb66c8b1215b0381c`
+  - Für E: Die Sonde ruft am Kandidaten den Korpus auch für neue Funktionen.
+- `tests/test_vor_t4_06.py`: 80feee35… → `67bb6b458527a30b91ac54e0e8aed560f0ad758d0c874cee882801c5866c8710`
+  - 92 `test_w_*` angehängt.
+  - Älterer Fall `test_m2_regel_gedeckt_am_organ[zyklus]` hat jetzt das Soll „gedeckt“ (wegen F).
+- `tests/test_t3_verhaltensvergleich.py`: d6f239c4… → `103f2e9204969daefd2fff49e97002dbb68943a58f86a0354773e0a1cdcfca0f`
+  - Zwei ältere Tests zu A und B sicherten „tragfähig“ zu; jetzt Enthaltung.
+- `tests/test_vor_t4_03.py`: 9672cd54… → `707a5a7f8b9a0add3db5ba360e299f6ddde2c71e51a0e68531eceeab0bda3ae9`
+  - Zwei Gegenproben: ihre gestellte Sonde nannte keine eingewickelte Funktion („0 von 0“ = A). Sie nennt jetzt `eingewickelt`.
+- **Unverändert:**
+  - `aegis.py` 71af8ce7… — „Enthaltung → zurückgestellt“ wirkte dort schon.
+  - `test_vor_t4_05.py` 1983452f…, `test_vor_t4_04.py` 788db3c6…, `test_vor_t4_02.py` de095406…, `test_t3_python_annahmen.py` 03a5aff7….
+
+**Neu in `bau/`:**
+- `S1C-PLAN.md`, `S1C-KOSTEN.txt` (`2836f896…`).
+- Bauskripte (je sha256-Präfix): `r6_s1c_werkzeug.py`, `r6_s1c_spez*.py` (spez, n1–n7; n7 = 110c8aed), `r6_s1c_ab` 3031322c, `_d` df522833, `_d_n1` 22c3aab4, `_ef` cb109aec, `_ef_test` babee0b1, `_c` f183a8a3, `_c_n1` c28dbdc7, `_tests03` 21c8142a.
+- Protokolle `S1C-BAU-*.txt`.
+
+**Angehängt in `bau/`:**
+- `S1-VORHER-0c2f058.txt`: e9d812f2… → 7589363d…
+- `S1-VORHER-EINORDNUNG.md`: 81ba3837… → 481f55a9…
+- `TEILLAUF-S1.txt`: 43b6bd65… → f2d347e2…
+- `S1-GEAENDERTE-TESTS.md`: f61b8abf… → 2d9c47ee… (Nr. 7–11)
+
+## Vorher der `test_w_*`
+
+| Teil | Fälle | Proben rot (Baum / 0c2f058) | Gegenproben rot | Wächter rot (Baum / 0c2f058) |
+|---|---|---|---|---|
+| A–F | 77 | 44/44 von 44 | 0/0 von 29 | 0/4 von 4 |
+| G (n7) | 15 | 10/10 von 10 | 0/0 von 5 | — |
+
+- Für A–F ist „Baum“ der Stand nach S1b.
+- Für G ist „Baum“ der Stand nach S1c A–F; den Stand nach S1b habe ich für G nicht gemessen.
+- Die vier Wächter sichern zu, dass E und F die Regel von M2(b) nicht aufweichen; an 0c2f058 gibt es kein M2(b), daher dort rot.
+- Das Vorher von G ist noch nicht an `S1-VORHER-*` angehängt. Rohausgaben: `/tmp/r6-s1c/w-vorher-{baum,vorher}-n7.txt`.
+
+## Teststand Durchgang 5
+
+Stand 06 = e581edfa…, also vor dem Nachtrag n7:
+
+| Stück | Ergebnis |
+|---|---|
+| 1a | 39/39 |
+| 1b (`test_w_`) | 77/77 |
+| 1c | 63/63 |
+| 05 | 27/27 |
+| 04 | 36/36 |
+| 03 | 38/38 |
+| 02 | 18/18 |
+| t3_python_annahmen + t3_verhaltensvergleich | 28/28 |
+| test_vor_t4 | 62/62 |
+| test_verdrahtung | 7/7, 1 abgewählt (ganzer Lauf) |
+| test_tor4_zeilen | 62/62 |
+| **Summe** | **457 von 457 grün** |
+
+- **Zusatz:** 17 weitere Testdateien rufen aegis, laufen aber in keinem Stück 1–9. Ergebnis 166 von 168 grün, 2 übersprungen (`skipif` ohne `BIOTOP_EICHWERK`).
+- **Seit 17:25:** Die Datei 06 hat 194 Fälle, davon 10 rot (die G-Proben, gewollt bis zum Bau). Die übrigen 179 sind danach nicht erneut gelaufen; n7 hat nur angehängt.
+
+## Kosten (`bau/S1C-KOSTEN.txt`, echte Kammer, Code nach S1c A–F)
+
+| Werk | Module mit außerhalb gelesenen Modulwerten | Modulwerte außerhalb gelesen | Klassen / Klassenwerte außerhalb gelesen | nur von unbeobachteter Funktion in M gelesen | A: Module ohne Beobachtung | D |
+|---|---|---|---|---|---|---|
+| lagerhaus | 8 von 12 | 21 von 51 | 11 von 11 / 3 von 17 | 1 | 5 von 12 | 0 |
+| logmuehle | 7 von 12 | 26 von 78 | 5 von 5 / 9 von 20 | 4 | 5 von 12 | 0 |
+| uebungswerk-p2 | 8 von 12 | 21 von 53 | 11 von 12 / 3 von 17 | 3 | 5 von 12 | 0 |
+| versandwerk-t3-02 (TS) | 0 von 24 | 0 | — | 49 | 4 von 24 | 0 |
+
+**Was sich gegenüber S1b durch E/F ändert:**
+
+| Werk | M2(b) stellt zurück, S1b → S1c | davon durch F entfallen | E: neue öffentliche Funktionen, die als beobachtet gelten |
+|---|---|---|---|
+| lagerhaus | 2 → 2 von 39 | 0 | 12 von 12 |
+| logmuehle | 3 → 3 von 25 | 0 | 12 von 12 |
+| uebungswerk-p2 | 14 → 14 von 50 | 0 | 12 von 12 |
+
+- **E:** Unter S1b wurden alle zwölf neuen Funktionen je Werk zurückgestellt. Der Korpus neuer Funktionen verändert keine bestehende Beobachtung (0 Abweichungen).
+- **F:** In keinem Werk gibt es einen selbstrekursiven privaten Helfer; F ändert dort nichts.
+- **C, Python:** Die hohen Zahlen kommen meist von Re-Exporten in Paket-`__init__` und von Importen. Änderungen nur an Funktionskörpern betrifft C nicht.
+- **C, TypeScript:** An der Vorgeneration sind 85 von 123 exportierten Funktionen beobachtet.
+- **G:** Kosten nicht gemessen, weil G nicht gebaut ist.
+
+## Wege von `pruefen` mit `tragfaehig: True` nach dem Bau
+
+Gelesen an `53e676da…`, Z. 1898–2293. Es bleiben zwei Wege.
+
+**1. `keine_quellaenderung` (Z. 1922)**
+- Tritt nur ein, wenn kein Quellmodul geändert ist. Jede geänderte Datei im Quellpaket hat D schon vorher (Z. 1916) zur Enthaltung gemacht.
+- Übrig bleiben Dateien außerhalb des Quellpakets: README, docs/, tests/, Werkzeugdateien an der Wurzel. Sie werden gezählt, wie der Auftrag es verlangt.
+- Beobachtet ist hier nichts. Tragfähig ist das Urteil, weil der Quellcode bytegleich ist und das Werk diese Dateien laut Auftrag nicht zur Laufzeit liest. Gemessen: In allen vier Werken nennt kein Quellmodul eine dieser Dateien.
+- Grenze: Ein Werk, das doch eine Datei außerhalb liest (`open("../…")`), bliebe still. Das ist nicht geprüft.
+
+**2. `geurteilt` (Z. 2284)** — nur, wenn alle diese Bedingungen gelten:
+- Es gibt keine ungedeckte Abweichung.
+- Mindestens eine Funktion ist beobachtet (sonst greift A).
+- Weder M2(b) noch eine betroffene Enthaltung greift. Jede direkt geänderte Einheit ist also entweder beobachtet, neu und am Kandidaten beobachtet (E), oder ein gedeckter privater Helfer (F). Dazu zählt auch jede Einheit in M, die einen geänderten Modulwert liest (C).
+- `ausserhalb` ist leer. Es gibt also keinen der folgenden Fälle:
+  - eine Datei im Quellpaket (D);
+  - einen geänderten Modul- oder Klassenwert, der außerhalb gelesen wird;
+  - eine geänderte Modulebene ohne Namen;
+  - einen Dekorator mit Wirkung beim Import;
+  - einen `__main__`-Block, den runpy ausführt;
+  - ein Modul, das an der Vorgeneration nicht lädt;
+  - bei TypeScript eine unbeobachtete geänderte Funktion oder Klasse.
+
+Dann wirkt jede geänderte Stelle über Funktionen, deren Rückgabe und Argumentzustand die Sonde an beiden Ständen beobachtet.
+
+**Lücke dieses Wegs:**
+- **G, gemessen und offen:** Schreibzugriffe auf den Zustand fremder Module sieht die Sonde nicht.
+- **Statisch nicht bestimmbar:**
+  - Ein- und Ausgabe (Dateien, Umgebung, Prozesse);
+  - Reflexion jenseits von `globals()` und `setattr` (`sys.modules`, `importlib`);
+  - Schreiben über Aliase.
+
+**Alle übrigen Wege liefern `tragfaehig: False`:**
+- **Enthaltung, zurückgestellt:**
+  - nur Dateien im Quellpaket geändert (D allein);
+  - B, A;
+  - `wirkung_ausserhalb_beobachtung` (C/D);
+  - `betroffene_funktion_enthaelt_sich`, `verfaelschungskappe`, `verfaelschung_unvollstaendig`.
+- **Ablehnung:** Zeitlimit oder Inhaltsfehler am Kandidaten, ungedeckte Abweichung.
+- **`SondeAusgefallen`:** aegis stellt zurück.
+
+## Offene Punkte
+
+1. **G bauen, vor T4.** Die Festlegung steht in `S1C-PLAN.md` (17:20):
+   - Eine geänderte Funktion schreibt in ein importiertes Objekt (Zuweisung, verändernde Methode, `setattr`, `globals()`) → Enthaltung.
+   - Sie ruft eine schreibende Funktion im eigenen Modul → die dort geschriebenen Namen gelten als geändert (C).
+   - Sie ruft eine schreibende Funktion in einem anderen Modul → Enthaltung `M:<ruft:K:g>`.
+   - TypeScript entsprechend.
+   - Es fehlen:
+     - `bau/r6_s1c_g.py` (Kopie, dann Baum);
+     - die Kosten von G an den vier Werken;
+     - ein Nachlauf der Teillauf-Stücke;
+     - das Vorher von n7 an `S1-VORHER-*`.
+   - Wenn G nicht in S1c gebaut werden soll, braucht es eine Entscheidung von Hermes oder Chat-Claude.
+2. **Plan nachtragen.** `S1C-PLAN.md` endet bei 17:20. Es fehlt der Schritt von 17:25:
+   - `r6_s1c_spez_n7.py` (110c8aed…);
+   - Datei 06 → 67bb6b45… (Kopie = Baum, 194 Fälle);
+   - Vorher: je 10 Proben rot an beiden Ständen, 5 Gegenproben grün.
+3. **Umsetzung nachtragen.** In `bau/S1-UMSETZUNG.md` fehlt der Abschnitt zu S1c.
+4. **Grenzen ohne Bau:** Dateien außerhalb des Quellpakets, Ein- und Ausgabe, Reflexion, Aliase (siehe oben).
+5. **Voller Verdrahtungslauf** (`test_jedes_organ_wird_im_lauf_aufgerufen`, über 400 s) bleibt beim Auftraggeber.
+6. **Skill:** Die Lehre „Schreiben in fremde Module (G)“ gehört in den Skill `biotop-phase-bauen`. Das ist nicht mehr geschehen.
+
+**Auslegungen, strenger als der Wortlaut (Begründung im Plan):**
+- D: Liegt ein Quellmodul an der Wurzel, gehört die Wurzel zum Quellpaket.
+- B teilweise: ein geändertes Modul, das an der Vorgeneration nicht lädt → Enthaltung (`<ladbar>`).
+- C, Python, zusätzlich:
+  - Klassenwerte und Klassenkopf;
+  - Dekoratoren mit Wirkung beim Import;
+  - `global` und Veränderung eigener Modulnamen;
+  - Leser werden über aufgelöste Importpfade bestimmt.
+- C, TypeScript: TypeScript hat kein M2(b), daher führt eine unbeobachtete geänderte Funktion oder Klasse zur Enthaltung.
+- E:
+  - Eine neue Funktion gilt nur mit Beobachtung am Kandidaten als beobachtet.
+  - Korpusbeobachtungen neuer Funktionen zählen nicht als Abweichung.
+
+## Sperren
+
+Keine. Kein Befehl wurde gesperrt, keine Freigabeabfrage ist abgelaufen, keine Formatsperre. Die Kammer-Sperre `/tmp/biotop-kammer-exklusiv` habe ich vor jedem Kammerstück geprüft; sie bestand nie. Kein Commit, kein Modellaufruf, kein Netz, keine Hintergrundprozesse.
+
+Zwei eigene Skriptfehler blieben ohne Wirkung und sind korrigiert:
+- `teillauf5_summe.py` brach vor dem Schreiben ab.
+- Der erste Lauf von `befund_fremdschreiben.py` erzeugte einen doppelten Diff und damit „Pareto verletzt“. Das ist kein Befund.

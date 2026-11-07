@@ -1,0 +1,40 @@
+#!/bin/bash
+# Eigener Commit der Behebungsrunde 2 vor T4 auf 330b4ec (Geschichte wird nicht umgeschrieben), danach die volle
+# Regression am Commit einschließlich Verdrahtungstest, dann die Nachspiele am Commit: k2868 (erweiterter Korpus,
+# Erwartung abgelehnt) und K2904/K3091 in drei Durchgängen, dann die Python-Laufzeitprobe (Teilausfall). Nacheinander,
+# keine parallelen Kammerläufe. Kein Modellaufruf.
+set -u
+A=/root/biotop-vor-t4-02
+cd /root/biotop
+echo "=== start $(date -Is) HEAD=$(git rev-parse --short HEAD)"
+echo "=== Signatur-/Importzeilen im Diff gegen HEAD"
+git diff HEAD | grep '^[-+]def \|^[-+]from \|^[-+]import \|^[-+]export \|^[-+]import {' || true
+git add -A biotop tests
+git status --short
+git commit -q -F $A/COMMIT-NACHRICHT.txt
+echo "commit-rc=$?"
+git log --oneline -3
+git status --short -- biotop tests; echo "(Ende Status)"
+git show --stat HEAD | tail -40 > $A/COMMIT-STAT.txt
+git show HEAD > $A/KERN-COMMIT.patch.txt
+echo "patch $(wc -l < $A/KERN-COMMIT.patch.txt) Zeilen"
+echo "regression start $(date -Is) HEAD=$(git rev-parse --short HEAD) fremde_container=$(docker ps -q | wc -l)"
+export BIOTOP_KAMMER_IMAGE=biotop-kammer:ts1 BIOTOP_AUFTRAG_LAUF_AB=26 BIOTOP_AUFTRAG_BUDGET_EUR=10
+export T3_VERDRAHTUNG_BELEG=$A/VERDRAHTUNG-BELEG-REGRESSION.json
+/root/biotop-t3/venv/bin/python -m pytest tests/ -q -m "not integration" -p no:cacheprovider -rfEs --durations=8 \
+  --junitxml=$A/REGRESSION.junit.xml > $A/REGRESSION.txt 2>&1
+echo "regression pytest-rc=$? $(tail -1 $A/REGRESSION.txt)"
+git status --short -- biotop tests; echo "(Ende Status nach Regression)"
+for d in 1 2 3; do
+  mkdir -p $A/nachspiel-d$d
+  echo "nachspiel durchgang $d start $(date -Is) HEAD=$(git rev-parse --short HEAD) fremde_container=$(docker ps -q | wc -l)"
+  if [ $d -eq 1 ]; then FAELLE="s2_k2904 s2_k3091 k2868"; else FAELLE="s2_k2904 s2_k3091"; fi
+  NACHSPIEL_AUS=$A/nachspiel-d$d BIOTOP_KAMMER_IMAGE=biotop-kammer:ts1 /root/biotop-t3/venv/bin/python \
+    /root/biotop-vor-t4/nachspiel_vor_t4.py $FAELLE > $A/NACHSPIEL-D$d.txt 2>&1
+  echo "nachspiel durchgang $d rc=$?"
+done
+echo "python-laufzeit start $(date -Is)"
+BIOTOP_KAMMER_IMAGE=biotop-kammer:1 /root/biotop-t3/venv/bin/python $A/py/python_laufzeit_teilausfall.py > $A/py/PYTHON-LAUFZEIT-TEILAUSFALL.txt 2>&1
+echo "python-laufzeit rc=$?"
+git status --short -- biotop tests; echo "(Ende Status)"
+echo "ende $(date -Is)"

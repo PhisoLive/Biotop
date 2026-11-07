@@ -1,0 +1,26 @@
+#!/bin/bash
+# Nur lesend: Codefragen an HEAD (git show), keine Ausführung von Werkcode
+export TMPDIR=/tmp/review-vor-t4-05
+cd /root/biotop
+date -Is
+A=biotop/organe/aegis.py
+echo "=== aegis.pruefen: Kernmass u vor vv? (Zeilen um Verhaltensvergleich)"
+git show HEAD:$A | grep -n -E "u = messgeraet|u\[\"ok\"\]|if not u\[|vv = |verhaltensvergleich.pruefen|enthaltung|ZURUECKGESTELLT =|def _zurueckstellen" | head -30
+echo "=== lauf.py: messgeraet.messen-Aufrufe und ref-Argumente"
+git show HEAD:biotop/lauf.py | grep -n -E "messgeraet\.messen\(|_referenzlast\(" | head -30
+echo "=== verhalten.py: _iter_art Kopf, klassen_von/_klassen_sicher, korpus_randfaelle muster-Aufrufe"
+git show HEAD:biotop/kern/py/verhalten.py | awk '/^def _iter_art/,/^def _hat_datenattribute/' | head -30
+git show HEAD:biotop/kern/py/verhalten.py | awk '/^def _klassen_sicher/,/^def [a-z_]+\(/' | head -12
+git show HEAD:biotop/kern/py/verhalten.py | grep -n -E "muster\(f'|muster\(k|__unbestimmt" | head -20
+echo "=== verhalten.py: _kopie_vergleich (Zeile ~682)"
+git show HEAD:biotop/kern/py/verhalten.py | sed -n '672,690p'
+echo "=== verhaltensvergleich: deckung() und _haelt_lesen"
+git show HEAD:biotop/organe/verhaltensvergleich.py | sed -n '257,345p'
+echo "=== gegenzeugen.torzeile_schwaechen"
+git show HEAD:biotop/kern/gegenzeugen.py | awk '/^def torzeile_schwaechen/,0' | head -60
+echo "=== Tests: verhaltensaendernd True / tor4-Unit"
+grep -rn -E "verhaltensaendernd\"?: ?True|tor4\.|normalvergleich\(" tests/ | head -20
+echo "=== test_r413 in test_vor_t4_04"
+grep -n -A12 "def test_r413_iterator_kappe_ist_gezaehlt" tests/test_vor_t4_04.py | head -20
+echo "=== kammer: wie kommt das Werk in den Container"
+grep -n -E "cp |copytree|--volume|-v |mount|:ro|/werk" biotop/organe/kammer.py | head -20

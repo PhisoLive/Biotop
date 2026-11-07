@@ -1,0 +1,284 @@
+EB35 · Vorschau 3: Umfang, Abhängigkeitsordner, Sperrdateien, venvs, Werkzeuge, Hermes, Kammer (nur lesend)
+Beginn: 2026-09-26 00:46:24 CEST (UTC+0200)
+Ende:   2026-09-26 00:46:27 CEST (UTC+0200)
+Dauer:  2.7 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/biotop-einlagerung/arbeit/v3_umfang.sh
+--- Inhalt von /root/biotop-einlagerung/arbeit/v3_umfang.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-EINLAGERUNG-01 (nur lesend): Vorschau für Schritt 4 (Umgebung) und Schritt 5 (Umfang des Pakets).
+# Größen, Abhängigkeitsordner, Sperrdateien, venvs, Werkzeuge, Hermes-Installation. Gibt keine Dateiinhalte aus
+# außer pyvenv.cfg und Dockerfile-Kopfzeilen (keine Geheimnisse darin).
+set -u
+echo "== Zeitpunkt $(date '+%Y-%m-%d %H:%M:%S %Z (UTC%z)')"
+echo "== 1. /root/.hermes: Größe je oberstem Eintrag (MB)"
+du -sm /root/.hermes/* /root/.hermes/.[!.]* 2>/dev/null | sort -rn | head -25
+echo "== 2. Abhängigkeitsordner im Umfang (Tiefe ≤ 5): Pfad, MB"
+for w in /root/biotop /root/biotop-t3 /root/biotop-vor-t4 /root/biotop-vor-t4-02 /root/biotop-vor-t4-03 /root/biotop-vor-t4-04 \
+         /root/biotop-vor-t4-05 /root/biotop-vor-t4-06 /root/phase-4-vorbedingung-1 /root/reparatur-01 /root/reparatur-02 \
+         /root/uebungswerk* /root/versandwerk-t3 /root/versandwerk-t3-02 /root/gesamtstand-01 /root/wiedereinstieg-01 \
+         /root/biotop-einstieg-20260921-0122 /root/traeger-umstellung-2026-09-20_22-32-03Z /root/versiegelt /root/w7; do
+  [ -e "$w" ] || { echo "FEHLT $w"; continue; }
+  find "$w" -maxdepth 5 -type d \( -name node_modules -o -name venv -o -name .venv \) -prune -print0 2>/dev/null \
+    | xargs -0 -r du -sm 2>/dev/null
+done
+echo "== 3. Sperr- und Anforderungsdateien im Umfang (ohne node_modules/venv): Pfad, Bytes"
+find /root/biotop /root/biotop-t3 /root/versandwerk-t3 /root/versandwerk-t3-02 /root/uebungswerk* /root/reparatur-0* \
+     /root/phase-4-vorbedingung-1 /root/biotop-vor-t4* -maxdepth 5 \( -name node_modules -o -name venv -o -name .venv -o -name .git \) -prune -o \
+     -type f \( -name 'package-lock.json' -o -name 'package.json' -o -name 'requirements*.txt' -o -name 'uv.lock' -o -name 'poetry.lock' \
+     -o -name 'pyproject.toml' -o -name 'Dockerfile*' -o -name 'pnpm-lock.yaml' -o -name 'yarn.lock' \) -printf '%s\t%p\n' 2>/dev/null | sort -k2 | head -80
+echo "== 4. venvs: pyvenv.cfg und Python"
+for v in $(find /root -maxdepth 4 -name pyvenv.cfg -not -path '*/node_modules/*' 2>/dev/null | sort); do
+  echo "-- $v"; cat "$v"; d=$(dirname "$v"); ls -la "$d/bin/python" 2>/dev/null | sed 's/^/   /'
+  [ -x "$d/bin/python" ] && "$d/bin/python" -c 'import sys; print("   sys.version", sys.version.split()[0])'
+  [ -x "$d/bin/python" ] && ("$d/bin/python" -m pip --version 2>&1 | head -1 | sed 's/^/   pip: /')
+done
+echo "== 5. Werkzeuge"
+for t in python3 python3.12 node npm npx docker git pigz uv pip pip3 caddy sqlite3 unshare hermes; do
+  p=$(command -v $t 2>/dev/null); printf '%-10s %s\n' "$t" "${p:-NICHT GEFUNDEN}"
+done
+python3 --version; node --version 2>&1; npm --version 2>&1; docker --version; git --version; uv --version 2>&1 | head -1
+python3 -c 'import ensurepip, venv; print("ensurepip vorhanden")' 2>&1 | tail -1
+echo "== 6. Hermes-Installation"
+readlink -f "$(command -v hermes)"; ls -la /usr/local/lib/hermes-agent 2>/dev/null | head -5
+git -C /usr/local/lib/hermes-agent --no-optional-locks log -1 --format='%H %cd %s' 2>&1 | head -2
+git -C /usr/local/lib/hermes-agent --no-optional-locks describe --tags --always 2>&1 | head -1
+du -sm --exclude=node_modules --exclude=venv --exclude=.venv --exclude=__pycache__ /usr/local/lib/hermes-agent 2>/dev/null
+du -sm /usr/local/lib/hermes-agent 2>/dev/null
+hermes --version 2>&1 | head -3
+echo "== 7. Kammer: Dockerfiles und Abbilder"
+find /root/biotop/kammer -maxdepth 3 -name 'Dockerfile*' -not -path '*/node_modules/*' -print -exec head -12 {} \;
+docker image inspect --format '{{.RepoTags}} Id={{.Id}} Created={{.Created}} Size={{.Size}} Parent={{.Parent}}' \
+  biotop-kammer:1 biotop-kammer:ts1 node:22-bookworm-slim python:3.12-slim
+echo "== 8. Betriebssystem"
+cat /etc/os-release | head -4; uname -r
+echo "== 9. Caddy: Zeilen mit pruefkanal (nur Zeilennummern und Zeilen)"
+grep -n -i -E 'pruefkanal|_akte|root \*|file_server|handle' /etc/caddy/Caddyfile 2>/dev/null | head -20
+ls -la /etc/pruefkanal 2>/dev/null
+echo "== 10. Plattenplatz"; df -h / | tail -1
+--- Ende /root/biotop-einlagerung/arbeit/v3_umfang.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== Zeitpunkt 2026-09-26 00:46:24 CEST (UTC+0200)
+== 1. /root/.hermes: Größe je oberstem Eintrag (MB)
+429	/root/.hermes/state.db
+230	/root/.hermes/node
+100	/root/.hermes/lsp
+85	/root/.hermes/bin
+16	/root/.hermes/sessions
+13	/root/.hermes/logs
+11	/root/.hermes/.curator_backups
+10	/root/.hermes/cache
+7	/root/.hermes/skills
+5	/root/.hermes/models_dev_cache.json
+1	/root/.hermes/zwischenbericht
+1	/root/.hermes/terminal-sessions
+1	/root/.hermes/state
+1	/root/.hermes/shared-state.db
+1	/root/.hermes/scripts
+1	/root/.hermes/sandboxes
+1	/root/.hermes/runtime
+1	/root/.hermes/provider_models_cache.json
+1	/root/.hermes/processes.json
+1	/root/.hermes/platforms
+1	/root/.hermes/pending_messages
+1	/root/.hermes/pending
+1	/root/.hermes/pairing
+1	/root/.hermes/ollama_cloud_models_cache.json
+1	/root/.hermes/models_dev_cache.etag
+== 2. Abhängigkeitsordner im Umfang (Tiefe ≤ 5): Pfad, MB
+10	/root/biotop-t3/venv
+10	/root/reparatur-01/venv
+== 3. Sperr- und Anforderungsdateien im Umfang (ohne node_modules/venv): Pfad, Bytes
+152	/root/biotop-t3/arbeitsstand-sicherung/kammer/Dockerfile
+815	/root/biotop-t3/arbeitsstand-sicherung/kammer/typescript/Dockerfile
+125863	/root/biotop-t3/arbeitsstand-sicherung/kammer/typescript/package-lock.json
+320	/root/biotop-t3/arbeitsstand-sicherung/kammer/typescript/package.json
+14	/root/biotop-t3/arbeitsstand-sicherung/requirements-test.txt
+219	/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-c-25/pyproject.toml
+219	/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-kasse/pyproject.toml
+219	/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-kasse2/pyproject.toml
+219	/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-kasse3/pyproject.toml
+219	/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-nachlauf/pyproject.toml
+219	/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-nachlauf2/pyproject.toml
+219	/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-nachlauf8/pyproject.toml
+219	/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-nachlauf9/pyproject.toml
+219	/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-ohne-tests/pyproject.toml
+219	/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p2-13/pyproject.toml
+219	/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p2/pyproject.toml
+219	/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-14/pyproject.toml
+219	/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-15/pyproject.toml
+219	/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-16/pyproject.toml
+219	/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-18/pyproject.toml
+219	/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-19/pyproject.toml
+219	/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-20/pyproject.toml
+219	/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-22/pyproject.toml
+219	/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-zeile8-24/pyproject.toml
+219	/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus/pyproject.toml
+325	/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/logmuehle-17/pyproject.toml
+325	/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/logmuehle-23/pyproject.toml
+378	/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/versandwerk-t3-02/package.json
+152	/root/biotop-t3/repo-sicherung-vor-commits/kammer/Dockerfile
+815	/root/biotop-t3/repo-sicherung-vor-commits/kammer/typescript/Dockerfile
+125863	/root/biotop-t3/repo-sicherung-vor-commits/kammer/typescript/package-lock.json
+320	/root/biotop-t3/repo-sicherung-vor-commits/kammer/typescript/package.json
+14	/root/biotop-t3/repo-sicherung-vor-commits/requirements-test.txt
+219	/root/biotop/daten/werke/lagerhaus-c-25/pyproject.toml
+219	/root/biotop/daten/werke/lagerhaus-kasse/pyproject.toml
+219	/root/biotop/daten/werke/lagerhaus-kasse2/pyproject.toml
+219	/root/biotop/daten/werke/lagerhaus-kasse3/pyproject.toml
+219	/root/biotop/daten/werke/lagerhaus-nachlauf/pyproject.toml
+219	/root/biotop/daten/werke/lagerhaus-nachlauf2/pyproject.toml
+219	/root/biotop/daten/werke/lagerhaus-nachlauf8/pyproject.toml
+219	/root/biotop/daten/werke/lagerhaus-nachlauf9/pyproject.toml
+219	/root/biotop/daten/werke/lagerhaus-ohne-tests/pyproject.toml
+219	/root/biotop/daten/werke/lagerhaus-p2-13/pyproject.toml
+219	/root/biotop/daten/werke/lagerhaus-p2/pyproject.toml
+219	/root/biotop/daten/werke/lagerhaus-p3-14/pyproject.toml
+219	/root/biotop/daten/werke/lagerhaus-p3-15/pyproject.toml
+219	/root/biotop/daten/werke/lagerhaus-p3-16/pyproject.toml
+219	/root/biotop/daten/werke/lagerhaus-p3-18/pyproject.toml
+219	/root/biotop/daten/werke/lagerhaus-p3-19/pyproject.toml
+219	/root/biotop/daten/werke/lagerhaus-p3-20/pyproject.toml
+219	/root/biotop/daten/werke/lagerhaus-p3-22/pyproject.toml
+219	/root/biotop/daten/werke/lagerhaus-zeile8-24/pyproject.toml
+219	/root/biotop/daten/werke/lagerhaus/pyproject.toml
+325	/root/biotop/daten/werke/logmuehle-17/pyproject.toml
+325	/root/biotop/daten/werke/logmuehle-23/pyproject.toml
+378	/root/biotop/daten/werke/versandwerk-t3-02/package.json
+152	/root/biotop/kammer/Dockerfile
+815	/root/biotop/kammer/typescript/Dockerfile
+125863	/root/biotop/kammer/typescript/package-lock.json
+320	/root/biotop/kammer/typescript/package.json
+14	/root/biotop/requirements-test.txt
+219	/root/phase-4-vorbedingung-1/nachtrag-01/privat/basis/pyproject.toml
+219	/root/phase-4-vorbedingung-1/nachtrag-01/privat/kandidat/pyproject.toml
+219	/root/phase-4-vorbedingung-1/privat/werke/lagerhaus-vorbedingung1-26/pyproject.toml
+219	/root/phase-4-vorbedingung-1/privat/werkquelle/pyproject.toml
+219	/root/reparatur-01/eltern-vorspann-01/werk/pyproject.toml
+219	/root/reparatur-01/eltern-vorspann-02/werk/pyproject.toml
+219	/root/reparatur-01/eltern-vorspann-sperre-01/werk/pyproject.toml
+152	/root/reparatur-01/nachbesserung-01/vertrag/ausgang-repo/kammer/Dockerfile
+14	/root/reparatur-01/nachbesserung-01/vertrag/ausgang-repo/requirements-test.txt
+14	/root/reparatur-01/nachbesserung-01/vertrag/mutant/repo/requirements-test.txt
+152	/root/reparatur-01/nachbesserung-01/vertrag/patchnachweis/kammer/Dockerfile
+14	/root/reparatur-01/nachbesserung-01/vertrag/patchnachweis/requirements-test.txt
+152	/root/reparatur-01/nachbesserung-01/vertrag/patchpruefung/kammer/Dockerfile
+14	/root/reparatur-01/nachbesserung-01/vertrag/patchpruefung/requirements-test.txt
+152	/root/reparatur-01/nachbesserung-01/vertrag/repo/kammer/Dockerfile
+14	/root/reparatur-01/nachbesserung-01/vertrag/repo/requirements-test.txt
+219	/root/reparatur-01/nachbesserung-01/vertrag/werk-lauf25-kopie/pyproject.toml
+152	/root/reparatur-01/nachbesserung-01/vorstufen/baseline-repo/kammer/Dockerfile
+14	/root/reparatur-01/nachbesserung-01/vorstufen/baseline-repo/requirements-test.txt
+== 4. venvs: pyvenv.cfg und Python
+-- /root/biotop-t3/venv/pyvenv.cfg
+home = /usr/bin
+implementation = CPython
+uv = 0.12.13
+version_info = 3.12.3
+include-system-site-packages = false
+   lrwxrwxrwx 1 root root 15 Sep 21 02:30 /root/biotop-t3/venv/bin/python -> /usr/bin/python
+   sys.version 3.12.3
+   pip: /root/biotop-t3/venv/bin/python: No module named pip
+-- /root/reparatur-01/venv/pyvenv.cfg
+home = /usr/bin
+implementation = CPython
+uv = 0.12.13
+version_info = 3.12.3
+include-system-site-packages = false
+   lrwxrwxrwx 1 root root 15 Sep 20 15:31 /root/reparatur-01/venv/bin/python -> /usr/bin/python
+   sys.version 3.12.3
+   pip: /root/reparatur-01/venv/bin/python: No module named pip
+== 5. Werkzeuge
+python3    /usr/local/lib/hermes-agent/venv/bin/python3
+python3.12 /usr/local/lib/hermes-agent/venv/bin/python3.12
+node       /root/.hermes/node/bin/node
+npm        /root/.hermes/node/bin/npm
+npx        /root/.hermes/node/bin/npx
+docker     /usr/bin/docker
+git        /usr/bin/git
+pigz       /usr/bin/pigz
+uv         /root/.hermes/bin/uv
+pip        /usr/bin/pip
+pip3       /usr/bin/pip3
+caddy      /usr/bin/caddy
+sqlite3    NICHT GEFUNDEN
+unshare    /usr/bin/unshare
+hermes     /usr/local/lib/hermes-agent/venv/bin/hermes
+Python 3.12.3
+v26.8.2
+11.19.1
+Docker version 29.1.3, build 29.1.3-0ubuntu3~24.04.2
+git version 2.43.0
+uv 0.12.13 (x86_64-unknown-linux-gnu)
+ensurepip vorhanden
+== 6. Hermes-Installation
+/usr/local/lib/hermes-agent/venv/bin/hermes
+total 4212
+drwxr-xr-x  35 root root   4096 Sep 14 00:20 .
+drwxr-xr-x   4 root root   4096 Sep 14 00:15 ..
+-rw-r--r--   1 root root     60 Sep 14 00:16 .bytecode-fingerprint
+-rw-r--r--   1 root root    783 Sep 14 00:15 .coderabbit.yaml
+abf4706384c8ab17d6f22aab0ab8c71526eac305 Sun Sep 13 15:05:11 2026 -0700 test(gateway): raw-output watcher messages are human-facing
+abf4706
+267	/usr/local/lib/hermes-agent
+1062	/usr/local/lib/hermes-agent
+Hermes Agent v0.21.2 (2026.9.11) · upstream abf47063
+Install directory: /usr/local/lib/hermes-agent
+Install method: git
+== 7. Kammer: Dockerfiles und Abbilder
+/root/biotop/kammer/typescript/Dockerfile
+# Werkzeugauflösung nur im Bau; Werklaeufe durch kammer --network none.
+FROM node:22-bookworm-slim@sha256:48e4b67d85f87bd551df43704e24d252f56cc5f8e9718841aace50f19948f0f9 AS werkzeuge
+WORKDIR /opt/biotop-ts
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund \
+ && node node_modules/typescript/bin/tsc --version \
+ && node node_modules/vitest/vitest.mjs --version \
+ && node node_modules/eslint/bin/eslint.js --version \
+ && node node_modules/knip/bin/knip.js --version
+
+FROM biotop-kammer:1
+USER root
+/root/biotop/kammer/Dockerfile
+FROM python:3.12-slim
+RUN pip install --no-cache-dir pytest==8.3.3 bandit==1.7.10 vulture==2.13 && useradd -m -u 10001 kammer
+WORKDIR /werk
+USER kammer
+[biotop-kammer:1] Id=sha256:ce7bbe9441182aea532f147defd99ca757a95d4cb3ff7c3f5c5d9a64965643ee Created=2026-09-18T23:26:54.853201859+02:00 Size=55798078 Parent=sha256:b25b652a953fb59d3a25db6123961e98db9dc0f6969c8bf4f3071e3cfc8d1c3d
+[biotop-kammer:ts1] Id=sha256:212e6212cd165b668f5cff7a1ab12c22d739a0ab727bbedc45a87c3793754f9e Created=2026-09-21T02:47:15.319791658+02:00 Size=124884212 Parent=sha256:32378abfb3096f48f13d080282fec4ab78319eb685b11c26650c5ca01d0c9ae0
+template parsing error: template: :1:70: executing "" at <.Parent>: map has no entry for key "Parent"
+template parsing error: template: :1:70: executing "" at <.Parent>: map has no entry for key "Parent"
+== 8. Betriebssystem
+PRETTY_NAME="Ubuntu 24.04.4 LTS"
+NAME="Ubuntu"
+VERSION_ID="24.04"
+VERSION="24.04.4 LTS (Noble Numbat)"
+6.8.0-139-generic
+== 9. Caddy: Zeilen mit pruefkanal (nur Zeilennummern und Zeilen)
+87:	handle @bauartefakte {
+91:	# ------------------------------------------------------------- Pruefkanal
+93:	# Adresse abrufen koennen muss. Statisch, vor dem Proxy, aus /var/pruefkanal.
+107:	# Der `file_server` des Kanals darf nur ein Verzeichnis sehen, in dem nichts
+108:	# als `_akte/` liegt. Laege die robots.txt in derselben Wurzel, waere sie
+112:	root * /var/pruefkanal/robots
+114:	@akte path /_akte /_akte/ /_akte/*
+115:	handle @akte {
+116:		root * /var/pruefkanal/oeffentlich
+150:		# `/_akte/%2e%2e/_akte/<schluessel>/aktuell/PROBE.md` -> HTTP 200 mit
+156:		handle @akte_verboten {
+167:		# kein Inhaltsverzeichnis - /_akte/ allein verraet keinen Schluessel.
+168:		file_server
+181:	handle @robots_erzeugt {
+182:		file_server
+192:	# `handle`-Block greift nur auf Antworten, die dort auch geschrieben
+203:	handle_errors {
+204:		@akte_fehler path /_akte /_akte/ /_akte/*
+205:		handle @akte_fehler {
+total 20
+drwxr-xr-x   2 root root  4096 Aug 10 16:54 .
+drwxr-xr-x 126 root root 12288 Sep 25 06:38 ..
+-rw-------   1 root root    32 Aug 10 16:54 schluessel
+== 10. Plattenplatz
+/dev/vda1       116G   41G   75G  36% /
+=== Ende EB35 ===

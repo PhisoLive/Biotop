@@ -1,0 +1,195 @@
+EB27 · Vorschau 2: Prüfkanal-Größen, .hermes, venvs, Werkzeuge, Sitzungskette, Adresse (nur lesend)
+Beginn: 2026-09-26 00:23:15 CEST (UTC+0200)
+Ende:   2026-09-26 00:23:20 CEST (UTC+0200)
+Dauer:  4.8 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/biotop-einlagerung/arbeit/v2_vorschau.sh
+--- Inhalt von /root/biotop-einlagerung/arbeit/v2_vorschau.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-EINLAGERUNG-01 (nur lesend): Vorschau für Schritte 4–7 — Größen der Prüfkanal-Ordner, /root/.hermes, venvs,
+# Werkzeuge, Sitzungskette, state.db, Serveradresse und SSH-Port. Namen anderer Vorhaben werden nicht ausgegeben.
+date '+== Zeitpunkt %Y-%m-%d %H:%M:%S %Z (UTC%z)'
+K=$(cat /etc/pruefkanal/schluessel); L=/var/pruefkanal/oeffentlich/_akte/$K/laeufe
+echo "== Prüfkanal: Biotop-Ordner (Bytes, Dateien); andere Ordner nur gezählt"
+for d in $L/biotop-* $L/gedaechtnis; do printf '%s | %s B | %s Dateien\n' "${d#$L/}" "$(du -sb "$d" | cut -f1)" "$(find "$d" -type f | wc -l)"; done
+echo "andere Ordner unter laeufe/: $(ls $L | grep -v -E '^(biotop-|gedaechtnis$)' | wc -l)"
+echo "== /root/.hermes: Einträge oberster Ebene nach Größe"
+du -sb /root/.hermes/* /root/.hermes/.[!.]* 2>/dev/null | sort -rn | head -45
+echo "== /root/.hermes/cache Unterordner"
+du -sb /root/.hermes/cache/* 2>/dev/null | sort -rn | head -20
+echo "== venvs (pyvenv.cfg) in Biotop-Orten"
+find /root/biotop /root/biotop-* /root/reparatur-0* /root/phase-4-vorbedingung-1 /root/uebungswerk* /root/versandwerk* -name pyvenv.cfg -not -path '*/node_modules/*' 2>/dev/null
+echo "== Werkzeuge"
+for w in uv python3 node npm docker pigz git tar sha256sum unshare; do printf '%s: %s\n' "$w" "$(command -v $w || echo FEHLT)"; done
+uv --version 2>&1; node --version 2>&1; docker --version; git --version; pigz --version 2>&1
+python3 -c "import venv; print('venv-Modul ja')" 2>&1; python3 -c "import ensurepip; print('ensurepip ja')" 2>&1
+du -sb /root/.cache/uv 2>/dev/null || echo "kein uv-Zwischenspeicher unter /root/.cache/uv"
+/root/biotop-t3/venv/bin/python --version; /root/biotop-t3/venv/bin/python -m pip --version 2>&1 | head -1
+echo "== Umgebung des Terminals (PATH)"; echo "$PATH"
+echo "== Sitzungskette"
+python3 /root/biotop-einlagerung/arbeit/v2_sitzungen.py
+echo "== state.db"; ls -la /root/.hermes/state.db*
+echo "== Adresse und SSH"
+ip -4 -o addr show | awk '{print $2, $4}'
+ss -ltnp 2>/dev/null | grep -E 'sshd' | awk '{print $4}'
+getent ahostsv4 milieulux-reinigung-muenchen.de | head -2
+grep -i -E '^\s*(Port|PermitRootLogin|PasswordAuthentication)' /etc/ssh/sshd_config /etc/ssh/sshd_config.d/* 2>/dev/null
+ls -la /root/.ssh/ | awk '{print $1, $5, $9}'
+--- Ende /root/biotop-einlagerung/arbeit/v2_vorschau.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== Zeitpunkt 2026-09-26 00:23:15 CEST (UTC+0200)
+== Prüfkanal: Biotop-Ordner (Bytes, Dateien); andere Ordner nur gezählt
+biotop-einlagerung-01 | 2036 B | 1 Dateien
+biotop-gesamtstand | 14518771 B | 86 Dateien
+biotop-lage-01 | 10994936 B | 341 Dateien
+biotop-phase-1 | 2195723 B | 49 Dateien
+biotop-phase-1-nachlauf | 7982872 B | 135 Dateien
+biotop-phase-2 | 20081853 B | 124 Dateien
+biotop-phase-3 | 550354 B | 200 Dateien
+biotop-phase-3-nachlauf | 338915 B | 54 Dateien
+biotop-phase-4-einstieg-20260921-01 | 272528 B | 16 Dateien
+biotop-phase-4-vorbedingung-1 | 3510322 B | 146 Dateien
+biotop-reparatur-01 | 108067435 B | 9489 Dateien
+biotop-reparatur-02 | 1842498 B | 21 Dateien
+biotop-t3-typescript | 2132737 B | 231 Dateien
+biotop-vor-t4 | 1106771 B | 98 Dateien
+biotop-vor-t4-02 | 706497 B | 79 Dateien
+biotop-vor-t4-03 | 1194888 B | 100 Dateien
+biotop-vor-t4-04 | 1130135 B | 123 Dateien
+biotop-vor-t4-05 | 1558761 B | 159 Dateien
+biotop-vor-t4-06 | 56694 B | 20 Dateien
+biotop-wiedereinstieg-2026-09-20-01 | 333760 B | 35 Dateien
+gedaechtnis | 17737 B | 8 Dateien
+andere Ordner unter laeufe/: 90
+== /root/.hermes: Einträge oberster Ebene nach Größe
+446185472	/root/.hermes/state.db
+224343968	/root/.hermes/node
+88647192	/root/.hermes/bin
+76552193	/root/.hermes/lsp
+16345984	/root/.hermes/sessions
+13220202	/root/.hermes/logs
+10467406	/root/.hermes/.curator_backups
+9483072	/root/.hermes/cache
+5244945	/root/.hermes/skills
+4930005	/root/.hermes/models_dev_cache.json
+758862	/root/.hermes/cron
+166091	/root/.hermes/backups
+143360	/root/.hermes/shared-state.db
+118784	/root/.hermes/kanban.db
+114280	/root/.hermes/zwischenbericht
+75638	/root/.hermes/scripts
+38555	/root/.hermes/.skills_prompt_snapshot.json
+27173	/root/.hermes/.env
+27099	/root/.hermes/.env.sicherung-2026-09-18
+8133	/root/.hermes/auth.json
+7996	/root/.hermes/config.yaml.20260925-vor-openrouter-verdichtung
+7926	/root/.hermes/config.yaml.vor-opus55-20260923-201806
+7372	/root/.hermes/config.yaml.vor-astra-20260920-060104
+6943	/root/.hermes/pending
+6902	/root/.hermes/config.yaml.vor-fable-20260918-225608
+6566	/root/.hermes/config.yaml.vor-modell-fix
+6521	/root/.hermes/config.yaml.vor-moa-20260914-011419
+6181	/root/.hermes/config.yaml
+6006	/root/.hermes/config.yaml.2026-09-20_22-42-25_989823Z.einrichten.bak
+5997	/root/.hermes/config.yaml.2026-09-20_22-42-26_710481Z.einrichten.bak
+5975	/root/.hermes/config.yaml.2026-09-20_22-42-24_682945Z.einrichten.bak
+5974	/root/.hermes/config.yaml.2026-09-20_22-42-25_377529Z.einrichten.bak
+5468	/root/.hermes/config.yaml.2026-09-20_22-42-24_006812Z.einrichten.bak
+5468	/root/.hermes/config.yaml.2026-09-20_22-41-21_930603Z.einrichten.bak
+5468	/root/.hermes/config.yaml.2026-09-20_22-32-03_098161Z.bak
+3510	/root/.hermes/memories
+2523	/root/.hermes/provider_models_cache.json
+668	/root/.hermes/SOUL.md
+663	/root/.hermes/gateway_state.json
+457	/root/.hermes/ollama_cloud_models_cache.json
+415	/root/.hermes/state
+258	/root/.hermes/.hermes_history
+244	/root/.hermes/terminal-sessions
+214	/root/.hermes/gateway-starts.log
+211	/root/.hermes/channel_directory.json
+== /root/.hermes/cache Unterordner
+4683151	/root/.hermes/cache/terminal-output
+3286608	/root/.hermes/cache/delegation
+889168	/root/.hermes/cache/exec
+352609	/root/.hermes/cache/openrouter_model_metadata.json
+90817	/root/.hermes/cache/documents
+67260	/root/.hermes/cache/web
+47222	/root/.hermes/cache/reasoning_caps.json
+24601	/root/.hermes/cache/tool_discovery_cache.json
+14422	/root/.hermes/cache/nous_recommended_cache.json
+9852	/root/.hermes/cache/model_catalog.json
+4966	/root/.hermes/cache/schema_columns.json
+3977	/root/.hermes/cache/blocked-scripts
+3668	/root/.hermes/cache/terminal
+3009	/root/.hermes/cache/openrouter_curated_catalog.json
+1686	/root/.hermes/cache/banner_snapshot.json
+56	/root/.hermes/cache/plugin_toolset_keys.json
+0	/root/.hermes/cache/vision
+0	/root/.hermes/cache/videos
+0	/root/.hermes/cache/spillover
+0	/root/.hermes/cache/screenshots
+== venvs (pyvenv.cfg) in Biotop-Orten
+/root/biotop-t3/venv/pyvenv.cfg
+/root/reparatur-01/venv/pyvenv.cfg
+== Werkzeuge
+uv: /root/.hermes/bin/uv
+python3: /usr/local/lib/hermes-agent/venv/bin/python3
+node: /root/.hermes/node/bin/node
+npm: /root/.hermes/node/bin/npm
+docker: /usr/bin/docker
+pigz: /usr/bin/pigz
+git: /usr/bin/git
+tar: /usr/bin/tar
+sha256sum: /usr/bin/sha256sum
+unshare: /usr/bin/unshare
+uv 0.12.13 (x86_64-unknown-linux-gnu)
+v26.8.2
+Docker version 29.1.3, build 29.1.3-0ubuntu3~24.04.2
+git version 2.43.0
+pigz 2.8
+venv-Modul ja
+ensurepip ja
+698793569	/root/.cache/uv
+Python 3.12.3
+/root/biotop-t3/venv/bin/python: No module named pip
+== Umgebung des Terminals (PATH)
+/usr/local/lib/hermes-agent/venv/bin:/usr/local/lib/hermes-agent/node_modules/.bin:/root/.hermes/node/bin:/root/.hermes/node:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/root/.hermes/bin:/snap/bin
+== Sitzungskette
+Sitzungen gesamt 78 · Kette ab 20260918_205818_3767d1c9: 60
+20260925_161047_8fef8e | Quelle subagent | Eltern 20260924_203120_e6c401 | Beginn 25.09. 16:10:48 | Ende 25.09. 17:22:13 | Nachrichten 406 | in Kette ja
+20260925_161047_1a3720 | Quelle subagent | Eltern 20260924_203120_e6c401 | Beginn 25.09. 16:10:48 | Ende 25.09. 17:42:53 | Nachrichten 460 | in Kette ja
+20260925_161047_154999 | Quelle subagent | Eltern 20260924_203120_e6c401 | Beginn 25.09. 16:10:48 | Ende 25.09. 18:55:33 | Nachrichten 373 | in Kette ja
+20260925_161047_5651dc | Quelle subagent | Eltern 20260924_203120_e6c401 | Beginn 25.09. 16:10:48 | Ende 25.09. 17:49:12 | Nachrichten 362 | in Kette ja
+20260925_161047_983a5a | Quelle subagent | Eltern 20260924_203120_e6c401 | Beginn 25.09. 16:10:48 | Ende 25.09. 18:11:03 | Nachrichten 295 | in Kette ja
+20260925_161047_d126b7 | Quelle subagent | Eltern 20260924_203120_e6c401 | Beginn 25.09. 16:10:48 | Ende 25.09. 18:16:12 | Nachrichten 408 | in Kette ja
+20260925_161047_b6f209 | Quelle subagent | Eltern 20260924_203120_e6c401 | Beginn 25.09. 16:10:48 | Ende 25.09. 17:46:56 | Nachrichten 452 | in Kette ja
+20260925_161047_23e44b | Quelle subagent | Eltern 20260924_203120_e6c401 | Beginn 25.09. 16:10:48 | Ende 25.09. 17:47:03 | Nachrichten 445 | in Kette ja
+20260925_163044_69477c | Quelle subagent | Eltern 20260924_203120_e6c401 | Beginn 25.09. 16:30:45 | Ende 25.09. 17:45:46 | Nachrichten 348 | in Kette ja
+20260925_230742_55a68b3c | Quelle telegram | Eltern 20260924_203120_e6c401 | Beginn 25.09. 23:07:42 | Ende offen | Nachrichten 190 | in Kette ja
+== state.db
+-rw------- 1 root root 446185472 Sep 26 00:23 /root/.hermes/state.db
+-rw-r--r-- 1 root root         0 Sep 14 00:34 /root/.hermes/state.db.auto-maintenance.lock
+-rw-r--r-- 1 root root         0 Sep 14 00:34 /root/.hermes/state.db.fts_rebuild.lock
+== Adresse und SSH
+lo 127.0.0.1/8
+ens6 212.227.7.117/32
+docker0 172.17.0.1/16
+0.0.0.0:22
+[::]:22
+212.227.7.117   STREAM milieulux-reinigung-muenchen.de
+212.227.7.117   DGRAM  
+/etc/ssh/sshd_config:PermitRootLogin yes
+/etc/ssh/sshd_config.d/50-cloud-init.conf:PasswordAuthentication yes
+/etc/ssh/sshd_config.d/60-cloudimg-settings.conf:PasswordAuthentication no
+/etc/ssh/sshd_config.d/99-hermes.conf:PasswordAuthentication no
+/etc/ssh/sshd_config.d/99-hermes.conf:PermitRootLogin prohibit-password
+total  
+drwx------ 4096 .
+drwx------ 4096 ..
+-rw------- 97 authorized_keys
+-rw------- 411 id_ed25519
+-rw-r--r-- 96 id_ed25519.pub
+-rw------- 978 known_hosts
+-rw-r--r-- 142 known_hosts.old
+=== Ende EB27 ===

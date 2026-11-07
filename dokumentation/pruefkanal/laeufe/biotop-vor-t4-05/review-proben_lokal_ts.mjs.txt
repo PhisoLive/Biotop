@@ -1,0 +1,50 @@
+// Review vor T4-05 — lokale Rechenprobe (Prüfpunkt b, TypeScript-Kanon) ohne Kammer: kan() aus HEAD
+// (kanon_head.mjs = git show HEAD:biotop/kern/ts/kanon.mjs). Paar mit verschiedenem Zustand: gleiche Form UND keine
+// Meldung der Vollständigkeitsprüfung = BLIND. Danach gewöhnliche Werte: Enthaltung (Fehlalarm)?
+import {kan} from './kanon_head.mjs';
+
+function erfasse(x) {
+  const fehlend = [];
+  let t;
+  try { t = JSON.stringify(kan(x, new Set(), fehlend)); } catch (e) { t = '__unkanonisch:' + e?.constructor?.name; }
+  return [t, fehlend];
+}
+function paar(name, a, b) {
+  const [ta, fa] = erfasse(a), [tb, fb] = erfasse(b);
+  const blind = ta === tb && !fa.length && !fb.length;
+  console.log(`B ${name}: gleich=${ta === tb} fehlend=${JSON.stringify([...fa, ...fb].slice(0, 2))} -> ${blind ? 'BLIND' : 'gesehen/enthalten'} | ${String(ta).slice(0, 100)}`);
+}
+function einzeln(name, x) {
+  const [t, f] = erfasse(x);
+  console.log(`F ${name}: fehlend=${JSON.stringify(f.slice(0, 2))} -> ${f.length ? 'ENTHALTUNG' : 'ok'} | ${String(t).slice(0, 90)}`);
+}
+
+class KontoPriv { #s; constructor(s) { this.#s = s; } get stand() { return this.#s; } }
+class KontoClosure { constructor(s) { let z = s; this.buchen = (b) => { z += b; }; this.lies = () => z; } }
+const geheim = new WeakMap();
+class KontoWeakMap { constructor(s) { geheim.set(this, s); } get stand() { return geheim.get(this); } }
+class Register extends Map { constructor(n) { super(); this.name = n; } }
+class ValidierungsFehler extends Error { constructor(feld) { super('ungültig'); this.feld = feld; } }
+class Liste extends Array {}
+class Tag extends Date { constructor(t, notiz) { super(t); this.notiz = notiz; } }
+function arr(summe) { const a = [1, 2]; a.summe = summe; return a; }
+
+paar('privates_feld(kontrolle)', new KontoPriv(1), new KontoPriv(2));
+paar('closure_zustand', new KontoClosure(1), new KontoClosure(2));
+paar('weakmap_privat', new KontoWeakMap(1), new KontoWeakMap(2));
+paar('map_unterklasse_feld', new Register('a'), new Register('b'));
+paar('error_unterklasse_feld', new ValidierungsFehler('plz'), new ValidierungsFehler('ort'));
+paar('array_zusatzfeld', arr(3), arr(4));
+paar('date_unterklasse_feld', new Tag(0, 'a'), new Tag(0, 'b'));
+paar('error_meldung(kontrolle)', new Error('a'), new Error('b'));
+
+class Punkt { constructor(x, y) { this.x = x; this.y = y; } get laenge() { return Math.hypot(this.x, this.y); } }
+einzeln('klasse_mit_getter', new Punkt(3, 4));
+einzeln('urlsearchparams', new URLSearchParams('a=1'));
+einzeln('headers', new Headers({a: '1'}));
+einzeln('abortcontroller', new AbortController());
+einzeln('textencoder', new TextEncoder());
+einzeln('intl_format', new Intl.NumberFormat('de-DE'));
+einzeln('buffer', Buffer.from('ab'));
+einzeln('objekt_mit_symbol', {a: 1, [Symbol('t')]: 2});
+einzeln('liste_unterklasse', Liste.from([1, 2]));

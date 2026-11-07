@@ -1,0 +1,18 @@
+#!/bin/bash
+# Kette: TEILLAUF-6 (die in TEILLAUF-5 roten Dateien/Gruppen nach der Behebung) — nur wenn alle grün: Commit-Job.
+set -u
+A=/root/biotop-vor-t4-03
+PY=/root/biotop-t3/venv/bin/python
+cd /root/biotop
+export BIOTOP_KAMMER_IMAGE=biotop-kammer:ts1 BIOTOP_AUFTRAG_LAUF_AB=26 BIOTOP_AUFTRAG_BUDGET_EUR=10
+echo "=== TEILLAUF-6 start $(date -Is) HEAD=$(git rev-parse --short HEAD)" > $A/bau/TEILLAUF-6.txt
+$PY -m pytest tests/test_vor_t4_03.py -k "test_b_ or test_f_" -q -p no:cacheprovider --tb=short -rfE >> $A/bau/TEILLAUF-6.txt 2>&1
+r1=$?
+$PY -m pytest tests/test_eichproben.py tests/test_verdrahtung.py tests/test_vorspann.py -q -p no:cacheprovider --tb=short -rfE >> $A/bau/TEILLAUF-6.txt 2>&1
+r2=$?
+echo "=== TEILLAUF-6 ende $(date -Is) rc_b_f=$r1 rc_eich_draht_vorspann=$r2" >> $A/bau/TEILLAUF-6.txt
+if [ $r1 -ne 0 ] || [ $r2 -ne 0 ]; then echo "KETTE: TEILLAUF-6 rot (rc $r1/$r2) — kein Commit"; exit 3; fi
+echo "KETTE: TEILLAUF-6 grün — Commit-Job startet $(date -Is)"
+bash $A/job_commit_regression.sh > $A/JOB-COMMIT-REGRESSION.txt 2>&1
+echo "KETTE: Job rc=$? $(date -Is)"
+grep -E "rc=|commit-rc|passed|failed" $A/JOB-COMMIT-REGRESSION.txt | tail -12

@@ -1,0 +1,133 @@
+commit 43b8fad60b66374ba5ba0507830226afe2e89b91
+Author: Hermes (Biotop) <hermes@biotop.local>
+Date:   Thu Sep 24 15:06:29 2026 +0200
+
+    Vor T4, Runde 4, Nachtrag: Nachspiel repariert, Lastabbruch unter der Sonde ist Messgerätausfall, Torzeile-Tests
+    
+    - nachspiel.py: in vorbereiten überschrieb `from .organe import eichung` die Maßeichung des Falls (Fehler in 1d9a5aa);
+      alle 7 Nachspiele am Commit brachen mit „AttributeError: module 'biotop.organe.eichung' has no attribute 'get'“ ab.
+      Das Organ wird jetzt als `eichung_organ` importiert.
+    - organe/verhaltensvergleich.py: bricht eine Bereichslast unter der Sonde an der Vorgeneration ab (korpus:last_* =
+      Fehler), hat die Sonde sie gestört — SondeAusgefallen statt stiller Lücke (R4-3 zweiter Teil, Review 03 Nr. 3).
+      Ein Abbruch nur am Kandidaten bleibt eine Abweichung.
+    - tests/test_vor_t4_04.py: Probe und Gegenprobe dazu; vier Fälle für kern/gegenzeugen.torzeile_schwaechen
+      (Entscheidung 5: 80 % erfüllt, verändertes Normalverhalten kippt die Zeile, nicht beurteilbar zählt nie, null
+      Schwächen nicht erfüllt).
+    Neuer Commit statt Änderung von 1d9a5aa: die Geschichte wird nicht umgeschrieben. Kein Modellaufruf.
+
+diff --git a/biotop/nachspiel.py b/biotop/nachspiel.py
+index 600d254..4bad957 100644
+--- a/biotop/nachspiel.py
++++ b/biotop/nachspiel.py
+@@ -170,9 +170,11 @@ def vorbereiten(quelle_db: Path, kandidat_id: int, arbeit: Path, *, urteil_nr: i
+         # Der Lauf lag vor der Stufe 2; sein Vorspann trägt die Rauschmessung der Stufe 1. Wie ein Lauf mit dem neuen
+         # Instrument (vorspann: Rauschmessung an Stufe 2) wird die Toleranz hier an Stufe 2 gemessen — an der
+         # Vorgeneration, fünf Kammerläufe, dieselbe Regel (eichung.rauschmessung, vorspann._rauschwerte).
+-        from .organe import eichung, vorspann
+-        r2 = eichung.rauschmessung(con, lauf_id, werk["id"], ziel, bereiche, paket, tausch["_referenzlast_laufzeit"],
+-                                   eichung.laufzeit_einmal)
++        # eigener Name: `eichung` ist in dieser Funktion die Maßeichung des Falls (Fehler in 1d9a5aa: der Import
++        # überschrieb sie, alle Nachspiele D1–D3 brachen ab)
++        from .organe import eichung as eichung_organ, vorspann
++        r2 = eichung_organ.rauschmessung(con, lauf_id, werk["id"], ziel, bereiche, paket, tausch["_referenzlast_laufzeit"],
++                                         eichung_organ.laufzeit_einmal)
+         tausch.update(vorspann._rauschwerte(r2, bereiche))
+         tausch["_rauschbelege"] = r2["bereiche"]
+         rauschen_herkunft = (f"im Nachspiel an Stufe 2 gemessen (Vorgeneration, {len(r2.get('kammerlauf_s') or [])} "
+diff --git a/biotop/organe/verhaltensvergleich.py b/biotop/organe/verhaltensvergleich.py
+index 0bd7d4a..a0c045c 100644
+--- a/biotop/organe/verhaltensvergleich.py
++++ b/biotop/organe/verhaltensvergleich.py
+@@ -507,6 +507,15 @@ def pruefen(werk: Path, code: dict[str, str], referenzlast: str | None, bereiche
+         return {**basis, "ausgefuehrt": False, "geurteilt": False, "tragfaehig": True,
+                 "grund_art": "sonde_vorgeneration_inhalt",
+                 "grund": f"Vorgeneration nicht beobachtbar — Enthaltung, betrifft den Kandidaten nicht: {str(alt.get('grund'))[:300]}"}
++    # Behebungsrunde 4 (R4-3, Review 03 Nr. 3): eine Bereichslast, die unter der Sonde an der VORGENERATION abbricht, hat
++    # die Sonde gestört (ohne Sonde lief sie — die Messung der Vorgeneration verlangt einen Laufzeitwert je Bereich):
++    # Messgerätausfall statt stiller Lücke.
++    b_alt = alt.get("beobachtungen") or {}
++    abbruch = sorted(k for k, w in b_alt.items() if k.startswith("korpus:last_") and str(w).startswith("Fehler"))
++    if abbruch:
++        raise SondeAusgefallen("Referenzlast bricht unter der Sonde an der Vorgeneration ab ("
++                               + ", ".join(f"{k} {b_alt.get(k)}" for k in abbruch[:3])
++                               + ") — die Sonde stört die Last; ohne Sonde lief sie")
+     gleich = dict(signaturen=alt.get("signaturen"), beispiele=alt.get("beispiele"), konstruktion=alt.get("konstruktion"),
+                   korpus_erweitert=korpus_erweitert)
+     # S-4: die Vorgeneration ein zweites Mal, mit demselben Korpus — was dabei schwankt, ist kein Verhalten des Codes.
+diff --git a/tests/test_vor_t4_04.py b/tests/test_vor_t4_04.py
+index 645ffc0..01cbd16 100644
+--- a/tests/test_vor_t4_04.py
++++ b/tests/test_vor_t4_04.py
+@@ -416,3 +416,72 @@ def test_merkmale_gleich_in_python_und_typescript():
+     assert not unterschiede, unterschiede
+     alle = {m for x in py for m in x}
+     assert len(alle) >= 12 and {"tab", "zeilenumbruch", "crlf", "cr", "nbsp", "doppelleer", "rand_vorn", "rand_hinten"} <= alle, alle
++
++
++# ================================================================ Nachtrag: R4-3 zweiter Teil — Lastabbruch unter der Sonde
++def _gestellt(tmp_path, monkeypatch, alt_last, neu_last):
++    w = tmp_path / "w"
++    (w / "paket").mkdir(parents=True)
++    alt = {"gueltig": True, "beobachtungen": {"korpus:last_paket": alt_last, "paket.a:f#0": "1"}, "inhalt": {"paket.a:f": 1},
++           "eingewickelt": {"paket.a": ["f"]}}
++    neu = {"gueltig": True, "beobachtungen": {"korpus:last_paket": neu_last, "paket.a:f#0": "1"}, "inhalt": {"paket.a:f": 1},
++           "eingewickelt": {"paket.a": ["f"]}}
++    folge = iter([alt, alt, neu])
++    monkeypatch.setattr(vv, "beobachten", lambda *a, **k: dict(next(folge)))
++    return w
++
++
++def test_r43_lastabbruch_unter_der_sonde_an_der_vorgeneration_ist_ausfall(tmp_path, monkeypatch):
++    """Review 03 Nr. 3: an 0aac612 fehlten die Lastbeobachtungen still, die Änderung blieb unsichtbar."""
++    w = _gestellt(tmp_path, monkeypatch, "Fehler:AttributeError", "Fehler:AttributeError")
++    with pytest.raises(vv.SondeAusgefallen, match="bricht unter der Sonde"):
++        vv.pruefen(w, {"paket/a.py": "x"}, "last", ["paket"], {})
++
++
++def test_r43_gegenprobe_abbruch_nur_am_kandidaten_ist_befund(tmp_path, monkeypatch):
++    w = _gestellt(tmp_path, monkeypatch, "ok", "Fehler:AttributeError")
++    r = vv.pruefen(w, {"paket/a.py": "x"}, "last", ["paket"], {})
++    assert r["tragfaehig"] is False and "korpus:last_paket" in r["abweichungen"], r
++
++
++# ================================================================ Nachtrag: Entscheidung 5 — Torzeile „Schwächen“
++from biotop.kern import gegenzeugen  # noqa: E402
++
++_WEG = {"verletzt": False}
++_DA = {"verletzt": True}
++_GLEICH = {"faelle": 100, "abweichungen": 0}
++_ANDERS = {"faelle": 100, "abweichungen": 7}
++
++
++@pytest.mark.parametrize("schwaechen,behoben,erfuellt", [
++    ({f"S{i}": {"schwaeche": _WEG, "normal": _GLEICH} for i in range(1, 5)} | {"S5": {"schwaeche": _DA, "normal": _GLEICH}},
++     4, True),                                                  # 4 von 5 doppelt behoben = 80 % → erfüllt
++    ({f"S{i}": {"schwaeche": _WEG, "normal": _GLEICH} for i in range(1, 4)} | {"S4": {"schwaeche": _WEG, "normal": _ANDERS},
++     "S5": {"schwaeche": _DA, "normal": _GLEICH}}, 3, False),   # Gegenprobe: S4 weg, aber Verhalten verändert → 3 von 5
++    ({f"S{i}": {"schwaeche": _WEG, "normal": _GLEICH} for i in range(1, 4)} | {"S4": {"schwaeche": _WEG, "normal": None},
++     "S5": {"schwaeche": _DA, "normal": _GLEICH}}, 3, False),   # nicht beurteilbar zählt nie als behoben
++    ({}, 0, False),                                             # null Schwächen: nicht erfüllt
++])
++def test_torzeile_schwaechen_verlangt_beide_pruefungen(schwaechen, behoben, erfuellt):
++    z = gegenzeugen.torzeile_schwaechen(schwaechen)
++    assert len(z["behoben"]) == behoben and z["erfuellt"] is erfuellt, z["zeile"]
++
++
++# ================================================================ Nachtrag: Nachspiel — Import überschreibt keine Fallvariable
++def test_nachspiel_vorbereiten_import_ueberschreibt_keine_variable():
++    """Fehler in 1d9a5aa: `from .organe import eichung` in nachspiel.vorbereiten band den Namen der Maßeichung des Falls
++    neu; alle Nachspiele brachen mit AttributeError ab. Kein Import in vorbereiten darf einen Namen binden, dem die
++    Funktion auch einen Wert zuweist. Gegenprobe: die fehlerhafte Fassung wird von derselben Prüfung erkannt."""
++    import ast
++
++    def konflikte(quelle: str) -> set[str]:
++        fn = next(k for k in ast.parse(quelle).body if isinstance(k, ast.FunctionDef) and k.name == "vorbereiten")
++        importiert = {a.asname or a.name.split(".")[0] for n in ast.walk(fn) if isinstance(n, (ast.Import, ast.ImportFrom))
++                      for a in n.names}
++        zugewiesen = {z.id for n in ast.walk(fn) if isinstance(n, (ast.Assign, ast.AugAssign, ast.AnnAssign))
++                      for z in ast.walk(n) if isinstance(z, ast.Name) and isinstance(z.ctx, ast.Store)}
++        return importiert & zugewiesen
++    quelle = (Path(__file__).parent.parent / "biotop/nachspiel.py").read_text()
++    assert konflikte(quelle) == set(), konflikte(quelle)
++    kaputt = quelle.replace("from .organe import eichung as eichung_organ, vorspann", "from .organe import eichung, vorspann")
++    assert kaputt != quelle and konflikte(kaputt) == {"eichung"}

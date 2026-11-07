@@ -1,0 +1,466 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 4 (Teile 4–165 dieses Stands) · enthält R7 bis R10
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 2 Stellen (je Beleg: R8: 2).
+
+R7 · Rohbelege R1–R6 für den Einstieg bündeln (ROHBELEGE-TEILk-01)
+Beginn: 2026-09-25 15:06:00 CEST (UTC+0200)
+Ende:   2026-09-25 15:06:00 CEST (UTC+0200)
+Dauer:  0.0 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/rb_buendeln.py 01 1 6
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/rb_buendeln.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01: Rohbelege R<von>..R<bis> zu ausgabe/ROHBELEGE-TEIL<k>-<NN>.txt bündeln (je höchstens 40.000 Bytes).
+Geteilt wird an Belegen; ein einzelner Beleg über der Grenze wird an Zeilengrenzen geteilt und als Fortsetzung
+markiert. Jede Zieldatei wird exklusiv angelegt (nie überschrieben). Aufruf: rb_buendeln.py <NN> <von> <bis>"""
+import os
+import sys
+from pathlib import Path
+
+W = Path('/root/sicherung/biotop-lage-01')
+MAX = 40_000
+KOPF_RESERVE = 400
+
+
+def stuecke(nr: int, text: str):
+    """Ein Beleg als Liste von Stücken (je < MAX - KOPF_RESERVE Bytes), an Zeilengrenzen geteilt."""
+    grenze = MAX - KOPF_RESERVE - 200
+    b = text.encode('utf-8')
+    if len(b) <= grenze:
+        return [text]
+    teile, akt, groesse = [], [], 0
+    for z in text.splitlines(keepends=True):
+        zb = len(z.encode('utf-8'))
+        if zb > grenze:  # überlange Zeile hart an Zeichen teilen
+            while z:
+                stueck = z[: grenze // 4]
+                z = z[len(stueck):]
+                if groesse + len(stueck.encode('utf-8')) > grenze and akt:
+                    teile.append(''.join(akt)); akt, groesse = [], 0
+                akt.append(stueck); groesse += len(stueck.encode('utf-8'))
+            continue
+        if groesse + zb > grenze and akt:
+            teile.append(''.join(akt)); akt, groesse = [], 0
+        akt.append(z); groesse += zb
+    if akt:
+        teile.append(''.join(akt))
+    return [t if i == 0 else f'[R{nr} · Fortsetzung, Stück {i + 1} von {len(teile)}]\n' + t for i, t in enumerate(teile)]
+
+
+def main() -> None:
+    nn, von, bis = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
+    alle = []
+    for n in range(von, bis + 1):
+        p = W / 'rohbelege' / f'R{n:04d}.txt'
+        if not p.exists():
+            sys.exit(f'ABBRUCH: {p} fehlt')
+        alle += [(n, s) for s in stuecke(n, p.read_text(encoding='utf-8'))]
+    dateien, akt, groesse = [], [], 0
+    for n, s in alle:
+        sb = len(s.encode('utf-8')) + 2
+        if groesse + sb > MAX - KOPF_RESERVE and akt:
+            dateien.append(akt); akt, groesse = [], 0
+        akt.append((n, s)); groesse += sb
+    if akt:
+        dateien.append(akt)
+    (W / 'ausgabe').mkdir(exist_ok=True)
+    for k, inhalt in enumerate(dateien, 1):
+        name = f'ROHBELEGE-TEIL{k}-{nn}.txt'
+        rs = sorted({n for n, _ in inhalt})
+        kopf = (f'BIOTOP-LAGE-01 · ROHBELEGE Stand {nn} · Teil {k} von {len(dateien)} · enthält R{rs[0]} bis R{rs[-1]}\n'
+                f'Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.\n'
+                f'Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.\n\n')
+        daten = (kopf + '\n\n'.join(s for _, s in inhalt)).encode('utf-8')
+        fd = os.open(W / 'ausgabe' / name, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+        with os.fdopen(fd, 'wb') as f:
+            f.write(daten)
+        print(f'{name}: {len(daten)} Bytes, R{rs[0]}–R{rs[-1]}')
+
+
+if __name__ == '__main__':
+    main()
+--- Ende /root/sicherung/biotop-lage-01/arbeit/rb_buendeln.py ---
+Ausgabe (vollständig, stdout und stderr):
+ROHBELEGE-TEIL1-01.txt: 25432 Bytes, R1–R1
+ROHBELEGE-TEIL2-01.txt: 27478 Bytes, R2–R3
+ROHBELEGE-TEIL3-01.txt: 26515 Bytes, R4–R6
+=== Ende R7 ===
+
+
+R8 · Geheimnissuche über ROHBELEGE-TEIL*-01 vor der Veröffentlichung
+Beginn: 2026-09-25 15:06:00 CEST (UTC+0200)
+Ende:   2026-09-25 15:06:00 CEST (UTC+0200)
+Dauer:  0.3 s
+Exit-Code: 1
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/geheimnis.py /root/sicherung/biotop-lage-01/ausgabe
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/geheimnis.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01: Geheimnissuche (Regel 2.4, Abschnitt 8) über Dateien oder Verzeichnisse.
+Zwei Wege:
+ (1) Muster: OpenRouter-, Anthropic-, OpenAI-artige Schlüssel, Telegram-Bot-Token, GitHub-Token, AWS-Schlüssel,
+     private Schlüssel, Bearer-Token, JWT;
+ (2) Werte: jeder Wert (≥ 12 Zeichen) aus den .env-Dateien unter /root/.hermes, /root, /opt/hermes (Tiefe ≤ 4) und jede
+     Zeichenkette (≥ 12 Zeichen) aus /root/.hermes/auth.json wird wörtlich gesucht. Die Werte werden nie ausgegeben;
+     ausgegeben werden nur Anzahl, Fundort (Datei, Zeile) und die Quelle des Wertes (Datei und Variablenname).
+Treffer werden mit den ersten 6 Zeichen und Länge gezeigt, der Rest ist geschwärzt.
+Aufruf: python3 geheimnis.py <pfad> [<pfad> ...]    Exit 0 = keine Treffer, 1 = Treffer."""
+import json
+import os
+import re
+import sys
+from pathlib import Path
+
+MUSTER = {
+    'OpenRouter-Schlüssel': r'sk-or-v1-[0-9a-f]{32,}',
+    'Anthropic-Schlüssel': r'sk-ant-[A-Za-z0-9_\-]{20,}',
+    'sk-Schlüssel allgemein': r'\bsk-(?!or-v1-|ant-)[A-Za-z0-9_\-]{20,}',
+    'Telegram-Bot-Token': r'\b\d{8,10}:[A-Za-z0-9_\-]{35}\b',
+    'GitHub-Token': r'\bgh[pousr]_[A-Za-z0-9]{30,}\b',
+    'AWS-Schlüssel': r'\bAKIA[0-9A-Z]{16}\b',
+    'Privater Schlüssel': r'-----BEGIN [A-Z ]*PRIVATE KEY-----',
+    'Bearer-Token': r'Bearer\s+[A-Za-z0-9._\-]{20,}',
+    'JWT': r'\beyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}',
+}
+
+
+def env_dateien():
+    gesehen = set()
+    for wurzel in ('/root/.hermes', '/root', '/opt/hermes'):
+        basis = Path(wurzel)
+        if not basis.exists():
+            continue
+        for dirpath, dirnames, filenames in os.walk(basis):
+            tiefe = len(Path(dirpath).relative_to(basis).parts)
+            dirnames[:] = [d for d in dirnames if d not in ('node_modules', '.git', 'venv', '.venv', '__pycache__',
+                                                             'sicherung') and tiefe < 4]
+            for f in filenames:
+                if f == '.env' or f.endswith('.env'):
+                    p = Path(dirpath) / f
+                    if p not in gesehen:
+                        gesehen.add(p)
+                        yield p
+
+
+def werte():
+    w = {}
+    for p in env_dateien():
+        try:
+            for z in p.read_text(errors='replace').splitlines():
+                z = z.strip()
+                if not z or z.startswith('#') or '=' not in z:
+                    continue
+                k, v = z.split('=', 1)
+                v = v.strip().strip('"').strip("'")
+                if len(v) >= 12 and not v.startswith('/') and v.lower() not in ('true', 'false'):
+                    w.setdefault(v, f'{p}:{k.strip().replace("export ", "")}')
+        except OSError:
+            pass
+    a = Path('/root/.hermes/auth.json')
+    if a.exists():
+        def lauf(o, pfad):
+            if isinstance(o, dict):
+                for k, v in o.items():
+                    lauf(v, f'{pfad}.{k}')
+            elif isinstance(o, list):
+                for i, v in enumerate(o):
+                    lauf(v, f'{pfad}[{i}]')
+            elif isinstance(o, str) and len(o) >= 12 and not o.startswith('http') and ' ' not in o \
+                    and not re.fullmatch(r'\d{4}-\d\d-\d\d.*', o):
+                w.setdefault(o, f'{a}:{pfad}')
+        try:
+            lauf(json.loads(a.read_text()), 'auth')
+        except (OSError, ValueError):
+            pass
+    return w
+
+
+def dateien(pfade):
+    for p in map(Path, pfade):
+        if p.is_dir():
+            for q in sorted(p.rglob('*')):
+                if q.is_file():
+                    yield q
+        elif p.is_file():
+            yield p
+
+
+def main() -> None:
+    wt = werte()
+    print(f'Werte aus .env/auth.json geladen: {len(wt)} (nicht ausgegeben)')
+    treffer, n = 0, 0
+    for p in dateien(sys.argv[1:]):
+        n += 1
+        text = p.read_text(errors='replace')
+        for i, z in enumerate(text.splitlines(), 1):
+            for name, m in MUSTER.items():
+                for t in re.finditer(m, z):
+                    treffer += 1
+                    s = t.group(0)
+                    print(f'TREFFER Muster {name}: {p}:{i}: {s[:6]}…[GESCHWÄRZT, {len(s)} Zeichen]')
+            for v, quelle in wt.items():
+                if v in z:
+                    treffer += 1
+                    print(f'TREFFER Wert aus {quelle}: {p}:{i}: {v[:4]}…[GESCHWÄRZT, {len(v)} Zeichen]')
+    print(f'Durchsucht: {n} Dateien · Treffer: {treffer}')
+    sys.exit(1 if treffer else 0)
+
+
+if __name__ == '__main__':
+    main()
+--- Ende /root/sicherung/biotop-lage-01/arbeit/geheimnis.py ---
+Ausgabe (vollständig, stdout und stderr):
+Werte aus .env/auth.json geladen: 15 (nicht ausgegeben)
+TREFFER Wert aus /root/.hermes/auth.json:auth.credential_pool.openrouter[0].label: /root/sicherung/biotop-lage-01/ausgabe/ROHBELEGE-TEIL3-01.txt:196: [GESCHWÄRZT, 18 Zeichen]
+TREFFER Wert aus /root/.hermes/auth.json:auth.credential_pool.openrouter[0].label: /root/sicherung/biotop-lage-01/ausgabe/ROHBELEGE-TEIL3-01.txt:199: [GESCHWÄRZT, 18 Zeichen]
+Durchsucht: 3 Dateien · Treffer: 2
+=== Ende R8 ===
+
+
+R9 · Geheimnissuche über ausgabe/ (START-01, ROHBELEGE-TEIL1..3-01) vor der Veröffentlichung, Suchwerkzeug nach Fehlalarm in R8 berichtigt
+Beginn: 2026-09-25 15:09:30 CEST (UTC+0200)
+Ende:   2026-09-25 15:09:30 CEST (UTC+0200)
+Dauer:  0.2 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/geheimnis.py /root/sicherung/biotop-lage-01/ausgabe
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/geheimnis.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01: Geheimnissuche (Regel 2.4, Abschnitt 8) über Dateien oder Verzeichnisse.
+Zwei Wege:
+ (1) Muster: OpenRouter-, Anthropic-, OpenAI-artige Schlüssel, Telegram-Bot-Token, GitHub-Token, AWS-Schlüssel,
+     private Schlüssel, Bearer-Token, JWT;
+ (2) Werte: jeder Wert (≥ 12 Zeichen) aus den .env-Dateien unter /root/.hermes, /root, /opt/hermes (Tiefe ≤ 4) und jede
+     Zeichenkette (≥ 12 Zeichen) aus /root/.hermes/auth.json wird wörtlich gesucht. Die Werte werden nie ausgegeben;
+     ausgegeben werden nur Anzahl, Fundort (Datei, Zeile) und die Quelle des Wertes (Datei und Variablenname).
+Treffer werden mit den ersten 6 Zeichen und Länge gezeigt, der Rest ist geschwärzt.
+Aufruf: python3 geheimnis.py <pfad> [<pfad> ...]    Exit 0 = keine Treffer, 1 = Treffer."""
+import json
+import os
+import re
+import sys
+from pathlib import Path
+
+MUSTER = {
+    'OpenRouter-Schlüssel': r'sk-or-v1-[0-9a-f]{32,}',
+    'Anthropic-Schlüssel': r'sk-ant-[A-Za-z0-9_\-]{20,}',
+    'sk-Schlüssel allgemein': r'\bsk-(?!or-v1-|ant-)[A-Za-z0-9_\-]{20,}',
+    'Telegram-Bot-Token': r'\b\d{8,10}:[A-Za-z0-9_\-]{35}\b',
+    'GitHub-Token': r'\bgh[pousr]_[A-Za-z0-9]{30,}\b',
+    'AWS-Schlüssel': r'\bAKIA[0-9A-Z]{16}\b',
+    'Privater Schlüssel': r'-----BEGIN [A-Z ]*PRIVATE KEY-----',
+    'Bearer-Token': r'Bearer\s+[A-Za-z0-9._\-]{20,}',
+    'JWT': r'\beyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}',
+}
+
+
+AUSGELASSEN: list = []
+
+
+def env_dateien():
+    gesehen = set()
+    for wurzel in ('/root/.hermes', '/root', '/opt/hermes'):
+        basis = Path(wurzel)
+        if not basis.exists():
+            continue
+        for dirpath, dirnames, filenames in os.walk(basis):
+            tiefe = len(Path(dirpath).relative_to(basis).parts)
+            dirnames[:] = [d for d in dirnames if d not in ('node_modules', '.git', 'venv', '.venv', '__pycache__',
+                                                             'sicherung') and tiefe < 4]
+            for f in filenames:
+                if f == '.env' or f.endswith('.env'):
+                    p = Path(dirpath) / f
+                    if p not in gesehen:
+                        gesehen.add(p)
+                        yield p
+
+
+def werte():
+    w = {}
+    for p in env_dateien():
+        try:
+            for z in p.read_text(errors='replace').splitlines():
+                z = z.strip()
+                if not z or z.startswith('#') or '=' not in z:
+                    continue
+                k, v = z.split('=', 1)
+                v = v.strip().strip('"').strip("'")
+                if len(v) >= 12 and not v.startswith('/') and v.lower() not in ('true', 'false'):
+                    w.setdefault(v, f'{p}:{k.strip().replace("export ", "")}')
+        except OSError:
+            pass
+    a = Path('/root/.hermes/auth.json')
+    if a.exists():
+        def lauf(o, pfad):
+            if isinstance(o, dict):
+                for k, v in o.items():
+                    lauf(v, f'{pfad}.{k}')
+            elif isinstance(o, list):
+                for i, v in enumerate(o):
+                    lauf(v, f'{pfad}[{i}]')
+            elif isinstance(o, str) and len(o) >= 12 and not o.startswith('http') and ' ' not in o \
+                    and not re.fullmatch(r'\d{4}-\d\d-\d\d.*', o):
+                if re.fullmatch(r'[A-Z][A-Z0-9_]+', o):
+                    # Name einer Umgebungsvariable (z. B. als Bezeichnung eines Eintrags), kein Geheimnis:
+                    # gezählt, nicht gesucht (Entscheidung Hermes, 25.09., nach Fehlalarm in R8).
+                    AUSGELASSEN.append(f'{a}:{pfad}')
+                    return
+                w.setdefault(o, f'{a}:{pfad}')
+        try:
+            lauf(json.loads(a.read_text()), 'auth')
+        except (OSError, ValueError):
+            pass
+    return w
+
+
+def dateien(pfade):
+    for p in map(Path, pfade):
+        if p.is_dir():
+            for q in sorted(p.rglob('*')):
+                if q.is_file():
+                    yield q
+        elif p.is_file():
+            yield p
+
+
+def main() -> None:
+    wt = werte()
+    print(f'Werte aus .env/auth.json geladen: {len(wt)} (nicht ausgegeben)')
+    print(f'Ausgelassen als Variablenname (nur Großbuchstaben/Ziffern/_): {len(AUSGELASSEN)} — Fundorte: '
+          + ', '.join(AUSGELASSEN))
+    treffer, n = 0, 0
+    for p in dateien(sys.argv[1:]):
+        n += 1
+        text = p.read_text(errors='replace')
+        for i, z in enumerate(text.splitlines(), 1):
+            for name, m in MUSTER.items():
+                for t in re.finditer(m, z):
+                    treffer += 1
+                    s = t.group(0)
+                    print(f'TREFFER Muster {name}: {p}:{i}: {s[:6]}…[GESCHWÄRZT, {len(s)} Zeichen]')
+            for v, quelle in wt.items():
+                if v in z:
+                    treffer += 1
+                    print(f'TREFFER Wert aus {quelle}: {p}:{i}: {v[:4]}…[GESCHWÄRZT, {len(v)} Zeichen]')
+    print(f'Durchsucht: {n} Dateien · Treffer: {treffer}')
+    sys.exit(1 if treffer else 0)
+
+
+if __name__ == '__main__':
+    main()
+--- Ende /root/sicherung/biotop-lage-01/arbeit/geheimnis.py ---
+Ausgabe (vollständig, stdout und stderr):
+Werte aus .env/auth.json geladen: 13 (nicht ausgegeben)
+Ausgelassen als Variablenname (nur Großbuchstaben/Ziffern/_): 2 — Fundorte: /root/.hermes/auth.json:auth.credential_pool.anthropic[1].label, /root/.hermes/auth.json:auth.credential_pool.openrouter[0].label
+Durchsucht: 4 Dateien · Treffer: 0
+=== Ende R9 ===
+
+
+R10 · Abschlussordner laeufe/biotop-lage-01/ anlegen, START-01 und ROHBELEGE-TEIL1..3-01 exklusiv veröffentlichen, von außen abrufen und vergleichen
+Beginn: 2026-09-25 15:09:49 CEST (UTC+0200)
+Ende:   2026-09-25 15:09:50 CEST (UTC+0200)
+Dauer:  0.2 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/pk.py START-01.md ROHBELEGE-TEIL1-01.txt ROHBELEGE-TEIL2-01.txt ROHBELEGE-TEIL3-01.txt
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/pk.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01: Prüfkanal-Werkzeug.
+Veröffentlicht Dateien aus /root/sicherung/biotop-lage-01/ausgabe/ nach laeufe/biotop-lage-01/ im Prüfkanal:
+- exklusiv (O_EXCL): eine vorhandene Datei wird NIE überschrieben (Regel 2.5), der Aufruf bricht dann ab;
+- höchstens 40.000 Bytes je Datei (Abschnitt 8), sonst Abbruch vor dem Schreiben;
+- Rechte root:caddy, Ordner 750, Dateien 640 (wie alle Biotop-Ordner);
+- danach Abruf jeder Datei über HTTPS von außen, Vergleich Bytes und SHA-256.
+Adressen werden aus /etc/pruefkanal/schluessel gebaut.
+Aufruf: python3 pk.py <name> [<name> ...]      (Namen relativ zu ausgabe/)
+        python3 pk.py --abruf <name> [...]      (nur abrufen und vergleichen, nichts schreiben)
+"""
+import grp
+import hashlib
+import os
+import sys
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+AUSGABE = Path('/root/sicherung/biotop-lage-01/ausgabe')
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+ZIEL = Path(f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe/biotop-lage-01')
+BASIS = f'https://milieulux-reinigung-muenchen.de/_akte/{K}/laeufe/biotop-lage-01'
+GID = grp.getgrnam('caddy').gr_gid
+MAX = 40_000
+
+
+def url(name: str) -> str:
+    return f'{BASIS}/{name}'
+
+
+def abrufen(name: str):
+    q = urllib.request.Request(url(name), headers={'User-Agent': 'biotop-lage-01-abruf'})
+    try:
+        with urllib.request.urlopen(q, timeout=60) as r:
+            return r.status, r.read()
+    except urllib.error.HTTPError as e:
+        return e.code, b''
+
+
+def pruefen(name: str, daten: bytes) -> bool:
+    h = hashlib.sha256(daten).hexdigest()
+    st, ab = abrufen(name)
+    gleich = st == 200 and hashlib.sha256(ab).hexdigest() == h
+    print(f'{name} | {len(daten)} Bytes | sha256 {h} | HTTP {st} | abgerufen {len(ab)} Bytes | '
+          f'gleich {"ja" if gleich else "NEIN"}')
+    print(f'  {url(name)}')
+    return gleich
+
+
+def veroeffentlichen(name: str) -> bool:
+    daten = (AUSGABE / name).read_bytes()
+    if len(daten) > MAX:
+        sys.exit(f'ABBRUCH {name}: {len(daten)} Bytes > {MAX} (Abschnitt 8) — nichts geschrieben')
+    if not ZIEL.exists():
+        ZIEL.mkdir(mode=0o750)
+        os.chown(ZIEL, 0, GID)
+        os.chmod(ZIEL, 0o750)
+        print(f'Ordner angelegt: {ZIEL.name} (root:caddy 750)')
+    z = ZIEL / name
+    fd = os.open(z, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o640)
+    with os.fdopen(fd, 'wb') as f:
+        f.write(daten)
+    os.chown(z, 0, GID)
+    os.chmod(z, 0o640)
+    return pruefen(name, daten)
+
+
+def main() -> None:
+    args = sys.argv[1:]
+    nur_abruf = bool(args) and args[0] == '--abruf'
+    if nur_abruf:
+        args = args[1:]
+    ok = 0
+    for n in args:
+        if nur_abruf:
+            ok += pruefen(n, (ZIEL / n).read_bytes())
+        else:
+            ok += veroeffentlichen(n)
+    print(f'Ergebnis: {ok} von {len(args)} Dateien mit HTTP 200 und gleicher SHA-256')
+    sys.exit(0 if ok == len(args) else 1)
+
+
+if __name__ == '__main__':
+    main()
+--- Ende /root/sicherung/biotop-lage-01/arbeit/pk.py ---
+Ausgabe (vollständig, stdout und stderr):
+Ordner angelegt: biotop-lage-01 (root:caddy 750)
+START-01.md | 7308 Bytes | sha256 e31c4f5d01f688baba16d4436b738c0223983fcedeeb40a8dda5176326d3158c | HTTP 200 | abgerufen 7308 Bytes | gleich ja
+  https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-lage-01/START-01.md
+ROHBELEGE-TEIL1-01.txt | 25432 Bytes | sha256 5367071fec2fbee84851d5242bc35a3427ec3d032cd20c2de9543be02171687b | HTTP 200 | abgerufen 25432 Bytes | gleich ja
+  https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-lage-01/ROHBELEGE-TEIL1-01.txt
+ROHBELEGE-TEIL2-01.txt | 27478 Bytes | sha256 595dc921544719c4edaf9f8ffb3a7dbdea786c14044a22656214dba1d8ddde12 | HTTP 200 | abgerufen 27478 Bytes | gleich ja
+  https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-lage-01/ROHBELEGE-TEIL2-01.txt
+ROHBELEGE-TEIL3-01.txt | 26515 Bytes | sha256 4de5790a957b4ab39f4dd3dce54044c03ce3733f68e8047db70b3d3126a0160d | HTTP 200 | abgerufen 26515 Bytes | gleich ja
+  https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-lage-01/ROHBELEGE-TEIL3-01.txt
+Ergebnis: 4 von 4 Dateien mit HTTP 200 und gleicher SHA-256
+=== Ende R10 ===

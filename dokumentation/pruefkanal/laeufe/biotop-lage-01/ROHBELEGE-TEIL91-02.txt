@@ -1,0 +1,145 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 91 (Teile 4–165 dieses Stands) · enthält R122 bis R122
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 1 Stellen (je Beleg: R122: 1).
+
+R122 · Geheimnissuche über den Abschlussordner laeufe/biotop-lage-01 (auch den Zwischenbericht-Ordner des Wächters)
+Beginn: 2026-09-25 17:25:42 CEST (UTC+0200)
+Ende:   2026-09-25 17:25:42 CEST (UTC+0200)
+Dauer:  0.3 s
+Exit-Code: 1
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/geheimnis.py /var/pruefkanal/oeffentlich/_akte/$(cat /etc/pruefkanal/schluessel)/laeufe/biotop-lage-01
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/geheimnis.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01: Geheimnissuche (Regel 2.4, Abschnitt 8) über Dateien oder Verzeichnisse.
+Zwei Wege:
+ (1) Muster: OpenRouter-, Anthropic-, OpenAI-artige Schlüssel, Telegram-Bot-Token, GitHub-Token, AWS-Schlüssel,
+     private Schlüssel, Bearer-Token, JWT;
+ (2) Werte: jeder Wert (≥ 12 Zeichen) aus den .env-Dateien unter /root/.hermes, /root, /opt/hermes (Tiefe ≤ 4) und jede
+     Zeichenkette (≥ 12 Zeichen) aus /root/.hermes/auth.json wird wörtlich gesucht. Die Werte werden nie ausgegeben;
+     ausgegeben werden nur Anzahl, Fundort (Datei, Zeile) und die Quelle des Wertes (Datei und Variablenname).
+Treffer werden mit den ersten 6 Zeichen und Länge gezeigt, der Rest ist geschwärzt.
+Aufruf: python3 geheimnis.py <pfad> [<pfad> ...]    Exit 0 = keine Treffer, 1 = Treffer."""
+import json
+import os
+import re
+import sys
+from pathlib import Path
+
+MUSTER = {
+    'OpenRouter-Schlüssel': r'sk-or-v1-[0-9a-f]{32,}',
+    'Anthropic-Schlüssel': r'sk-ant-[A-Za-z0-9_\-]{20,}',
+    'sk-Schlüssel allgemein': r'\bsk-(?!or-v1-|ant-)[A-Za-z0-9_\-]{20,}',
+    'Telegram-Bot-Token': r'\b\d{8,10}:[A-Za-z0-9_\-]{35}\b',
+    'GitHub-Token': r'\bgh[pousr]_[A-Za-z0-9]{30,}\b',
+    'AWS-Schlüssel': r'\bAKIA[0-9A-Z]{16}\b',
+    'Privater Schlüssel': r'-----BEGIN [A-Z ]*PRIVATE KEY-----',
+    'Bearer-Token': r'Bearer\s+[A-Za-z0-9._\-]{20,}',
+    'JWT': r'\beyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}',
+}
+
+
+AUSGELASSEN: list = []
+
+
+def env_dateien():
+    gesehen = set()
+    for wurzel in ('/root/.hermes', '/root', '/opt/hermes'):
+        basis = Path(wurzel)
+        if not basis.exists():
+            continue
+        for dirpath, dirnames, filenames in os.walk(basis):
+            tiefe = len(Path(dirpath).relative_to(basis).parts)
+            dirnames[:] = [d for d in dirnames if d not in ('node_modules', '.git', 'venv', '.venv', '__pycache__',
+                                                             'sicherung') and tiefe < 4]
+            for f in filenames:
+                if f == '.env' or f.endswith('.env'):
+                    p = Path(dirpath) / f
+                    if p not in gesehen:
+                        gesehen.add(p)
+                        yield p
+
+
+def werte(min_env: int = 8):
+    """Werte aus .env ab min_env Zeichen (Vorgabe 8: erfasst auch Chat-/Benutzerkennungen aus .env), aus auth.json
+    ab 12 Zeichen. Entscheidung Hermes 25.09.: .env-Inhalte sind nach Regel 2.4 Geheimnisse, auch Kennungen."""
+    w = {}
+    for p in env_dateien():
+        try:
+            for z in p.read_text(errors='replace').splitlines():
+                z = z.strip()
+                if not z or z.startswith('#') or '=' not in z:
+                    continue
+                k, v = z.split('=', 1)
+                v = v.strip().strip('"').strip("'")
+                if len(v) >= min_env and not v.startswith('/') and v.lower() not in ('true', 'false'):
+                    w.setdefault(v, f'{p}:{k.strip().replace("export ", "")}')
+        except OSError:
+            pass
+    a = Path('/root/.hermes/auth.json')
+    if a.exists():
+        def lauf(o, pfad):
+            if isinstance(o, dict):
+                for k, v in o.items():
+                    lauf(v, f'{pfad}.{k}')
+            elif isinstance(o, list):
+                for i, v in enumerate(o):
+                    lauf(v, f'{pfad}[{i}]')
+            elif isinstance(o, str) and len(o) >= 12 and not o.startswith('http') and ' ' not in o \
+                    and not re.fullmatch(r'\d{4}-\d\d-\d\d.*', o):
+                if re.fullmatch(r'[A-Z][A-Z0-9_]+', o):
+                    # Name einer Umgebungsvariable (z. B. als Bezeichnung eines Eintrags), kein Geheimnis:
+                    # gezählt, nicht gesucht (Entscheidung Hermes, 25.09., nach Fehlalarm in R8).
+                    AUSGELASSEN.append(f'{a}:{pfad}')
+                    return
+                w.setdefault(o, f'{a}:{pfad}')
+        try:
+            lauf(json.loads(a.read_text()), 'auth')
+        except (OSError, ValueError):
+            pass
+    return w
+
+
+def dateien(pfade):
+    for p in map(Path, pfade):
+        if p.is_dir():
+            for q in sorted(p.rglob('*')):
+                if q.is_file():
+                    yield q
+        elif p.is_file():
+            yield p
+
+
+def main() -> None:
+    wt = werte()
+    print(f'Werte aus .env/auth.json geladen: {len(wt)} (nicht ausgegeben)')
+    print(f'Ausgelassen als Variablenname (nur Großbuchstaben/Ziffern/_): {len(AUSGELASSEN)} — Fundorte: '
+          + ', '.join(AUSGELASSEN))
+    treffer, n = 0, 0
+    for p in dateien(sys.argv[1:]):
+        n += 1
+        text = p.read_text(errors='replace')
+        for i, z in enumerate(text.splitlines(), 1):
+            for name, m in MUSTER.items():
+                for t in re.finditer(m, z):
+                    treffer += 1
+                    s = t.group(0)
+                    print(f'TREFFER Muster {name}: {p}:{i}: {s[:6]}…[GESCHWÄRZT, {len(s)} Zeichen]')
+            for v, quelle in wt.items():
+                if v in z:
+                    treffer += 1
+                    print(f'TREFFER Wert aus {quelle}: {p}:{i}: {v[:4]}…[GESCHWÄRZT, {len(v)} Zeichen]')
+    print(f'Durchsucht: {n} Dateien · Treffer: {treffer}')
+    sys.exit(1 if treffer else 0)
+
+
+if __name__ == '__main__':
+    main()
+--- Ende /root/sicherung/biotop-lage-01/arbeit/geheimnis.py ---
+Ausgabe (vollständig, stdout und stderr):
+Werte aus .env/auth.json geladen: 14 (nicht ausgegeben)
+Ausgelassen als Variablenname (nur Großbuchstaben/Ziffern/_): 2 — Fundorte: /root/.hermes/auth.json:auth.credential_pool.anthropic[1].label, /root/.hermes/auth.json:auth.credential_pool.openrouter[0].label
+TREFFER Wert aus /root/.hermes/.env:TELEGRAM_ALLOWED_USERS: /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-lage-01/zwischenbericht-20260925-163807-r114/ZWISCHENBERICHT.md:12: [GESCHWÄRZT, 10 Zeichen]
+Durchsucht: 9 Dateien · Treffer: 1
+=== Ende R122 ===

@@ -1,0 +1,16 @@
+#!/bin/bash
+# Nur lesend: letzte Nachweise (Altlasten im Code, _modul_funktion, Randfall-Aufruf, R4-Veröffentlichung, R5-Protokolle),
+# dann Schreibort-Nachweis (eigene Dateien, Container, git-Status, neue Dateien im Auftragsordner)
+export TMPDIR=/tmp/review-vor-t4-05
+cd /root/biotop
+echo "== altlast im Code (ausser tor4.py)"; grep -rn --include=*.py -i "altlast" biotop/ | grep -v "^biotop/tor4.py" | head -5; echo "(Ende)"
+echo "== _modul_funktion"; git show HEAD:biotop/organe/verhaltensvergleich.py | grep -n -A7 "^def _modul_funktion"
+echo "== korpus_randfaelle Zeilen 19-36"; awk '/^def korpus_randfaelle/,0' /tmp/review-vor-t4-05/verhalten_head.py | sed -n '19,36p'
+echo "== VEROEFFENTLICHUNG-R4 (Ende)"; tail -6 /root/biotop-vor-t4-05/bau/VEROEFFENTLICHUNG-R4.txt | cut -c1-300
+echo "== R5-Protokolle (je letzte 2 Zeilen)"; for f in /root/biotop-vor-t4-05/bau/R5-*.txt; do echo "-- $(basename $f)"; tail -2 $f | cut -c1-250; done
+echo "== Container"; docker ps -q | wc -l
+echo "== git status /root/biotop"; git status --porcelain | wc -l
+echo "== eigene Dateien"; find /tmp/review-vor-t4-05 -maxdepth 1 -printf '%f\n' | sort | tr '\n' ' '; echo
+echo "== tmp/ Einträge, werke/ Dateien"; find /tmp/review-vor-t4-05/tmp -mindepth 1 | wc -l; find /tmp/review-vor-t4-05/werke -type f | wc -l
+echo "== __pycache__ unter /tmp/review"; find /tmp/review-vor-t4-05 -name __pycache__ | wc -l
+echo "== im Auftragsordner neu seit meinem Start (Job des Auftragnehmers)"; find /root/biotop-vor-t4-05 -newer /tmp/review-vor-t4-05/status.sh -type f | sort | tr '\n' ' '; echo

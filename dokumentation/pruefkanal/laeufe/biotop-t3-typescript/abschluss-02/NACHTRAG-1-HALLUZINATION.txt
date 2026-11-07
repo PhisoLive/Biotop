@@ -1,0 +1,143 @@
+=== A) SICHERHEITSBEFUNDE IN `zahlen` JE GENERATION ===
+
+  Gen 0: 8 Punkte, 29/29 Tests, tote 0
+      security/detect-object-injection   LOW     1P  src/zahlen/geld.ts:65  Variable Assigned to Object Injection Sink
+      security/detect-object-injection   LOW     1P  src/zahlen/reihen.ts:16  Generic Object Injection Sink
+      security/detect-object-injection   LOW     1P  src/zahlen/reihen.ts:64  Generic Object Injection Sink
+      security/detect-object-injection   LOW     1P  src/zahlen/statistik.ts:28  Generic Object Injection Sink
+      security/detect-object-injection   LOW     1P  src/zahlen/statistik.ts:45  Generic Object Injection Sink
+      security/detect-object-injection   LOW     1P  src/zahlen/statistik.ts:55  Generic Object Injection Sink
+      security/detect-object-injection   LOW     1P  src/zahlen/statistik.ts:55  Generic Object Injection Sink
+      security/detect-object-injection   LOW     1P  src/zahlen/statistik.ts:65  Generic Object Injection Sink
+
+  Gen 1: 5 Punkte, 29/29 Tests, tote 0
+      security/detect-object-injection   LOW     1P  src/zahlen/geld.ts:68  Generic Object Injection Sink
+      security/detect-object-injection   LOW     1P  src/zahlen/geld.ts:68  Generic Object Injection Sink
+      security/detect-object-injection   LOW     1P  src/zahlen/statistik.ts:45  Generic Object Injection Sink
+      security/detect-object-injection   LOW     1P  src/zahlen/statistik.ts:56  Generic Object Injection Sink
+      security/detect-object-injection   LOW     1P  src/zahlen/statistik.ts:56  Generic Object Injection Sink
+
+  Gen 2: 1 Punkte, 29/29 Tests, tote 0
+      security/detect-object-injection   LOW     1P  src/zahlen/statistik.ts:45  Generic Object Injection Sink
+
+  Gen 3: 1 Punkte, 29/29 Tests, tote 0
+      security/detect-object-injection   LOW     1P  src/zahlen/statistik.ts:45  Generic Object Injection Sink
+
+  Gen 5: 1 Punkte, 29/29 Tests, tote 0
+      security/detect-object-injection   LOW     1P  src/zahlen/statistik.ts:45  Generic Object Injection Sink
+
+  Gen 6: 1 Punkte, 29/29 Tests, tote 0
+      security/detect-object-injection   LOW     1P  src/zahlen/statistik.ts:73  Generic Object Injection Sink
+
+  Gen 8: 1 Punkte, 29/29 Tests, tote 0
+      security/detect-object-injection   LOW     1P  src/zahlen/statistik.ts:73  Generic Object Injection Sink
+
+
+=== B) DIE ANGENOMMENEN KANDIDATEN IN `zahlen` ===
+
+  --- Gen 1, Kandidat 2823 ---
+  Grund: Kernmaß -28 → -25 (+3): zahlen.sicherheit_punkte: 8 → 5
+  Begründung des Vorschlags: Der Bereich `zahlen` weist 8 statische Sicherheitsbefunde (`security/detect-object-injection`) auf, die durch direkte Indexzugriffe auf Arrays mit Variablen entstehen (z.B. in `geld.ts`, `reihen.ts`, 
+  Diff:
+    --- a/src/zahlen/geld.ts
+    +++ b/src/zahlen/geld.ts
+    @@ -60,7 +60,7 @@ export function verteilen(betrag: number, gewichte: readonly number[]): number[]
+    -    const position = reihenfolge[i];
+    +    const position = reihenfolge.at(i);
+    -    ergebnis[position.index] = (ergebnis[position.index] ?? 0) + 1;
+    +    const idx = position.index;
+    +    ergebnis[idx] = (ergebnis[idx] ?? 0) + 1;
+    --- a/src/zahlen/reihen.ts
+    +++ b/src/zahlen/reihen.ts
+    @@ -14,7 +14,7 @@ export function differenzen(werte: readonly number[]): number[] {
+    -    ausgabe.push(endlich((geprueft[i] ?? 0) - (geprueft[i - 1] ?? 0)));
+    +    const aktuell = geprueft.at(i) ?? 0;
+    +    const vorher = geprueft.at(i - 1) ?? 0;
+    +    ausgabe.push(endlich(aktuell - vorher));
+    @@ -59,8 +59,8 @@ export function monoton(werte: readonly number[], streng = false): boolean {
+    -    const vorher = geprueft[i - 1] ?? 0;
+    -    const aktuell = geprueft[i] ?? 0;
+    +    const vorher = geprueft.at(i - 1) ?? 0;
+    +    const aktuell = geprueft.at(i) ?? 0;
+    --- a/src/zahlen/statistik.ts
+    +++ b/src/zahlen/statistik.ts
+    @@ -23,8 +23,8 @@ export function quantil(werte: readonly number[], anteil: number): number {
+    -  const links = sortiert[unten] ?? 0;
+    -  const rechts = sortiert[Math.ceil(position)] ?? links;
+    +  const links = sortiert.at(unten) ?? 0;
+    +  const rechts = sortiert.at(Math.ceil(position)) ?? links;
+    @@ -38,7 +38,7 @@ export function spannweite(werte: readonly number[]): number {
+    -  return endlich((sortiert[sortiert.length - 1] ?? 0) - (sortiert[0] ?? 0));
+    +  return endlich((sortiert.at(-1) ?? 0) - (sortiert.at(0) ?? 0));
+    @@ -46,7 +46,7 @@ export function histogramm(werte: readonly number[], grenzen: readonly number[])
+    -    if (i > 0 && grenze <= (grenzen[i - 1] ?? NaN)) {
+    +    if (i > 0 && grenze <= (grenzen.at(i - 1) ?? NaN)) {
+    @@ -55,7 +55,7 @@ export function histogramm(werte: readonly number[], grenzen: readonly number[])
+    -    anzahl[index] = (anzahl[index] ?? 0) + 1;
+    +    const pos = index;
+    +    anzahl[pos] = (anzahl[pos] ?? 0) + 1;
+    @@ -68,7 +68,7 @@ export function gewichteterMittelwert(werte: readonly number[], gewichte: readon
+    -  const produkte = werte.map((wert, index) => endlich(wert) * (gewichte[index] ?? 0));
+    +  const produkte = werte.map((wert, index) => endlich(wert) * (gewichte.at(index) ?? 0));
+
+  --- Gen 2, Kandidat 2847 ---
+  Grund: Kernmaß -24 → -20 (+4): zahlen.sicherheit_punkte: 5 → 1
+  Begründung des Vorschlags: Der Bereich `zahlen` trägt laut Landkarte 5 statische `security/detect-object-injection`-Befunde (LOW) an den Zeilen 45/56/68 in `geld.ts` und `statistik.ts`. Diese entstehen durch direkte Indexzugrif
+  Diff:
+    --- a/src/zahlen/geld.ts
+    +++ b/src/zahlen/geld.ts
+    @@ -57,15 +57,17 @@ function anteile(betrag: number, gewichte: readonly number[]): number[] {
+    -  const ergebnis = exakt.map(Math.floor);
+    -  const rest = betrag - addieren(ergebnis);
+    +  const basis = exakt.map(Math.floor);
+    +  const rest = betrag - addieren(basis);
+    -  for (let i = 0; i < rest; i++) {
+    -    const position = reihenfolge.at(i);
+    -    if (!position) throw new RangeError('Verteilung nicht darstellbar');
+    -    const idx = position.index;
+    -    ergebnis[idx] = (ergebnis[idx] ?? 0) + 1;
+    +  const zuschlag = new Array<number>(basis.length).fill(0);
+    +  for (let i = 0; i < rest; i++) {
+    +    const position = reihenfolge.at(i);
+    +    if (!position) throw new RangeError('Verteilung nicht darstellbar');
+    +    zuschlag[position.index] = (zuschlag[position.index] ?? 0) + 1;
+    -  return ergebnis;
+    +  return basis.map((wert, index) => wert + (zuschlag.at(index) ?? 0));
+    --- a/src/zahlen/statistik.ts
+    +++ b/src/zahlen/statistik.ts
+    @@ -43,15 +43,17 @@ export function histogramm(werte: readonly number[], grenzen: readonly number[]
+    -  const anzahl = Array<number>(grenzen.length + 1).fill(0);
+    -  for (const wert of werte) {
+    -    endlich(wert);
+    -    const gefunden = grenzen.findIndex(grenze => wert <= grenze);
+    -    const index = gefunden < 0 ? grenzen.length : gefunden;
+    -    const pos = index;
+    -    anzahl[pos] = (anzahl[pos] ?? 0) + 1;
+    -  }
+    -  return anzahl;
+    +  const klassen = werte.map(wert => {
+    +    endlich(wert);
+    +    const gefunden = grenzen.findIndex(grenze => wert <= grenze);
+    +    return gefunden < 0 ? grenzen.length : gefunden;
+    +  });
+    +  return Array.from({ length: grenzen.length + 1 }, (_, index) =>
+    +    klassen.reduce((zaehler, klasse) => (klasse === index ? zaehler + 1 : zaehler), 0)
+    +  );
+    --- /dev/null
+    +++ b/tests/test_zahlen_sicherheit_verfassung.test.ts
+    @@ -0,0 +1,32 @@
+    +import { test, expect } from 'vitest';
+    +import { verteilen } from '../src/zahlen/geld.js';
+    +import { histogramm } from '../src/zahlen/statistik.js';
+    +
+    +test('test_zahlen_verteilen_verfassung Satz 2 eingaben_sind_daten', () => {
+    +  const gewichte = [1, 1, 1];
+    +  const ergebnis = verteilen(10, gewichte);
+    +  expect(ergebnis).toEqual([4, 3, 3]);
+    +  expect(gewichte).toEqual([1, 1, 1]);
+    +  expect(Object.prototype.hasOwnProperty.call(ergebnis, '__proto__')).toBe(false);
+    +  expect(Object.getPrototypeOf(ergebnis)).toBe(Array.prototype);
+    +});
+    +
+    +test('test_zahlen_verteilen_verfassung Satz 3 exakte_cent_summe', () => {
+    +  const faelle: Array<[number, number[]]> = [

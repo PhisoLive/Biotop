@@ -1,0 +1,615 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 03 · Teil 191 (Teile 166–239 dieses Stands) · enthält R196 bis R196
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+[R196 · Fortsetzung, Stück 9 von 22]
+            raise SondeAusgefallen("keine Referenzlast — die Verhaltenssonde kann nicht messen")
+        # Behebungsrunde 6 (Entscheidung 3): die vom Kandidaten betroffenen Funktionen (Syntaxbaum)
+        nennung: dict = {}
+        betroffen = betroffene_funktionen(werk, code, module, python=python, nennung=nennung)
+        alt = beobachten(werk, {}, referenzlast, module, bereiche, korpus_erweitert=korpus_erweitert)
+        if not alt.get("gueltig"):
+            if alt.get("art") != "inhalt":
+>               raise SondeAusgefallen(f"Sonde an der Vorgeneration ausgefallen ({alt.get('art')}): {str(alt.get('grund'))[:300]}")
+E               biotop.organe.verhaltensvergleich.SondeAusgefallen: Sonde an der Vorgeneration ausgefallen (infrastruktur): Python-Sonde ohne Ergebnis (rc=1): failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory
+
+biotop/organe/verhaltensvergleich.py:1937: SondeAusgefallen
+______________ test_a1_generator_ausgabe_geaendert_wird_abgelehnt ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_a1_generator_ausgabe_geae0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0ce0530>
+
+    def test_a1_generator_ausgabe_geaendert_wird_abgelehnt(tmp_path, monkeypatch):
+        """Review 02 Nr. 1 (p1): an 6243377 0 Abweichungen, „beobachtet“, tragfähig. Die Änderung wirkt erst ab n = 5: der
+        Werkstest (zahlen(3)) sieht sie nicht — nur die Sonde kann sie finden (Last: zahlen(5))."""
+        neu = _ersetzen("    yield from range(n)\n", "    yield from (range(n) if n < 5 else range(1, n + 1))\n")
+>       u, v = _pruefen(tmp_path, monkeypatch, _diff(QUELLE, neu))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_03.py:188: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_a1_generator_ausgabe_geae0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0ce0530>
+diff = '--- a/probewerk/werk/kern.py\n+++ b/probewerk/werk/kern.py\n@@ -4,7 +4,7 @@\n \n def zahlen(n: int):\n     """Die ers...from range(n)\n+    yield from (range(n) if n < 5 else range(1, n + 1))\n \n \n def sortiere(xs: list[int]) -> None:\n'
+nische = 'schnell', werk_extra = None
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+____________ test_a1_gegenprobe_generator_gleiche_ausgabe_ueberlebt ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_a1_gegenprobe_generator_g0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0d12e10>
+
+    def test_a1_gegenprobe_generator_gleiche_ausgabe_ueberlebt(tmp_path, monkeypatch):
+        neu = _ersetzen("    yield from range(n)\n", "    for i in range(n):\n        yield i\n")
+>       u, v = _pruefen(tmp_path, monkeypatch, _diff(QUELLE, neu))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_03.py:195: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_a1_gegenprobe_generator_g0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0d12e10>
+diff = '--- a/probewerk/werk/kern.py\n+++ b/probewerk/werk/kern.py\n@@ -4,7 +4,8 @@\n \n def zahlen(n: int):\n     """Die ers...""\n-    yield from range(n)\n+    for i in range(n):\n+        yield i\n \n \n def sortiere(xs: list[int]) -> None:\n'
+nische = 'schnell', werk_extra = None
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+_____________ test_a2_inplace_sortierung_umgedreht_wird_abgelehnt ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_a2_inplace_sortierung_umg0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0d13ad0>
+
+    def test_a2_inplace_sortierung_umgedreht_wird_abgelehnt(tmp_path, monkeypatch):
+        """Review 02 Nr. 2 (p2): Rückgabe None auf beiden Seiten, an 6243377 0 Abweichungen."""
+        # Die Änderung wirkt erst ab 4 Elementen: der Werkstest (3 Elemente) sieht sie nicht, die Last (4 Elemente) schon.
+        neu = _ersetzen("    xs.sort()\n", "    xs.sort(reverse=len(xs) > 3)\n")
+>       u, v = _pruefen(tmp_path, monkeypatch, _diff(QUELLE, neu))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_03.py:204: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_a2_inplace_sortierung_umg0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0d13ad0>
+diff = '--- a/probewerk/werk/kern.py\n+++ b/probewerk/werk/kern.py\n@@ -9,7 +9,7 @@\n \n def sortiere(xs: list[int]) -> None:...rt an Ort und Stelle, aufsteigend."""\n-    xs.sort()\n+    xs.sort(reverse=len(xs) > 3)\n \n \n def verbinde(a, b):\n'
+nische = 'schnell', werk_extra = None
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+______ test_a2_gegenprobe_gleiche_sortierung_anders_geschrieben_ueberlebt ______
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_a2_gegenprobe_gleiche_sor0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0ce3ce0>
+
+    def test_a2_gegenprobe_gleiche_sortierung_anders_geschrieben_ueberlebt(tmp_path, monkeypatch):
+        """Erste Fassung `xs[:] = sorted(xs)` wurde an der Behälter-Formvariante (Tupel) abgelehnt: dort wirft die
+        Vorgeneration AttributeError, die Fassung TypeError — eine echte Abweichung bei ungültiger Eingabe, die nach
+        Grundsatz 11 einen deckenden Test braucht. Die Gegenprobe ist deshalb eine auch im Fehlerfall gleiche Fassung."""
+        neu = _ersetzen("    xs.sort()\n", "    xs.sort(key=lambda v: v)\n")
+>       u, v = _pruefen(tmp_path, monkeypatch, _diff(QUELLE, neu))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_03.py:214: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_a2_gegenprobe_gleiche_sor0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0ce3ce0>
+diff = '--- a/probewerk/werk/kern.py\n+++ b/probewerk/werk/kern.py\n@@ -9,7 +9,7 @@\n \n def sortiere(xs: list[int]) -> None:...rtiert an Ort und Stelle, aufsteigend."""\n-    xs.sort()\n+    xs.sort(key=lambda v: v)\n \n \n def verbinde(a, b):\n'
+nische = 'schnell', werk_extra = None
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+______ test_a3_funktion_ohne_annotation_wird_mit_tastendem_korpus_gesehen ______
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_a3_funktion_ohne_annotati0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0ce3590>
+
+    def test_a3_funktion_ohne_annotation_wird_mit_tastendem_korpus_gesehen(tmp_path, monkeypatch):
+        """Review 02 Nr. 3 (p4): `verbinde` ohne Annotation, nicht von der Last gerufen; an 6243377 endeten 3 von 3
+        Randfällen ([None, None], [[], None], [None, []]) mit `AttributeError` auf beiden Seiten — die Änderung blieb
+        unsichtbar, und die Funktion zählte trotzdem als „beobachtet“. Jetzt tastet der Korpus mit 'a b', 1, 0, [], None,
+        und nur inhaltliche Aufrufe zählen (Gegenprobe am Organ unten)."""
+        neu = _ersetzen("    return a.strip() + b\n", "    return a.strip().upper() + b\n")
+>       u, v = _pruefen(tmp_path, monkeypatch, _diff(QUELLE, neu))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_03.py:225: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_a3_funktion_ohne_annotati0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0ce3590>
+diff = '--- a/probewerk/werk/kern.py\n+++ b/probewerk/werk/kern.py\n@@ -14,7 +14,7 @@\n \n def verbinde(a, b):\n     """Hilfs...nicht gerufen."""\n-    return a.strip() + b\n+    return a.strip().upper() + b\n \n \n def woerter(s: str) -> list:\n'
+nische = 'schnell', werk_extra = None
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+_________________ test_a4_mengenreihenfolge_ist_kein_fehlalarm _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_a4_mengenreihenfolge_ist_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0ce2bd0>
+
+    def test_a4_mengenreihenfolge_ist_kein_fehlalarm(tmp_path, monkeypatch):
+        """Review 02 Nr. 4 (p5): der Kandidat ändert nur `quadrat` verhaltensgleich; `woerter` liefert list(set(…)).
+        An 6243377: 22 ungedeckte Abweichungen an `woerter`, abgelehnt, 2 von 2 Wiederholungen."""
+        neu = _ersetzen("    return x * x\n", "    return x ** 2\n")
+>       u, v = _pruefen(tmp_path, monkeypatch, _diff(QUELLE, neu))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_03.py:245: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_a4_mengenreihenfolge_ist_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0ce2bd0>
+diff = '--- a/probewerk/werk/kern.py\n+++ b/probewerk/werk/kern.py\n@@ -24,7 +24,7 @@\n \n def quadrat(x: int) -> int:\n     """Quadrat einer ganzen Zahl."""\n-    return x * x\n+    return x ** 2\n \n \n def normieren(text: str) -> str:\n'
+nische = 'schnell', werk_extra = None
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+___________ test_a5_lru_cache_auf_reiner_funktion_ist_kein_fehlalarm ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_a5_lru_cache_auf_reiner_f0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0ce1c70>
+
+    def test_a5_lru_cache_auf_reiner_funktion_ist_kein_fehlalarm(tmp_path, monkeypatch):
+        """Review 02 Nr. 5 (p12): an 6243377 fehlten am Kandidaten alle Lastbeobachtungen — 16 von 16 „ungedeckt“."""
+        neu = _ersetzen("def quadrat(x: int) -> int:\n", "@functools.lru_cache(maxsize=None)\ndef quadrat(x: int) -> int:\n")
+>       u, v = _pruefen(tmp_path, monkeypatch, _diff(QUELLE, neu))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_03.py:271: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_a5_lru_cache_auf_reiner_f0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0ce1c70>
+diff = '--- a/probewerk/werk/kern.py\n+++ b/probewerk/werk/kern.py\n@@ -22,6 +22,7 @@\n     return list(set(s.split()))\n \n ...ools.lru_cache(maxsize=None)\n def quadrat(x: int) -> int:\n     """Quadrat einer ganzen Zahl."""\n     return x * x\n'
+nische = 'schnell', werk_extra = None
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+_______________ test_a5_gegenprobe_falscher_cache_wird_abgelehnt _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_a5_gegenprobe_falscher_ca0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0ce0500>
+
+    def test_a5_gegenprobe_falscher_cache_wird_abgelehnt(tmp_path, monkeypatch):
+        """Ein Cache, der an der Identität der Liste hängt (T3-Muster), bleibt ein Befund — auch dekoriert."""
+        neu = _ersetzen('''def sortiere(xs: list[int]) -> None:
+        """Sortiert an Ort und Stelle, aufsteigend."""
+        xs.sort()
+    ''', '''_GESEHEN: dict[int, list] = {}
+    
+    
+    def sortiere(xs: list[int]) -> None:
+        """Sortiert an Ort und Stelle, aufsteigend."""
+        if id(xs) in _GESEHEN:
+            xs[:] = _GESEHEN[id(xs)]
+            return
+        xs.sort()
+        _GESEHEN[id(xs)] = list(xs)
+    ''')
+>       u, v = _pruefen(tmp_path, monkeypatch, _diff(QUELLE, neu))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_03.py:292: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_a5_gegenprobe_falscher_ca0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0ce0500>
+diff = '--- a/probewerk/werk/kern.py\n+++ b/probewerk/werk/kern.py\n@@ -7,9 +7,16 @@\n     yield from range(n)\n \n \n+_GESEH...:] = _GESEHEN[id(xs)]\n+        return\n     xs.sort()\n+    _GESEHEN[id(xs)] = list(xs)\n \n \n def verbinde(a, b):\n'
+nische = 'schnell', werk_extra = None
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+___________________ test_d_geaenderte_methode_wird_abgelehnt ___________________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_d_geaenderte_methode_wird0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0d10c50>
+
+    def test_d_geaenderte_methode_wird_abgelehnt(tmp_path, monkeypatch):
+        """Review 02 Nr. 11 (p3): an 6243377 „1 von 1 beobachtet“, tragfähig — Klassen gingen nicht in y ein."""
+        # wirkt nur bei betrag == 2 (Last); Werkstest (1) und Vertrag (5) sehen es nicht
+        neu = _ersetzen("        self.stand += betrag\n", "        self.stand += 2 * betrag if betrag == 2 else betrag\n")
+>       u, v = _pruefen(tmp_path, monkeypatch, _diff(QUELLE, neu))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_03.py:301: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_d_geaenderte_methode_wird0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0d10c50>
+diff = '--- a/probewerk/werk/kern.py\n+++ b/probewerk/werk/kern.py\n@@ -45,7 +45,7 @@\n \n     def buchen(self, betrag: int) ... betrag\n+        self.stand += 2 * betrag if betrag == 2 else betrag\n         return self.stand\n \n     @property\n'
+nische = 'schnell', werk_extra = None
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+______________ test_d_gegenprobe_methode_umgeschrieben_ueberlebt _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_d_gegenprobe_methode_umge0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0d12f60>
+
+    def test_d_gegenprobe_methode_umgeschrieben_ueberlebt(tmp_path, monkeypatch):
+        neu = _ersetzen("        self.stand += betrag\n        return self.stand\n",
+                        "        neu = self.stand + betrag\n        self.stand = neu\n        return neu\n")
+>       u, v = _pruefen(tmp_path, monkeypatch, _diff(QUELLE, neu))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_03.py:309: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_d_gegenprobe_methode_umge0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0d12f60>
+diff = '--- a/probewerk/werk/kern.py\n+++ b/probewerk/werk/kern.py\n@@ -45,8 +45,9 @@\n \n     def buchen(self, betrag: int) ...lf.stand + betrag\n+        self.stand = neu\n+        return neu\n \n     @property\n     def doppelt(self) -> int:\n'
+nische = 'schnell', werk_extra = None
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+___________ test_d_zustand_von_self_nach_dem_aufruf_wird_verglichen ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_d_zustand_von_self_nach_d0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0d12d20>
+
+    def test_d_zustand_von_self_nach_dem_aufruf_wird_verglichen(tmp_path, monkeypatch):
+        """Die Rückgabe bleibt gleich, nur der Zustand von self nach dem Aufruf ändert sich."""
+        neu = _ersetzen("        self.stand += betrag\n        return self.stand\n",
+                        "        alt = self.stand\n        self.stand += betrag\n        self.letzte = betrag\n        return alt + betrag\n")
+>       u, v = _pruefen(tmp_path, monkeypatch, _diff(QUELLE, neu))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_03.py:319: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_d_zustand_von_self_nach_d0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0d12d20>
+diff = '--- a/probewerk/werk/kern.py\n+++ b/probewerk/werk/kern.py\n@@ -45,8 +45,10 @@\n \n     def buchen(self, betrag: int)...tand\n+        self.letzte = betrag\n+        return alt + betrag\n \n     @property\n     def doppelt(self) -> int:\n'
+nische = 'schnell', werk_extra = None
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+___________ test_b_richtige_behebung_mit_test_je_muster_kommt_durch ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_b_richtige_behebung_mit_t0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0d12330>
+
+    def test_b_richtige_behebung_mit_test_je_muster_kommt_durch(tmp_path, monkeypatch):
+        """Eine beabsichtigte Verhaltensänderung (normieren ersetzt Weißraum jetzt durch '_') mit einem Test je Muster, das
+        die Sonde zeigt — gewöhnlich, Weißraum, Randweißraum, groß/klein, lang, Zahlform, leer, Nicht-ASCII: überlebt."""
+        neu = _ersetzen('    return " ".join(text.split())\n', '    return "_".join(text.split())\n')
+        # Jeder Test fällt an der Vorgeneration (dort " " statt "_") und besteht am Kandidaten; je Muster einer.
+        # Geändert in Runde 4 (Entscheidung 2: jede Formvariante ein eigenes Merkmal): Tab, Zeilenumbruch, CRLF und NBSP
+        # je ein eigener Test statt eines gemeinsamen Weißraum-Tests.
+        faelle = {"gewoehnlich": ("a b", "a_b"), "tab": ("a\tb", "a_b"), "zeilenumbruch": ("a\nb", "a_b"),
+                  "crlf": ("a\r\nb", "a_b"), "nbsp": ("a\u00a0b", "a_b"), "rand": (" a b ", "a_b"),
+                  "gross": ("A B", "A_B"), "lang": ("x " * 25, "_".join(["x"] * 25)),
+                  "zahlform": ("a 01 2.50", "a_01_2.50"), "nichtascii": ("Ä ö", "Ä_ö"), "doppelt": ("a  b", "a_b")}
+        tests = {f"tests/test_werk_normieren_{n}.py": TEST_NORMIEREN.format(name=n, eingabe=e, erwartet=x) for n, (e, x) in faelle.items()}
+>       u, v = _pruefen(tmp_path, monkeypatch, _diff(QUELLE, neu), nische="sicher", werk_extra=tests)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_03.py:348: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_b_richtige_behebung_mit_t0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0d12330>
+diff = '--- a/probewerk/werk/kern.py\n+++ b/probewerk/werk/kern.py\n@@ -29,7 +29,7 @@\n \n def normieren(text: str) -> str:\n...ernt."""\n-    return " ".join(text.split())\n+    return "_".join(text.split())\n \n \n def _alt(text: str) -> str:\n'
+nische = 'sicher'
+werk_extra = {'tests/test_werk_normieren_gewoehnlich.py': "from probewerk.werk.kern import normieren\n\n\ndef test_normieren_gewoeh...robewerk.werk.kern import normieren\n\n\ndef test_normieren_crlf():\n    assert normieren('a\\r\\nb') == 'a_b'\n", ...}
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+____ test_b_gegenprobe_ohne_test_fuer_das_weissraum_muster_bleibt_abgelehnt ____
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_b_gegenprobe_ohne_test_fu0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0cdb080>
+
+    def test_b_gegenprobe_ohne_test_fuer_das_weissraum_muster_bleibt_abgelehnt(tmp_path, monkeypatch):
+        """Dieselbe Behebung, aber ohne Tests für Weißraum (Tab/Zeilenumbruch/doppelt): die Weißraum-Abweichungen bleiben
+        ungedeckt — die K2868-Lage."""
+        neu = _ersetzen('    return " ".join(text.split())\n', '    return "_".join(text.split())\n')
+        faelle = {"gewoehnlich": ("a b", "a_b"), "rand": (" a b ", "a_b"), "gross": ("A B", "A_B"),
+                  "lang": ("x " * 25, "_".join(["x"] * 25)), "zahlform": ("a 01 2.50", "a_01_2.50"),
+                  "nichtascii": ("Ä ö", "Ä_ö")}
+        tests = {f"tests/test_werk_normieren_{n}.py": TEST_NORMIEREN.format(name=n, eingabe=e, erwartet=x) for n, (e, x) in faelle.items()}
+>       u, v = _pruefen(tmp_path, monkeypatch, _diff(QUELLE, neu), nische="sicher", werk_extra=tests)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_03.py:362: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_b_gegenprobe_ohne_test_fu0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0cdb080>
+diff = '--- a/probewerk/werk/kern.py\n+++ b/probewerk/werk/kern.py\n@@ -29,7 +29,7 @@\n \n def normieren(text: str) -> str:\n...ernt."""\n-    return " ".join(text.split())\n+    return "_".join(text.split())\n \n \n def _alt(text: str) -> str:\n'
+nische = 'sicher'
+werk_extra = {'tests/test_werk_normieren_gewoehnlich.py': "from probewerk.werk.kern import normieren\n\n\ndef test_normieren_gewoeh...n('x x x x x x x x x x x x x x x x x x x x x x x x x ') == 'x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x'\n", ...}
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+_____________ test_b_test_der_nur_nebenbei_ruft_deckt_nicht[False] _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_b_test_der_nur_nebenbei_r0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0cd8380>
+haelt_fest = False
+
+    @pytest.mark.parametrize("haelt_fest", [False, True])
+    def test_b_test_der_nur_nebenbei_ruft_deckt_nicht(tmp_path, monkeypatch, haelt_fest):
+        """Review 02 Nr. 8 (p6): `test_g_neu` sicherte nur g(1) == 2 zu und rief f('a') nebenbei — und deckte f. Hier: der
+        Kandidat ändert normieren und quadrat; der Test ruft normieren("a b") und sichert nur quadrat zu. Verfälscht der
+        Aufzeichner das Ergebnis von normieren, besteht der Test weiter — er hält normieren nicht fest: die gewöhnlichen
+        normieren-Abweichungen bleiben ungedeckt. Gegenprobe (haelt_fest): derselbe Test sichert auch normieren zu — dann
+        sind sie gedeckt."""
+        neu = _ersetzen('    return " ".join(text.split())\n', '    return "_".join(text.split())\n')
+        # quadrat ändert sich nur bei x == 1 — der Werkstest quadrat(4) == 16 sieht es nicht; der neue Test fällt an der
+        # Vorgeneration (quadrat(1) == 1) und besteht am Kandidaten: ein deckender Test im Sinne von Grundsatz 11.
+        neu = neu.replace("    return x * x\n", "    return x * x + (1 if x == 1 else 0)\n")
+        # dieselbe Eingabe wie die Last: der Aufruf trifft jedes Merkmal der Lastabweichungen von normieren
+        zusicherung = ('    assert normieren("  wort   wort  ") == "wort_wort"\n' if haelt_fest
+                       else '    normieren("  wort   wort  ")\n')
+        tests = {"tests/test_werk_nebenbei.py": ('from probewerk.werk.kern import normieren, quadrat\n\n\ndef test_nebenbei():\n'
+                                            + zusicherung + '    assert quadrat(1) == 2\n')}
+>       u, v = _pruefen(tmp_path, monkeypatch, _diff(QUELLE, neu), nische="sicher", werk_extra=tests)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_03.py:386: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_b_test_der_nur_nebenbei_r0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0cd8380>
+diff = '--- a/probewerk/werk/kern.py\n+++ b/probewerk/werk/kern.py\n@@ -24,12 +24,12 @@\n \n def quadrat(x: int) -> int:\n   ...ernt."""\n-    return " ".join(text.split())\n+    return "_".join(text.split())\n \n \n def _alt(text: str) -> str:\n'
+nische = 'sicher'
+werk_extra = {'tests/test_werk_nebenbei.py': 'from probewerk.werk.kern import normieren, quadrat\n\n\ndef test_nebenbei():\n    normieren("  wort   wort  ")\n    assert quadrat(1) == 2\n'}
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+_____________ test_b_test_der_nur_nebenbei_ruft_deckt_nicht[True] ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_b_test_der_nur_nebenbei_r1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0cda570>
+haelt_fest = True
+
+    @pytest.mark.parametrize("haelt_fest", [False, True])
+    def test_b_test_der_nur_nebenbei_ruft_deckt_nicht(tmp_path, monkeypatch, haelt_fest):
+        """Review 02 Nr. 8 (p6): `test_g_neu` sicherte nur g(1) == 2 zu und rief f('a') nebenbei — und deckte f. Hier: der
+        Kandidat ändert normieren und quadrat; der Test ruft normieren("a b") und sichert nur quadrat zu. Verfälscht der
+        Aufzeichner das Ergebnis von normieren, besteht der Test weiter — er hält normieren nicht fest: die gewöhnlichen
+        normieren-Abweichungen bleiben ungedeckt. Gegenprobe (haelt_fest): derselbe Test sichert auch normieren zu — dann
+        sind sie gedeckt."""
+        neu = _ersetzen('    return " ".join(text.split())\n', '    return "_".join(text.split())\n')
+        # quadrat ändert sich nur bei x == 1 — der Werkstest quadrat(4) == 16 sieht es nicht; der neue Test fällt an der
+        # Vorgeneration (quadrat(1) == 1) und besteht am Kandidaten: ein deckender Test im Sinne von Grundsatz 11.
+        neu = neu.replace("    return x * x\n", "    return x * x + (1 if x == 1 else 0)\n")
+        # dieselbe Eingabe wie die Last: der Aufruf trifft jedes Merkmal der Lastabweichungen von normieren
+        zusicherung = ('    assert normieren("  wort   wort  ") == "wort_wort"\n' if haelt_fest
+                       else '    normieren("  wort   wort  ")\n')
+        tests = {"tests/test_werk_nebenbei.py": ('from probewerk.werk.kern import normieren, quadrat\n\n\ndef test_nebenbei():\n'
+                                            + zusicherung + '    assert quadrat(1) == 2\n')}
+>       u, v = _pruefen(tmp_path, monkeypatch, _diff(QUELLE, neu), nische="sicher", werk_extra=tests)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_03.py:386: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_b_test_der_nur_nebenbei_r1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0cda570>
+diff = '--- a/probewerk/werk/kern.py\n+++ b/probewerk/werk/kern.py\n@@ -24,12 +24,12 @@\n \n def quadrat(x: int) -> int:\n   ...ernt."""\n-    return " ".join(text.split())\n+    return "_".join(text.split())\n \n \n def _alt(text: str) -> str:\n'
+nische = 'sicher'
+werk_extra = {'tests/test_werk_nebenbei.py': 'from probewerk.werk.kern import normieren, quadrat\n\n\ndef test_nebenbei():\n    assert normieren("  wort   wort  ") == "wort_wort"\n    assert quadrat(1) == 2\n'}
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+_ test_h1_doppeltes_leerzeichen_deckt_keinen_tab_rueckschritt[x1_doppelt-faelle0-abgelehnt] _
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_h1_doppeltes_leerzeichen_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0ce0cb0>
+fall = 'x1_doppelt'

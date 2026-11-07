@@ -1,0 +1,283 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 42 (Teile 4–165 dieses Stands) · enthält R41 bis R41
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R41 · Teil B: Verfassungsdateien nach Name und Inhalt (nur lesend)
+Beginn: 2026-09-25 16:13:57 CEST (UTC+0200)
+Ende:   2026-09-25 16:14:03 CEST (UTC+0200)
+Dauer:  6.3 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/verfassungen/b1_finden.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/verfassungen/b1_finden.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil B (nur lesend): Verfassungsdateien finden — nach Name und nach Inhalt.
+
+Liest nur. Schreibt nichts außer auf stdout. Führt keinen Biotop-Code aus.
+Ausgabe je Treffer: Pfad (Prüfkanal-Präfix als {LAEUFE}), Bytes, SHA-256, Änderungszeit, Merkmale.
+"""
+import hashlib
+import os
+import sys
+import time
+from pathlib import Path
+
+if os.path.exists('/tmp/biotop-kammer-exklusiv'):
+    print('ABBRUCH: /tmp/biotop-kammer-exklusiv besteht — keine Suchläufe während Zeitmessungen.')
+    sys.exit(3)
+
+SCHLUESSEL = Path('/etc/pruefkanal/schluessel').read_text().strip()
+LAEUFE = f'/var/pruefkanal/oeffentlich/_akte/{SCHLUESSEL}/laeufe'
+
+
+def anzeigen(p: str) -> str:
+    return p.replace(LAEUFE, '{LAEUFE}')
+
+
+WURZELN_INHALT = [
+    '/root/biotop', '/root/biotop-t3', '/root/biotop-vor-t4', '/root/biotop-vor-t4-02', '/root/biotop-vor-t4-03',
+    '/root/biotop-vor-t4-04', '/root/biotop-vor-t4-05', '/root/biotop-vor-t4-06', '/root/versandwerk-t3',
+    '/root/versandwerk-t3-02', '/root/uebungswerk', '/root/uebungswerk2', '/root/uebungswerk-nachlauf',
+    '/root/uebungswerk-p2', '/root/uebungswerk-p3', '/root/uebungswerk-p3b', '/root/uebungswerk-p3c',
+    '/root/uebungswerk-p3d', '/root/w7', '/root/phase-4-vorbedingung-1', '/root/reparatur-01', '/root/reparatur-02',
+    '/root/gesamtstand-01', '/root/wiedereinstieg-01', '/root/biotop-einstieg-20260921-0122',
+]
+PK = sorted(str(p) for p in Path(LAEUFE).iterdir() if p.name.startswith('biotop-') or p.name == 'gedaechtnis')
+WURZELN_INHALT += PK
+# nur nach Namen (keine Inhaltssuche): versiegelte Schwächen, Dokumente Philipps
+WURZELN_NAME = ['/root/versiegelt', '/root/sicherung/biotop-lage-01/arbeit/dokumente', '/root/.hermes/cache/documents']
+
+AUSLASSEN = {'.git', 'node_modules', 'venv', '.venv', '__pycache__', 'dist', 'coverage', '.pytest_cache'}
+ENDUNGEN = {'.md', '.json', '.txt', '.py', '.yaml', '.yml', '.ts', '.mjs', '.js', '.toml'}
+MAX = 2_000_000
+STARK = {
+    'WasEsIst': 'Was es ist',
+    'verbotene_muster': 'verbotene_muster',
+    'uebungswerk_json': '"uebungswerk"',
+    'tragender_pfad': 'tragender_pfad',
+    'VerfassungDes': 'Verfassung des',
+}
+
+
+def sha(p: str) -> str:
+    h = hashlib.sha256()
+    with open(p, 'rb') as f:
+        for b in iter(lambda: f.read(1 << 20), b''):
+            h.update(b)
+    return h.hexdigest()
+
+
+def zeile(p: str, merkmale: str) -> str:
+    st = os.stat(p)
+    mz = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(st.st_mtime))
+    return f'{anzeigen(p)} | {st.st_size} | {sha(p)} | {mz} | {merkmale}'
+
+
+namens, inhalts = [], []
+t0 = time.time()
+gelesen = 0
+for w in WURZELN_INHALT + WURZELN_NAME:
+    if not os.path.isdir(w):
+        print(f'FEHLT: {anzeigen(w)}')
+        continue
+    nur_name = w in WURZELN_NAME
+    for d, dirs, files in os.walk(w):
+        dirs[:] = sorted(x for x in dirs if x not in AUSLASSEN)
+        for fn in sorted(files):
+            p = os.path.join(d, fn)
+            if not os.path.isfile(p) or os.path.islink(p):
+                continue
+            if 'verfassung' in fn.lower():
+                namens.append(p)
+            if nur_name:
+                continue
+            if os.path.splitext(fn)[1].lower() not in ENDUNGEN:
+                continue
+            try:
+                if os.path.getsize(p) > MAX:
+                    continue
+                t = open(p, 'rb').read().decode('utf-8', errors='replace')
+            except OSError:
+                continue
+            gelesen += 1
+            m = [k for k, s in STARK.items() if s in t]
+            # Satz-1-Marke der Werkverfassungen ODER maschinenlesbarer Teil
+            if ('WasEsIst' in m and 'VerfassungDes' in m) or 'verbotene_muster' in m or 'tragender_pfad' in m:
+                inhalts.append((p, ','.join(m)))
+
+print(f'Stand: {time.strftime("%Y-%m-%d %H:%M:%S %Z")} · Wurzeln Inhalt: {len(WURZELN_INHALT)} · nur Name: {len(WURZELN_NAME)}')
+print(f'Prüfkanal-Ordner (biotop-* und gedaechtnis): {len(PK)}')
+print(f'Textdateien inhaltlich gelesen: {gelesen} · Dauer {time.time() - t0:.1f} s')
+print(f'\n== A. Treffer nach Name (enthält „verfassung“, ohne Groß/Klein): {len(namens)}')
+print('Pfad | Bytes | SHA-256 | Änderungszeit (CEST) | —')
+for p in namens:
+    print(zeile(p, '—'))
+print(f'\n== B. Treffer nach Inhalt (Satz-1-Marke „Was es ist“ + „Verfassung des“, oder verbotene_muster, oder tragender_pfad): {len(inhalts)}')
+print('Pfad | Bytes | SHA-256 | Änderungszeit (CEST) | Merkmale')
+for p, m in inhalts:
+    print(zeile(p, m))
+--- Ende /root/sicherung/biotop-lage-01/entwurf/verfassungen/b1_finden.py ---
+Ausgabe (vollständig, stdout und stderr):
+Stand: 2026-09-25 16:14:03 CEST · Wurzeln Inhalt: 45 · nur Name: 3
+Prüfkanal-Ordner (biotop-* und gedaechtnis): 20
+Textdateien inhaltlich gelesen: 37339 · Dauer 6.0 s
+
+== A. Treffer nach Name (enthält „verfassung“, ohne Groß/Klein): 283
+Pfad | Bytes | SHA-256 | Änderungszeit (CEST) | —
+/root/biotop/biotop/organe/verfassung.py | 3692 | ea6443327e8a4bc1c03b9b12d5baf084352834b46783e3b6824909f0603d518e | 2026-09-21 02:45:28 | —
+/root/biotop/pruefung/eichgegenstand_verfassung.py | 3278 | 6ef8c8da49956d722044c8164d146b2368141872b7b82ac696fa515d542fec3f | 2026-09-19 21:48:25 | —
+/root/biotop-t3/VERFASSUNG-02-HTTPS.json | 1366 | 4c69232270ac0239cd14b8d6659206c84724865eb29461bfbf3e7838ff1c9bca | 2026-09-21 03:42:22 | —
+/root/biotop-t3/VERFASSUNG-HTTPS.json | 832 | 7d599d302e9baf81d95b94bbcac6c6689c9d041685acb8fb6942fba9bc5f9ce2 | 2026-09-21 02:27:58 | —
+/root/biotop-t3/VERFASSUNG-T3-02.md | 4418 | 5ece12d93dc760d6bfb834d7d1cd53e29065bd54d673e2381a23d50234f78a28 | 2026-09-21 03:40:41 | —
+/root/biotop-t3/VERFASSUNG-T3-02.regeln.json | 1398 | e750eb4d5033442f842028c5b2fde5c403dedfcf9b2c05260091bc6c0269e54b | 2026-09-21 05:04:33 | —
+/root/biotop-t3/VERFASSUNG-T3-ENTWURF.md | 2498 | d048a77e9faf2e24ae1a8145510d1b8c2f2957747b519d100c14e0ed0a4e0ac0 | 2026-09-21 02:25:10 | —
+/root/biotop-t3/lauf-03-verfassung.txt | 39 | c7b7557ecd05190cb15fe1ddbfafac3e834f177ee86edf7e5094f6c85079e941 | 2026-09-21 05:44:40 | —
+/root/biotop-t3/lauf27-03-verfassung.txt | 39 | c7b7557ecd05190cb15fe1ddbfafac3e834f177ee86edf7e5094f6c85079e941 | 2026-09-21 05:48:34 | —
+/root/biotop-t3/lauf28-03-verfassung.txt | 39 | c7b7557ecd05190cb15fe1ddbfafac3e834f177ee86edf7e5094f6c85079e941 | 2026-09-21 06:05:52 | —
+/root/biotop-t3/lauf29-03-verfassung.txt | 39 | c7b7557ecd05190cb15fe1ddbfafac3e834f177ee86edf7e5094f6c85079e941 | 2026-09-21 06:35:39 | —
+/root/biotop-t3/lauf30-03-verfassung.txt | 39 | c7b7557ecd05190cb15fe1ddbfafac3e834f177ee86edf7e5094f6c85079e941 | 2026-09-21 07:35:13 | —
+/root/biotop-t3/lauf31-03-verfassung.txt | 39 | c7b7557ecd05190cb15fe1ddbfafac3e834f177ee86edf7e5094f6c85079e941 | 2026-09-21 13:11:31 | —
+/root/biotop-t3/lauf32-03-verfassung.txt | 39 | c7b7557ecd05190cb15fe1ddbfafac3e834f177ee86edf7e5094f6c85079e941 | 2026-09-21 15:20:01 | —
+/root/biotop-t3/lauf33-03-verfassung.txt | 39 | c7b7557ecd05190cb15fe1ddbfafac3e834f177ee86edf7e5094f6c85079e941 | 2026-09-21 18:23:40 | —
+/root/biotop-t3/lauf34-03-verfassung.txt | 39 | c7b7557ecd05190cb15fe1ddbfafac3e834f177ee86edf7e5094f6c85079e941 | 2026-09-21 18:46:18 | —
+/root/biotop-t3/lauf35-03-verfassung.txt | 39 | c7b7557ecd05190cb15fe1ddbfafac3e834f177ee86edf7e5094f6c85079e941 | 2026-09-21 19:15:52 | —
+/root/biotop-t3/lauf36-03-verfassung.txt | 39 | c7b7557ecd05190cb15fe1ddbfafac3e834f177ee86edf7e5094f6c85079e941 | 2026-09-21 20:26:26 | —
+/root/biotop-t3/lauf37-03-verfassung.txt | 39 | c7b7557ecd05190cb15fe1ddbfafac3e834f177ee86edf7e5094f6c85079e941 | 2026-09-22 00:21:34 | —
+/root/biotop-t3/lauf38-03-verfassung.txt | 39 | c7b7557ecd05190cb15fe1ddbfafac3e834f177ee86edf7e5094f6c85079e941 | 2026-09-22 15:43:15 | —
+/root/biotop-t3/verfassung02_veroeffentlichen.py | 6559 | 4a0701df6f3375a0e0d4ecc7cad6f08aa1eec0d9817a9b496220d344162929bd | 2026-09-21 03:42:00 | —
+/root/biotop-t3/verfassung_veroeffentlichen.py | 3606 | f91bfb496d14a9dd75a6c96014b8ae7f7051400ed0a60c8b21a35b7bcfc400d8 | 2026-09-21 02:27:45 | —
+/root/biotop-t3/arbeitsstand-sicherung/biotop/organe/verfassung.py | 3692 | ea6443327e8a4bc1c03b9b12d5baf084352834b46783e3b6824909f0603d518e | 2026-09-21 02:45:28 | —
+/root/biotop-t3/arbeitsstand-sicherung/pruefung/eichgegenstand_verfassung.py | 3278 | 6ef8c8da49956d722044c8164d146b2368141872b7b82ac696fa515d542fec3f | 2026-09-19 21:48:25 | —
+/root/biotop-t3/repo-sicherung-vor-commits/biotop/organe/verfassung.py | 3692 | ea6443327e8a4bc1c03b9b12d5baf084352834b46783e3b6824909f0603d518e | 2026-09-21 02:45:28 | —
+/root/biotop-t3/repo-sicherung-vor-commits/pruefung/eichgegenstand_verfassung.py | 3278 | 6ef8c8da49956d722044c8164d146b2368141872b7b82ac696fa515d542fec3f | 2026-09-19 21:48:25 | —
+/root/phase-4-vorbedingung-1/ausgang/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/phase-4-vorbedingung-1/ausgang/pruefung/eichgegenstand_verfassung.py | 3278 | 6ef8c8da49956d722044c8164d146b2368141872b7b82ac696fa515d542fec3f | 2026-09-19 21:48:25 | —
+/root/phase-4-vorbedingung-1/belege/04-verfassung.stderr.txt | 0 | e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 | 2026-09-20 21:32:13 | —
+/root/phase-4-vorbedingung-1/belege/04-verfassung.stdout.txt | 39 | c7b7557ecd05190cb15fe1ddbfafac3e834f177ee86edf7e5094f6c85079e941 | 2026-09-20 21:32:13 | —
+/root/phase-4-vorbedingung-1/privat/verfassung.md | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | 2026-09-20 21:32:13 | —
+/root/phase-4-vorbedingung-1/privat/verfassung.regeln.json | 729 | 74e9d337f7ecf17d84fd6c66e05eeb68e2486b7cc96b900400a1b0becb14fe72 | 2026-09-20 21:32:13 | —
+/root/reparatur-01/eltern-acb/baseline/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-20 04:06:38 | —
+/root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_messgeraetwechsel_od0/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_messgeraetwechsel_od1/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_messgeraetwechsel_od2/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_messgeraetwechsel_od3/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_messgeraetwechsel_od4/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_messgeraetwechsel_od5/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_messgeraetwechsel_od6/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_messgeraetwechsel_od7/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_messgeraetwechsel_od8/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/gegenmutanten/kernmass-bestehende-tests/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/gegenmutanten/pareto-einzelregression/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/gegenmutanten/streuung-falsche-ebene/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vertrag/ausgang-repo/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vertrag/ausgang-repo/pruefung/eichgegenstand_verfassung.py | 3278 | 6ef8c8da49956d722044c8164d146b2368141872b7b82ac696fa515d542fec3f | 2026-09-19 21:48:25 | —
+/root/reparatur-01/nachbesserung-01/vertrag/mutant/repo/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vertrag/mutant/repo/pruefung/eichgegenstand_verfassung.py | 3278 | 6ef8c8da49956d722044c8164d146b2368141872b7b82ac696fa515d542fec3f | 2026-09-19 21:48:25 | —
+/root/reparatur-01/nachbesserung-01/vertrag/patchnachweis/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vertrag/patchnachweis/pruefung/eichgegenstand_verfassung.py | 3278 | 6ef8c8da49956d722044c8164d146b2368141872b7b82ac696fa515d542fec3f | 2026-09-19 21:48:25 | —
+/root/reparatur-01/nachbesserung-01/vertrag/patchpruefung/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vertrag/patchpruefung/pruefung/eichgegenstand_verfassung.py | 3278 | 6ef8c8da49956d722044c8164d146b2368141872b7b82ac696fa515d542fec3f | 2026-09-19 21:48:25 | —
+/root/reparatur-01/nachbesserung-01/vertrag/repo/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vertrag/repo/pruefung/eichgegenstand_verfassung.py | 3278 | 6ef8c8da49956d722044c8164d146b2368141872b7b82ac696fa515d542fec3f | 2026-09-19 21:48:25 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/baseline-repo/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-20 17:34:43 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/baseline-repo/pruefung/eichgegenstand_verfassung.py | 3278 | 6ef8c8da49956d722044c8164d146b2368141872b7b82ac696fa515d542fec3f | 2026-09-20 17:34:43 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/repo/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/repo/pruefung/eichgegenstand_verfassung.py | 3278 | 6ef8c8da49956d722044c8164d146b2368141872b7b82ac696fa515d542fec3f | 2026-09-19 21:48:25 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/05-eich2-aktualitaet-gruen/test_unit_messgeraetwechsel_od0/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/05-eich2-aktualitaet-gruen/test_unit_messgeraetwechsel_od1/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/05-eich2-aktualitaet-gruen/test_unit_messgeraetwechsel_od2/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/05-eich2-aktualitaet-gruen/test_unit_messgeraetwechsel_od3/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/05-eich2-aktualitaet-gruen/test_unit_messgeraetwechsel_od4/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/05-eich2-aktualitaet-gruen/test_unit_messgeraetwechsel_od5/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/05-eich2-aktualitaet-gruen/test_unit_messgeraetwechsel_od6/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/05-eich2-aktualitaet-gruen/test_unit_messgeraetwechsel_od7/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/05-eich2-aktualitaet-gruen/test_unit_messgeraetwechsel_od8/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/07-eich2-bezug-gruen/test_unit_messgeraetwechsel_od0/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/07-eich2-bezug-gruen/test_unit_messgeraetwechsel_od1/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/07-eich2-bezug-gruen/test_unit_messgeraetwechsel_od2/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/07-eich2-bezug-gruen/test_unit_messgeraetwechsel_od3/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/07-eich2-bezug-gruen/test_unit_messgeraetwechsel_od4/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/07-eich2-bezug-gruen/test_unit_messgeraetwechsel_od5/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/07-eich2-bezug-gruen/test_unit_messgeraetwechsel_od6/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/07-eich2-bezug-gruen/test_unit_messgeraetwechsel_od7/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/07-eich2-bezug-gruen/test_unit_messgeraetwechsel_od8/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/12-eich3-bindung-gruen/test_unit_messgeraetwechsel_od0/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/12-eich3-bindung-gruen/test_unit_messgeraetwechsel_od1/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/12-eich3-bindung-gruen/test_unit_messgeraetwechsel_od2/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/12-eich3-bindung-gruen/test_unit_messgeraetwechsel_od3/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/12-eich3-bindung-gruen/test_unit_messgeraetwechsel_od4/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/12-eich3-bindung-gruen/test_unit_messgeraetwechsel_od5/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/12-eich3-bindung-gruen/test_unit_messgeraetwechsel_od6/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/12-eich3-bindung-gruen/test_unit_messgeraetwechsel_od7/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/12-eich3-bindung-gruen/test_unit_messgeraetwechsel_od8/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/14-bestand-und-regression/test_unit_messgeraetwechsel_od0/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/14-bestand-und-regression/test_unit_messgeraetwechsel_od1/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/14-bestand-und-regression/test_unit_messgeraetwechsel_od2/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/14-bestand-und-regression/test_unit_messgeraetwechsel_od3/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/14-bestand-und-regression/test_unit_messgeraetwechsel_od4/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/14-bestand-und-regression/test_unit_messgeraetwechsel_od5/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/14-bestand-und-regression/test_unit_messgeraetwechsel_od6/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/14-bestand-und-regression/test_unit_messgeraetwechsel_od7/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/14-bestand-und-regression/test_unit_messgeraetwechsel_od8/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/21-quellen-vorrang-gruen/test_unit_messgeraetwechsel_od0/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/21-quellen-vorrang-gruen/test_unit_messgeraetwechsel_od1/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/21-quellen-vorrang-gruen/test_unit_messgeraetwechsel_od2/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/21-quellen-vorrang-gruen/test_unit_messgeraetwechsel_od3/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/21-quellen-vorrang-gruen/test_unit_messgeraetwechsel_od4/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/21-quellen-vorrang-gruen/test_unit_messgeraetwechsel_od5/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/21-quellen-vorrang-gruen/test_unit_messgeraetwechsel_od6/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/21-quellen-vorrang-gruen/test_unit_messgeraetwechsel_od7/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/vorstufen/tmp/21-quellen-vorrang-gruen/test_unit_messgeraetwechsel_od8/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/wirkungskreis/ausgang/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/wirkungskreis/ausgang/pruefung/eichgegenstand_verfassung.py | 3278 | 6ef8c8da49956d722044c8164d146b2368141872b7b82ac696fa515d542fec3f | 2026-09-19 21:48:25 | —
+/root/reparatur-01/nachbesserung-01/wirkungskreis/repo/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/wirkungskreis/repo/pruefung/eichgegenstand_verfassung.py | 3278 | 6ef8c8da49956d722044c8164d146b2368141872b7b82ac696fa515d542fec3f | 2026-09-19 21:48:25 | —
+/root/reparatur-01/nachbesserung-01/wirkungskreis/tmp/00-bestand-vorher/test_unit_messgeraetwechsel_od0/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/wirkungskreis/tmp/00-bestand-vorher/test_unit_messgeraetwechsel_od1/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/wirkungskreis/tmp/00-bestand-vorher/test_unit_messgeraetwechsel_od2/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/wirkungskreis/tmp/00-bestand-vorher/test_unit_messgeraetwechsel_od3/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/wirkungskreis/tmp/00-bestand-vorher/test_unit_messgeraetwechsel_od4/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/wirkungskreis/tmp/00-bestand-vorher/test_unit_messgeraetwechsel_od5/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/wirkungskreis/tmp/00-bestand-vorher/test_unit_messgeraetwechsel_od6/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/wirkungskreis/tmp/00-bestand-vorher/test_unit_messgeraetwechsel_od7/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/wirkungskreis/tmp/00-bestand-vorher/test_unit_messgeraetwechsel_od8/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/wirkungskreis/tmp/05-bestand-unit/test_unit_messgeraetwechsel_od0/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/wirkungskreis/tmp/05-bestand-unit/test_unit_messgeraetwechsel_od1/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/wirkungskreis/tmp/05-bestand-unit/test_unit_messgeraetwechsel_od2/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/wirkungskreis/tmp/05-bestand-unit/test_unit_messgeraetwechsel_od3/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/wirkungskreis/tmp/05-bestand-unit/test_unit_messgeraetwechsel_od4/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/wirkungskreis/tmp/05-bestand-unit/test_unit_messgeraetwechsel_od5/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/wirkungskreis/tmp/05-bestand-unit/test_unit_messgeraetwechsel_od6/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/wirkungskreis/tmp/05-bestand-unit/test_unit_messgeraetwechsel_od7/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/wirkungskreis/tmp/05-bestand-unit/test_unit_messgeraetwechsel_od8/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/wirkungskreis/tmp/21-bestand-und-fix-gruen/test_unit_messgeraetwechsel_od0/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/wirkungskreis/tmp/21-bestand-und-fix-gruen/test_unit_messgeraetwechsel_od1/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/wirkungskreis/tmp/21-bestand-und-fix-gruen/test_unit_messgeraetwechsel_od2/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/wirkungskreis/tmp/21-bestand-und-fix-gruen/test_unit_messgeraetwechsel_od3/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/wirkungskreis/tmp/21-bestand-und-fix-gruen/test_unit_messgeraetwechsel_od4/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/wirkungskreis/tmp/21-bestand-und-fix-gruen/test_unit_messgeraetwechsel_od5/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/wirkungskreis/tmp/21-bestand-und-fix-gruen/test_unit_messgeraetwechsel_od6/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/wirkungskreis/tmp/21-bestand-und-fix-gruen/test_unit_messgeraetwechsel_od7/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-01/wirkungskreis/tmp/21-bestand-und-fix-gruen/test_unit_messgeraetwechsel_od8/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-02/messung/repo/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-02/messung/repo/pruefung/eichgegenstand_verfassung.py | 3278 | 6ef8c8da49956d722044c8164d146b2368141872b7b82ac696fa515d542fec3f | 2026-09-19 21:48:25 | —
+/root/reparatur-01/nachbesserung-02/repo/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-02/repo/pruefung/eichgegenstand_verfassung.py | 3278 | 6ef8c8da49956d722044c8164d146b2368141872b7b82ac696fa515d542fec3f | 2026-09-19 21:48:25 | —
+/root/reparatur-01/nachbesserung-02/verbraucher/repo/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-02/verbraucher/repo/pruefung/eichgegenstand_verfassung.py | 3278 | 6ef8c8da49956d722044c8164d146b2368141872b7b82ac696fa515d542fec3f | 2026-09-19 21:48:25 | —
+/root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_messgeraetwechsel_od0/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_messgeraetwechsel_od1/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_messgeraetwechsel_od2/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_messgeraetwechsel_od3/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_messgeraetwechsel_od4/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_messgeraetwechsel_od5/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_messgeraetwechsel_od6/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_messgeraetwechsel_od7/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_messgeraetwechsel_od8/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-9/test_unit_messgeraetwechsel_od0/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-9/test_unit_messgeraetwechsel_od1/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-9/test_unit_messgeraetwechsel_od2/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-9/test_unit_messgeraetwechsel_od3/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-9/test_unit_messgeraetwechsel_od4/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —
+/root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-9/test_unit_messgeraetwechsel_od5/instrument/biotop/organe/verfassung.py | 3475 | 6d96d766b0a37220039f5ce107179dd7f3d99a6dce34752477a04ccb34f5747a | 2026-09-19 00:41:50 | —

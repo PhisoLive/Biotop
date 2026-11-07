@@ -1,0 +1,90 @@
+{
+  "passed": false,
+  "review_type": "Unabhängiges fail-closed Abschlussreview ausschließlich des eingegrenzten Reparaturkerns",
+  "source_snapshot": "/root/reparatur-01/review-02/repo",
+  "summary": "Kern nicht freigegeben: Ein übersprungener benannter Vertragszeuge wird als bestandener, gültig ausgeführter Gegenfall anerkannt. Die gelieferten realen Paare und CLI-Belege sind damit nicht widerlegt; sie decken diesen Kontrollgültigkeitsfehler nicht ab.",
+  "security_concerns": [],
+  "logic_errors": [
+    {
+      "id": "KERN-EICH4-SKIP",
+      "priority": "P1",
+      "severity": "high",
+      "title": "Übersprungener benannter Vertragstest zählt als gültige negative Kontrolle",
+      "file": "/root/reparatur-01/review-02/repo/biotop/organe/eichproben.py",
+      "line": 230,
+      "end_line": 245,
+      "related_locations": [
+        {"file": "/root/reparatur-01/review-02/repo/biotop/organe/aegis.py", "line": 89, "end_line": 95, "reason": "JUnit-Parser prüft failure/error, ignoriert aber skipped und erzeugt dafür ok=true, bestaetigt=false, meldung=leer."},
+        {"file": "/root/reparatur-01/review-02/repo/biotop/organe/eichproben.py", "line": 464, "end_line": 471, "reason": "Der neue Vertragsgültigkeitscheck übernimmt diese Erfolgshülle; ein tatsächlicher anderer Kammeraufruf genügt für ausgefuehrt."},
+        {"file": "/root/reparatur-01/review-02/repo/biotop/organe/eichproben.py", "line": 481, "end_line": 486, "reason": "Batterieverbraucher vertraut ausgefuehrt/pruefbar/bestanden."},
+        {"file": "/root/reparatur-01/review-02/repo/biotop/organe/vorspann.py", "line": 66, "end_line": 78, "reason": "Qualitätsgrenze nimmt dieselben Flags als Nachweis für vier gültige Gegenproben."},
+        {"file": "/root/reparatur-01/review-02/repo/tests/test_review_vertrag.py", "line": 86, "end_line": 106, "reason": "Vorhandene Defektmatrix prüft setup/aufruf/sammlung/fehlend, jedoch keinen übersprungenen benannten Test."}
+      ],
+      "scope_reason": "Unmittelbare Verletzung des verbliebenen Kernkriteriums: Eine unausgeführte oder unbrauchbare Gegenprobe darf nicht als gültige Negativkontrolle zählen. Keine Verbindung zu den vier zurückgestellten Mechanismen ist für diesen Fehler nötig.",
+      "new_or_regressed": "Die Skip-Fehlklassifikation des gemeinsam genutzten JUnit-Parsers besteht schon außerhalb des neuen Diffs. Der neu eingeführte EICH-4-Vertragsgültigkeitscheck benutzt diese Hülle jedoch als Ausführungsnachweis und schließt dadurch die ausdrücklich geforderte Kernlücke nicht vollständig.",
+      "explanation": "Ein pytest_setup-Hook überspringt ausschließlich test_eichprobe_vertrag_neue_zusicherung. Der Verbraucher und der alte Vertrag laufen tatsächlich grün. Der originale Vertragsbauer erzeugt die angepasste Gegenprobe; deren echtes lokales JUnit enthält für den benannten neuen Vertrag ein skipped-Element. Der unveränderte originale Parser gibt dennoch ok=true zurück. _vertrag_pruefbar(belege, True) liefert true. Auch der originale _einzelprobe-Produzent liefert an einer explizit kontrollierten Maßgrenze ausgefuehrt=true, pruefbar=true, bestanden=false. Ein nachgelagerter, ausdrücklich zusammengesetzter Verbraucher-Unit-Replay akzeptiert diese Zeile neben sieben vorhandenen Eltern-Belegzeilen als vollständige Batterie. Das ist kein Nachweis einer frisch ausgeführten, fälschlich grünen Docker-Gesamtbatterie; bereits die direkte Anerkennung des nicht ausgeführten benannten Zeugen verletzt den Kernvertrag.",
+      "minimal_reproduction": {
+        "command": "PYTHONPATH=/root/reparatur-01/review-02/pruefer-kern/guard:/root/reparatur-01/review-02/pruefer-kern/arbeitskopie PYTHONDONTWRITEBYTECODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 TMPDIR=/root/reparatur-01/review-02/pruefer-kern/tmp BIOTOP_DB=/root/reparatur-01/review-02/pruefer-kern/tmp/unused.db /root/reparatur-01/venv/bin/python /root/reparatur-01/review-02/pruefer-kern/repro_skip_vertragszeuge.py",
+        "steps": [
+          "Reviewer-eigenes synthetisches Werk anlegen: bericht(EINGABE)==3, EINGABE=2, vorhandener Lieferantenvertrag.",
+          "Den neuen benannten Vertrag im pytest_setup überspringen. runpy.run_path im lokalen Fixture zusätzlich sperren, damit generierter Testcode niemals auf dem Host ausgeführt wird.",
+          "Original _vertrag_vorbereiten(..., gegenprobe=True) aufrufen; nur Kammer-I/O durch lokales pytest am eigenen Fixture ersetzen. Originalen JUnit-Parser unverändert verwenden.",
+          "Roh-JUnit mit der originalen Gültigkeitsentscheidung vergleichen.",
+          "Zusätzlich Original-_einzelprobe an ausdrücklich gestellten gültigen Maß-Unit-Eingaben ausführen; anschließend Flags durch _vollstaendig und _qualitaet im gekennzeichneten Verbraucher-Replay geben."
+        ],
+        "expected": "Der benannte übersprungene Vertragszeuge macht pruefbar=false; keine gültige negative Kontrolle, kein Qualitätszähler negative=4 aus dieser Zeile.",
+        "actual": {
+          "repro_exit_code": 1,
+          "failure": "AssertionError: Skipped named contract is incorrectly accepted as executed/passing negative control",
+          "raw_target_skipped": true,
+          "parsed_target": {"ok": true, "bestaetigt": false, "meldung": ""},
+          "accepted_as_valid_countercase": true,
+          "original_einzelprobe_at_unit_measurement_boundary": {"ausgefuehrt": true, "pruefbar": true, "bestanden": false},
+          "consumer_unit_replay": {"battery_complete": true, "quality": {"positive": 4, "negative": 4, "erwartet_je": 4}}
+        },
+        "measurement_boundaries": "Eigene lokale pytest-Fixture, kein Docker, keine Modelle. JUnit ist real erzeugt, nicht konstruiert. Der minimale Parser-/Prädikatrepro braucht keine Maßhülle. Die zusätzliche _einzelprobe-Prüfung benutzt gekennzeichnete Maß-Doubles; der Verbraucher-Replay kombiniert Aufzeichnungen und behauptet keine neue Vollbatterie. Die absichtlich unbrauchbare Fixture wird als Fehlernachweis verwendet, niemals als erfolgreiche Gegenprobe."
+      },
+      "evidence": [
+        {"file": "/root/reparatur-01/review-02/pruefer-kern/repro-skip/result.json", "json_pointer": "/accepted_as_valid_countercase", "description": "Minimaler direkter Originalparser-/Originalprädikatrepro ohne Maßhülle."},
+        {"file": "/root/reparatur-01/review-02/pruefer-kern/repro-skip/call-2/junit.xml", "line": 1, "description": "Echtes JUnit: neuer benannter Vertrag skipped; zwei andere Tests bestanden."},
+        {"file": "/root/reparatur-01/review-02/pruefer-kern/repro-skip-2/result.json", "json_pointer": "/original_einzelprobe_unit_row", "description": "Wiederholung und Fortleitung am Originalproduzenten mit expliziter Maß-Unit-Grenze."},
+        {"file": "/root/reparatur-01/review-02/pruefer-kern/repro-skip-2/result.json", "json_pointer": "/consumer_unit_replay", "description": "Kein frischer Lauf: gekennzeichneter Verbraucher-Replay akzeptiert die ungültige Zeile."},
+        {"file": "/root/reparatur-01/review-02/pruefer-kern/skip-repro-expanded.stderr.txt", "line": 1, "description": "Assertion am exakten Sollkriterium; kein Infrastruktur-/Sammlungsfehler des Repros."},
+        {"file": "/root/reparatur-01/review-02/pruefer-kern/skip-repro-expanded.execution.json", "description": "Exakter Aufruf, Importpfade, TMPDIR, Exitcode."}
+      ],
+      "suggested_fix": "JUnit übersprungen/ausgeführt explizit bewahren und übersprungene Pflichtzeugen nicht als ok werten. Der benannte Vertrag und Verbraucher müssen echte ausgeführte Erfolgszeugen besitzen. Skip-/xfail-Fälle neben vorhandenen Fixture-/Sammlungsfehlern ergänzen und bis zum Original-Gültigkeitsverbraucher prüfen. Keine Schwelle ändern."
+    }
+  ],
+  "suggestions": [],
+  "deferred_findings": [
+    {"id": "P4-01", "original_ids": ["EICH-1", "MASS-01"], "title": "Wirkungskreis einschließlich transitiver Folgen", "status": "offen, ausdrücklich zurückgestellt, nicht behoben", "review_action": "Keine neue Reproduktion, nicht Grundlage für passed=false.", "exact_location": {"file": "/var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/auftragseingrenzung-01/PHASE-4-LUECKEN.md", "line": 5, "end_line": 9}},
+    {"id": "P4-02", "original_ids": ["EICH-3"], "title": "Vertragsaustausch nach Vorspann vor Freeze", "status": "offen, ausdrücklich zurückgestellt, nicht behoben", "review_action": "Keine neue Reproduktion, nicht Grundlage für passed=false.", "exact_location": {"file": "/var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/auftragseingrenzung-01/PHASE-4-LUECKEN.md", "line": 11, "end_line": 15}},
+    {"id": "P4-03", "original_ids": ["MASS-02"], "title": "NaN/Null im Rausch-Collector", "status": "offen, ausdrücklich zurückgestellt, nicht behoben", "review_action": "Keine neue Reproduktion, nicht Grundlage für passed=false.", "exact_location": {"file": "/var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/auftragseingrenzung-01/PHASE-4-LUECKEN.md", "line": 17, "end_line": 21}},
+    {"id": "P4-04", "original_ids": ["EICH-2"], "title": "Gen0-Erfolgs-/Vorstufenbindung beim Maß-Freeze", "status": "offen, ausdrücklich zurückgestellt, nicht behoben", "review_action": "Keine neue Reproduktion und keine Freeze-Abnahme. Der geprüfte Gen0-Eingang ist davon getrennt. Nicht Grundlage für passed=false.", "exact_location": {"file": "/var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/auftragseingrenzung-01/PHASE-4-LUECKEN.md", "line": 23, "end_line": 27}}
+  ],
+  "verified_checks": {
+    "parent_suite": {"tests": 188, "failures": 0, "errors": 0, "skipped": 0, "raw_chambers": 243, "unique_containers": 243, "python_source_hashes_matching_snapshot": 36, "evidence": "belegabgleich.json"},
+    "real_eich_pairs": {"positive": 4, "valid_false_counterpredicates": 4, "chambers": 38, "model_calls": 0, "eur": 0, "status": "Gelieferte konkrete Paare durch Originalprädikate nachgerechnet; Vertragszeugen zusätzlich direkt aus Roh-JUnit geprüft, dort keine übersprungenen Pflichtzeugen.", "evidence": "belegabgleich.json"},
+    "kernmass_pareto": {"discoverable_cases": 15, "before_other_tests": true, "source_locations": ["tests/test_kernmass_pareto.py:6-74", "tests/conftest.py:8-18", "tests/test_testreihenfolge.py:8-20", "biotop/kern/messgeraet.py:265-297"], "sensitivity": [{"mutation": "bestandene Tests fälschlich belohnen", "failures": 3, "of": 15, "evidence": "sensitivity-kern-belohnt-gruen.xml"}, {"mutation": "Pareto-Einzelregression entfernen", "failures": 1, "of": 15, "evidence": "sensitivity-pareto-ohne-einzeltest.xml"}], "boundary": "Mutationen nur prozesslokal für Empfindlichkeitsnachweis, keinerlei Quell- oder Schwellenänderung."},
+    "own_unmodified_core_tests": {"passed": 37, "of": 37, "evidence": "core-unit.xml"},
+    "own_gen0_route": {"passed": 2, "of": 2, "invalid_battery_stops_before_gen0_body": true, "valid_battery_reaches_original_gen0_entry": true, "evidence": "gen0-route.xml", "boundary": "Echte Gate-/DB-/Protokoll- und Gen0-Eingangsmechanik; Eichung, Infrastruktur, Mutantenmessung explizite Unit-Doubles; kein Freeze."},
+    "real_parent_vorspann_cli": {"rc": 0, "chambers": 83, "source_hashes_including_dockerfile_matching_snapshot": 37, "proof_stdout_record_and_hash_equal": true, "gen0_proof_usable_recorded": true, "model_charges": 0, "evidence": "cli-belegabgleich.json", "boundary": "Reale private -1-CLI durch Elternaufzeichnungen; Gen0-Nachweis verwendbar, keine Behauptung einer echten Gen0-Ausführung oder Freeze-Abnahme."},
+    "real_parent_missing_proof_cli": {"refused": 3, "of": 3, "phases": ["gen0", "mass", "generation"], "exit_codes": [1, 1, 1], "chambers": 0, "evidence": "cli-belegabgleich.json"},
+    "old_eich4_clone_symptom": {"status": "Der neue Modulkontextaufruf bewahrt Konstanten/Helfer statt nur Imports und Test-AST zu kopieren; zugehörige Eltern-Kammertests sind grün. Diese konkrete Reparatur widerlegt nicht den neuen Skip-Befund.", "source_location": "biotop/organe/eichproben.py:386-420", "tests": ["tests/test_review_vertrag.py:40-53", "tests/test_review_vertrag.py:109-144"], "evidence": "elternbelege/48-gesamtsuite-kernabschluss.xml"},
+    "static_token_hit": {"status": "Kein Secret: ContextVar.set-Rücksetztoken, im finally an reset übergeben.", "exact_location": "biotop/organe/kammer.py:96-107"},
+    "snapshot_integrity": {"unchanged": true, "files": 126, "entries_including_directories": 137, "checks": ["SHA-256", "mtime_ns", "size", "path set", "file type"], "evidence": "quellzustand-vergleich.json"}
+  },
+  "execution_limits": {
+    "reviewer_paid_model_calls": 0,
+    "reviewer_docker_calls": 0,
+    "network_disabled_for_review_jobs": true,
+    "production_db_or_werk_access": false,
+    "source_snapshot_writes": false,
+    "integration": false,
+    "working_copy": "/root/reparatur-01/review-02/pruefer-kern/arbeitskopie",
+    "tmpdir": "/root/reparatur-01/review-02/pruefer-kern/tmp",
+    "runpy_generated_contract_on_host": false,
+    "scope_authority": "/var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/auftragseingrenzung-01/AUFTRAGGEBER-WORTLAUT.txt",
+    "not_claimed": ["Allgemeine Fehlerfreiheit aller späteren Laufstufen", "Erledigung der vier Phase-4-Lücken", "Frische reale Docker-Gesamtbatterie mit Skip-Defekt", "Technische Unmöglichkeit von Fehlern wegen Werkgröße"]
+  }
+}

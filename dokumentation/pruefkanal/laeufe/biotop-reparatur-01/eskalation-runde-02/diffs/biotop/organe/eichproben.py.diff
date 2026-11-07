@@ -1,0 +1,16 @@
+--- a/biotop/organe/eichproben.py
++++ b/biotop/organe/eichproben.py
+@@ -464,6 +464,13 @@
+         pruefbar = bool(messung.get("gueltig") and (messung.get("_basis_paar") or {}).get("gueltig"))
+         if name == "vertrag":
+             pruefbar = pruefbar and _vertrag_pruefbar(belege, gegenprobe)
++        elif name == "norm":
++            # Die Gegenprobe misst ohne Normtest; dessen JUnit-Paar bleibt Pflicht.
++            n = f"{belege['testpfad']}::{belege['testname']}"
++            vorher, nachher = belege["basis_tests"].get(n, {}), belege["kandidat_tests"].get(n, {})
++            pruefbar = bool(pruefbar and vorher.get("ok") is False and vorher.get("bestaetigt") is True
++                            and vorher.get("meldung", "").startswith(("AssertionError", "assert"))
++                            and nachher.get("ok") is True)
+         return {"kandidat": kid, "ausgefuehrt": bool(aufrufe), "pruefbar": pruefbar,
+                 "bestanden": _bestanden(name, belege), "belege": belege, "status": u["status"],
+                 "grund": u["grund"], "befund": beschreibung, "gegenprobe": gegenprobe, "diff": diff,

@@ -1,0 +1,10 @@
+#!/bin/bash
+# Eingefrorene Kopie von HEAD (43b8fad) für die Stufe-2-Eichung, dann die Eichung im Hintergrund-Job
+set -u
+K=/tmp/r5-baum-43b8fad
+rm -rf $K && mkdir -p $K
+git -C /root/biotop archive 43b8fad | tar -x -C $K
+echo "kopie $(find $K -type f | wc -l) Dateien"
+cd /root/biotop-vor-t4-05/proben
+BIOTOP_AUFTRAG_LAUF_AB=26 BIOTOP_AUFTRAG_BUDGET_EUR=10 /root/biotop-t3/venv/bin/python -B stufe2_eichung.py $K > STUFE2-EICHUNG.txt 2>&1
+echo "eichung rc=$?"

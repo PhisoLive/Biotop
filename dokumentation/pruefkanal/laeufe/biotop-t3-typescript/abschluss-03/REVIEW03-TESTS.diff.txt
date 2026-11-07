@@ -1,0 +1,117 @@
+diff --git a/tests/test_t3_masseichung.py b/tests/test_t3_masseichung.py
+index a65aaf7..0cde625 100644
+--- a/tests/test_t3_masseichung.py
++++ b/tests/test_t3_masseichung.py
+@@ -140,3 +140,16 @@ def test_eichung_meldet_jede_regel_mit_nenner():
+     assert e['funde_im_sauberen'] == {'security/detect-object-injection': 2}
+     assert e['regeln_geprueft'] == 2
+     assert e['regeln_stillgelegt'] == 1
++
++
++def test_anwenden_mit_anderer_eichung_ist_ein_fehler():
++    """REVIEW-03 Nr. 20: „schon geeicht“ wurde nur am Marker erkannt — eine andere Eichung blieb still wirkungslos."""
++    messung = _messung({'zahlen': [_befund('security/detect-object-injection', 'src/zahlen/a.ts')],
++                        'tarife': [_befund('no-new-func', 'src/tarife/b.ts', 10, 'HIGH')]})
++    e1 = {'sauberer_bereich': 'zahlen', 'stillgelegt': ['security/detect-object-injection']}
++    einmal = masseichung.anwenden(messung, e1)
++    assert masseichung.anwenden(einmal, e1) is einmal                      # dieselbe Eichung: idempotent
++    with pytest.raises(masseichung.MasseichungFehler, match='andere'):
++        masseichung.anwenden(einmal, {'sauberer_bereich': 'zahlen', 'stillgelegt': ['no-new-func']})
++    with pytest.raises(masseichung.MasseichungFehler, match='andere'):
++        masseichung.anwenden(einmal, {'sauberer_bereich': 'zahlen', 'stillgelegt': []})
+diff --git a/tests/test_t3_verhaltensvergleich.py b/tests/test_t3_verhaltensvergleich.py
+index d5e4f4d..1036aed 100644
+--- a/tests/test_t3_verhaltensvergleich.py
++++ b/tests/test_t3_verhaltensvergleich.py
+@@ -134,10 +134,11 @@ def test_ohne_quellaenderung_nichts_zu_vergleichen(ts_werk):
+     assert r['geurteilt'] is True
+ 
+ 
+-def test_ohne_referenzlast_ist_gleichheit_unbelegt(ts_werk):
+-    r = vv.pruefen(ts_werk, {'src/zahlen/a.ts': 'x'}, None, ['zahlen'], {})
+-    assert r['ausgefuehrt'] is False and r['tragfaehig'] is False
+-    assert r['grund_art'] == 'ohne_referenzlast'
++def test_ohne_referenzlast_haelt_an(ts_werk):
++    # Geändert mit REVIEW-03 Nr. 3: früher „tragfähig False“ — eine fehlende Referenzlast ist Konfiguration, kein
++    # Urteil über den Kandidaten, und käme als Ablehnung ins Projektgedächtnis.
++    with pytest.raises(vv.SondeAusgefallen, match='Referenzlast'):
++        vv.pruefen(ts_werk, {'src/zahlen/a.ts': 'x'}, None, ['zahlen'], {})
+ 
+ 
+ def test_unausfuehrbare_sonde_ist_kein_beleg_fuer_gleichheit(ts_werk, monkeypatch):
+@@ -167,3 +168,75 @@ def test_abweichung_ohne_deckenden_test_ist_ablehnung(ts_werk, monkeypatch):
+     r = vv.pruefen(ts_werk, {'src/m/a.ts': 'x'}, 'last', ['m'], {})
+     assert r['tragfaehig'] is False and r['ungedeckt'] == ['m/a:f#0@mutation']
+     assert r['werte']['m/a:f#0@mutation'] == ['300', '3']
++
++
++# ---------------------------------------------------------------- REVIEW-03 Nr. 2, 3, 5
++def _seite(beob, eingewickelt, aufgerufen):
++    return {'gueltig': True, 'beobachtungen': beob, 'eingewickelt': eingewickelt, 'aufgerufen': aufgerufen}
++
++
++def test_unbeobachtetes_modul_ist_enthaltung_kein_urteil(ts_werk, monkeypatch):
++    """Nr. 2 (K3106): 7 Funktionen eingewickelt, 0 gerufen — und doch „geurteilt, keine Abweichung“."""
++    korpus = {'korpus:last_bericht#0': '42'}
++    eing = {'bericht/tabelle': ['breiten', 'zeile']}
++    seiten = iter([_seite(korpus, eing, {}), _seite(korpus, eing, {})])
++    monkeypatch.setattr(vv, 'beobachten', lambda *a, **k: next(seiten))
++    r = vv.pruefen(ts_werk, {'src/bericht/tabelle.ts': 'x'}, 'last', ['bericht'], {})
++    assert r['geurteilt'] is False and r['tragfaehig'] is True
++    assert r['grund_art'] == 'unbeobachtet'
++    assert r['unbeobachtete_module'] == ['bericht/tabelle']
++    assert r['beobachtete_funktionen'] == '0 von 2'
++
++
++def test_gegenprobe_beobachtetes_modul_wird_geurteilt(ts_werk, monkeypatch):
++    beob = {'bericht/tabelle:breiten#0': '[0,0]'}
++    eing = {'bericht/tabelle': ['breiten', 'zeile']}
++    seiten = iter([_seite(beob, eing, {'bericht/tabelle:breiten': 1}), _seite(beob, eing, {'bericht/tabelle:breiten': 1})])
++    monkeypatch.setattr(vv, 'beobachten', lambda *a, **k: next(seiten))
++    r = vv.pruefen(ts_werk, {'src/bericht/tabelle.ts': 'x'}, 'last', ['bericht'], {})
++    assert r['geurteilt'] is True and r['tragfaehig'] is True and r['grund_art'] == 'geurteilt'
++    assert r['unbeobachtete_module'] == [] and r['beobachtete_funktionen'] == '1 von 2'
++
++
++def test_ungedeckte_abweichung_lehnt_ab_auch_neben_einem_unbeobachteten_modul(ts_werk, monkeypatch):
++    alt = {'zahlen/statistik:quantil#0@mutation': '300'}
++    neu = {'zahlen/statistik:quantil#0@mutation': '3'}
++    eing = {'zahlen/statistik': ['quantil'], 'bericht/tabelle': ['breiten']}
++    seiten = iter([_seite(alt, eing, {'zahlen/statistik:quantil': 1}), _seite(neu, eing, {'zahlen/statistik:quantil': 1})])
++    monkeypatch.setattr(vv, 'beobachten', lambda *a, **k: next(seiten))
++    r = vv.pruefen(ts_werk, {'src/zahlen/statistik.ts': 'x', 'src/bericht/tabelle.ts': 'y'}, 'last', ['zahlen'], {})
++    assert r['geurteilt'] is True and r['tragfaehig'] is False
++    assert r['unbeobachtete_module'] == ['bericht/tabelle']
++
++
++@pytest.mark.parametrize('seite', ['vorgeneration', 'kandidat'])
++def test_ausgefallene_sonde_haelt_an_statt_abzulehnen(ts_werk, monkeypatch, seite):
++    """Nr. 3: Kammerabbruch/Zeitlimit (art 'infrastruktur') ist ein totes Messgerät, kein Urteil über den Kandidaten."""
++    ok = _seite({'m/a:f#0': '1'}, {'m/a': ['f']}, {'m/a:f': 1})
++    tot = {'gueltig': False, 'art': 'infrastruktur', 'grund': 'Kammer: Zeitlimit 240 s'}
++    seiten = iter([tot, ok] if seite == 'vorgeneration' else [ok, tot])
++    monkeypatch.setattr(vv, 'beobachten', lambda *a, **k: next(seiten))
++    with pytest.raises(vv.SondeAusgefallen, match='Zeitlimit'):
++        vv.pruefen(ts_werk, {'src/m/a.ts': 'x'}, 'last', ['m'], {})
++
++
++def test_unbeobachtbare_vorgeneration_ist_enthaltung(ts_werk, monkeypatch):
++    """Nr. 3(b): scheitert die Sonde mit Inhalt an der Vorgeneration, betrifft das den Kandidaten nicht."""
++    seiten = iter([{'gueltig': False, 'art': 'inhalt', 'grund': 'Modul lässt sich nicht einwickeln'}])
++    monkeypatch.setattr(vv, 'beobachten', lambda *a, **k: next(seiten))
++    r = vv.pruefen(ts_werk, {'src/m/a.ts': 'x'}, 'last', ['m'], {})
++    assert r['geurteilt'] is False and r['tragfaehig'] is True
++    assert r['grund_art'] == 'sonde_vorgeneration_inhalt'
++
++
++def test_verhandlung_besteht_nicht_mit_ungedeckter_verhaltensabweichung():
++    """Nr. 5: paar_ok sah nur Vertrag, Pareto und Grenzmaße — eine Ablehnung durch den Verhaltensvergleich beendete die
++    Suche nach einer passenden Anpassung und wurde als „Verhandlung bestanden“ protokolliert."""
++    from biotop import lauf as L
++    mass = {'ok': False, 'grund': 'Verhaltensvergleich: 1 von 1 Abweichung(en) ungedeckt', 'kern_basis': -1,
++            'kern_kandidat': 0, 'zuwachs': 1, 'pareto_schlechter': [], 'grenzen_gerissen': []}
++    u = {'vertrag_verletzt': [], 'mass': mass, 'verhalten': {'tragfaehig': False, 'geurteilt': True}}
++    assert L.paar_bestanden(u) is False
++    assert L.paar_bestanden({**u, 'verhalten': {'tragfaehig': True, 'geurteilt': True}}) is True
++    assert L.paar_bestanden({**u, 'verhalten': None}) is True     # Maß lehnte vorher ab: kein Verhaltensurteil
++    assert L.paar_bestanden({**u, 'verhalten': None, 'vertrag_verletzt': ['v1']}) is False

@@ -1,0 +1,37 @@
+#!/bin/bash
+# Zweiter Commit der Behebungsrunde vor T4 (Review-Befunde), danach volle Regression am Commit, dann die Nachspiele am
+# Commit (Review Nr. 7) und die Python-Laufzeitprobe (Review Nr. 8b). Nacheinander, keine parallelen Kammerläufe.
+# Kein Modellaufruf. Geschichte wird nicht umgeschrieben (neuer Commit auf 58bd9f9).
+set -u
+A=/root/biotop-vor-t4
+cd /root/biotop
+echo "=== start $(date -Is) HEAD=$(git rev-parse --short HEAD)"
+while pgrep -f "sperre_gegenprobe.py|s1_klaerung.py|s1_deckung.py|nachspiel_echte_sitzung.py" > /dev/null; do sleep 15; done
+echo "=== Signatur-/Importzeilen im Diff gegen HEAD (Fallstrick Textersetzung)"
+git diff HEAD | grep '^[-+]def \|^[-+]from \|^[-+]import ' || true
+git add -A biotop tests
+git status --short
+git commit -q -F $A/COMMIT2-NACHRICHT.txt
+echo "commit-rc=$?"
+git log --oneline -3
+git status --short -- biotop tests; echo "(Ende Status)"
+git show --stat HEAD | tail -20 > $A/COMMIT2-STAT.txt
+git show HEAD > $A/KERN-COMMIT2.patch.txt
+echo "patch $(wc -l < $A/KERN-COMMIT2.patch.txt) Zeilen"
+echo "regression start $(date -Is) HEAD=$(git rev-parse --short HEAD) fremde_container=$(docker ps -q | wc -l)"
+export BIOTOP_KAMMER_IMAGE=biotop-kammer:ts1 BIOTOP_AUFTRAG_LAUF_AB=26 BIOTOP_AUFTRAG_BUDGET_EUR=10
+export T3_VERDRAHTUNG_BELEG=$A/VERDRAHTUNG-BELEG-REGRESSION2.json
+/root/biotop-t3/venv/bin/python -m pytest tests/ -q -m "not integration" -p no:cacheprovider -rfEs --durations=8 \
+  --junitxml=$A/REGRESSION2-VOR-T4.junit.xml > $A/REGRESSION2-VOR-T4.txt 2>&1
+echo "regression pytest-rc=$? $(tail -1 $A/REGRESSION2-VOR-T4.txt)"
+git status --short -- biotop tests; echo "(Ende Status nach Regression)"
+echo "nachspiele start $(date -Is) HEAD=$(git rev-parse --short HEAD) fremde_container=$(docker ps -q | wc -l)"
+mkdir -p $A/nachspiel2
+NACHSPIEL_AUS=$A/nachspiel2 BIOTOP_KAMMER_IMAGE=biotop-kammer:ts1 /root/biotop-t3/venv/bin/python $A/nachspiel_vor_t4.py \
+  > $A/NACHSPIEL2-AM-COMMIT.txt 2>&1
+echo "nachspiele rc=$?"
+echo "python-laufzeit start $(date -Is)"
+BIOTOP_KAMMER_IMAGE=biotop-kammer:1 /root/biotop-t3/venv/bin/python $A/python_laufzeit_probe.py > $A/PYTHON-LAUFZEIT-PROBE.txt 2>&1
+echo "python-laufzeit rc=$?"
+git status --short -- biotop tests; echo "(Ende Status)"
+echo "ende $(date -Is)"

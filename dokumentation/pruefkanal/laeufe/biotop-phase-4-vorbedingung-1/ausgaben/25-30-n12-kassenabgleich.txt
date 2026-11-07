@@ -1,0 +1,53 @@
+# N12 — Kassenabgleich (0 Modellaufrufe)
+# Menge: Tabelle `kasse`, gruppiert nach lauf_id. Herkunft: Datenbankabfrage, nicht Bericht.
+
+## Ist-Stand je Lauf
+  Lauf 22:  233 Aufrufe · 0.5166 € · 2026-09-19T20:57 bis 2026-09-19T22:53
+  Lauf 23:  239 Aufrufe · 0.3936 € · 2026-09-19T21:32 bis 2026-09-19T22:39
+  Lauf 24:  193 Aufrufe · 0.3969 € · 2026-09-19T22:57 bis 2026-09-19T23:25
+  Lauf 25:  183 Aufrufe · 0.3899 € · 2026-09-20T01:13 bis 2026-09-20T01:43
+  SUMME: 848 Aufrufe · 1.6970 €
+
+## Aufklärung der Differenz
+  Der Prüfbericht rechnet: 476 (Läufe 22–24 laut BERICHT.md) + 183 (Lauf 25) = 659 Aufrufe.
+  Gemessen sind 848. Differenz: 189 Aufrufe.
+
+  URSACHE: **Lauf 22 ist in `BERICHT.md` mit 44 Aufrufen / 0,1190 € geführt, hat aber 233 Aufrufe / 0.5166 €.**
+  Differenz genau hier: 189 Aufrufe · 0.3976 € — das sind die vom Prüfer gesuchten 189 Aufrufe / 0,3976 €.
+
+  Wie es dazu kam: Lauf 22 wurde in zwei Etappen gefahren. Die erste (Generationen 1–4) gehörte zum
+  Nachlauf Phase 3 und ist dort abgerechnet; für Vorbedingung 1 habe ich nur die Fortsetzung
+  (Generation 5, 44 Aufrufe) gezählt. In der Zeile „Vorbedingung 1 gesamt" habe ich dann aber die
+  **volle** Summe aus der Datenbank genommen (`WHERE lauf_id>=22`), also beide Etappen.
+  Die Einzelzeilen und die Summenzeile zählten damit verschiedene Mengen — genau der Fehler, den
+  Fassung 7 Punkt 17 benennt.
+
+## Fällt etwas davon unter die 0,80-€-Grenze von Lauf 25?
+  Lauf 25 hat in der Datenbank 183 Aufrufe und 0.3899 € — **kein einziger Aufruf mehr**.
+  Zeitfenster Lauf 25: 2026-09-20T01:13:33 bis 2026-09-20T01:43:33
+  Zeitfenster Lauf 22: 2026-09-19T20:57:43 bis 2026-09-19T22:53:52 — liegt vollständig VOR Lauf 25.
+  ERGEBNIS: Die 189 Aufrufe gehören zu Lauf 22, nicht zu Lauf 25.
+  **Die harte Grenze von Lauf 25 steht bei 0.3899 von 0,80 € = 49 %.**
+  Sie ist gehalten. Der Prüfbefund war berechtigt, die befürchtete Grenzverletzung liegt nicht vor.
+
+## Berichtigter Gesamtstand Vorbedingung 1
+  Die Frage, welche Etappe von Lauf 22 zu Vorbedingung 1 zählt, entscheide ich zugunsten der
+  höheren Zahl — die Etappe lief unter dem Auftrag von Vorbedingung 1 und verbrauchte Budget:
+    Lauf 22 (beide Etappen)   233 Aufrufe · 0.5166 €
+    Lauf 23                   239 Aufrufe · 0.3936 €
+    Lauf 24                   193 Aufrufe · 0.3969 €
+    Lauf 25                   183 Aufrufe · 0.3899 €
+    SUMME                     848 Aufrufe · 1.6970 € von 3 € (57 %)
+  Frei: 1.3030 €
+
+  ANMERKUNG zur Doppelzählung: Die erste Etappe von Lauf 22 (189 Aufrufe) ist bereits im
+  Phase-3-Nachlauf abgerechnet. Sie hier erneut zu zählen, wäre eine Doppelzählung über zwei
+  Abschlussordner hinweg. Ich weise sie deshalb in BEIDEN Lesarten aus:
+    Lesart A (Lauf 22 vollständig): 1.6970 € von 3 €
+    Lesart B (nur Fortsetzung, 44 Aufrufe / 0,1190 €): 1.2994 € von 3 €
+  Welche gilt, entscheidet Philipp. In beiden Fällen ist das Budget gehalten.
+
+## Nebenbefund: Vollständigkeit der Zweck-Aufstellung in KASSE-05.md
+  Verschiedene Zwecke in Lauf 25: 76. Die Aufstellung zeigte die 12 teuersten — 42 von 183 Aufrufen, 0.1319 von 0.3899 €.
+  Das war ein AUSZUG, die Überschrift nannte ihn aber wie eine vollständige Menge. Berichtigt:
+  Jede Aufstellung nennt künftig, ob sie vollständig ist oder ein Auszug (Fassung 7 Punkt 18).

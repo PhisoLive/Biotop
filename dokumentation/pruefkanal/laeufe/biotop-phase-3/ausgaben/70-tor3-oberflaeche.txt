@@ -1,0 +1,58 @@
+# Tor 3 — Oberfläche: Anmeldezwang, Sichtbarkeit, Wirkung
+Dienst: 127.0.0.1:8653, Routen laut dienst.ROUTEN: 18
+
+1. Jede Route OHNE Token:
+   GET  /                                → HTTP 200 text/html (Anmeldemaske, 13425 Zeichen, enthält Daten: False) — Seite ohne Daten, alle Daten-Routen unten 401
+   POST /anmelden                        → HTTP 401 (falsches Kennwort; einzige Route ohne Token-Pflicht)
+   POST /laeufe/16/freigabe              → HTTP 401
+   POST /laeufe/16/richtung              → HTTP 401
+   GET  /laeufe/16/vorlage               → HTTP 401
+   GET  /laeufe/16/entropie              → HTTP 401
+   GET  /laeufe/16/mentor                → HTTP 401
+   GET  /laeufe/16/immunsystem           → HTTP 401
+   GET  /laeufe/16/verfassung            → HTTP 401
+   GET  /laeufe                          → HTTP 401
+   GET  /laeufe/16                       → HTTP 401
+   GET  /laeufe/16/generationen          → HTTP 401
+   GET  /laeufe/16/kandidaten            → HTTP 401
+   GET  /laeufe/16/kasse                 → HTTP 401
+   GET  /laeufe/16/lazarus               → HTTP 401
+   GET  /werke                           → HTTP 401
+   GET  /werke/14/landkarte              → HTTP 401
+   GET  /protokoll                       → HTTP 401
+   ERGEBNIS: 18 von 18 Routen antworten ohne Token wie gefordert (401; '/' = Maske ohne Daten; /anmelden = 401 bei falschem Kennwort)
+
+2. Anmeldung mit richtigem Kennwort → HTTP 200, Token erhalten: True
+   Kostenstand (Element #kasse, #kasse-kopf → kern/kasse.py:stand): HTTP 200, 0.0182 € von 1.00 €, 31 Aufrufe
+   Kurve (Element #kurve → GET /laeufe/<id>/generationen): HTTP 200, 4 Generationen, 2 angenommen mit Maßen je Bereich: ['bericht', 'formeln', 'lager', 'preise']
+   GET /laeufe/16/vorlage → HTTP 200, ['generation', 'kandidaten']
+   GET /laeufe/16/entropie → HTTP 200, ['verlauf', 'saettigung']
+   GET /laeufe/16/mentor → HTTP 200, ['richtungen']
+   GET /laeufe/16/immunsystem → HTTP 200, 0
+   GET /laeufe/16/verfassung → HTTP 200, ['text', 'quelle', 'regeln', 'eingelegt_am']
+   GET /laeufe/16/lazarus → HTTP 200, 2
+   GET /laeufe/16/kandidaten → HTTP 200, 5
+   GET /werke/14/landkarte → HTTP 200, Stufen 27, Straßen 13, Verträge 65
+
+3. Wirkung: POST /laeufe/16/freigabe ohne wartende Generation → HTTP 409 {'fehler': 'keine Generation wartet auf Freigabe'} (Element #freigabe-frei → lauf.py:freigabe; nur wirksam, wenn eine Generation 'vorgelegt' ist)
+   POST /laeufe/16/richtung mit unbekanntem Namen → HTTP 409 {'fehler': 'keine Richtungen vorhanden — zuerst `biotop mentor <lauf>`'} (Element #richtung-waehlen → organe/mentor.py:waehlen)
+
+4. Bedienelemente mit Kernstelle (Dateipfad:Zeile): 18 von 18
+   #anmelden             POST /anmelden                        HTML-Zeile 33   → biotop/kern/anmeldung.py:31              schreibt tokens
+   #abmelden             —    sessionStorage.clear             HTML-Zeile 29   → biotop/oberflaeche.py:60                 löscht Token im Browser
+   #lauf-wahl            GET  /laeufe                          HTML-Zeile 28   → biotop/dienst.py:178                     liest laeufe
+   #werk-landkarte       GET  /werke/<id>/landkarte            HTML-Zeile 46   → biotop/dienst.py:208                     liest landkarte, strassen, vertraege
+   #verfassung           GET  /laeufe/<id>/verfassung          HTML-Zeile 45   → biotop/organe/verfassung.py:34           liest verfassung_werk
+   #mass                 GET  /laeufe/<id>                     HTML-Zeile 44   → biotop/dienst.py:181                     liest laeufe.mass (eingefroren)
+   #kurve                GET  /laeufe/<id>/generationen        HTML-Zeile 38   → biotop/dienst.py:188                     liest generationen.masse
+   #generation-aktuell   GET  /laeufe/<id>/kandidaten          HTML-Zeile 39   → biotop/dienst.py:197                     liest kandidaten je Nische
+   #vorlage              GET  /laeufe/<id>/vorlage             HTML-Zeile 35   → biotop/dienst.py:142                     liest generationen(vorgelegt), kandidaten.diff/masse, Anklägerurteil, gedaechtnis.geschmack_vorhersage
+   #freigabe-frei        POST /laeufe/<id>/freigabe            HTML-Zeile 37   → biotop/lauf.py:356                       schreibt generationen.status, protokoll freigabe.frei, geschmack
+   #freigabe-ablehnen    POST /laeufe/<id>/freigabe            HTML-Zeile 37   → biotop/lauf.py:356                       schreibt generationen.status, lazarus.rueckkehr, geschmack
+   #entropie             GET  /laeufe/<id>/entropie            HTML-Zeile 42   → biotop/organe/entropie.py:72             liest entropie
+   #kasse                GET  /laeufe/<id>/kasse               HTML-Zeile 43   → biotop/kern/kasse.py:69                  liest kasse
+   #archiv               GET  /laeufe/<id>/lazarus             HTML-Zeile 48   → biotop/organe/lazarus.py:79              liest lazarus
+   #mentor-richtungen    GET  /laeufe/<id>/mentor              HTML-Zeile 40   → biotop/dienst.py:161                     liest mentor
+   #richtung-waehlen     POST /laeufe/<id>/richtung            HTML-Zeile 41   → biotop/organe/mentor.py:94               schreibt laeufe.richtung, mentor.gewaehlt, protokoll mentor.gewaehlt
+   #immunsystem          GET  /laeufe/<id>/immunsystem         HTML-Zeile 47   → biotop/dienst.py:169                     liest immunsystem
+   #protokoll            GET  /protokoll                       HTML-Zeile 49   → biotop/kern/protokoll.py:49              liest protokoll

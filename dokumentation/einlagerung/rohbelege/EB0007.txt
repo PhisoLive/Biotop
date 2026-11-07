@@ -1,0 +1,47 @@
+EB7 · Schritt 1: Stillstandsvermerk in MEMORY.md (Beleg gegen Sicherungskopie)
+Beginn: 2026-09-25 23:43:25 CEST (UTC+0200)
+Ende:   2026-09-25 23:43:25 CEST (UTC+0200)
+Dauer:  0.0 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/biotop-einlagerung/arbeit/s1_vermerk_beleg.py
+--- Inhalt von /root/biotop-einlagerung/arbeit/s1_vermerk_beleg.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-EINLAGERUNG-01 Schritt 1 (nur lesend): Stillstandsvermerk in /root/.hermes/memories/MEMORY.md belegen.
+Vergleich mit der Sicherungskopie vorher/MEMORY.md.vor-einlagerung: Einträge (Trenner „§“) vorher/nachher, welche neu,
+welche geändert, welche entfallen; die neue Zeile im Wortlaut; SHA-256 und Zeichenzahl beider Fassungen."""
+import hashlib
+from pathlib import Path
+
+VERMERK = ('Biotop eingelagert am 25.09.2026 (BIOTOP-EINLAGERUNG-01). Keine Arbeit am Biotop, keine Subagenten und keine '
+           'Wecker dafür, bis Philipp ausdrücklich die Wiederaufnahme beauftragt. Einstieg: WIEDEREINSTIEG im '
+           'Abschlussordner laeufe/biotop-einlagerung-01/.')
+alt_p = Path('/root/biotop-einlagerung/vorher/MEMORY.md.vor-einlagerung')
+neu_p = Path('/root/.hermes/memories/MEMORY.md')
+alt, neu = alt_p.read_text(), neu_p.read_text()
+for n, t, p in (('vorher', alt, alt_p), ('nachher', neu, neu_p)):
+    print(f'{n}: {p} · {len(t)} Zeichen · {len(t.encode())} B · SHA-256 {hashlib.sha256(t.encode()).hexdigest()}')
+ea = [e.strip() for e in alt.split('§') if e.strip()]
+en = [e.strip() for e in neu.split('§') if e.strip()]
+print(f'Einträge vorher {len(ea)} · nachher {len(en)}')
+print(f'Vermerk wörtlich als eigener Eintrag vorhanden: {VERMERK in en}')
+for e in en:
+    if e not in ea:
+        print(f'NEU/GEÄNDERT nachher: {e}')
+for e in ea:
+    if e not in en:
+        print(f'ENTFALLEN/GEÄNDERT vorher (Wortlaut in der Sicherungskopie): {e[:160]}…')
+--- Ende /root/biotop-einlagerung/arbeit/s1_vermerk_beleg.py ---
+Ausgabe (vollständig, stdout und stderr):
+vorher: /root/biotop-einlagerung/vorher/MEMORY.md.vor-einlagerung · 2186 Zeichen · 2224 B · SHA-256 dddff83375bad37fd6cdf71b8d238d1de02a679bc8cb0f28a96bb02ef2ba2d67
+nachher: /root/.hermes/memories/MEMORY.md · 2184 Zeichen · 2221 B · SHA-256 4cd323f67f09148c2ae5734ac9beb408a4ee73f402862d535b1240329f050082
+Einträge vorher 4 · nachher 5
+Vermerk wörtlich als eigener Eintrag vorhanden: True
+NEU/GEÄNDERT nachher: Skill biotop-phase-bauen: user-owned; autonomous patches refused until `hermes curator adopt biotop-phase-bauen`.
+NEU/GEÄNDERT nachher: Fachliches Gedächtnis (V19) im Prüfkanal: https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/gedaechtnis/ — nummerierte STAND-/REGELN-/UNTERBAU-Dateien mit Manifesten. Nur HERMES-1 schreibt, HERMES-2/3 lesen. V17: ein Auftrag je Sitzung; Abschlussordner vor bewusstem Reset.
+NEU/GEÄNDERT nachher: Prüfkanal: Verzeichnisse nicht abrufbar — jede Adresse als volle Datei-URL in eigener Zeile. Wächter-Cron 26fbb1513a1a (~/.hermes/scripts/zwischenbericht_waechter.py; Ziel ~/.hermes/zwischenbericht/auftrag.json): Zwischenbericht bei 110/140 von 150 Runden, ≥80 % Kontext, erster gescheiterter Verdichtung.
+NEU/GEÄNDERT nachher: Biotop eingelagert am 25.09.2026 (BIOTOP-EINLAGERUNG-01). Keine Arbeit am Biotop, keine Subagenten und keine Wecker dafür, bis Philipp ausdrücklich die Wiederaufnahme beauftragt. Einstieg: WIEDEREINSTIEG im Abschlussordner laeufe/biotop-einlagerung-01/.
+ENTFALLEN/GEÄNDERT vorher (Wortlaut in der Sicherungskopie): Skill 'biotop-phase-bauen' (software-development) is user-owned, not curator-managed: autonomous patches are refused. Lessons from Biotop sessions can only be w…
+ENTFALLEN/GEÄNDERT vorher (Wortlaut in der Sicherungskopie): Dauerhaftes fachliches Gedächtnis (V19) liegt im Prüfkanal: https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/gedaechtnis/ —…
+ENTFALLEN/GEÄNDERT vorher (Wortlaut in der Sicherungskopie): Prüfkanal-Lieferung: Verzeichnisse nicht abrufbar — jede Abholadresse als volle Datei-URL in eigener Zeile (…/DATEIEN.txt). Zwischenbericht-Wächter-Cron 26fbb15…
+=== Ende EB7 ===

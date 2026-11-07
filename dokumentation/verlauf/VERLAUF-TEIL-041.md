@@ -1,0 +1,220 @@
+# BIOTOP-EINLAGERUNG-01 · Verlauf Philipp ↔ Hermes zum Biotop · Teil 041 von 054
+
+- Einträge V0854 bis V0854. Menge, Regeln und Zählung: VERLAUF-UEBERSICHT.md im selben Ordner.
+- Zeiten in CEST (UTC+02:00). Geschwärzt ist jeder Wert aus `.env`/`auth.json` und jedes Schlüsselmuster.
+
+### V0854 · 23.09.2026 15:53:53 CEST · Philipp · Nachricht id 13998 · Sitzung `20260921_015554_e79a4a0f` · 95174 B · Stück 2 von 3
+
+```text
+**Versiegelter Eichgegenstand (Fassung 6):** Jede Probe braucht einen Gegenstand — ein Bereichspaar mit Vertrag. Er wird **je Werk einmal gewählt und versiegelt**, beim ersten Lauf, mit Prüfsumme und Begründung; danach unverändert, damit jede Eichung mit jeder vergleichbar ist. Rangfolge der Wahl: **tragender Pfad der Verfassung, dann Vertragsgröße, dann alphabetisch** — denn eine Eichung an einem Nebenpfad übersieht Messgerätfehler im Kern. Bei Werken mit Betriebszweck muss der tragende Pfad **ausdrücklich in den Regeln des Werks stehen**; fehlt er, meldet das Organ das und wartet, statt ihn aus dem Verfassungstext abzuleiten (eine Wortstatistik findet, was oft zusammen genannt wird, nicht was trägt). Die Textableitung ist nur für Übungswerke zulässig. Fällt der Gegenstand durch eine Änderung des Werks weg, ist das ein Befund mit beiden Prüfsummen im Klartext und ein neuer versiegelter Gegenstand, protokolliert — nie ein stiller Wechsel. Gibt es kein Bereichspaar mit Vertrag, meldet das Organ das, statt still zu bestehen.
+
+**Die Proben setzen mechanisch am Syntaxbaum an, nicht an Textankern** (Grundsatz 6) — sonst zielen sie nach jeder angenommenen Generation stillschweigend woanders hin, was in Phase 2 und 3 geschah und dort vier Torzeilen entwertet hat. Ihre Prüfbedingungen müssen den Grund des Bestehens prüfen, nicht nur das Bestehen: Im ersten Durchlauf standen vier „bestanden", drei davon aus falschen Gründen.
+
+**Generation 0 — das Messgerät schärfen:** Bevor das Werk verbessert wird, prüft das Biotop, ob die Tests Fehler überhaupt bemerken. Es erzeugt Mutanten (eine Bedingung umgedreht, eine Grenze um eins verschoben, ein Rückgabewert vertauscht) und lässt die Tests laufen. Jeder Mutant, den kein Test fängt, ist ein blinder Fleck. Generation 0 evolutioniert dann die Tests, bis mindestens 80 von 100 Mutanten gefangen werden. Erst danach beginnt Generation 1.
+**Äquivalente Mutanten (Fassung 4):** Ein Mutant, der das beobachtbare Verhalten nicht ändert, kann von keinem Test gefangen werden und zählt nicht. Äquivalenz wird **vor** der Zählung geprüft und belegt — Ausgabe auf der Referenzlast und auf allen vorhandenen Tests identisch, dazu eine Begründung am Code — nie nachträglich erklärt, um eine Quote zu erreichen. Die Bezugsgröße lautet „gefangen: x von n nicht-äquivalenten"; die aussortierten werden mit Beleg gelistet. Der Testbau ist stochastisch: je blindem Mutanten zwei Durchläufe, bevor er als ungefangen gilt.
+**Regel:** Das Biotop schlägt das Maß vor, Philipp bestätigt, danach ist es eingefroren (Verfassungssatz 2). Das Messgerät selbst (Testläufer, Messskripte) liegt im unantastbaren Kern und wird nie vom Schwarm verändert — die Tests des Werks dagegen dürfen in Generation 0 evolutioniert werden, weil sie Teil des Werks sind.
+
+### 3.6 Genesis — der Schwarm in Nischen
+**Aufgabe:** Kandidaten erzeugen. Viele, verschieden, auch unerwartete.
+**Nischen (mindestens vier, erweiterbar):**
+- *Der Sichere* — Temperatur niedrig, Auftrag: Fehler beseitigen, Verträge härten, nichts Neues wagen.
+- *Der Schnelle* — Auftrag: Laufzeit und Speicher.
+- *Der Elegante* — Auftrag: weniger Code bei gleicher Funktion, klarere Struktur.
+- *Der Wilde* — Temperatur hoch, Auftrag: Vorschläge, die niemand erwartet; darf Verträge in Frage stellen (der Ankläger fängt ihn).
+Jede Nische hält ihre besten Kandidaten über Generationen hinweg am Leben, auch wenn eine andere Nische gerade vorn liegt (Population in Nischen nach dem MAP-Elites-Prinzip; Begründung: der am Ende beste Weg verläuft fast nie gerade).
+**Modelle:** Mindestens zwei verschiedene Anbieter je Nische, weil verschiedene Modelle verschiedene blinde Flecken haben. Masse über tokenabgerechnete Schnellmodelle (siehe Abschnitt 6), Durchbrüche über schwere Modelle. Das Biotop führt Buch, welches Modell in welcher Nische bei welcher Werkklasse angenommene Kandidaten liefert, und gewichtet danach (Bandit-Verfahren). **Ausfall ist kein Beitrag (Fassung 7):** Fällt ein Modell des Verbunds aus — Ablehnung durch den Anbieter, Zeitüberschreitung, leere Antwort —, zählt das als Ausfall und nie als Beitrag, auch nicht bei HTTP 200 oder bei erfolgreicher Antwort der übrigen Mitglieder. Protokollabschluss und nutzbarer Beitrag sind zu trennen. Belegt ist dieses Verhalten noch nicht; es hat deshalb eine eigene Torzeile in Phase 4. Anlass: Ein Verbundmitglied lehnte eine große Code-Eingabe mit `stop_reason: refusal`, Kategorie `cyber`, ab und lieferte null Ausgabetokens bei HTTP 200. Bei großen Werken mit Netzwerk-, Schlüssel- oder Authentifizierungscode ist damit zu rechnen; der Verbund muss einen Ausfall tragen, ohne ihn zu verdecken.
+**„KEIN VORSCHLAG" ist neutral (Fassung 4):** Eine Antwort, die ehrlich keinen Kandidaten liefert, wird weder als Erfolg noch als Misserfolg gebucht und zählt nicht als Wahl. Ein Modell darf nie dafür bestraft werden, dass es nichts erfindet.
+**Ausgang:** Kandidaten als Änderungssätze (Diffs); jeder mit Begründung und der Angabe, welche Verträge er berührt. Ein Hunk über 60 % einer Datei gilt als Neuschreibung und wird abgelehnt — **außer** die Datei hat unter 100 Zeilen und alle Verträge an ihren Grenzen bleiben unverletzt; dann ist die Neuschreibung ein zulässiger Kandidat (Fassung 2; in Lauf 2 wurde ein sauberer Sicherheits-Kandidat an einer 68-Zeilen-Datei so verworfen).
+
+### 3.7 Aegis — der Ankläger
+**Aufgabe:** Jeden Kandidaten zu Fall bringen. Kein Berater, ein Gegner.
+**Ablauf je Kandidat:**
+1. Wirkungskreis bestimmen: alle Bereiche, die der Änderungssatz direkt oder über die Straßen der Landkarte berührt.
+2. Verträge prüfen: Verletzt der Kandidat eine Zusicherung an einer Grenze?
+3. Verfassung prüfen: Verstößt er gegen einen Satz der Werk-Verfassung?
+4. Angriff: Ein Modell mit dem einzigen Auftrag, den Fehler, den Grenzfall, die Nebenwirkung zu finden — es wird nach gefundenen, durch Ausführung bestätigten Fehlern bewertet, nicht nach Bedenken. **Sicherheitsbefunde (Fassung 2):** Berührt der Kandidat eine Stelle mit statischem Sicherheitsbefund, erhält der Ankläger die Befundklasse (z. B. Bandit-Kennung mit Beschreibung) und muss die für diese Klasse bekannten Umgehungen als Angriffstests liefern — bei `eval`/`exec` also die Erreichbarkeit von Objektklassen über Introspektion, nicht nur den naiven Aufruf. Ein Kandidat, dessen „Behebung" einen dieser Angriffe nicht besteht, hat den Befund nicht behoben (3.5). Der Ankläger findet nur, was sein Modell kennt; deshalb wird der Angriff bei Sicherheitsbefunden mit einem schweren Modell gefahren, nicht mit einem Schnellmodell.
+5. Ausführung in der Kammer: Bauen, alle Tests, alle harten Maße — für den geänderten Bereich **und** für jeden Bereich im Wirkungskreis.
+**Regel:** Ein Kandidat, der irgendwo im Wirkungskreis ein hartes Maß senkt, ist tot. Ein vom Ankläger gefundener Fehler wird sofort zu einem Test (Immunisierung, 3.10) — auch wenn der Kandidat ohnehin verworfen wird.
+**Der Ankläger nennt seine Behauptung vorab (Fassung 6):** Vor jedem Angriff gibt der Ankläger an, welche Behauptung er prüfen will (Ziel-Funktion plus Zusicherungsart, 3.10). Ist sie in diesem Bereich schon aufgestellt, wird der Angriff **gar nicht erst ausgeführt** — kein Testschreiben, kein Kammerlauf, kein Modellaufruf für die Ausführung. Ihm werden dazu seine bisherigen Behauptungen des Bereichs vorgelegt. Grund: Die bloße Anweisung, eine andere zu finden, senkte die größte Gruppe gleicher Behauptungen von 5 auf 1, aber den Doppelungsanteil nur von 63,6 auf 54,5 % — und **0 von allen Aufrufen** antworteten mit „KEIN ANGRIFF", obwohl die Anweisung das ausdrücklich erlaubt und beim Schwarm über 40 % der Aufrufe ehrlich nichts liefern. Die Rolle des Gegners erzeugt Zwangsbefunde; deshalb wird dem Modell die Entscheidung abgenommen, statt sie ihm anzutragen.
+
+**Angriffstests sind keine Verträge (Fassung 3, erweitert in Fassung 4):** Ein Test, der an der Vorgeneration fällt und am Kandidaten besteht, gilt nur dann als Nachweis einer Behebung (+1 im Kernmaß), wenn mindestens eines zutrifft: (a) die Vorgeneration stürzt bei diesem Test mit einer Ausnahme im Werk ab; (b) ein Vertrag oder ein Satz der Werk-Verfassung weist das Verhalten der Vorgeneration als falsch aus, und der Test verweist auf diesen Vertrag oder Satz **durch explizite Kennung** (Vertragstest-Name oder Verfassungssatz-Nummer im Testnamen oder Docstring) — Wortüberdeckung mit einem Vertragstext genügt nicht, weil sie sich durch Vokabular erzeugen lässt. Trifft keines zu, kodiert der Test eine Meinung über das gewünschte Verhalten; er bleibt als „offen" im Immunsystem, bringt 0 und kommt nicht ins Werk. **Das gilt für jeden Test, der mit einem Kandidaten neu ins Spiel kommt** — Ankläger-Tests ebenso wie vom Kandidaten mitgebrachte Tests (Fassung 4; die Lücke bei mitgebrachten Tests zeigte Lauf 12). Grund: In Lauf 7 schrieben Angriffstests das Fehlverhalten eines Kandidaten als Norm fest und brachten ihm Punkte dafür. Das Werk ist gegen den Ankläger zu schützen, nicht nur gegen den Schwarm.
+
+### 3.8 Nexus — die Generalprobe
+**Aufgabe:** Das Ganze stimmig halten, während Bereiche einzeln wachsen.
+**Ablauf einer Generation:**
+1. Alle Bereiche wachsen gleichzeitig, jeder mit eigenem Schwarm, alle in der vom Mentor gesetzten Richtung.
+2. Will ein Bereich eine Grenze (einen Vertrag) zum Nachbarn ändern, wird der Nachbar gefragt: Sein Schwarm erzeugt die Anpassung seiner Seite, der Ankläger prüft beide zusammen. Ohne bestandene Anpassung des Nachbarn keine Vertragsänderung.
+3. Die je Bereich überlebenden Kandidaten werden zu einem Gesamtkandidaten zusammengesetzt.
+4. Generalprobe: Bauen, alle Tests des ganzen Werks, alle harten Maße auf Werkebene, Verfassung, alle Verträge.
+5. Pareto-Prüfung: Kein Maß irgendeines Bereichs darf gegenüber der letzten angenommenen Generation gesunken sein.
+6. Bei Bestehen: Schnappschuss (Lazarus), Vorlage an Philipp zur Freigabe.
+**Regel:** Eine Generation wird als Ganzes angenommen oder als Ganzes abgelehnt. Bei Ablehnung gehen die Erkenntnisse (welche Kombination scheiterte, warum) ins Projektgedächtnis, und die Generation wird mit diesem Wissen wiederholt — höchstens dreimal, dann Meldung an Philipp.
+
+### 3.9 Lazarus
+**Aufgabe:** Jede angenommene Generation ist ein vollständiger, rückholbarer Zustand.
+**Technik:** Git-Tag je Generation plus Ablage des vollständigen Werks (Prüfsumme über alle Dateien) und des Maßstands. Rückkehr zu Generation n stellt Werk, Landkarte und Maß-Verlauf auf den Stand von n zurück.
+**Regel:** Stellt sich in Generation n+k heraus, dass Generation n einen Fehler eingeführt hat, wird zu n-1 zurückgekehrt, der Fehler geht ins Immunsystem, und die Generationen n bis n+k werden mit dem neuen Test wiederholt. Nichts wird gelöscht; abgelehnte Linien bleiben im Archiv einsehbar.
+
+### 3.10 Immunisierung
+**Aufgabe:** Jeder Fehler — vom Ankläger gefunden, in der Generalprobe aufgetreten, von Philipp bei der Freigabe benannt — wird zu einem Test im Werk.
+**Regel:** Zählung: n gefundene Fehler = n neue Tests, nachweisbar im Werk. Ein Fehler ohne zugehörigen Test ist ein Verstoß gegen Verfassungssatz 7.
+**Ins Werk nur, was besteht (Fassung 3):** Ein Immuntest wird erst dann Teil des Werks, wenn der angenommene Kandidat ihn besteht. Ein Fund, den kein Kandidat besteht, bleibt als „offen" im Immunsystem, wird jedem späteren Kandidaten desselben Bereichs paarweise vorgelegt und wandert ins Werk, sobald ein angenommener Kandidat ihn besteht. Ein Werk darf nach keiner angenommenen Generation einen fehlschlagenden Test enthalten (Lauf 6 endete mit 19 von 95 rot, weil Satz 7 als „jeder Test ins Werk" umgesetzt war).
+**Proben kommen in kein Gedächtnis (Fassung 6):** Probenkandidaten und ihre Ergebnisse werden von keinem der drei Gedächtnisse aufgenommen — ein eingeschleuster Regressionskandidat im Projektgedächtnis würde später echte Kandidaten sperren, ein Probenmuster im Artgedächtnis würde als Erfahrung an andere Werke weitergereicht. Die Sperre sitzt **in den Eintrittsstellen der Gedächtnisse**, nicht beim Aufrufer, und erkennt eine Probe am **gesetzten Merkmal** (`ist_probe`), das der Erzeuger beim Anlegen setzt — nicht an Nische oder Bereichsnamen (Grundsatz 6): Die Jury-Proben liefen unter eigenen Bereichsmarken und wären am Namen durchgerutscht. Name und Nische bleiben als zweiter Weg für Altbestand. Die Proben bleiben in der Datenbank und im Bericht sichtbar; nur die Gedächtnisse lesen sie nicht.
+
+**Doppelungen (Fassung 5):** Je bestätigtem Fehler kommt ein Test ins Werk; weitere Tests, die **dieselbe Behauptung** aufstellen, sind Doppelungen und werden nicht übernommen. **Der Schlüssel ist die Behauptung — Ziel-Funktion plus Zusicherung —, nicht die Fundstelle.** Die frühere Prüfung auf (Meldungsklasse, Ort) versagt, weil jeder Test in seiner eigenen Datei eine eigene Zeile hat und damit nie „derselbe Ort" ist; sechs Tests derselben Behauptung kamen so einzeln ins Immunsystem und hielten einen Fehler am Leben. Der Doppelungsanteil wird gegen die **vom Ankläger erzeugten Tests** ausgewiesen, nicht gegen die Ablehnungen des Laufs (Bezugsgrößenfehler in Phase 2: gemeldet 2,5 %, richtig 10,9 % bei gleicher Lesart, 83,6 % bei dieser).
+**Fund-Übernahme zwischen Läufen (Fassung 5):** Offene Funde werden beim Übergang in einen neuen Lauf nicht mit ihrem alten Status übernommen, sondern **mechanisch neu bewertet**: jeder Fund wird am neuen Ausgang in der Kammer ausgeführt und nach 3.7 eingestuft (fällt er, ohne Absturz und ohne Vertragsverweis? → Norm, nicht Fund). Grund: sechs Normtests standen nach einer blinden Übernahme als Funde im Testbestand und töteten jede Behebung.
+**Archivierung offener Funde (Fassung 5):** Ein offener Fund, den nach fünf **Generationen** kein Kandidat besteht, wird archiviert — Bezug sind Generationen, nicht angenommene Generationen, sonst tritt der Fall an einem gesättigten Werk nie ein. Er bleibt in der Datenbank einsehbar, wird aber späteren Kandidaten nicht mehr vorgelegt und kostet keinen Kammerlauf mehr. Der Mentor (3.4) sieht das Archiv und kann daraus Richtungen ableiten.
+
+### 3.11 Entropie — Sättigungsmeldung
+**Aufgabe:** Ehrlich sagen, wenn es in einer Richtung nicht mehr weitergeht.
+**Messung:** Je Generation zwei Zahlen — die Verbesserung des Kernmaßes gegenüber der Vorgeneration in Prozent, und die Verschiedenheit der Schwarmvorschläge (Anteil der Kandidaten, die sich in weniger als 10 % der geänderten Zeilen unterscheiden).
+**Regel:** Bringen fünf aufeinanderfolgende Generationen zusammen weniger als 0,5 % Verbesserung des Kernmaßes, meldet das Biotop: *„In dieser Richtung gesättigt: Generationen x–y, Verbesserung z %. Weiter nur mit anderer Richtung (zurück zum Mentor) oder anderem Maß (neuer Lauf)."* Es sagt nie „perfekt". Es sagt, wo es weitergeht.
+
+### 3.12 Die drei Gedächtnisse
+Alle drei dauerhaft in der Datenbank, alle drei werden vor jeder Generation gelesen.
+- **Projektgedächtnis** (je Werk): jede Generation, jeder Kandidat, jedes Ergebnis, jede Ablehnung mit Grund. Der Schwarm bekommt vor jeder Generation die Liste der gescheiterten Wege dieses Werks und den Auftrag, sie nicht zu wiederholen. **Gescheiterte Wege aus verworfenen Läufen zählen nicht (Fassung 5)** — das Projektgedächtnis verwirft Kandidaten ohne Kammerlauf und ist damit Teil des Messgeräts; ein nach Satz 2 verworfener Lauf darf keine Kandidaten sperren. Grund: Lauf 18 begründete 12 von 13 Verwerfungen mit Ablehnungen aus Lauf 16, dessen Ankläger als falsch erkannt war.
+- **Artgedächtnis** (über alle Werke): **Es speichert Muster, keine Instanzen (Fassung 5).** Zu jeder angenommenen Generation schreibt ein zusätzlicher Aufruf den abstrahierten Satz — was getan wurde und warum es wirkte, **ohne Werk-, Datei- oder Funktionsnamen**: nicht „in `logmuehle` bekam `filtern()` einen Index", sondern „wiederholtes Durchsuchen durch eine mitgeführte Struktur ersetzen, wenn dieselbe Menge mehrfach gelesen wird". Nur diese Muster werden werkübergreifend vorgelegt, zusammen mit der Werkklasse, bei der sie gewirkt haben, und dem erreichten Maßgewinn; die Instanz bleibt als Beleg daneben, wird aber nicht als Vorlage gezeigt. Grund: Instanzen gelten am fremden Werk nicht, und das Modell übergeht sie zu Recht — gemessen 0 werkübergreifende Verweise bei 12 Richtungen. Der Mentor liest die Muster für seine Richtungen, der Schwarm für seine Vorschläge. Das ist die Evolution des Biotops selbst — ohne dass es seinen Code ändert. **Ein werkübergreifender Verweis wird nie erzwungen:** Ein Pflichtfeld erzeugt Scheinbegründungen, und die sind schlimmer als keine Verweise. **Stattdessen ein Mindestanteil an der Vorlage (Fassung 6):** Der werkübergreifende Block belegt mindestens die Hälfte der gezeigten Einträge, mindestens fünf, sofern so viele fremde Muster vorhanden sind. Grund: Ein `logmuehle`-Lauf sah 13 fremde Muster und lieferte 2 von 5 Richtungen mit Verweis, ein `lagerhaus`-Lauf sah 3 und lieferte 0 — die Zeile hängt also auch an der Zahl der gezeigten Muster, und bei 17 Diensten verdrängt die Masse eigener Einträge die fremden allein durch Menge. Der Anteil steuert, was gezeigt wird, nicht was zitiert werden muss.
+- **Geschmacksgedächtnis** (Philipp): jede Freigabe, jede Ablehnung, jede Begründung. Ab 20 Entscheidungen wird daraus ein Vorhersagemodell, das die Jury (3.5) bei weichen Maßen ergänzt. Es ersetzt Philipp nie; es sagt vorher, was er wahrscheinlich entscheidet, und legt es ihm mit der Vorlage bei.
+
+### 3.13 Ausführungskammer
+**Aufgabe:** Jeder Bau, jeder Testlauf, jede Messung läuft in einem abgeschotteten Container (Docker): kein Netzzugang außer zu den Modellanbietern, eigenes Dateisystem je Kandidat, Zeit- und Speicherlimit, nach dem Lauf verworfen.
+**Regel:** Fremdcode wird nie auf dem Wirtsystem ausgeführt. Ein Kandidat, der das Limit der Kammer reißt, gilt als gescheitert.
+
+### 3.14 Kasse
+**Aufgabe:** Jeden Modellaufruf zählen (Anbieter, Modell, Eingabe- und Ausgabetoken, Kosten nach hinterlegter Preistabelle) und gegen das Laufbudget führen.
+**Regel:** Vor jedem Modellaufruf wird geprüft, ob der Aufruf das Budget überschreiten würde; wenn ja, Abbruch des Laufs mit Meldung und Abschlussordner. Der Kostenstand ist in der Oberfläche immer sichtbar. Abo-Kontingente (Modelle ohne Tokenabrechnung) werden getrennt gezählt und mit eigener Grenze geführt.
+
+### 3.15 Oberfläche
+**Aufgabe:** Philipp sieht: das Werk und seine Landkarte; die Verfassung; das eingefrorene Maß; den Verlauf aller Maße über die Generationen (als Kurven); die aktuelle Generation mit Kandidaten je Nische; die Vorlage zur Freigabe mit Diff, Maß-Vergleich, Anklägerbericht und Geschmacksvorhersage; die Entropie; die Kasse; das Archiv (Lazarus).
+**Regel:** Jedes Bedienelement liest oder schreibt eine Stelle im Kern — belegt durch Hermes je Element mit Dateipfad und Zeile. Keine Phasenanzeige, die nicht dem tatsächlichen Zustand entspricht.
+
+---
+
+## 4. Ablauf eines Laufs
+
+1. **Werk hineinlegen** → Aufnahmebericht, ethische Prüfung.
+2. **Landkarte bauen** → Zoomstufen, Straßen, Verträge.
+3. **Verfassung** → Entwurf, Philipp bestätigt.
+4. **Generation 0** → Mutanten, blinde Flecken, Tests evolutionieren bis ≥ 80/100 gefangen.
+5. **Maß** → Vorschlag, Philipp bestätigt, eingefroren.
+6. **Mentor** → Richtungen, Philipp wählt.
+7. **Generation n** → je Bereich Schwarm → Ankläger → Bereichsmaße; Nexus: Verhandlung, Zusammensetzen, Generalprobe, Pareto → Schnappschuss.
+8. **Freigabe** → Philipp gibt frei oder lehnt ab; Ablehnung mit Grund → Immunisierung + Geschmacksgedächtnis.
+9. **Entropie** → weiter oder Sättigungsmeldung.
+10. **Abschluss** → Abschlussordner (Abschnitt 9).
+
+Philipp gibt jede Generation frei. Vollautomatik über mehrere Generationen kommt erst, wenn das Messgerät über mindestens drei Werke ohne einen einzigen unbemerkten Rückschritt gearbeitet hat — und dann nur auf Philipps Satz.
+**Vollmacht für Übungswerke (Fassung 2, erweitert in Fassung 5):** Für Werke ohne Betriebszweck, die Hermes selbst erzeugt hat, gilt eine schriftliche Vollmacht: Hermes gibt Generationen frei **und wählt die Richtung des Mentors**, protokolliert je Entscheidung die Begründung (`freigabe.frei`, `mentor.gewaehlt`, Vollmacht als Grund genannt), und Chat-Claude prüft alles am Abschlussordner. Für jedes Werk mit Betriebszweck gibt ausschließlich Philipp frei und wählt die Richtung; eine stellvertretende Freigabe dort ist ein Verstoß, kein Ermessen.
+
+---
+
+## 5. Der unantastbare Kern
+
+Diese Teile darf nur Philipp ändern; kein Schwarm, kein Kandidat, keine Generation hat Schreibzugriff:
+- das Messgerät (Testläufer, Messskripte, Preistabelle der Kasse)
+- das eingefrorene Maß eines laufenden Laufs
+- die Verfassung des Biotops (Abschnitt 2) und die Verfassung des Werks
+- Lazarus (Archiv und Rückkehr)
+- die Kasse und ihr Budget
+- das Protokoll (jeder Aufruf, jedes Ergebnis, unveränderlich, fortlaufend nummeriert)
+- der Code des Biotops selbst (Verfassungssatz 4)
+
+Technisch: eigener Prozess, eigene Datenbank-Rolle mit ausschließlichem Schreibrecht, keine Schreibpfade aus Schwarm oder Kammer hinein.
+
+**Abbrüche sind nie gesperrt (Fassung 5):** Ein Abbruch nach Satz 2 (Messgerätänderung) oder nach dem Budget ist eine Pflicht, keine Freigabe. Das Freigabe-Gate darf ihn nicht blockieren; er ist immer erlaubt und wird protokolliert. Grund: In Phase 3 blockierte das Gate den Versuch, einen als falsch erkannten Lauf zu stoppen — der Lauf lief weiter und kostete, bis jemand antwortete.
+
+---
+
+## 6. Modelle und Kosten
+
+**Rollenverteilung (Vorgabe; Hermes verdrahtet):**
+- *Masse* (Schwarm-Kandidaten, Ankläger-Angriffe, Zusammenfassungen der Landkarte): tokenabgerechnete Schnellmodelle über OpenRouter — mindestens zwei Anbieter. Nie über Abo-Kontingente, weil ein Lauf Hunderte bis Tausende Aufrufe macht und ein Wochenkontingent in Stunden leeren würde.
+- *Schwere Aufrufe* (Mentor, Verfassungsentwurf, Jury-Endurteil, Anklägerbericht an Philipp): die schweren Modelle des bestehenden Teams, gezählt gegen eine eigene Kontingentgrenze in der Kasse.
+- Die Anbieterschicht ist austauschbar (ein Port, mehrere Adapter), wie im Vorgängerprojekt bereits angelegt.
+
+**Kostenschätzung** (Schätzung; Bezugsgröße: ein Lauf mit 20 Generationen; Preise nach Schnellmodell-Klasse ≈ 0,3 $/Mio. Eingabe- und 2,5 $/Mio. Ausgabetoken angenommen; je Kandidat ≈ 20.000 Eingabe- und 4.000 Ausgabetoken):
+- Übungswerk (4 Bereiche, 856 Zeilen), Phase 1 mit einer Nische: **gemessen 0,40 €** für 5 Läufe, 236 Aufrufe (Fassung 1 hatte 20–60 € geschätzt — Faktor 50 zu hoch, weil die Sicht auf einen Bereich viel kleiner ist als 20.000 Token und Phase 1 nur eine Nische hatte).
+- Übungswerk, Phase 1 Nachlauf (Läufe 6–10, eine Nische, schwerer Ankläger): **gemessen 1,79 €** für 542 Aufrufe; davon 27 schwere Aufrufe (5 %) = 0,65 € (36 %). Ein einzelner Lauf mit einer Nische und schwerem Ankläger: gemessen 0,3–0,75 €.
+- Übungswerk, Phase 2 (vier Nischen, voller Ankläger, Generation 0): **gemessen 1,91 €** für drei Läufe, 1.190 Aufrufe; Hauptlauf 1,15 € für 14 Generationen mit 32 Kandidaten je Generation, 0 schwere Aufrufe (Schätzung 2–8 € war zu hoch).
+- Phase 3 (zwei Übungswerke, Mentor, Jury, Sättigung, Oberfläche): **gemessen 2,83 €** für sieben Läufe, 1.225 Aufrufe (Schätzung 3–10 € traf). Davon 1,41 € für fünf nach Satz 2 verworfene Läufe und 0,74 € für 24 schwere Aufrufe (15 Ankläger-Eskalationen bei einem Sicherheitsbefund, 9 Mentor).
+- **Gesamtstand (23.09.2026): 18,81 €** — Stamm 8,64 € (4.070 Buchungen), Vorbedingung 1 0,45 €, T3 9,73 € (2.603 Buchungen), ohne Doppelzählung der Datenbankzweige. Die frühere Angabe „8,64 € über alle Aufträge" zählte nur den Stamm (Fehler von Chat-Claude).
+- Stamm vor T3 (21.09.2026): 8,64 € (4.070 Buchungen). Die aus Berichten summierten 7,82 € waren zu niedrig — gerundete Abschnittsbeträge statt Einzelbuchungen; die Datenbank ist die gültige Quelle.
+- Vorbedingung 1 (Lauf 26, natürlich gesättigt nach Generation 5): gemessen 0,45 € von 3 €; enger Nachtrag 0,00 € von 2 €.
+- Nachlauf zu Phase 3 (Läufe 21–23): **gemessen 0,44 €** von 10 €, 207 Aufrufe; Vorspann je Lauf 9 Kammerläufe, 4 Modellaufrufe, 0,0057 €, 44 s; Nachabstraktion des Artgedächtnisses 19 Aufrufe, 0,003 €.
+- Mittelgroßes Werk (10 Bereiche, ~30.000 Zeilen): Schätzung 10–60 € je Lauf.
+- Phase 5 (erstes echtes Werk): nicht schätzbar, solange das Werk nicht feststeht; Budget je Abschnitt setzt Philipp nach dem Kostenvoranschlag aus Aufnahme und Landkarte.
+Alle Schätzungen ab Phase 2 werden an der Messung von Phase 2 nachgeführt. Die Kasse setzt sie als Vorschlag; Philipp bestätigt das Budget vor jedem Lauf.
+
+---
+
+## 7. Was aus dem Vorgängerprojekt bleibt
+
+**Übernehmen (geprüft, funktioniert):**
+- Der Server-Torwächter (Express: Request-IDs, strikte CORS-Liste, Helmet, Rate-Limits, Body-Limits, Sanitizing, Fehlerhandler, Redaction im Protokoll, Kill-Switch, Zod-validierte Umgebung). Änderung: Anmeldezwang fest verdrahtet, nicht abschaltbar; eine echte Anmeldung (Benutzer, Kennwort, Token-Ausgabe) existiert; **alle** Routen sind geschützt, nicht nur `/api/admin`.
+- Der Aktenschrank (Chunking mit Überlappung, Stichwort- plus Bedeutungssuche, Cosinus-Vergleich) → wird Teil der Landkarte. Änderung: Embeddings für alle Abschnitte, nicht nur die ersten zehn je Dokument; Index statt linearer Suche ab 10.000 Abschnitten.
+- Prüf- und Bauabläufe (CI, Lint, Prettier, Vitest, Playwright, gitleaks, CodeQL, Dependabot).
+- Die Fehlerklassen und das Protokollsystem (`AppError`, `normalizeError`, Logger mit Redaction).
+- Die Anbieterschicht (Port `IGenAIProvider`, Adapter je Anbieter).
+
+**Ersetzen:**
+- JSON-Datei als Datenbank → SQLite (mindestens) mit Transaktionen; bei Mehrbenutzerbetrieb Postgres.
+- Sitzungsgedächtnis im Arbeitsspeicher → die drei Gedächtnisse in der Datenbank.
+
+**Streichen (ohne Ersatz):**
+- Alle nicht erreichbaren Komponenten (gemessen: 51 Dateien, 4.310 Zeilen), darunter MemoryCore, AgentMindMap, NeuralNexus, GamificationOverlay, SynapticChat, HolographicHUD, QuantumPreview, QuantumKernel, EntropyAtom, SingularityStrategy, StrategyFactory, SwarmAgents in ihrer jetzigen Form.
+- Der regelbasierte Sicherheitsscanner mit Code-Umschreibung (`sanitizer.ts`): Ein Biotop verändert kein Werk außerhalb einer Generation. Sicherheitsprüfung wird ein hartes Maß (statische Analyse, Abhängigkeitsprüfung), keine Vorab-Zensur.
+- Die Schalter „Sicherheitsmodus" und „Freigabepflicht" als Prompt-Text. Freigabe ist ein Kernmechanismus (Abschnitt 4, Schritt 8), kein Text.
+- Alle `.env`-Dateien mit echten Schlüsseln. Geheimnisse ausschließlich über Umgebungsvariablen des Servers; gitleaks im CI-Pflichtlauf; Paket-Skripte, die ein Archiv erzeugen, schließen `.env*`, `node_modules`, `dist`, `coverage`, `.tools` aus (der Vorgänger wurde mit echten Schlüsseln verschickt).
+
+---
+
+## 8. Bauphasen mit Abnahmetoren
+
+Jede Phase ist ein eigener Hermes-Auftrag mit eigenem Abschlussordner. Ein Tor gilt als bestanden, wenn **jede** Zeile mit beigefügter Ausgabe belegt ist. Eine Phase beginnt erst, wenn das Tor der vorherigen bestanden ist. Neue Funde während einer Phase gehen auf die Liste für danach, außer sie gefährden das laufende Tor.
+
+### Phase 1 — Das Skelett
+**Bauen:** Aufnahme, Landkarte (Stufen 0–3, Straßen; Verträge nur abgeleitet), harte Maße, ein Schwarm (eine Nische, zwei Anbieter), Ankläger (Schritte 1, 4, 5), Ausführungskammer, Lazarus, Kasse, Protokoll, Anmeldung, Datenbank. Keine Oberfläche außer einer Befehlszeile.
+**Übungswerk:** Hermes baut ein Werk mit drei Bereichen (~800–1.200 Zeilen, mit Tests) und baut **fünf bekannte Schwächen** ein (je eine: Sicherheitslücke, Leistungsbremse, Vertragsverletzung, toter Code, fehlerhafte Randbedingung). Die Liste der fünf liegt versiegelt außerhalb der Reichweite des Biotops. Ein vierter, bereits sauberer Bereich dient als Halluzinationsprobe.
+**Tor 1 (alle Zeilen mit Ausgabe):**
+- Landkarte: alle Bereiche erkannt (4 von 4); alle Straßen erfasst (Bezugsgröße: Hermes zählt sie vor dem Lauf, das Biotop muss n von n finden).
+- Schwächen: mindestens 4 von 5 gefunden und in angenommenen Generationen behoben; Kernmaß gestiegen (Zahl vorher/nachher). **Behoben** heißt: der versiegelte Befund tritt nicht mehr ein; bei der Sicherheitslücke zusätzlich nach 3.5 „behoben heißt verschwunden" (statischer Befund weg, Umgehung als Immuntest im Werk).
+- Kein Rückschritt: In 0 von n angenommenen Generationen ist irgendein hartes Maß gesunken.
+- Halluzinationsprobe: Im sauberen Bereich 0 angenommene Änderungen, die kein Maß heben.
+- Lazarus: Jede angenommene Generation einmal zurückgeholt; Prüfsumme des Werks stimmt (n von n).
+- Kasse: Budget auf 0,10 € gesetzt → Abbruch mit Meldung **vor** dem ersten Modellaufruf der nächsten Generation (Protokollzeile beigefügt).
+- Laut scheitern: Werk ohne Tests eingelegt → Meldung „Messgerät fehlt", 0 gestartete Generationen.
+- Kammer: Ein Kandidat mit Endlosschleife → nach Zeitlimit als gescheitert gewertet, Wirt unberührt.
+- Anmeldung: Jede Route ohne Token → HTTP 401 (Liste aller Routen mit Ergebnis).
+
+**Stand Phase 1 nach Lauf 2 (Wertung Chat-Claude, 19.09.2026):** 7 von 9 Zeilen bestanden. Zeile 2 nicht bestanden — S1 (`eval`) durch `__builtins__`-Leerung nur entschärft, Befund B307 weiterhin vorhanden, Umgehung über Objektintrospektion ausgeführt und bestätigt (162 erreichbare Klassen); damit 3 von 5 behoben. Zeile 3 formal bestanden, aber unter einer Formel, die Tests statt Werk belohnte. Alle übrigen Zeilen bestanden und bleiben gültig.
+
+**Nachlauf zu Tor 1 — erledigt (Lauf 9, Abschlussordner `laeufe/biotop-phase-1-nachlauf/`, 19.09.2026 02:20):** Tor 1 **9 von 9 bestanden**, geprüft durch Chat-Claude am Bericht (Summen nachgerechnet, Kurve Lauf 2 nachvollzogen). S1 behoben nach „behoben heißt verschwunden": `eval` ersetzt durch Baum-Auswerter mit Knoten-Weißliste, Bandit 3 → 0, sechs Umgehungsklassen als Immuntest 6 von 6 abgewiesen, Laufzeit 69 → 84 ms (+22 %). S2 offen (keine Geschwindigkeits-Nische in Phase 1). Kernmaß F2 am Endwerk 0 = Höchstwert. Drei abgebrochene Läufe (6–8) deckten die Messgerät-Funde auf, die in Fassung 3 eingearbeitet sind. Kosten 1,79 € von 5 €. **Phase 1 ist abgeschlossen; Phase 2 ist freigegeben.**
+
+### Phase 2 — Der Schwarm
+**Bauen:** Vier Nischen, Bandit-Gewichtung, Generation 0 (Mutanten), Verträge explizit, Ankläger vollständig (Schritte 2 und 3, Norm-Regel 3.7), Nexus mit Verhandlung, Generalprobe und Pareto je Test, Immunisierung nach 3.10 Fassung 3 (nur bestandene Tests, offene Funde, Doppelungen), Verlaufskurve je Lauf, Grenzmaß „größte Funktion" absolut. Vor dem ersten Lauf: OpenRouter-Katalog auf aktuellere Schnellmodelle gleicher Hersteller zu gleichem oder niedrigerem Preis prüfen und die Wahl mit Preisen belegen.
+**Ausgang:** Übungswerk `lagerhaus` im Zustand Lauf 9 Generation 6 (S1, S3, S4, S5 behoben, S2 offen), Verfassung Anhang A.
+**Budget:** 10 €, hart.
+**Tor 2:**
+- Nischen: 4 aktiv, je mindestens 2 Anbieter; Bandit-Gewichte nach 10 Generationen protokolliert.
+- Generation 0: Hermes baut 20 Mutanten in das Übungswerk; das Biotop meldet, welche die Tests nicht fangen (Zahl); nach Generation 0 werden mindestens 16 von 20 gefangen.
+- S2 (Leistungsbremse) behoben nach dem Kriterium der versiegelten Liste, gemessen an der Referenzlast (Zahl vorher/nachher); Kernmaß dabei unverändert oder gestiegen (Nischenmaß 3.5).
+- Nebenwirkungsprobe: Hermes schleust einen Kandidaten ein, der Bereich A messbar hebt und Bereich B messbar senkt → 0 von 1 angenommen, Anklägerbericht nennt B.
+- Regressionsprobe (Fassung 3, aus Lauf 7): Hermes schleust einen Kandidaten ein, der eine frühere Behebung rückgängig macht und drei neue bestandene Tests mitbringt → 0 von 1 angenommen; das Protokoll nennt den gefallenen Einzeltest.
+- Norm-Probe (Fassung 3, aus Lauf 7): Hermes schleust einen Angriffstest ein, der an der Vorgeneration fällt, am Kandidaten besteht, ohne Absturz und ohne Vertrags-/Verfassungsbezug → bleibt „offen", 0 Punkte, nicht im Werk.
+- Vertragsprobe: Änderung an einer Grenze ohne Anpassung des Nachbarn → abgelehnt; mit Anpassung → **angenommen und im Werk** (je 1 Fall). Die Probe muss so gebaut sein, dass die Vertragsänderung eine Fehlerbehebung ermöglicht und das Paar Kernmaß bringt — sonst kann es nach 3.5 nicht angenommen werden, und die Zeile ist unerfüllbar (Fassung 4).
+- Immunisierung: n bestätigte Fehler = n Tests im Werk (Liste mit Dateipfaden); Doppelungsanteil ausgewiesen und unter 20 % **der vom Ankläger erzeugten Tests** (Fassung 5: Bezugsgröße und Schlüssel nach 3.10); nach keiner angenommenen Generation ein fehlschlagender Test im Werk (0 von n).
+- Verhandlung: mindestens 1 Generation, in der zwei Bereiche eine Vertragsänderung gemeinsam bestanden haben, protokolliert. (Fassung 4: Diese Zeile prüft nur den Mechanismus; die eingeschleuste Vertragsprobe erfüllt sie. Der Nachweis, dass der **Schwarm selbst** eine sinnvolle Vertragsänderung durchbringt, ist am Übungswerk nicht erzwingbar — dort gibt es keine Schnittstelle, die sich ändern sollte — und steht in Tor 4.)
+- Verlaufskurve des Hauptlaufs mit Endtestbestand beigefügt (3.5).
+
+**Stand Phase 2 nach Lauf 13 (Wertung Chat-Claude, Stand Fassung 6):** **9 von 11.** Zeile 7 nicht erfüllt — das Probenpaar K1157/K1158 bestand die Vertragsprüfung, brachte 0 Kernmaß und wurde nach 3.5 verworfen; „angenommen" war zu „bestanden" umgedeutet (in der Nachprobe zu Phase 3 nachgeholt und bestanden). **Zeile 8 gerissen:** Doppelungsanteil **68,5 %** (Fassung 6: gemessen mit dem gebauten Behauptungs-Schlüssel, nicht mehr geschätzt) gegen eine Grenze von 20 %; der ursprünglich gemeldete Wert von 2,5 % war gegen 240 Ablehnungen statt gegen 54 erzeugte Tests gerechnet und prüfte die Fundstelle statt der Behauptung. Die Grenze wird nicht verschoben; der Bau bleibt, die Zahl wird berichtigt. **Die Zeilen Nebenwirkung, Regression, Norm und Vertrag galten zwischenzeitlich als ungeprüft** (die alten Proben zielten über Textanker und trafen nach jeder angenommenen Generation woanders hin) und sind im Nachlauf zu Phase 3 mit gehärteten Proben **wieder belegt, 4 von 4**. Alle übrigen Zeilen bestanden. Gehobenes Werk: Lauf 13 Generation 13, 99 von 99 Tests, Kernmaß 0, `lager` 140 → 5 ms. Kosten 1,91 € von 10 €.
+
+**Nachprobe zu Zeile 7 (Vorbedingung für den Bau von Phase 3):** Vertragsprobe nach der präzisierten Zeile — ein Paar aus Vertragsänderung und dadurch ermöglichter Fehlerbehebung, Kernmaß > 0, angenommen und im Werk; Gegenfall ohne Nachbar abgelehnt. Ausgang: Lauf 13 Generation 13. Budget 1 €, im Phase-3-Budget enthalten. Ergebnis als erste Zeile des Phase-3-Berichts; erst danach beginnt der Bau. Dazu die Kandidatenaufschlüsselung von Lauf 13 auf 470 aufgehen lassen oder die Differenz benennen.
+
+### Phase 3 — Gedächtnis, Mentor, Oberfläche
+**Bauen:** Drei Gedächtnisse (3.12), Mentor (3.4), Entropie mit Sättigungsmeldung (3.11), weiche Maße mit Jury (3.5), Archivierung offener Funde (3.10), Oberfläche (3.15) als Web-Oberfläche hinter der Anmeldung, vom Tablet bedienbar. Dazu ein **zweites Übungswerk** anderer Bauart als `lagerhaus` (Hermes wählt; z. B. eine kleine HTTP-Schnittstelle oder ein Befehlszeilenwerkzeug mit Dateiverarbeitung; Python; 3–4 Bereiche; mit Tests; 3 versiegelte Schwächen), damit das Artgedächtnis überhaupt etwas zu vergleichen hat. Für das zweite Übungswerk schreibt Hermes den Verfassungsentwurf, Chat-Claude bestätigt ihn am Bericht.
+**Ausgang `lagerhaus`:** Lauf 13 Generation 13 (Kernmaß 0 in allen Bereichen — das Werk ist am Höchstwert; die Sättigungsmeldung muss das erkennen).
+**Budget:** 15 €, hart, einschließlich Nachprobe.
+**Tor 3:**
+- Nachprobe Zeile 7 aus Phase 2 bestanden (siehe oben).
+```
+

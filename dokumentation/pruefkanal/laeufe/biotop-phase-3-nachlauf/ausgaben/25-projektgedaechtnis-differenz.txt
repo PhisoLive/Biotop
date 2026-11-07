@@ -1,0 +1,58 @@
+# Projektgedächtnis: die drei strittigen Fälle, beide Ableitungen auf denselben Kandidatensatz
+# A = Hunk-Köpfe (Nachrechnung Hermes) · B = angewandter Diff (Biotop)
+
+## K2032 (Lauf 20 Gen 5, bericht/schnell, Status abgelehnt)
+  gescheiterter Weg: K952 (Lauf 13 Gen 9), Funktionen ['lagerhaus/bericht/auswertung.py::_berechne_bewegungsbericht', 'lagerhaus/bericht/auswertung.py::lagerwert']
+  A) Hunk-Köpfe:      Funktionen ['lagerhaus/bericht/auswertung.py::lagerwert']  → gemeinsam mit dem Weg: ['lagerhaus/bericht/auswertung.py::lagerwert']
+  B) angewandter Diff: Funktionen ['lagerhaus/bericht/auswertung.py::bewegungsbericht']  → gemeinsam mit dem Weg: []
+  Ansatz-Ähnlichkeit (beide Ableitungen gleich): 1.00 (Schwelle 0.5)
+  → A wertet als Wiederholung: True | B wertet als Wiederholung: False
+  Grund der Ablehnung im Lauf: Grenzmaß gerissen: bericht.laufzeit_ms: 15.3 > Grenze 8.9 (Bestwert 7.72 × 1.15, ohne Kernmaßgewinn nur Rauschtoleranz)
+  damaliger Grund des Wegs:    Kernmaß unverändert (0 → 0); bestandene Tests zählen nicht
+
+## K2035 (Lauf 20 Gen 5, bericht/elegant, Status abgelehnt)
+  gescheiterter Weg: K882 (Lauf 13 Gen 7), Funktionen ['lagerhaus/bericht/auswertung.py::lagerwert']
+  A) Hunk-Köpfe:      Funktionen ['lagerhaus/bericht/auswertung.py::lagerwert']  → gemeinsam mit dem Weg: ['lagerhaus/bericht/auswertung.py::lagerwert']
+  B) angewandter Diff: Funktionen ['lagerhaus/bericht/auswertung.py::_berechne_bewegungsbericht', 'lagerhaus/bericht/auswertung.py::bewegungsbericht']  → gemeinsam mit dem Weg: []
+  Ansatz-Ähnlichkeit (beide Ableitungen gleich): 0.81 (Schwelle 0.5)
+  → A wertet als Wiederholung: True | B wertet als Wiederholung: False
+  Grund der Ablehnung im Lauf: Grenzmaß gerissen: bericht.laufzeit_ms: 9.73 > Grenze 8.9 (Bestwert 7.72 × 1.15, ohne Kernmaßgewinn nur Rauschtoleranz)
+  damaliger Grund des Wegs:    Kernmaß unverändert (0 → 0); bestandene Tests zählen nicht
+
+## K2056 (Lauf 20 Gen 5, bericht/sicher, Status verhandlung)
+  gescheiterter Weg: K1344 (Lauf 16 Gen 9), Funktionen ['lagerhaus/bericht/auswertung.py::lagerwert']
+  A) Hunk-Köpfe:      Funktionen ['lagerhaus/bericht/auswertung.py::lagerwert']  → gemeinsam mit dem Weg: ['lagerhaus/bericht/auswertung.py::lagerwert']
+  B) angewandter Diff: Funktionen ['lagerhaus/bericht/auswertung.py::lagerwert']  → gemeinsam mit dem Weg: ['lagerhaus/bericht/auswertung.py::lagerwert']
+  Ansatz-Ähnlichkeit (beide Ableitungen gleich): 0.58 (Schwelle 0.5)
+  → A wertet als Wiederholung: True | B wertet als Wiederholung: True
+  Grund der Ablehnung im Lauf: Anpassung für Kandidat 2055 (preise): Paar abgelehnt
+  damaliger Grund des Wegs:    Pareto verletzt: bericht.tests_fehlgeschlagen: 0 → 6; Regression je Test (bestand an der Vorgeneration, fällt am Kandida
+
+## Entscheidung der drei Fälle
+
+K2032 — KEINE Wiederholung. Ableitung A ordnet den Kandidaten `lagerwert` zu, weil diese Funktion im Hunk-Kopf
+  steht; tatsächlich geändert wurde `bewegungsbericht` (Ableitung B). Der gescheiterte Weg K952 betraf
+  `lagerwert` und `_berechne_bewegungsbericht`. Gemeinsame geänderte Funktion: keine. Die Ansatz-Ähnlichkeit
+  von 1,00 kommt von den Token der hinzugefügten Zeilen, nicht vom Ziel — beide fügen ähnliche Zeilen an
+  verschiedenen Stellen ein. A liegt falsch, B liegt richtig.
+
+K2035 — KEINE Wiederholung. Gleiche Lage: A sieht `lagerwert` im Hunk-Kopf, geändert wurden
+  `bewegungsbericht` und `_berechne_bewegungsbericht`. Der Weg K882 betraf `lagerwert`. Kein gemeinsames Ziel.
+  A liegt falsch, B liegt richtig.
+
+K2056 — Wiederholung nach beiden Ableitungen (gemeinsame Funktion `lagerwert`, Ähnlichkeit 0,58), aber
+  ZU RECHT ausgeführt: Der Weg K1344 stammt aus Lauf 16, und Lauf 16 ist nach Satz 2 VERWORFEN. Nach F5 3.12
+  zählen Wege aus verworfenen Läufen nicht mehr — gemessen: von 91 sichtbaren Wegen für `bericht` stammen
+  0 aus Lauf 16 und 57 aus Lauf 13. Das Biotop hat den Kandidaten also nicht übersehen, sondern die Regel
+  angewandt. Meine Nachrechnung hat den Filter nicht berücksichtigt.
+
+ERGEBNIS: 0 von 3 strittigen Fällen sind durchgerutschte Wiederholungen.
+  Zwei beruhten auf der gröberen Ableitung A (Hunk-Köpfe statt angewandter Diff), einer auf einem Weg aus
+  einem verworfenen Lauf. Die Zahl des Biotops (0 durchgerutschte Wiederholungen) war richtig, meine
+  Nachrechnung (2 von 187 bzw. 1 von 44) war falsch — die Differenz ist damit geschlossen, nicht wegerklärt.
+
+FOLGE für den Phase-3-Bericht: Die Torzeile Projektgedächtnis ist erfüllt, nicht „teilweise". Sie war es
+  schon in Phase 3; die Unsicherheit stammte allein aus meiner Nachrechnung.
+
+LEHRE (Fassung 6): Eine Nachrechnung muss dieselbe Ableitung verwenden wie das geprüfte Organ, sonst misst
+  sie etwas anderes und erzeugt eine Scheindifferenz. Prüfe das Verfahren, nicht ein ähnliches.

@@ -1,0 +1,23 @@
+Formatsperre in der Behebungsrunde 4 vor T4 — wörtlich, Einordnung, Handlung
+===========================================================================
+
+Zeit: 2026-09-24, etwa 14:05. Werkzeug: terminal (Hermes).
+
+Befehl: ein nur lesender Sammelbefehl, der den Stand der Kette, des Teillaufs 4 und des Commit-Jobs anzeigen sollte
+(cat, tail, echo, pgrep -af, git log, grep). Die Ausführungsschicht hat ihn unverändert gespeichert; die Kopie liegt
+hier daneben als formatsperre-1-befehl.sh (bytegleich).
+
+Meldung (wörtlich):
+------------------
+BLOCKED (hardline): command parser limit or malformed executable payload. This command is on the unconditional blocklist and cannot be executed via the agent — not even with --yolo, /yolo, approvals.mode=off, or cron approve mode. If you genuinely need to run it, run it yourself in a terminal outside the agent. RECOVERY: this block fires on oversized/unparseable inline command payloads (heredocs, giant one-liners), not on the operation itself. Your command was saved to /root/.hermes/cache/blocked-scripts/blocked-1790251359-f3cb81be.sh — review it, then run: terminal(command="bash /root/.hermes/cache/blocked-scripts/blocked-1790251359-f3cb81be.sh"). Do not retry inline.
+
+Einordnung und Handlung:
+-----------------------
+- Formatsperre, kein Sicherheitsurteil (Arbeitsregel Philipp 23.09.2026: „gespeichertes Skript unverändert ausführen,
+  wenn es sonst jede Prüfung bestanden hätte, sonst Linie 3“).
+- Geprüft: das gespeicherte Skript enthält nur lesende Befehle (cat, tail, echo, pgrep, git log, grep) auf Dateien des
+  Arbeitsordners und des Repositorys; nichts, was eine Freigabe oder die Sicherheitsprüfung auslösen würde.
+- Handlung: das gespeicherte Skript unverändert ausgeführt (`bash /root/.hermes/cache/blocked-scripts/blocked-1790251359-f3cb81be.sh`),
+  nicht umformuliert, nicht neu eingegeben. Ergebnis: Kette grün, Commit-Job läuft, Commit 1d9a5aa.
+- Ursache vermutlich: der Befehl enthielt `pgrep -af "job_commit_regression.sh"` und mehrere Dateinamen mit Punkten in
+  einer langen Zeile — nicht geprüft.

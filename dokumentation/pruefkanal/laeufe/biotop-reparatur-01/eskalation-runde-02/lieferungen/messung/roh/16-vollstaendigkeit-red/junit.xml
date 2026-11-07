@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="5" time="5.938" timestamp="2026-09-20T18:42:04.634829+02:00" hostname="ubuntu"><testcase classname="tests.test_messnachweise" name="test_ausgefuehrter_erfolg_und_fehlschlag_bleiben_messbar[1]" time="1.058" /><testcase classname="tests.test_messnachweise" name="test_ausgefuehrter_erfolg_und_fehlschlag_bleiben_messbar[2]" time="1.045" /><testcase classname="tests.test_messnachweise" name="test_junit_mit_entferntem_fehlschlag_ist_unvollstaendig" time="1.120"><failure message="AssertionError: {'bereiche': {'alpha': {'tests_bestanden': 1, 'tests_fehlgeschlagen': 0, 'tests_gesamt': 1, 'sicherheit_punkte': 0, .....bauzeit_ms': 24.3, 'baut': True, 'bau_fehler': '', 'tests_ohne_bereich': [], ...}, 'kernmass': 1, 'gueltig': True, ...}&#10;assert True is False">messen_werk = &lt;function messen_werk.&lt;locals&gt;.messen at 0x7c0a70946ca0&gt;
+
+    @pytest.mark.integration
+    def test_junit_mit_entferntem_fehlschlag_ist_unvollstaendig(messen_werk):
+        test = GUTER_TEST + "\ndef test_z_fehler():\n    assert False\n"
+        eingriff = junit_eingriff("baum = ET.parse(p); suite = next(baum.getroot().iter('testsuite')); suite.remove(list(suite)[-1]); baum.write(p)")
+        m, roh = messen_werk(test, {"tests/conftest.py": "import xml.etree.ElementTree as ET\n" + eingriff})
+        assert "@@PYTEST_RC@@1" in roh["stdout"]
+&gt;       assert m["gueltig"] is False, m
+E       AssertionError: {'bereiche': {'alpha': {'tests_bestanden': 1, 'tests_fehlgeschlagen': 0, 'tests_gesamt': 1, 'sicherheit_punkte': 0, .....bauzeit_ms': 24.3, 'baut': True, 'bau_fehler': '', 'tests_ohne_bereich': [], ...}, 'kernmass': 1, 'gueltig': True, ...}
+E       assert True is False
+
+tests/test_messnachweise.py:249: AssertionError</failure></testcase><testcase classname="tests.test_messnachweise" name="test_abgewaehlter_pflichttest_ist_kein_vollstaendiger_beleg" time="1.051"><failure message="AssertionError: {'bereiche': {'alpha': {'tests_bestanden': 1, 'tests_fehlgeschlagen': 0, 'tests_gesamt': 1, 'sicherheit_punkte': 0, .....bauzeit_ms': 19.5, 'baut': True, 'bau_fehler': '', 'tests_ohne_bereich': [], ...}, 'kernmass': 1, 'gueltig': True, ...}&#10;assert True is False">messen_werk = &lt;function messen_werk.&lt;locals&gt;.messen at 0x7c0a70947ec0&gt;
+
+    @pytest.mark.integration
+    def test_abgewaehlter_pflichttest_ist_kein_vollstaendiger_beleg(messen_werk):
+        test = GUTER_TEST + "\ndef test_z_fehler():\n    assert False\n"
+        m, roh = messen_werk(test, {"pytest.ini": "[pytest]\naddopts = -k wert\n"})
+        assert "@@PYTEST_RC@@0" in roh["stdout"]
+&gt;       assert m["gueltig"] is False, m
+E       AssertionError: {'bereiche': {'alpha': {'tests_bestanden': 1, 'tests_fehlgeschlagen': 0, 'tests_gesamt': 1, 'sicherheit_punkte': 0, .....bauzeit_ms': 19.5, 'baut': True, 'bau_fehler': '', 'tests_ohne_bereich': [], ...}, 'kernmass': 1, 'gueltig': True, ...}
+E       assert True is False
+
+tests/test_messnachweise.py:257: AssertionError</failure></testcase><testcase classname="tests.test_messnachweise" name="test_bereich_ohne_tests_ist_nicht_als_null_gemessen" time="1.543"><failure message="AssertionError: {'bereiche': {'alpha': {'tests_bestanden': 1, 'tests_fehlgeschlagen': 0, 'tests_gesamt': 1, 'sicherheit_punkte': 0, .....bauzeit_ms': 21.2, 'baut': True, 'bau_fehler': '', 'tests_ohne_bereich': [], ...}, 'kernmass': 1, 'gueltig': True, ...}&#10;assert True is False">messen_werk = &lt;function messen_werk.&lt;locals&gt;.messen at 0x7c0a7094c2c0&gt;
+
+    @pytest.mark.integration
+    def test_bereich_ohne_tests_ist_nicht_als_null_gemessen(messen_werk):
+        m, roh = messen_werk(dateien={"demo/beta/__init__.py": "WERT = 1\n"}, bereiche=["alpha", "beta"])
+        assert "@@PYTEST_RC@@0" in roh["stdout"]
+&gt;       assert m["gueltig"] is False, m
+E       AssertionError: {'bereiche': {'alpha': {'tests_bestanden': 1, 'tests_fehlgeschlagen': 0, 'tests_gesamt': 1, 'sicherheit_punkte': 0, .....bauzeit_ms': 21.2, 'baut': True, 'bau_fehler': '', 'tests_ohne_bereich': [], ...}, 'kernmass': 1, 'gueltig': True, ...}
+E       assert True is False
+
+tests/test_messnachweise.py:264: AssertionError</failure></testcase></testsuite></testsuites>

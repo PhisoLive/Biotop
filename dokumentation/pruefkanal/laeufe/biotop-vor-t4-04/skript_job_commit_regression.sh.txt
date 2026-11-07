@@ -1,0 +1,47 @@
+#!/bin/bash
+# Behebungsrunde 4 vor T4: (1) eigener Commit auf 0aac612 (Geschichte nicht umgeschrieben), (2) volle Regression am Commit
+# samt Verdrahtungstest, (3) Nachspiele am Commit: D1 = K2904, K3091, K2868; D2/D3 = K2904, K3091 (Vergleichslast
+# Stufe 2), (4) Vorher/Nachher der neuen Fälle an 0aac612 und am Commit, (5) Torzeile Schwächen am Commit.
+# Nacheinander, keine parallelen Kammerläufe. Kein Modellaufruf.
+set -u
+A=/root/biotop-vor-t4-04
+PY=/root/biotop-t3/venv/bin/python
+cd /root/biotop
+echo "=== start $(date -Is) HEAD=$(git rev-parse --short HEAD)"
+echo "=== Signatur-/Importzeilen im Diff gegen HEAD"
+git diff HEAD | grep '^[-+]def \|^[-+]from \|^[-+]import \|^[-+]export \|^[-+]async def ' || true
+git add -A biotop tests
+git status --short
+git commit -q -F $A/COMMIT-NACHRICHT.txt
+echo "commit-rc=$?"
+git log --oneline -4
+git status --short -- biotop tests; echo "(Ende Status)"
+git show --stat HEAD | tail -40 > $A/COMMIT-STAT.txt
+git show HEAD > $A/KERN-COMMIT.patch.txt
+echo "patch $(wc -l < $A/KERN-COMMIT.patch.txt) Zeilen"
+export BIOTOP_KAMMER_IMAGE=biotop-kammer:ts1 BIOTOP_AUFTRAG_LAUF_AB=26 BIOTOP_AUFTRAG_BUDGET_EUR=10
+export T3_VERDRAHTUNG_BELEG=$A/VERDRAHTUNG-BELEG-REGRESSION.json
+echo "regression start $(date -Is) HEAD=$(git rev-parse --short HEAD) fremde_container=$(docker ps -q | wc -l)"
+$PY -m pytest tests/ -q -m "not integration" -p no:cacheprovider -rfEs --durations=8 \
+  --junitxml=$A/REGRESSION.junit.xml > $A/REGRESSION.txt 2>&1
+echo "regression pytest-rc=$? $(tail -1 $A/REGRESSION.txt)"
+git status --short -- biotop tests; echo "(Ende Status nach Regression)"
+for d in 1 2 3; do
+  mkdir -p $A/nachspiel/d$d
+  echo "nachspiel durchgang $d start $(date -Is) HEAD=$(git rev-parse --short HEAD) fremde_container=$(docker ps -q | wc -l)"
+  if [ $d -eq 1 ]; then FAELLE="s2_k2904 s2_k3091 k2868"; else FAELLE="s2_k2904 s2_k3091"; fi
+  NACHSPIEL_AUS=$A/nachspiel/d$d BIOTOP_KAMMER_IMAGE=biotop-kammer:ts1 $PY $A/nachspiel/nachspiel_vor_t4_04.py $FAELLE \
+    > $A/nachspiel/NACHSPIEL-D$d.txt 2>&1
+  echo "nachspiel durchgang $d rc=$?"
+done
+echo "vorher/nachher start $(date -Is)"
+ALT=$(mktemp -d /tmp/biotop-0aac612-XXXX); git archive 0aac612 | tar -x -C $ALT
+NEU=$(mktemp -d /tmp/biotop-head-XXXX); git archive HEAD | tar -x -C $NEU
+BIOTOP_KAMMER_IMAGE=biotop-kammer:1 $PY $A/proben/vorher_nachher.py $ALT "0aac612 (Runde 3)" $A/proben/VORHER-0aac612.json > $A/proben/VORHER-0aac612.txt 2>&1
+echo "vorher rc=$? ($ALT)"
+BIOTOP_KAMMER_IMAGE=biotop-kammer:1 $PY $A/proben/vorher_nachher.py $NEU "$(git rev-parse --short HEAD) (Runde 4)" $A/proben/NACHHER-HEAD.json > $A/proben/NACHHER-HEAD.txt 2>&1
+echo "nachher rc=$? ($NEU)"
+echo "torzeile start $(date -Is)"
+(cd $A/s1 && $PY torzeile_schwaechen_t3.py > TORZEILE-SCHWAECHEN-T3-am-commit.txt 2>&1; echo "torzeile rc=$?")
+git status --short -- biotop tests; echo "(Ende Status)"
+echo "ende $(date -Is)"

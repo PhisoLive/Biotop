@@ -1,0 +1,542 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 153 (Teile 4–165 dieses Stands) · enthält R161 bis R161
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R161 · Einzelnachweis zu R159: Änderungen außerhalb der erlaubten Stellen mit Zuordnung (Rohbeleg, Werkzeugaufruf), Geburtszeiten der nicht eingecheckten Dateien, git-Index, Journalmodus (nur lesend)
+Beginn: 2026-09-25 18:27:50 CEST (UTC+0200)
+Ende:   2026-09-25 18:27:53 CEST (UTC+0200)
+Dauer:  3.6 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/n13_details.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/n13_details.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Einzelnachweis zu R159 — jede Änderung außerhalb der drei erlaubten Stellen, die von
+Hermes, seinen Subagenten oder vom Bau S1c stammen kann, mit Zuordnung:
+  (1) zeitgleicher Rohbeleg dieses Auftrags (Beginn ≤ Zeitpunkt ≤ Ende + 2 s),
+  (2) Werkzeugaufrufe in der Sitzungsdatenbank 10 s davor bis 1 s danach (Sitzung, Quelle, Werkzeug).
+Dazu: Geburtszeiten der nicht eingecheckten Dateien in /root/biotop, gestagter Inhalt des git-Index, SQLite-Journalmodus
+der berührten Datenbanken (nur Kopfbytes gelesen). Liest die jüngste Liste tmp/aenderungen-*.txt (aus R159)."""
+import datetime as dt
+import glob
+import os
+import re
+import sqlite3
+import subprocess
+from pathlib import Path
+
+W = Path('/root/sicherung/biotop-lage-01')
+liste = sorted(glob.glob(str(W / 'tmp' / 'aenderungen-*.txt')))[-1]
+print(f'Liste: {liste}')
+GRUPPEN = ['/root/biotop/', '/root/biotop-t3/', '/root/gesamtstand-01/', '/root/phase-4-vorbedingung-1/',
+           '/root/reparatur-02/', '/usr/local/lib/', '/var/tmp', '/root/.local/', '/root/.hermes/skills/',
+           '/root/.hermes/.curator_backups/', '/root/.hermes/auth.json', '/root/.hermes/cache/terminal-output',
+           '/root/.hermes/cache/documents', '/tmp/hermes_', '/var/lib/containerd']
+EINZELN = {'/root', '/root/sicherung', '/tmp', '/var/pruefkanal/oeffentlich/_akte'}
+AUSSER = ('/root/biotop-vor-t4-06/bau',)
+fmt = lambda ts: dt.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+parse = lambda s: dt.datetime.strptime(s[:19], '%Y-%m-%d %H:%M:%S').timestamp()
+
+# Rohbelege: Zeitfenster
+fenster = []
+for p in sorted((W / 'rohbelege').glob('R*.txt')):
+    kopf = p.read_text(encoding='utf-8', errors='replace')[:3000]
+    b = re.search(r'^Beginn: (\S+ \S+)', kopf, re.M)
+    e = re.search(r'^Ende:\s+(\S+ \S+)', kopf, re.M)
+    t = kopf.split('\n', 1)[0]
+    if b and e:
+        fenster.append((parse(b.group(1)), parse(e.group(1)), t[:110]))
+con = sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+quelle = {r[0]: r[1] for r in con.execute('SELECT id, source FROM sessions')}
+
+
+def zuordnung(ts):
+    rb = [t for b, e, t in fenster if b - 1 <= ts <= e + 2]
+    aufrufe = []
+    for sid, t, tc in con.execute("SELECT session_id, timestamp, tool_calls FROM messages WHERE role='assistant' AND "
+                                  "tool_calls IS NOT NULL AND timestamp BETWEEN ? AND ? ORDER BY timestamp", (ts - 10, ts + 1)):
+        namen = re.findall(r'"name":\s*"([a-z_]+)"', tc or '')
+        aufrufe.append(f'{fmt(t)} {sid} ({quelle.get(sid, "?")}) {",".join(sorted(set(namen)))}')
+    return rb, aufrufe
+
+
+zeilen = [z.rstrip('\n').split('|', 4) for z in open(liste, encoding='utf-8', errors='replace')]
+treffer = [z for z in zeilen if (any(z[4].startswith(g) for g in GRUPPEN) or z[4] in EINZELN
+                                 or z[4].startswith('/var/pruefkanal/oeffentlich/_akte/') and z[4].count('/') <= 5)
+           and not z[4].startswith(AUSSER)]
+print(f'Einträge im Einzelnachweis: {len(treffer)} von {len(zeilen)} der Liste')
+for m, c, typ, size, p in sorted(treffer, key=lambda z: max(z[0], z[1])):
+    ts = parse(max(m, c))
+    rb, auf = zuordnung(ts)
+    geburt = ''
+    try:
+        st = os.stat(p, follow_symlinks=False)
+        geburt = ' · Geburt ' + fmt(st.st_birthtime) if hasattr(st, 'st_birthtime') else ''
+    except OSError:
+        geburt = ' · (nicht mehr vorhanden)'
+    kurz = re.sub(r'_akte/[a-z0-9]+/', '_akte/<kennung>/', p)
+    print(f'\n{m[:19]} | {c[:19]} | {typ} | {size} B | {kurz}{geburt}')
+    for t in rb[:3]:
+        print(f'    Rohbeleg zeitgleich: {t}')
+    for a in auf[:4]:
+        print(f'    Werkzeugaufruf: {a}')
+    if not rb and not auf:
+        print('    keine Zuordnung (weder Rohbeleg noch Werkzeugaufruf im Fenster)')
+
+print('\n== /root/biotop: nicht eingecheckte Dateien — Geburt (stat %w), Änderung')
+r = subprocess.run(['git', '-C', '/root/biotop', '--no-optional-locks', 'status', '--short'], capture_output=True, text=True)
+for z in r.stdout.splitlines():
+    p = '/root/biotop/' + z[3:]
+    w = subprocess.run(['stat', '-c', '%w | %y', p], capture_output=True, text=True).stdout.strip()
+    print(f'  {z[:2]} {z[3:]:45} {w}')
+print('== git-Index /root/biotop: gestagte Änderungen gegenüber HEAD (git --no-optional-locks diff --cached --name-only):',
+      len(subprocess.run(['git', '-C', '/root/biotop', '--no-optional-locks', 'diff', '--cached', '--name-only'],
+                         capture_output=True, text=True).stdout.split()))
+ix = Path('/root/biotop/.git/index')
+st = ix.stat()
+print(f'   .git/index: Änderung {fmt(st.st_mtime)} · Statusänderung {fmt(st.st_ctime)} · {st.st_size} B')
+
+print('== SQLite-Journalmodus der berührten Datenbanken (Kopfbytes 18/19: 2 = WAL, 1 = Rollback-Journal)')
+for db in ['/root/biotop/daten/biotop.db', '/root/biotop-t3/t3.db', '/root/gesamtstand-01/bestand.db']:
+    for x in sorted(glob.glob(db)) + sorted(glob.glob('/root/phase-4-vorbedingung-1/privat/*.db')) * (db.endswith('bestand.db')) \
+             + sorted(glob.glob('/root/reparatur-02/privat-cli/*.db')) * (db.endswith('bestand.db')):
+        with open(x, 'rb') as f:
+            k = f.read(20)
+        daneben = ', '.join(f'{Path(y).name} {os.path.getsize(y)} B {fmt(os.path.getmtime(y))}' for y in glob.glob(x + '-*'))
+        print(f'   {x}: Byte18/19 = {k[18]}/{k[19]} · daneben: {daneben or "keine"}')
+--- Ende /root/sicherung/biotop-lage-01/arbeit/n13_details.py ---
+Ausgabe (vollständig, stdout und stderr):
+Liste: /root/sicherung/biotop-lage-01/tmp/aenderungen-20260925-182208.txt
+Einträge im Einzelnachweis: 105 von 1751 der Liste
+
+2026-09-25 14:44:20 | 2026-09-25 14:44:20 | d | 4096 B | /root/.hermes/cache/documents
+    keine Zuordnung (weder Rohbeleg noch Werkzeugaufruf im Fenster)
+
+2026-09-25 14:44:20 | 2026-09-25 14:44:20 | f | 41239 B | /root/.hermes/cache/documents/doc_5bf902863a6d_BIOTOP-LAGE-01-Auftrag-v2.md
+    keine Zuordnung (weder Rohbeleg noch Werkzeugaufruf im Fenster)
+
+2026-09-25 14:48:39 | 2026-09-25 14:48:39 | d | 4096 B | /root
+    Werkzeugaufruf: 2026-09-25 14:48:39 20260924_203120_e6c401 (telegram) write_file
+    Werkzeugaufruf: 2026-09-25 14:48:39 20260924_203120_e6c401 (telegram) write_file
+    Werkzeugaufruf: 2026-09-25 14:48:39 20260924_203120_e6c401 (telegram) write_file
+
+2026-09-25 14:48:39 | 2026-09-25 14:48:39 | d | 4096 B | /root/sicherung
+    Werkzeugaufruf: 2026-09-25 14:48:39 20260924_203120_e6c401 (telegram) write_file
+    Werkzeugaufruf: 2026-09-25 14:48:39 20260924_203120_e6c401 (telegram) write_file
+    Werkzeugaufruf: 2026-09-25 14:48:39 20260924_203120_e6c401 (telegram) write_file
+
+2026-09-25 15:20:18 | 2026-09-25 15:20:18 | f | 32768 B | /root/biotop-t3/schnappschuss-abschluss3/t3.db-shm
+    Rohbeleg zeitgleich: R17 · Masterprompt-Fassungen v1–v8: Wortlaut aus state.db gegen Plattenkopien, SHA-256, Überschriften
+    Rohbeleg zeitgleich: R18 · Kassen des Biotops: Tabellen, Zeilenzahlen, Läufe (nur lesend)
+    Werkzeugaufruf: 2026-09-25 15:20:13 20260924_203120_e6c401 (telegram) write_file
+    Werkzeugaufruf: 2026-09-25 15:20:13 20260924_203120_e6c401 (telegram) write_file
+    Werkzeugaufruf: 2026-09-25 15:20:17 20260924_203120_e6c401 (telegram) terminal
+    Werkzeugaufruf: 2026-09-25 15:20:17 20260924_203120_e6c401 (telegram) terminal
+
+2026-09-23 12:52:20 | 2026-09-25 15:20:18 | f | 0 B | /root/biotop-t3/schnappschuss-abschluss3/t3.db-wal
+    Rohbeleg zeitgleich: R17 · Masterprompt-Fassungen v1–v8: Wortlaut aus state.db gegen Plattenkopien, SHA-256, Überschriften
+    Rohbeleg zeitgleich: R18 · Kassen des Biotops: Tabellen, Zeilenzahlen, Läufe (nur lesend)
+    Werkzeugaufruf: 2026-09-25 15:20:13 20260924_203120_e6c401 (telegram) write_file
+    Werkzeugaufruf: 2026-09-25 15:20:13 20260924_203120_e6c401 (telegram) write_file
+    Werkzeugaufruf: 2026-09-25 15:20:17 20260924_203120_e6c401 (telegram) terminal
+    Werkzeugaufruf: 2026-09-25 15:20:17 20260924_203120_e6c401 (telegram) terminal
+
+2026-09-20 04:54:58 | 2026-09-25 15:20:19 | f | 0 B | /root/biotop-t3/repo-sicherung-vor-commits/daten/biotop.db-wal
+    Rohbeleg zeitgleich: R17 · Masterprompt-Fassungen v1–v8: Wortlaut aus state.db gegen Plattenkopien, SHA-256, Überschriften
+    Rohbeleg zeitgleich: R18 · Kassen des Biotops: Tabellen, Zeilenzahlen, Läufe (nur lesend)
+    Werkzeugaufruf: 2026-09-25 15:20:13 20260924_203120_e6c401 (telegram) write_file
+    Werkzeugaufruf: 2026-09-25 15:20:13 20260924_203120_e6c401 (telegram) write_file
+    Werkzeugaufruf: 2026-09-25 15:20:17 20260924_203120_e6c401 (telegram) terminal
+    Werkzeugaufruf: 2026-09-25 15:20:17 20260924_203120_e6c401 (telegram) terminal
+
+2026-09-25 15:20:19 | 2026-09-25 15:20:19 | f | 32768 B | /root/biotop-t3/repo-sicherung-vor-commits/daten/biotop.db-shm
+    Rohbeleg zeitgleich: R17 · Masterprompt-Fassungen v1–v8: Wortlaut aus state.db gegen Plattenkopien, SHA-256, Überschriften
+    Rohbeleg zeitgleich: R18 · Kassen des Biotops: Tabellen, Zeilenzahlen, Läufe (nur lesend)
+    Werkzeugaufruf: 2026-09-25 15:20:13 20260924_203120_e6c401 (telegram) write_file
+    Werkzeugaufruf: 2026-09-25 15:20:13 20260924_203120_e6c401 (telegram) write_file
+    Werkzeugaufruf: 2026-09-25 15:20:17 20260924_203120_e6c401 (telegram) terminal
+    Werkzeugaufruf: 2026-09-25 15:20:17 20260924_203120_e6c401 (telegram) terminal
+
+2026-09-25 15:20:19 | 2026-09-25 15:20:19 | f | 32768 B | /root/gesamtstand-01/bestand.db-shm
+    Rohbeleg zeitgleich: R17 · Masterprompt-Fassungen v1–v8: Wortlaut aus state.db gegen Plattenkopien, SHA-256, Überschriften
+    Rohbeleg zeitgleich: R18 · Kassen des Biotops: Tabellen, Zeilenzahlen, Läufe (nur lesend)
+    Werkzeugaufruf: 2026-09-25 15:20:13 20260924_203120_e6c401 (telegram) write_file
+    Werkzeugaufruf: 2026-09-25 15:20:13 20260924_203120_e6c401 (telegram) write_file
+    Werkzeugaufruf: 2026-09-25 15:20:17 20260924_203120_e6c401 (telegram) terminal
+    Werkzeugaufruf: 2026-09-25 15:20:17 20260924_203120_e6c401 (telegram) terminal
+
+2026-09-20 06:43:06 | 2026-09-25 15:20:19 | f | 0 B | /root/gesamtstand-01/bestand.db-wal
+    Rohbeleg zeitgleich: R17 · Masterprompt-Fassungen v1–v8: Wortlaut aus state.db gegen Plattenkopien, SHA-256, Überschriften
+    Rohbeleg zeitgleich: R18 · Kassen des Biotops: Tabellen, Zeilenzahlen, Läufe (nur lesend)
+    Werkzeugaufruf: 2026-09-25 15:20:13 20260924_203120_e6c401 (telegram) write_file
+    Werkzeugaufruf: 2026-09-25 15:20:13 20260924_203120_e6c401 (telegram) write_file
+    Werkzeugaufruf: 2026-09-25 15:20:17 20260924_203120_e6c401 (telegram) terminal
+    Werkzeugaufruf: 2026-09-25 15:20:17 20260924_203120_e6c401 (telegram) terminal
+
+2026-09-25 15:52:14 | 2026-09-25 15:52:14 | d | 4096 B | /root/.local/state/tirith/sessions
+    Rohbeleg zeitgleich: R30 · Fakten: Fassungen (Stand, Änderungsverzeichnis, Tor-Punkte), Köpfe der Berichte, Läufe→Ordner, Docker-Ab
+    Werkzeugaufruf: 2026-09-25 15:52:10 20260924_203120_e6c401 (telegram) write_file
+    Werkzeugaufruf: 2026-09-25 15:52:10 20260924_203120_e6c401 (telegram) write_file
+    Werkzeugaufruf: 2026-09-25 15:52:14 20260924_203120_e6c401 (telegram) terminal
+    Werkzeugaufruf: 2026-09-25 15:52:14 20260924_203120_e6c401 (telegram) terminal
+
+2026-09-25 15:52:14 | 2026-09-25 15:52:14 | f | 37 B | /root/.local/state/tirith/sessions/fallback-unknown-953b5793.id
+    Rohbeleg zeitgleich: R30 · Fakten: Fassungen (Stand, Änderungsverzeichnis, Tor-Punkte), Köpfe der Berichte, Läufe→Ordner, Docker-Ab
+    Werkzeugaufruf: 2026-09-25 15:52:10 20260924_203120_e6c401 (telegram) write_file
+    Werkzeugaufruf: 2026-09-25 15:52:10 20260924_203120_e6c401 (telegram) write_file
+    Werkzeugaufruf: 2026-09-25 15:52:14 20260924_203120_e6c401 (telegram) terminal
+    Werkzeugaufruf: 2026-09-25 15:52:14 20260924_203120_e6c401 (telegram) terminal
+
+2026-09-20 04:54:58 | 2026-09-25 15:55:06 | f | 0 B | /root/biotop/daten/biotop.db-wal
+    Rohbeleg zeitgleich: R31 · Fakten: Gedächtnis REGELN/STAND im Wortlaut, Tor-Abschnitte der Berichte, Werke, Freigaben, Modelle, Kos
+    Werkzeugaufruf: 2026-09-25 15:55:02 20260924_203120_e6c401 (telegram) write_file
+    Werkzeugaufruf: 2026-09-25 15:55:02 20260924_203120_e6c401 (telegram) write_file
+    Werkzeugaufruf: 2026-09-25 15:55:06 20260924_203120_e6c401 (telegram) terminal
+    Werkzeugaufruf: 2026-09-25 15:55:06 20260924_203120_e6c401 (telegram) terminal
+
+2026-09-25 15:55:06 | 2026-09-25 15:55:06 | f | 32768 B | /root/biotop/daten/biotop.db-shm
+    Rohbeleg zeitgleich: R31 · Fakten: Gedächtnis REGELN/STAND im Wortlaut, Tor-Abschnitte der Berichte, Werke, Freigaben, Modelle, Kos
+    Werkzeugaufruf: 2026-09-25 15:55:02 20260924_203120_e6c401 (telegram) write_file
+    Werkzeugaufruf: 2026-09-25 15:55:02 20260924_203120_e6c401 (telegram) write_file
+    Werkzeugaufruf: 2026-09-25 15:55:06 20260924_203120_e6c401 (telegram) terminal
+    Werkzeugaufruf: 2026-09-25 15:55:06 20260924_203120_e6c401 (telegram) terminal
+
+2026-09-25 16:10:47 | 2026-09-25 16:10:47 | f | 8133 B | /root/.hermes/auth.json
+    Werkzeugaufruf: 2026-09-25 16:10:47 20260924_203120_e6c401 (telegram) delegate_task
+
+2026-09-25 16:14:42 | 2026-09-25 16:14:42 | d | 4096 B | /root/.hermes/cache/terminal-output
+    Werkzeugaufruf: 2026-09-25 16:14:32 20260925_161047_8fef8e (subagent) read_file
+    Werkzeugaufruf: 2026-09-25 16:14:33 20260925_161047_5651dc (subagent) read_file,write_file
+    Werkzeugaufruf: 2026-09-25 16:14:37 20260925_161047_5651dc (subagent) read_file,terminal
+    Werkzeugaufruf: 2026-09-25 16:14:40 20260925_161047_5651dc (subagent) read_file
+
+2026-09-25 16:14:42 | 2026-09-25 16:14:42 | f | 200123 B | /root/.hermes/cache/terminal-output/out-1790345682-389803-1fa0.log
+    Werkzeugaufruf: 2026-09-25 16:14:32 20260925_161047_8fef8e (subagent) read_file
+    Werkzeugaufruf: 2026-09-25 16:14:33 20260925_161047_5651dc (subagent) read_file,write_file
+    Werkzeugaufruf: 2026-09-25 16:14:37 20260925_161047_5651dc (subagent) read_file,terminal
+    Werkzeugaufruf: 2026-09-25 16:14:40 20260925_161047_5651dc (subagent) read_file
+
+2026-09-25 16:40:47 | 2026-09-25 16:40:47 | f | 16188 B | /root/biotop/tests/test_t3_verhaltensvergleich.py
+    Werkzeugaufruf: 2026-09-25 16:40:43 20260925_125142_033a80 (subagent) write_file
+    Werkzeugaufruf: 2026-09-25 16:40:43 20260925_125142_033a80 (subagent) write_file
+    Werkzeugaufruf: 2026-09-25 16:40:46 20260925_125142_033a80 (subagent) terminal
+    Werkzeugaufruf: 2026-09-25 16:40:46 20260925_125142_033a80 (subagent) terminal
+
+2026-09-25 16:40:47 | 2026-09-25 16:40:47 | d | 4096 B | /root/biotop/biotop/kern/py
+    Werkzeugaufruf: 2026-09-25 16:40:43 20260925_125142_033a80 (subagent) write_file
+    Werkzeugaufruf: 2026-09-25 16:40:43 20260925_125142_033a80 (subagent) write_file
+    Werkzeugaufruf: 2026-09-25 16:40:46 20260925_125142_033a80 (subagent) terminal
+    Werkzeugaufruf: 2026-09-25 16:40:46 20260925_125142_033a80 (subagent) terminal
+
+2026-09-25 16:40:47 | 2026-09-25 16:40:47 | f | 115144 B | /root/biotop/biotop/kern/py/verhalten.py
+    Werkzeugaufruf: 2026-09-25 16:40:43 20260925_125142_033a80 (subagent) write_file
+    Werkzeugaufruf: 2026-09-25 16:40:43 20260925_125142_033a80 (subagent) write_file
+    Werkzeugaufruf: 2026-09-25 16:40:46 20260925_125142_033a80 (subagent) terminal
+    Werkzeugaufruf: 2026-09-25 16:40:46 20260925_125142_033a80 (subagent) terminal
+
+2026-09-25 16:40:48 | 2026-09-25 16:40:48 | d | 4096 B | /root/biotop/biotop/organe
+    Werkzeugaufruf: 2026-09-25 16:40:43 20260925_125142_033a80 (subagent) write_file
+    Werkzeugaufruf: 2026-09-25 16:40:43 20260925_125142_033a80 (subagent) write_file
+    Werkzeugaufruf: 2026-09-25 16:40:46 20260925_125142_033a80 (subagent) terminal
+    Werkzeugaufruf: 2026-09-25 16:40:46 20260925_125142_033a80 (subagent) terminal
+
+2026-09-25 16:40:48 | 2026-09-25 16:40:48 | f | 140896 B | /root/biotop/biotop/organe/verhaltensvergleich.py
+    Werkzeugaufruf: 2026-09-25 16:40:43 20260925_125142_033a80 (subagent) write_file
+    Werkzeugaufruf: 2026-09-25 16:40:43 20260925_125142_033a80 (subagent) write_file
+    Werkzeugaufruf: 2026-09-25 16:40:46 20260925_125142_033a80 (subagent) terminal
+    Werkzeugaufruf: 2026-09-25 16:40:46 20260925_125142_033a80 (subagent) terminal
+
+2026-09-25 16:40:48 | 2026-09-25 16:40:48 | f | 33281 B | /root/biotop/tests/test_vor_t4_03.py
+    Werkzeugaufruf: 2026-09-25 16:40:43 20260925_125142_033a80 (subagent) write_file
+    Werkzeugaufruf: 2026-09-25 16:40:43 20260925_125142_033a80 (subagent) write_file
+    Werkzeugaufruf: 2026-09-25 16:40:46 20260925_125142_033a80 (subagent) terminal
+    Werkzeugaufruf: 2026-09-25 16:40:46 20260925_125142_033a80 (subagent) terminal
+
+2026-09-25 16:42:08 | 2026-09-25 16:42:08 | d | 4096 B | /root/biotop/biotop/organe/__pycache__
+    Rohbeleg zeitgleich: R89 · Nachrichtenverzeichnis Stand 2 (arbeit/verlauf/v2/): Review-Bindung der zwei Sitzungen und System-Kennun
+    Werkzeugaufruf: 2026-09-25 16:42:00 20260925_161047_154999 (subagent) read_file
+    Werkzeugaufruf: 2026-09-25 16:42:00 20260925_161047_154999 (subagent) read_file
+    Werkzeugaufruf: 2026-09-25 16:42:01 20260925_161047_8fef8e (subagent) read_file,search_files
+    Werkzeugaufruf: 2026-09-25 16:42:07 20260924_203120_e6c401 (telegram) terminal
+
+2026-09-25 16:42:08 | 2026-09-25 16:42:08 | f | 180300 B | /root/biotop/biotop/organe/__pycache__/verhaltensvergleich.cpython-312.pyc
+    Rohbeleg zeitgleich: R89 · Nachrichtenverzeichnis Stand 2 (arbeit/verlauf/v2/): Review-Bindung der zwei Sitzungen und System-Kennun
+    Werkzeugaufruf: 2026-09-25 16:42:00 20260925_161047_154999 (subagent) read_file
+    Werkzeugaufruf: 2026-09-25 16:42:00 20260925_161047_154999 (subagent) read_file
+    Werkzeugaufruf: 2026-09-25 16:42:01 20260925_161047_8fef8e (subagent) read_file,search_files
+    Werkzeugaufruf: 2026-09-25 16:42:07 20260924_203120_e6c401 (telegram) terminal
+
+2026-09-25 16:42:08 | 2026-09-25 16:42:08 | f | 79041 B | /root/biotop/tests/__pycache__/test_vor_t4_03.cpython-312-pytest-9.1.1.pyc
+    Rohbeleg zeitgleich: R89 · Nachrichtenverzeichnis Stand 2 (arbeit/verlauf/v2/): Review-Bindung der zwei Sitzungen und System-Kennun
+    Werkzeugaufruf: 2026-09-25 16:42:00 20260925_161047_154999 (subagent) read_file
+    Werkzeugaufruf: 2026-09-25 16:42:00 20260925_161047_154999 (subagent) read_file
+    Werkzeugaufruf: 2026-09-25 16:42:01 20260925_161047_8fef8e (subagent) read_file,search_files
+    Werkzeugaufruf: 2026-09-25 16:42:07 20260924_203120_e6c401 (telegram) terminal
+
+2026-09-25 16:42:08 | 2026-09-25 16:42:08 | d | 4096 B | /root/biotop/biotop/kern/py/__pycache__
+    Rohbeleg zeitgleich: R89 · Nachrichtenverzeichnis Stand 2 (arbeit/verlauf/v2/): Review-Bindung der zwei Sitzungen und System-Kennun
+    Werkzeugaufruf: 2026-09-25 16:42:00 20260925_161047_154999 (subagent) read_file
+    Werkzeugaufruf: 2026-09-25 16:42:00 20260925_161047_154999 (subagent) read_file
+    Werkzeugaufruf: 2026-09-25 16:42:01 20260925_161047_8fef8e (subagent) read_file,search_files
+    Werkzeugaufruf: 2026-09-25 16:42:07 20260924_203120_e6c401 (telegram) terminal
+
+2026-09-25 16:42:08 | 2026-09-25 16:42:08 | f | 160679 B | /root/biotop/biotop/kern/py/__pycache__/verhalten.cpython-312.pyc
+    Rohbeleg zeitgleich: R89 · Nachrichtenverzeichnis Stand 2 (arbeit/verlauf/v2/): Review-Bindung der zwei Sitzungen und System-Kennun
+    Werkzeugaufruf: 2026-09-25 16:42:00 20260925_161047_154999 (subagent) read_file
+    Werkzeugaufruf: 2026-09-25 16:42:00 20260925_161047_154999 (subagent) read_file
+    Werkzeugaufruf: 2026-09-25 16:42:01 20260925_161047_8fef8e (subagent) read_file,search_files
+    Werkzeugaufruf: 2026-09-25 16:42:07 20260924_203120_e6c401 (telegram) terminal
+
+2026-09-25 16:55:47 | 2026-09-25 16:55:47 | f | 21546 B | /root/biotop/tests/__pycache__/test_t3_python_annahmen.cpython-312-pytest-9.1.1.pyc
+    Werkzeugaufruf: 2026-09-25 16:55:40 20260925_161047_5651dc (subagent) read_file,search_files
+    Werkzeugaufruf: 2026-09-25 16:55:47 20260925_125142_033a80 (subagent) terminal
+
+2026-09-25 16:55:47 | 2026-09-25 16:55:47 | f | 49342 B | /root/biotop/tests/__pycache__/test_t3_verhaltensvergleich.cpython-312-pytest-9.1.1.pyc
+    Werkzeugaufruf: 2026-09-25 16:55:40 20260925_161047_5651dc (subagent) read_file,search_files
+    Werkzeugaufruf: 2026-09-25 16:55:47 20260925_125142_033a80 (subagent) terminal
+
+2026-09-21 06:25:38 | 2026-09-25 16:58:22 | f | 0 B | /root/reparatur-02/privat-cli/privat.db-wal
+    Rohbeleg zeitgleich: R102 · Teil F: Kasse-Ergänzung (spätere Buchungen, Lauf 22/23 Zeitschnitt, kasse.abbruch, Höchstfall, T3 kumul
+    Werkzeugaufruf: 2026-09-25 16:58:12 20260925_125142_033a80 (subagent) execute_code,terminal
+    Werkzeugaufruf: 2026-09-25 16:58:15 20260925_161047_983a5a (subagent) read_file,search_files,write_file
+    Werkzeugaufruf: 2026-09-25 16:58:21 20260925_125142_033a80 (subagent) terminal
+    Werkzeugaufruf: 2026-09-25 16:58:21 20260925_161047_983a5a (subagent) terminal
+
+2026-09-25 16:58:22 | 2026-09-25 16:58:22 | f | 32768 B | /root/reparatur-02/privat-cli/privat.db-shm
+    Rohbeleg zeitgleich: R102 · Teil F: Kasse-Ergänzung (spätere Buchungen, Lauf 22/23 Zeitschnitt, kasse.abbruch, Höchstfall, T3 kumul
+    Werkzeugaufruf: 2026-09-25 16:58:12 20260925_125142_033a80 (subagent) execute_code,terminal
+    Werkzeugaufruf: 2026-09-25 16:58:15 20260925_161047_983a5a (subagent) read_file,search_files,write_file
+    Werkzeugaufruf: 2026-09-25 16:58:21 20260925_125142_033a80 (subagent) terminal
+    Werkzeugaufruf: 2026-09-25 16:58:21 20260925_161047_983a5a (subagent) terminal
+
+2026-09-25 17:01:22 | 2026-09-25 17:01:22 | f | 18229 B | /root/.hermes/.curator_backups/blobs/90af166dd0d6eaed23a471862143f196af325ebcf1a0eab26982755377b385fd
+    Werkzeugaufruf: 2026-09-25 17:01:12 20260925_125142_033a80 (subagent) read_file
+
+2026-09-25 17:01:22 | 2026-09-25 17:01:22 | f | 18395 B | /root/.hermes/.curator_backups/blobs/af9fa853a8c29e92a0ebdb8998f9576d3b182a70a33fe35daa2808783f7b8c84
+    Werkzeugaufruf: 2026-09-25 17:01:12 20260925_125142_033a80 (subagent) read_file
+
+2026-09-25 17:01:22 | 2026-09-25 17:01:22 | f | 18763 B | /root/.hermes/.curator_backups/blobs/9867f3eff9e61eaace91a04286688896eecfdf80d14b43910dc021954b1b9b05
+    Werkzeugaufruf: 2026-09-25 17:01:12 20260925_125142_033a80 (subagent) read_file
+
+2026-09-25 17:01:22 | 2026-09-25 17:01:22 | d | 4096 B | /root/.hermes/skills/software-development/audit-channel-delivery
+    Werkzeugaufruf: 2026-09-25 17:01:12 20260925_125142_033a80 (subagent) read_file
+
+2026-09-25 17:01:22 | 2026-09-25 17:01:22 | f | 19380 B | /root/.hermes/skills/software-development/audit-channel-delivery/SKILL.md
+    Werkzeugaufruf: 2026-09-25 17:01:12 20260925_125142_033a80 (subagent) read_file
+
+2026-09-25 17:01:22 | 2026-09-25 17:01:22 | f | 19380 B | /root/.hermes/.curator_backups/blobs/d33963c8bf6bc825a77d937438c5cd5699dd2f8254efe0b83d0939ce0a643d5b
+    Werkzeugaufruf: 2026-09-25 17:01:12 20260925_125142_033a80 (subagent) read_file
+
+2026-09-25 17:01:22 | 2026-09-25 17:01:22 | d | 4096 B | /root/.hermes/skills/software-development/audit-channel-delivery/references
+    Werkzeugaufruf: 2026-09-25 17:01:12 20260925_125142_033a80 (subagent) read_file
+
+2026-09-25 17:01:22 | 2026-09-25 17:01:22 | f | 5548 B | /root/.hermes/skills/software-development/audit-channel-delivery/references/disclosure-orders.md
+    Werkzeugaufruf: 2026-09-25 17:01:12 20260925_125142_033a80 (subagent) read_file
+
+2026-09-25 17:01:22 | 2026-09-25 17:01:22 | f | 5548 B | /root/.hermes/.curator_backups/blobs/b5e6888276fb7155c58526fcf2875bf096fde5dcd090542d20ddbdb9bf45b8e3
+    Werkzeugaufruf: 2026-09-25 17:01:12 20260925_125142_033a80 (subagent) read_file
+
+2026-09-25 17:01:22 | 2026-09-25 17:01:22 | d | 4096 B | /root/.hermes/skills/software-development/audit-channel-delivery/templates
+    Werkzeugaufruf: 2026-09-25 17:01:12 20260925_125142_033a80 (subagent) read_file
+
+2026-09-25 17:01:22 | 2026-09-25 17:01:22 | f | 3453 B | /root/.hermes/skills/software-development/audit-channel-delivery/templates/rohbeleg.py
+    Werkzeugaufruf: 2026-09-25 17:01:12 20260925_125142_033a80 (subagent) read_file
+
+2026-09-25 17:01:22 | 2026-09-25 17:01:22 | f | 3453 B | /root/.hermes/.curator_backups/blobs/9f50dc07e117e1bcb6ae5bd37bc9dcd88625a57c48318594087e74c32a174a4e
+    Werkzeugaufruf: 2026-09-25 17:01:12 20260925_125142_033a80 (subagent) read_file
+
+2026-09-25 17:01:22 | 2026-09-25 17:01:22 | f | 6864 B | /root/.hermes/.curator_backups/blobs/08e55b936e25b188355c94332e923234c3dac9c35879e22c40449d05bbb2fc8a
+    Werkzeugaufruf: 2026-09-25 17:01:12 20260925_125142_033a80 (subagent) read_file
+
+2026-09-25 17:01:22 | 2026-09-25 17:01:22 | f | 6968 B | /root/.hermes/.curator_backups/blobs/3211f18244de06e0075b9201451ad355555e02611fb390d919f657dc70e0e33b
+    Werkzeugaufruf: 2026-09-25 17:01:12 20260925_125142_033a80 (subagent) read_file
+
+2026-09-25 17:01:22 | 2026-09-25 17:01:22 | f | 7125 B | /root/.hermes/.curator_backups/blobs/7c80ab96ec22b66a31902f8e86a6e7d0b5b19f2a2c7053544dba6cb4b67c761f
+    Werkzeugaufruf: 2026-09-25 17:01:12 20260925_125142_033a80 (subagent) read_file
+
+2026-09-25 17:01:23 | 2026-09-25 17:01:23 | d | 4096 B | /root/.hermes/skills/software-development/delegated-build-orchestration
+    keine Zuordnung (weder Rohbeleg noch Werkzeugaufruf im Fenster)
+
+2026-09-25 17:01:23 | 2026-09-25 17:01:23 | f | 8697 B | /root/.hermes/skills/software-development/delegated-build-orchestration/SKILL.md
+    keine Zuordnung (weder Rohbeleg noch Werkzeugaufruf im Fenster)
+
+2026-09-25 17:01:23 | 2026-09-25 17:01:23 | f | 8697 B | /root/.hermes/.curator_backups/blobs/b49956693c73b1ad6aa93682a82a57dd367e95983ccd178c212ee9e8c50e4872
+    keine Zuordnung (weder Rohbeleg noch Werkzeugaufruf im Fenster)
+
+2026-09-25 17:01:23 | 2026-09-25 17:01:23 | f | 2830 B | /root/.hermes/.curator_backups/blobs/630f5ee763c3a716600577eb7b7180494a4937bf6db95b6a1c2f70542e2870d6
+    keine Zuordnung (weder Rohbeleg noch Werkzeugaufruf im Fenster)
+
+2026-09-25 17:01:23 | 2026-09-25 17:01:23 | f | 2934 B | /root/.hermes/.curator_backups/blobs/09b6af072dc48a79e3e2e061f42e824ac31b7bdc30b053235940a09e36a3053e
+    keine Zuordnung (weder Rohbeleg noch Werkzeugaufruf im Fenster)
+
+2026-09-25 17:01:23 | 2026-09-25 17:01:23 | d | 4096 B | /root/.hermes/skills/software-development/delegated-build-orchestration/references
+    keine Zuordnung (weder Rohbeleg noch Werkzeugaufruf im Fenster)
+
+2026-09-25 17:01:23 | 2026-09-25 17:01:23 | f | 5295 B | /root/.hermes/skills/software-development/delegated-build-orchestration/references/session-db-forensics.md
+    keine Zuordnung (weder Rohbeleg noch Werkzeugaufruf im Fenster)
+
+2026-09-25 17:01:23 | 2026-09-25 17:01:23 | f | 5295 B | /root/.hermes/.curator_backups/blobs/63a8c08c6dd151d254c1727f51aecfaa843bd9da1a6d750f9bda06dd56b44856
+    keine Zuordnung (weder Rohbeleg noch Werkzeugaufruf im Fenster)
+
+2026-09-25 17:01:23 | 2026-09-25 17:01:23 | f | 8995 B | /root/.hermes/.curator_backups/blobs/26cfdb282ab801c79154911bfd30780edd4aa38d2d7d6fba269f515af44d153a
+    keine Zuordnung (weder Rohbeleg noch Werkzeugaufruf im Fenster)
+
+2026-09-25 17:01:23 | 2026-09-25 17:01:23 | f | 10257 B | /root/.hermes/.curator_backups/blobs/06d6d367f2abfb7947b5aab653af779e780a91ea1eb989edf1e0f9143db369f8
+    keine Zuordnung (weder Rohbeleg noch Werkzeugaufruf im Fenster)
+
+2026-09-25 17:01:35 | 2026-09-25 17:01:35 | f | 115519 B | /root/biotop/tests/__pycache__/test_vor_t4_06_register.cpython-312-pytest-9.1.1.pyc
+    Werkzeugaufruf: 2026-09-25 17:01:34 20260925_125142_033a80 (subagent) terminal,write_file
+
+2026-09-25 17:01:49 | 2026-09-25 17:01:49 | d | 4096 B | /root/.hermes/skills/software-development
+    Werkzeugaufruf: 2026-09-25 17:01:40 20260925_125142_033a80 (subagent) terminal
+
+2026-09-25 17:01:49 | 2026-09-25 17:01:49 | d | 4096 B | /root/.hermes/skills/software-development/verified-backup-restore
+    Werkzeugaufruf: 2026-09-25 17:01:40 20260925_125142_033a80 (subagent) terminal
+
+2026-09-25 17:01:49 | 2026-09-25 17:01:49 | f | 8366 B | /root/.hermes/skills/software-development/verified-backup-restore/SKILL.md
+    Werkzeugaufruf: 2026-09-25 17:01:40 20260925_125142_033a80 (subagent) terminal
+
+2026-09-25 17:01:49 | 2026-09-25 17:01:49 | f | 8366 B | /root/.hermes/.curator_backups/blobs/6cb0214a39a17d24b8b33e2464b443a6c3adf1cdc7c176d41676873fe2e0edaf
+    Werkzeugaufruf: 2026-09-25 17:01:40 20260925_125142_033a80 (subagent) terminal
+
+2026-09-25 17:02:06 | 2026-09-25 17:02:06 | d | 4096 B | /root/.hermes/skills/software-development/measurement-harness-discipline/references
+    Werkzeugaufruf: 2026-09-25 17:02:06 20260925_161047_23e44b (subagent) read_file
+
+2026-09-25 17:02:06 | 2026-09-25 17:02:06 | f | 10258 B | /root/.hermes/skills/software-development/measurement-harness-discipline/references/read-only-inventory-and-reconciliation.md
+    Werkzeugaufruf: 2026-09-25 17:02:06 20260925_161047_23e44b (subagent) read_file
+
+2026-09-25 17:02:06 | 2026-09-25 17:02:06 | d | 45056 B | /root/.hermes/.curator_backups/blobs
+    Werkzeugaufruf: 2026-09-25 17:02:06 20260925_161047_23e44b (subagent) read_file
+
+2026-09-25 17:02:06 | 2026-09-25 17:02:06 | f | 10258 B | /root/.hermes/.curator_backups/blobs/118fa67b65ae0a0c6ebf06576b2f97d8267f04f7384b2c1123ab7d4161d84f7b
+    Werkzeugaufruf: 2026-09-25 17:02:06 20260925_161047_23e44b (subagent) read_file
+
+2026-09-25 17:02:06 | 2026-09-25 17:02:06 | f | 1116612 B | /root/.hermes/skills/.curator_ledger.jsonl
+    Werkzeugaufruf: 2026-09-25 17:02:06 20260925_161047_23e44b (subagent) read_file
+
+2026-09-25 17:02:06 | 2026-09-25 17:02:06 | f | 25925 B | /root/.hermes/skills/.usage.json
+    Werkzeugaufruf: 2026-09-25 17:02:06 20260925_161047_23e44b (subagent) read_file
+
+2026-09-25 17:06:04 | 2026-09-25 17:06:04 | d | 4096 B | /root/biotop/biotop/__pycache__
+    keine Zuordnung (weder Rohbeleg noch Werkzeugaufruf im Fenster)
+
+2026-09-25 17:06:04 | 2026-09-25 17:06:04 | f | 19847 B | /root/biotop/biotop/__pycache__/__main__.cpython-312.pyc
+    keine Zuordnung (weder Rohbeleg noch Werkzeugaufruf im Fenster)
+
+2026-09-25 17:06:22 | 2026-09-25 17:06:22 | f | 34653 B | /root/biotop-t3/BEFUNDKLASSE-TS.json
+    Werkzeugaufruf: 2026-09-25 17:06:13 20260925_161047_8fef8e (subagent) write_file
+
+2026-09-25 17:13:41 | 2026-09-25 17:13:41 | f | 40705 B | /root/biotop/tests/__pycache__/test_vor_t4_03.cpython-312.pyc
+    Werkzeugaufruf: 2026-09-25 17:13:41 20260925_125142_033a80 (subagent) terminal,write_file
+
+2026-09-25 17:25:07 | 2026-09-25 17:25:07 | d | 4096 B | /root/biotop/tests
+    Werkzeugaufruf: 2026-09-25 17:24:57 20260925_125142_033a80 (subagent) terminal
+    Werkzeugaufruf: 2026-09-25 17:25:01 20260925_163044_69477c (subagent) read_file
+    Werkzeugaufruf: 2026-09-25 17:25:05 20260925_161047_d126b7 (subagent) write_file
+    Werkzeugaufruf: 2026-09-25 17:25:05 20260925_161047_d126b7 (subagent) write_file
+
+2026-09-25 17:25:07 | 2026-09-25 17:25:07 | f | 111290 B | /root/biotop/tests/test_vor_t4_06.py
+    Werkzeugaufruf: 2026-09-25 17:24:57 20260925_125142_033a80 (subagent) terminal
+    Werkzeugaufruf: 2026-09-25 17:25:01 20260925_163044_69477c (subagent) read_file
+    Werkzeugaufruf: 2026-09-25 17:25:05 20260925_161047_d126b7 (subagent) write_file
+    Werkzeugaufruf: 2026-09-25 17:25:05 20260925_161047_d126b7 (subagent) write_file
+
+2026-09-25 17:25:08 | 2026-09-25 17:25:08 | d | 12288 B | /root/biotop/tests/__pycache__
+    Werkzeugaufruf: 2026-09-25 17:25:01 20260925_163044_69477c (subagent) read_file
+    Werkzeugaufruf: 2026-09-25 17:25:05 20260925_161047_d126b7 (subagent) write_file
+    Werkzeugaufruf: 2026-09-25 17:25:05 20260925_161047_d126b7 (subagent) write_file
+    Werkzeugaufruf: 2026-09-25 17:25:06 20260925_125142_033a80 (subagent) terminal,write_file
+
+2026-09-25 17:25:08 | 2026-09-25 17:25:08 | f | 318532 B | /root/biotop/tests/__pycache__/test_vor_t4_06.cpython-312-pytest-9.1.1.pyc
+    Werkzeugaufruf: 2026-09-25 17:25:01 20260925_163044_69477c (subagent) read_file
+    Werkzeugaufruf: 2026-09-25 17:25:05 20260925_161047_d126b7 (subagent) write_file
+    Werkzeugaufruf: 2026-09-25 17:25:05 20260925_161047_d126b7 (subagent) write_file
+    Werkzeugaufruf: 2026-09-25 17:25:06 20260925_125142_033a80 (subagent) terminal,write_file
+
+2026-09-25 17:25:50 | 2026-09-25 17:25:50 | d | 4096 B | /var/lib/containerd/io.containerd.runtime.v2.task/moby
+    Werkzeugaufruf: 2026-09-25 17:25:40 20260924_203120_e6c401 (telegram) read_file,terminal
+    Werkzeugaufruf: 2026-09-25 17:25:40 20260924_203120_e6c401 (telegram) read_file,terminal
+    Werkzeugaufruf: 2026-09-25 17:25:41 20260925_163044_69477c (subagent) search_files
+    Werkzeugaufruf: 2026-09-25 17:25:41 20260925_161047_d126b7 (subagent) read_file
+
+2026-09-25 17:25:50 | 2026-09-25 17:25:50 | f | 8388608 B | /var/lib/containerd/io.containerd.metadata.v1.bolt/meta.db
+    Werkzeugaufruf: 2026-09-25 17:25:40 20260924_203120_e6c401 (telegram) read_file,terminal
+    Werkzeugaufruf: 2026-09-25 17:25:40 20260924_203120_e6c401 (telegram) read_file,terminal
+    Werkzeugaufruf: 2026-09-25 17:25:41 20260925_163044_69477c (subagent) search_files
+    Werkzeugaufruf: 2026-09-25 17:25:41 20260925_161047_d126b7 (subagent) read_file
+
+2026-09-25 17:25:50 | 2026-09-25 17:25:50 | d | 4096 B | /var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots
+    Werkzeugaufruf: 2026-09-25 17:25:40 20260924_203120_e6c401 (telegram) read_file,terminal
+    Werkzeugaufruf: 2026-09-25 17:25:40 20260924_203120_e6c401 (telegram) read_file,terminal
+    Werkzeugaufruf: 2026-09-25 17:25:41 20260925_163044_69477c (subagent) search_files
+    Werkzeugaufruf: 2026-09-25 17:25:41 20260925_161047_d126b7 (subagent) read_file
+
+2026-09-25 17:25:50 | 2026-09-25 17:25:50 | f | 131072 B | /var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/metadata.db
+    Werkzeugaufruf: 2026-09-25 17:25:40 20260924_203120_e6c401 (telegram) read_file,terminal
+    Werkzeugaufruf: 2026-09-25 17:25:40 20260924_203120_e6c401 (telegram) read_file,terminal
+    Werkzeugaufruf: 2026-09-25 17:25:41 20260925_163044_69477c (subagent) search_files
+    Werkzeugaufruf: 2026-09-25 17:25:41 20260925_161047_d126b7 (subagent) read_file
+
+2026-09-25 17:36:10 | 2026-09-25 17:36:10 | s | 0 B | /tmp/hermes_rpc_4f4ec1dc2b0849b48b1af553fe88c678.sock
+    Werkzeugaufruf: 2026-09-25 17:36:10 20260925_163044_69477c (subagent) execute_code
+
+2026-09-25 17:36:10 | 2026-09-25 17:36:10 | f | 6894 B | /tmp/hermes_kernel_s5mbsd8c/hermes_tools.py
+    Werkzeugaufruf: 2026-09-25 17:36:10 20260925_163044_69477c (subagent) execute_code
+
+2026-09-25 17:36:10 | 2026-09-25 17:36:10 | d | 4096 B | /tmp/hermes_kernel_s5mbsd8c
+    Werkzeugaufruf: 2026-09-25 17:36:10 20260925_163044_69477c (subagent) execute_code
+
+2026-09-25 17:36:10 | 2026-09-25 17:36:10 | f | 6061 B | /tmp/hermes_kernel_s5mbsd8c/hermes_kernel_runner.py
+    Werkzeugaufruf: 2026-09-25 17:36:10 20260925_163044_69477c (subagent) execute_code
+
+2026-09-25 17:42:17 | 2026-09-25 17:42:17 | d | 4096 B | /tmp/hermes_kernel_neecs_j6
+    Rohbeleg zeitgleich: R143 · Teil I: Gegenprobe 6 (MASSGEBLICH) inventar.py, gleiche Skriptfassung wie Lieferlauf 6, nur lesend
+    Werkzeugaufruf: 2026-09-25 17:42:16 20260925_161047_5651dc (subagent) execute_code,patch
+
+2026-09-25 17:42:17 | 2026-09-25 17:42:17 | f | 6894 B | /tmp/hermes_kernel_neecs_j6/hermes_tools.py
+    Rohbeleg zeitgleich: R143 · Teil I: Gegenprobe 6 (MASSGEBLICH) inventar.py, gleiche Skriptfassung wie Lieferlauf 6, nur lesend
+    Werkzeugaufruf: 2026-09-25 17:42:16 20260925_161047_5651dc (subagent) execute_code,patch
+
+2026-09-25 17:42:17 | 2026-09-25 17:42:17 | f | 6061 B | /tmp/hermes_kernel_neecs_j6/hermes_kernel_runner.py
+    Rohbeleg zeitgleich: R143 · Teil I: Gegenprobe 6 (MASSGEBLICH) inventar.py, gleiche Skriptfassung wie Lieferlauf 6, nur lesend
+    Werkzeugaufruf: 2026-09-25 17:42:16 20260925_161047_5651dc (subagent) execute_code,patch
+
+2026-09-25 17:42:17 | 2026-09-25 17:42:17 | s | 0 B | /tmp/hermes_rpc_5fd04c84aef04798ad99a55911bec81c.sock
+    Rohbeleg zeitgleich: R143 · Teil I: Gegenprobe 6 (MASSGEBLICH) inventar.py, gleiche Skriptfassung wie Lieferlauf 6, nur lesend
+    Werkzeugaufruf: 2026-09-25 17:42:16 20260925_161047_5651dc (subagent) execute_code,patch
+
+2026-09-20 22:16:10 | 2026-09-25 17:43:13 | f | 4140632 B | /root/phase-4-vorbedingung-1/privat/biotop.db-wal
+    Rohbeleg zeitgleich: R144 · Teil I: Lieferlauf 7 (MASSGEBLICH, Endfassung) inventar.py mit Stichzeitpunkt jetzt, nur lesend
+    Rohbeleg zeitgleich: R145 · Teil I: Gegenprobe 7 (MASSGEBLICH) inventar.py, gleiche Skriptfassung wie Lieferlauf 7, nur lesend
+    Werkzeugaufruf: 2026-09-25 17:43:04 20260925_163044_69477c (subagent) terminal
+
+2026-09-25 17:43:13 | 2026-09-25 17:43:13 | f | 32768 B | /root/phase-4-vorbedingung-1/privat/biotop.db-shm
+    Rohbeleg zeitgleich: R144 · Teil I: Lieferlauf 7 (MASSGEBLICH, Endfassung) inventar.py mit Stichzeitpunkt jetzt, nur lesend
+    Rohbeleg zeitgleich: R145 · Teil I: Gegenprobe 7 (MASSGEBLICH) inventar.py, gleiche Skriptfassung wie Lieferlauf 7, nur lesend
+    Werkzeugaufruf: 2026-09-25 17:43:04 20260925_163044_69477c (subagent) terminal
+
+2026-09-25 17:48:55 | 2026-09-25 17:48:55 | d | 4096 B | /var/tmp
+    keine Zuordnung (weder Rohbeleg noch Werkzeugaufruf im Fenster)
+
+2026-09-25 17:49:59 | 2026-09-25 17:49:59 | f | 1573 B | /root/.local/share/tirith/last_trigger.json
+    Werkzeugaufruf: 2026-09-25 17:49:58 20260924_203120_e6c401 (telegram) delegate_task,read_file,search_files,terminal
+
+2026-09-25 17:50:15 | 2026-09-25 17:50:15 | d | 4096 B | /root/biotop/.git
+    Werkzeugaufruf: 2026-09-25 17:50:15 20260924_203120_e6c401 (telegram) terminal
+
+2026-09-25 17:57:00 | 2026-09-25 17:57:00 | d | 4096 B | /usr/local/lib/hermes-agent/cron/__pycache__
+    Werkzeugaufruf: 2026-09-25 17:57:00 20260924_203120_e6c401 (telegram) read_file,search_files,tool_call
+
+2026-09-25 17:57:00 | 2026-09-25 17:57:00 | f | 8687 B | /usr/local/lib/hermes-agent/cron/__pycache__/notepad.cpython-312.pyc
+    Werkzeugaufruf: 2026-09-25 17:57:00 20260924_203120_e6c401 (telegram) read_file,search_files,tool_call
+
+2026-09-25 18:04:56 | 2026-09-25 18:04:56 | d | 200704 B | /tmp
+    Werkzeugaufruf: 2026-09-25 18:04:50 20260924_203120_e6c401 (telegram) read_file,terminal
+    Werkzeugaufruf: 2026-09-25 18:04:56 20260925_161047_983a5a (subagent) execute_code
+
+2026-09-25 18:04:56 | 2026-09-25 18:04:56 | s | 0 B | /tmp/hermes_rpc_f0ad392bfe15449da002e8247f8ef406.sock
+    Werkzeugaufruf: 2026-09-25 18:04:50 20260924_203120_e6c401 (telegram) read_file,terminal
+    Werkzeugaufruf: 2026-09-25 18:04:56 20260925_161047_983a5a (subagent) execute_code
+
+2026-09-25 18:04:56 | 2026-09-25 18:04:56 | d | 4096 B | /tmp/hermes_kernel_l4dxywo7

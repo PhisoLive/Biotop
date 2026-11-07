@@ -1,0 +1,101 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 03 · Teil 239 (Teile 166–239 dieses Stands) · enthält R225 bis R226
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R225 · Hauptdatei je Biotop-Abschlussordner seit dem 21.09. (für Meldung 2 und START-03)
+Beginn: 2026-09-25 20:51:23 CEST (UTC+0200)
+Ende:   2026-09-25 20:51:24 CEST (UTC+0200)
+Dauer:  0.4 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/hauptdateien.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/hauptdateien.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Hauptdatei je Biotop-Abschlussordner seit dem 21.09. (für Meldung 2 und START-03).
+Ordner: laeufe/biotop-* (ohne biotop-lage-01) mit einer Datei, deren Änderungszeit ≥ 21.09.2026 00:00 CEST ist.
+Hauptdatei (Auslegung Hermes), in dieser Reihenfolge, Tiefe 1 vor Tiefe 2: BERICHT*.md, ABSCHLUSS*.md, START-NN.md (höchste),
+ZWISCHENBERICHT.md, README.md; sonst die jüngste .md. Gibt je Ordner die Adresse, Größe und die Zahl der Dateien aus."""
+import datetime as dt
+import re
+from pathlib import Path
+
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+L = Path(f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe')
+BASIS = f'https://milieulux-reinigung-muenchen.de/_akte/{K}/laeufe'
+AB = dt.datetime(2026, 9, 21).timestamp()
+MUSTER = [r'^BERICHT.*\.md$', r'^ABSCHLUSS.*\.md$', r'^START-\d+\.md$', r'^ZWISCHENBERICHT\.md$', r'^README\.md$']
+n = 0
+for o in sorted(p for p in L.iterdir() if p.is_dir() and p.name.startswith('biotop-') and p.name != 'biotop-lage-01'):
+    dateien = [p for p in o.rglob('*') if p.is_file()]
+    if not dateien or max(p.stat().st_mtime for p in dateien) < AB:
+        continue
+    n += 1
+    wahl = None
+    for tiefe in (1, 2):
+        kand = [p for p in dateien if len(p.relative_to(o).parts) == tiefe]
+        for m in MUSTER:
+            t = sorted((p for p in kand if re.match(m, p.name)), key=lambda p: (p.name, p.stat().st_mtime))
+            if t:
+                wahl = t[-1]; break
+        if wahl:
+            break
+    if not wahl:
+        md = [p for p in dateien if p.suffix == '.md']
+        wahl = max(md or dateien, key=lambda p: p.stat().st_mtime)
+    rel = wahl.relative_to(L).as_posix()
+    print(f'{o.name} · {len(dateien)} Dateien · jüngste {dt.datetime.fromtimestamp(max(p.stat().st_mtime for p in dateien)):%d.%m. %H:%M} · '
+          f'{BASIS}/{rel} · {wahl.stat().st_size} B')
+print(f'Ordner seit 21.09.: {n}')
+--- Ende /root/sicherung/biotop-lage-01/arbeit/hauptdateien.py ---
+Ausgabe (vollständig, stdout und stderr):
+biotop-phase-4-einstieg-20260921-01 · 16 Dateien · jüngste 21.09. 01:51 · https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-phase-4-einstieg-20260921-01/ZWISCHENBERICHT.md · 10381 B
+biotop-phase-4-vorbedingung-1 · 146 Dateien · jüngste 21.09. 00:10 · https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-phase-4-vorbedingung-1/BERICHT.md · 7917 B
+biotop-t3-typescript · 231 Dateien · jüngste 23.09. 15:47 · https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-t3-typescript/BERICHT.md · 1618 B
+biotop-vor-t4 · 98 Dateien · jüngste 23.09. 22:27 · https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4/BERICHT.md · 35702 B
+biotop-vor-t4-02 · 79 Dateien · jüngste 24.09. 02:10 · https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-02/BERICHT.md · 37024 B
+biotop-vor-t4-03 · 100 Dateien · jüngste 24.09. 11:56 · https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-03/BERICHT.md · 41349 B
+biotop-vor-t4-04 · 123 Dateien · jüngste 24.09. 17:19 · https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-04/BERICHT.md · 33528 B
+biotop-vor-t4-05 · 159 Dateien · jüngste 24.09. 23:45 · https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-05/BERICHT.md · 45281 B
+biotop-vor-t4-06 · 20 Dateien · jüngste 25.09. 01:12 · https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-06/zwischenbericht-20260925-011225-r12-verdichtung/ZWISCHENBERICHT.md · 2407 B
+Ordner seit 21.09.: 9
+=== Ende R225 ===
+
+
+R226 · Zahl der offenen Punkte in FK39 (LAGE-TEIL5)
+Beginn: 2026-09-25 20:51:24 CEST (UTC+0200)
+Ende:   2026-09-25 20:51:24 CEST (UTC+0200)
+Dauer:  0.0 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/n22_offene.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/n22_offene.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Zahl der offenen Punkte in FK39 (LAGE-TEIL5-01.md): Tabellenzeilen mit einer Kennung
+in der ersten Spalte, je Abschnitt; dazu „blockiert ja“ je Abschnitt nach der Abschnittsüberschrift."""
+import re
+from pathlib import Path
+
+t = Path('/root/sicherung/biotop-lage-01/ausgabe/LAGE-TEIL5-01.md').read_text(encoding='utf-8')
+abschnitt, zaehl = None, {}
+for z in t.splitlines():
+    if z.startswith('## '):
+        abschnitt = z[3:60]
+        zaehl[abschnitt] = 0
+    elif abschnitt and z.startswith('| ') and not re.match(r'\|\s*(-+|Kennung|Nr)\s*\|', z) and not z.startswith('|---'):
+        zaehl[abschnitt] += 1
+for a, n in zaehl.items():
+    print(f'{n:3d} · {a}')
+print(f'Summe Tabellenzeilen: {sum(zaehl.values())}')
+--- Ende /root/sicherung/biotop-lage-01/arbeit/n22_offene.py ---
+Ausgabe (vollständig, stdout und stderr):
+  0 · Wie gezählt wurde
+ 11 · A. Runde 6: Bauteile vor T4 (in Arbeit)
+  3 · B. Punkte für die Aufnahme von T4 (nicht blockierend)
+  2 · C. Vor T5 (nicht blockierend für T4, das ein Python-Werk 
+  4 · D. Unbestätigte Befunde aus dem verworfenen Review der Ru
+ 10 · E. Ältere offene Punkte ohne Entscheidung
+  6 · F. Offen bei Philipp (nicht blockierend, Auslegung Hermes
+  0 · Nicht mehr offen, aber mehrfach weitergereicht (zur Einor
+Summe Tabellenzeilen: 36
+=== Ende R226 ===

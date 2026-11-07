@@ -1,0 +1,276 @@
+diff --git a/biotop/organe/aegis.py b/biotop/organe/aegis.py
+index 619b489..efdf753 100644
+--- a/biotop/organe/aegis.py
++++ b/biotop/organe/aegis.py
+@@ -299,13 +299,18 @@ def _doppelungen(treffer: set[str], ergebnisse: dict, ad: str, con, werk_id: int
+ 
+ 
+ # ---------------------------------------------------------------- Angriff
+-def bisherige_behauptungen(con, werk_id: int, bereich: str, limit: int = 25) -> list[str]:
++def bisherige_behauptungen(con, werk_id: int, bereich: str, lauf_id: int | None = None, limit: int = 25) -> list[str]:
+     """Welche Behauptungen hat der Ankläger in diesem Bereich schon aufgestellt? (Fassung 6)
+ 
++    Zwei Quellen, beide nötig:
++    1. das Immunsystem des Werks (Funde früherer Läufe, Schlüssel im `ursprung`),
++    2. die ANGESAGTEN Behauptungen des laufenden Laufs (`aegis.ansage`) — ohne sie greift die Sperre innerhalb
++       eines Laufs nicht, und bei einer frischen Werk-Kopie ist das Immunsystem leer. Gemessen in Lauf 23:
++       `extern_filtern|raises:ValueError` wurde zweimal angesagt und zweimal ausgeführt, weil nur das (leere)
++       Immunsystem befragt wurde.
++
+     Gemessen in Phase 2/3: 68,5 % der erzeugten Angriffstests wiederholten eine bereits vorhandene Behauptung —
+-    acht Tests sagten dasselbe über `lager/reserviert`. Zwei Drittel der Aufrufe brachten also nichts Neues und
+-    kosteten trotzdem. Deshalb werden dem Ankläger vor jedem Angriff seine bisherigen Behauptungen dieses Bereichs
+-    vorgelegt, mit dem Auftrag, eine andere zu finden. Das ist Text im ohnehin fälligen Aufruf, kostet nichts extra.
++    acht Tests sagten dasselbe über `lager/reserviert`. Zwei Drittel der Aufrufe brachten also nichts Neues.
+     """
+     aus = []
+     for z in con.execute("SELECT ursprung FROM immunsystem WHERE werk_id=? AND bereich=? ORDER BY id DESC LIMIT 200",
+@@ -313,11 +318,60 @@ def bisherige_behauptungen(con, werk_id: int, bereich: str, limit: int = 25) ->
+         t = z["ursprung"] or ""
+         if "behauptung=" in t:
+             for s in t.split("behauptung=", 1)[1].strip().split(" "):
+-                if "|" in s and s not in aus:
++                # Leere oder halbe Schlüssel („|", „x|") entstehen, wenn ein Test kein erkennbares Ziel oder
++                # keine erkennbare Zusicherung hat — sie dürfen nichts sperren, sonst blockieren sie wahllos.
++                if s.count("|") == 1 and all(teil.strip() for teil in s.split("|")) and s not in aus:
+                     aus.append(s)
++    if lauf_id is not None:
++        for z in con.execute("SELECT inhalt FROM protokoll WHERE art='aegis.ansage' ORDER BY nr DESC LIMIT 400"):
++            d = lj(z["inhalt"]) or {}
++            if d.get("lauf_id") == lauf_id and d.get("bereich") == bereich and d.get("behauptung"):
++                if d["behauptung"] not in aus:
++                    aus.append(d["behauptung"])
+     return aus[:limit]
+ 
+ 
++ANSAGE_SYSTEM = """Du bist der Ankläger. BEVOR du angreifst, nennst du die Behauptung, die du prüfen willst.
++
++Eine Behauptung hat die Form <Ziel-Funktion>|<Zusicherungsart>:
++  Ziel-Funktion = die Funktion oder Methode des Werks, die dein Test aufrufen wird (nur der Name)
++  Zusicherungsart = `raises:<Ausnahme>` wenn du eine Ausnahme erwartest, sonst `Eq:zahl`, `Eq:text`, `Eq:name`,
++  `GtE:zahl`, `Lt:zahl`, `NotIn:name` oder `wahrheit` — der Vergleich, den dein assert prüfen wird.
++
++Antworte mit GENAU EINER ZEILE: der Behauptung, sonst nichts. Kein Code, keine Begründung.
++Findest du nichts, was zu prüfen wäre, antworte mit: KEIN ANGRIFF"""
++
++
++def _ansage(con, lauf_id, modell, bereich, paket, diff, quelle, schon: list[str]) -> tuple[str | None, bool]:
++    """Fassung 6 (3.7): Der Ankläger nennt seine Behauptung vorab. Ist sie im Bereich schon aufgestellt, wird der
++    Angriff GAR NICHT ausgeführt — kein Testschreiben, kein Kammerlauf, kein Aufruf für die Ausführung.
++
++    Grund: Die bloße Anweisung, eine andere Behauptung zu finden, senkte die größte Gruppe von 5 auf 1, aber den
++    Doppelungsanteil nur von 63,6 auf 54,5 % — und 0 von allen Aufrufen antworteten mit „KEIN ANGRIFF", obwohl das
++    ausdrücklich erlaubt ist und der Schwarm in über 40 % der Fälle ehrlich nichts liefert. Die Rolle des Gegners
++    erzeugt Zwangsbefunde; deshalb wird dem Modell die Entscheidung abgenommen, statt sie ihm anzutragen.
++
++    Rückgabe: (Behauptung oder None, bereits_vorhanden).
++    """
++    schon_text = ("\n\nBEREITS AUFGESTELLTE BEHAUPTUNGEN IN DIESEM BEREICH — eine davon zu wiederholen ist zwecklos, "
++                  "der Angriff wird dann nicht ausgeführt:\n" + "\n".join(f"- {s}" for s in schon)) if schon else ""
++    try:
++        a = aufrufen(con, lauf_id, *modell, ANSAGE_SYSTEM,
++                     f"BEREICH {bereich} (Paket {paket}){schon_text}\n\nDIFF:\n```diff\n{diff[:4000]}\n```\n\n"
++                     f"QUELLTEXT NACH DIFF:\n" + "\n\n".join(quelle)[:12000],
++                     zweck=f"aegis.ansage.{bereich}", max_tokens=60, temperatur=0.3)
++    except AnbieterFehler as e:
++        protokoll.schreiben(con, "aegis.ansage_fehler", lauf_id=lauf_id, bereich=bereich, fehler=str(e)[:200])
++        return None, False
++    zeile = " ".join(a.text.strip().split())
++    if not zeile or "KEIN ANGRIFF" in zeile.upper():
++        return None, False
++    treffer = re.search(r"([A-Za-z_][A-Za-z_0-9]*)\s*\|\s*([A-Za-z_]+:?[A-Za-z_]*)", zeile)
++    if not treffer:
++        return None, False
++    return f"{treffer.group(1)}|{treffer.group(2)}", False
++
++
+ def _angriff(con, lauf_id, werk_id, paket, bereich, diff, dateien, werk, klassen: list[str]) -> tuple[str | None, str]:
+     quelle = []
+     for d in sorted((werk / paket / bereich).rglob("*.py")):
+@@ -335,27 +389,80 @@ def _angriff(con, lauf_id, werk_id, paket, bereich, diff, dateien, werk, klassen
+         befund_text = "\n\nSTATISCHE BEFUNDKLASSE(N) DER BERÜHRTEN STELLE (3.7 F2 — greife die bekannten Umgehungen an):\n" + "\n".join(
+             "- " + befundklassen.beschreibung(k) for k in klassen)
+         modell = MODELL_ANGRIFF_SCHWER
+-    # Fassung 6: bisherige Behauptungen vorlegen — gegen Wiederholung derselben Zusicherung (68,5 % gemessen).
+-    schon = bisherige_behauptungen(con, werk_id, bereich)
+-    schon_text = ("\n\nDIESE BEHAUPTUNGEN HAST DU IN DIESEM BEREICH SCHON AUFGESTELLT "
+-                  "(Form: <Funktion>|<Zusicherung>):\n" + "\n".join(f"- {s}" for s in schon) +
+-                  "\n\nStelle eine ANDERE Behauptung auf: ein anderes Ziel oder eine andere Art von Zusicherung. "
+-                  "Ein Test, der eine dieser Behauptungen wiederholt, wird als Doppelung verworfen und bringt nichts. "
+-                  "Findest du nichts Neues, antworte mit KEIN ANGRIFF — das ist kein Fehlschlag.") if schon else ""
++    # Fassung 6 (3.7): Der Ankläger nennt seine Behauptung VORAB. Ist sie im Bereich schon aufgestellt, wird der
++    # Angriff gar nicht erst ausgeführt — das spart den teuren Aufruf und verhindert die Doppelung an der Quelle.
++    schon = bisherige_behauptungen(con, werk_id, bereich, lauf_id)
++    ansage, _ = _ansage(con, lauf_id, modell, bereich, paket, diff, quelle, schon)
++    if ansage is None:
++        protokoll.schreiben(con, "aegis.ansage", lauf_id=lauf_id, bereich=bereich, behauptung=None,
++                            ausgefuehrt=False, grund="Ankläger nennt keine Behauptung (KEIN ANGRIFF)")
++        return None, modell[1], None
++    if ansage in schon:
++        protokoll.schreiben(con, "aegis.ansage", lauf_id=lauf_id, bereich=bereich, behauptung=ansage,
++                            ausgefuehrt=False, grund="Behauptung in diesem Bereich bereits aufgestellt — Angriff "
++                                                     "nicht ausgeführt (F6 3.7), spart Aufruf und Kammerlauf",
++                            bisherige=len(schon))
++        return None, modell[1], ansage
++    protokoll.schreiben(con, "aegis.ansage", lauf_id=lauf_id, bereich=bereich, behauptung=ansage,
++                        ausgefuehrt=True, bisherige=len(schon))
++    ansage_text = (f"\n\nDU HAST ANGEKÜNDIGT, DIESE BEHAUPTUNG ZU PRÜFEN: {ansage}\n"
++                   f"Schreibe genau dazu den Test. Weiche nicht auf eine andere Behauptung aus.")
+     try:
+         a = aufrufen(con, lauf_id, *modell, ANGRIFF_SYSTEM,
+-                     f"BEREICH {bereich} (Paket {paket})\n\nVERTRÄGE:\n{vertraege or 'keine dokumentiert'}{verf_text}{befund_text}{schon_text}\n\nDIFF:\n```diff\n{diff}\n```\n\nQUELLTEXT NACH DIFF:\n" + "\n\n".join(quelle),
++                     f"BEREICH {bereich} (Paket {paket})\n\nVERTRÄGE:\n{vertraege or 'keine dokumentiert'}{verf_text}{befund_text}{ansage_text}\n\nDIFF:\n```diff\n{diff}\n```\n\nQUELLTEXT NACH DIFF:\n" + "\n\n".join(quelle),
+                      zweck=("schwer." if klassen else "") + f"aegis.angriff.{bereich}", max_tokens=2500, temperatur=0.3)
+     except AnbieterFehler as e:
+         protokoll.schreiben(con, "aegis.fehler", lauf_id=lauf_id, fehler=str(e)[:300])
+-        return None, modell[1]
++        return None, modell[1], ansage
+     if "KEIN ANGRIFF" in a.text[:200]:
+-        return None, modell[1]
++        return None, modell[1], ansage
+     m = re.search(r"```python\s*\n(.*?)```", a.text, re.S)
+-    return (m.group(1) if m else None), modell[1]
++    return (m.group(1) if m else None), modell[1], ansage
+ 
+ 
+ # ---------------------------------------------------------------- Anklage
++def aufnahmesperre(con, werk_id: int, lauf_id: int, bereich: str, code: str, testnamen, paket: str,
++                   kandidat_id: int, art: str) -> tuple[list, list]:
++    """**Aufnahmesperre C** (Fassung 7, Entscheidung Chat-Claude 20.09.2026).
++
++    Prüft den Schlüssel des TATSÄCHLICH GESCHRIEBENEN Tests gegen den Vorrat des Bereichs — deterministisch,
++    im Kern, ohne Modellaufruf, unmittelbar vor der Aufnahme ins Immunsystem.
++
++    Warum nicht die Ansage-Sperre (Bauteil A) genügt: Sie bittet ein Sprachmodell, seine Absicht zu erklären,
++    und vertraut ihr. Über das, was am Ende im Werk landet, kann sie grundsätzlich nichts zusagen. Gemessen in
++    Lauf 24: 2 von 3 erzeugten Einträgen trugen eine Behauptung, die längst im Vorrat stand, ohne je angesagt
++    worden zu sein — die Sperre sah die geschriebene Behauptung nie.
++
++    C verwirft keinen Fund, der etwas Neues behauptet: Weicht der Ankläger von seiner Ansage ab und ist der
++    neue Schlüssel neu, bleibt der Fund. Nur die Wiederholung wird abgewiesen.
++
++    Rückgabe: (aufnehmen, abgewiesen) — je Liste von (testname, schluessel).
++    Jede Abweisung wird protokolliert, mit Grund und Gegenstück; nie still verworfen.
++    """
++    vorrat = set(bisherige_behauptungen(con, werk_id, bereich, lauf_id, limit=500))
++    aufnehmen, abgewiesen, gesehen = [], [], set()
++    # Pfadnachweis (Masterprompt Lauf 25, Abschnitt 4): JEDE geprüfte Aufnahme wird gezählt, auch wenn nichts
++    # gesperrt wird. Ohne diesen Zähler lässt sich nicht belegen, dass C im Aufnahmepfad liegt und erreicht wird
++    # — ein deterministisches Tor, das nie aufgerufen wird, ist schlechter als keines (verwaiste Insel).
++    protokoll.schreiben(con, "immun.aufnahme_geprueft", lauf_id=lauf_id, werk_id=werk_id, bereich=bereich,
++                        kandidat=kandidat_id, sperrart=art, tests=sorted(testnamen),
++                        anzahl=len(list(testnamen)), vorrat_groesse=len(vorrat))
++    for n in sorted(testnamen):
++        schl = behauptung(code, n, paket)
++        if schl in vorrat or schl in gesehen:
++            abgewiesen.append((n, schl))
++            protokoll.schreiben(con, "immun.aufnahme_gesperrt", lauf_id=lauf_id, werk_id=werk_id, bereich=bereich,
++                                kandidat=kandidat_id, test=n, behauptung=schl, sperrart=art,
++                                gegenstueck=("bereits im Vorrat des Bereichs" if schl in vorrat
++                                             else "zweiter Test derselben Behauptung in diesem Kandidaten"),
++                                regel="Aufnahmesperre C (F7): der Schlüssel des geschriebenen Tests wird vor der "
++                                      "Aufnahme gegen den Vorrat geprüft — deterministisch, ohne Modellaufruf")
++        else:
++            gesehen.add(schl)
++            aufnehmen.append((n, schl))
++    return aufnehmen, abgewiesen
++
++
+ def pruefen(con: sqlite3.Connection, lauf_id: int, werk_id: int, kandidat_id: int, werk: Path, paket: str,
+             bereiche: list[str], bstrassen: list[tuple[str, str]], basis: dict, ausgang: dict,
+             referenzlast: str | None, tausch: dict | None, extra_code: dict[str, str] | None = None) -> dict:
+@@ -463,7 +570,8 @@ def pruefen(con: sqlite3.Connection, lauf_id: int, werk_id: int, kandidat_id: in
+                 urteil["tests_neu"] += [f"{p}::{n}" for n in sorted(gueltig)]
+ 
+     # Schritt 4: Angriff (schweres Modell bei Befundklasse)
+-    angriff, angriff_modell = _angriff(con, lauf_id, werk_id, paket, bereich, k["diff"], dateien, werk, urteil["befundklassen"])
++    angriff, angriff_modell, ansage_behauptung = _angriff(con, lauf_id, werk_id, paket, bereich, k["diff"], dateien, werk, urteil["befundklassen"])
++    urteil["ansage"] = [ansage_behauptung] if ansage_behauptung else []
+     if angriff:
+         ad = f"tests/test_{bereich}_immun_aegis_k{kandidat_id}_{bereich}.py"
+         r_k = junit_lauf(werk, paket, {**code, ad: angriff}, [ad])
+@@ -508,6 +616,13 @@ def pruefen(con: sqlite3.Connection, lauf_id: int, werk_id: int, kandidat_id: in
+         urteil["doppelungen"] = sorted(doppel)
+         urteil["behauptungen"] = {n: behauptung(angriff, n, paket) for n in sorted(treffer)}
+         gefunden = einzig
++        if gefunden:
++            # Aufnahmesperre C (F7): der Schlüssel des GESCHRIEBENEN Tests gegen den Vorrat, vor der Aufnahme.
++            nehmen, gesperrt_c = aufnahmesperre(con, werk_id, lauf_id, bereich, angriff, gefunden, paket,
++                                                kandidat_id, "fund")
++            urteil["aufnahmesperre"] = {"aufgenommen": [n for n, _ in nehmen],
++                                        "abgewiesen": [{"test": n, "behauptung": s} for n, s in gesperrt_c]}
++            gefunden = {n for n, _ in nehmen}
+         if gefunden:
+             name = f"aegis_k{kandidat_id}_{bereich}"
+             code_immun = nur_funktionen(angriff, gefunden)
+@@ -519,19 +634,38 @@ def pruefen(con: sqlite3.Connection, lauf_id: int, werk_id: int, kandidat_id: in
+                                  f"Ankläger ({angriff_modell}), Kandidat {kandidat_id}: am Kandidaten {sorted(best_k)}, Behebung nachgewiesen {sorted(nachweis)}, Norm (offen) {sorted(norm)}, Doppelungen {sorted(doppel)} behauptung={schluessel}",
+                                  "gefunden", protokoll.jetzt(), k["generation"]))
+                 urteil["immun"].append(name)
++                # V9 (F7): Abweichung Ansage ↔ Ausführung wird GEZÄHLT, nicht gesperrt. Ein Ankläger, der beim
++                # Angriff etwas Besseres findet als angekündigt, soll den Fund behalten — die Zahl sagt etwas
++                # über seine Verlässlichkeit, nicht über die Güte des Fundes.
++                angesagte = list(urteil.get("ansage") or [])
++                geschriebene = sorted({behauptung(angriff, n, paket) for n in gefunden})
++                protokoll.schreiben(con, "aegis.abweichung", lauf_id=lauf_id, kandidat=kandidat_id, bereich=bereich,
++                                    angesagt=angesagte, geschrieben=geschriebene,
++                                    abweichung=bool(angesagte) and not set(angesagte) & set(geschriebene),
++                                    hinweis="V9 zählt nur; die Aufnahmesperre C entscheidet über die Aufnahme")
+                 protokoll.schreiben(con, "immun.gefunden", lauf_id=lauf_id, kandidat=kandidat_id, bereich=bereich, name=name,
+                                     modell=angriff_modell, bestaetigt_kandidat=sorted(best_k), behebung_nachgewiesen=sorted(nachweis),
+                                     norm_offen=sorted(norm), doppelungen=sorted(doppel), fehlerhaft=sorted(fehlerhaft))
+                 testbestand[ad] = code_immun
+         if norm:
+-            # Norm-Tests bleiben als offener Fund im Immunsystem (separat), zählen nicht, kommen nicht ins Werk
+-            code_norm = nur_funktionen(angriff, norm)
++            # Norm-Tests bleiben als offener Fund im Immunsystem (separat), zählen nicht, kommen nicht ins Werk.
++            # Auch sie gehen in den Vorrat ein (sie tragen einen Behauptungsschlüssel) und unterliegen deshalb
++            # der Aufnahmesperre C — genau hier rutschte in Lauf 24 `norm_k2458_lager` durch.
++            nehmen_n, gesperrt_n = aufnahmesperre(con, werk_id, lauf_id, bereich, angriff, norm, paket,
++                                                  kandidat_id, "norm")
++            urteil.setdefault("aufnahmesperre", {"aufgenommen": [], "abgewiesen": []})
++            urteil["aufnahmesperre"]["abgewiesen"] += [{"test": n, "behauptung": s, "art": "norm"} for n, s in gesperrt_n]
++            norm_aufnehmen = {n for n, _ in nehmen_n}
++            code_norm = nur_funktionen(angriff, norm_aufnehmen) if norm_aufnehmen else None
+             if code_norm:
++                schluessel_n = " ".join(sorted({s for _, s in nehmen_n}))
+                 with transaktion(con):
+                     con.execute("INSERT OR IGNORE INTO immunsystem(werk_id, lauf_id, bereich, name, code, ursprung, status, erstellt_am, generation) VALUES (?,?,?,?,?,?,?,?,?)",
+                                 (werk_id, lauf_id, bereich, f"norm_k{kandidat_id}_{bereich}", code_norm,
+-                                 f"Norm-Test ohne Absturz/Vertragsbezug (3.7 F3), Kandidat {kandidat_id}", "offen_norm", protokoll.jetzt(), k["generation"]))
+-                protokoll.schreiben(con, "immun.norm", lauf_id=lauf_id, kandidat=kandidat_id, bereich=bereich, tests=sorted(norm), zaehlt=0)
++                                 f"Norm-Test ohne Absturz/Vertragsbezug (3.7 F3), Kandidat {kandidat_id} behauptung={schluessel_n}",
++                                 "offen_norm", protokoll.jetzt(), k["generation"]))
++                protokoll.schreiben(con, "immun.norm", lauf_id=lauf_id, kandidat=kandidat_id, bereich=bereich,
++                                    tests=sorted(norm_aufnehmen), zaehlt=0, gesperrt=[n for n, _ in gesperrt_n])
+ 
+     testbestand_mit_vertraegen = {**testbestand, **vertrag_dateien_kandidat}
+ 
+diff --git a/biotop/organe/gedaechtnis.py b/biotop/organe/gedaechtnis.py
+index d0a7f30..8c7625e 100644
+--- a/biotop/organe/gedaechtnis.py
++++ b/biotop/organe/gedaechtnis.py
+@@ -375,10 +375,21 @@ def art_text(con, werk_id: int) -> str:
+             continue
+         muster_gesehen.add(schl); fremd.append(e)
+ 
++    # Mindestanteil des werkübergreifenden Blocks (Fassung 6, 3.12): Der fremde Block belegt mindestens die
++    # Hälfte der gezeigten Einträge, mindestens fünf — sofern so viele fremde Muster vorhanden sind.
++    # Grund: Ein logmuehle-Lauf sah 13 fremde Muster und lieferte 2 von 5 Verweisen, ein lagerhaus-Lauf sah 3
++    # und lieferte 0. Bei 17 Diensten verdrängt die Masse eigener Einträge die fremden allein durch Menge.
++    # Der Anteil steuert, WAS GEZEIGT wird, nicht was zitiert werden muss — ein Pflichtfeld erzeugt Scheinbegründungen.
++    GEZEIGT = 25
++    fremd_min = min(len(fremd), max(5, GEZEIGT // 2))
++    eigen_max = max(0, GEZEIGT - fremd_min)
++    fremd_zeigen = fremd[:max(fremd_min, GEZEIGT - min(len(eigen_liste), eigen_max))]
++    eigen_zeigen = eigen_liste[:eigen_max]
++
+     teile = [f"EIGENES WERK {eigen_werk} (= Projektgedächtnis, nicht werkübergreifend; Instanzen):"]
+-    teile += [zeile_instanz(e) for e in eigen_liste[:25]] or ["(noch keine Einträge)"]
++    teile += [zeile_instanz(e) for e in eigen_zeigen] or ["(noch keine Einträge)"]
+     teile += ["", "ANDERE WERKE (= Artgedächtnis, werkübergreifend; MUSTER ohne Werk-, Datei- und Funktionsnamen):"]
+-    teile += [zeile_muster(e) for e in fremd[:25]] or ["(noch keine Muster)"]
++    teile += [zeile_muster(e) for e in fremd_zeigen] or ["(noch keine Muster)"]
+     return "\n".join(teile)
+ 
+ 

@@ -1,0 +1,37 @@
+EB69 · E10: ersten Packversuch beiseitelegen (verschoben, nicht gelöscht)
+Beginn: 2026-09-26 02:16:07 CEST (UTC+0200)
+Ende:   2026-09-26 02:16:14 CEST (UTC+0200)
+Dauer:  6.8 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/biotop-einlagerung/arbeit/s5_beiseite.sh
+--- Inhalt von /root/biotop-einlagerung/arbeit/s5_beiseite.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-EINLAGERUNG-01 · E10: ersten Packversuch beiseitelegen — nur verschieben innerhalb /root/biotop-einlagerung,
+# nichts löschen, nichts überschreiben (Ziele dürfen nicht bestehen).
+set -eu
+E=/root/biotop-einlagerung
+A=$E/archiv/biotop-einlagerung-20260925-komplett.tar.gz
+V=$E/verworfen/komplett-01
+PV=$E/paket/verworfen-01
+for z in "$V" "$PV" "$E/probe-verworfen-01"; do [ -e "$z" ] && { echo "Ziel besteht schon: $z"; exit 3; }; done
+mkdir -p "$V" "$PV"
+echo "Archiv vorher: $(stat -c '%s B %a' "$A") · SHA-256 $(sha256sum "$A" | cut -c1-64)"
+mv -n "$A" "$V/"
+for f in MANIFEST-KOMPLETT.tsv MANIFEST-PROBE-komplett.tsv MANIFEST-GEGENPROBE.tsv altabdeckung-fehlt.tsv; do
+  [ -e "$E/paket/$f" ] && mv -n "$E/paket/$f" "$PV/$f"
+done
+mv -n "$E/stufe/MANIFEST-KOMPLETT.tsv" "$PV/MANIFEST-KOMPLETT-aus-stufe.tsv"
+mv -n "$E/probe" "$E/probe-verworfen-01"
+echo "Archiv jetzt: $V/$(basename "$A") · $(stat -c '%s B %a' "$V/$(basename "$A")") · SHA-256 $(sha256sum "$V/$(basename "$A")" | cut -c1-64)"
+echo "paket/verworfen-01: $(ls "$PV" | tr '\n' ' ')"
+echo "probe-verworfen-01: $(ls "$E/probe-verworfen-01" | tr '\n' ' ')"
+echo "archiv/: $(ls -A "$E/archiv" | wc -l) Einträge · stufe/MANIFEST-KOMPLETT.tsv vorhanden: $([ -e "$E/stufe/MANIFEST-KOMPLETT.tsv" ] && echo ja || echo nein)"
+--- Ende /root/biotop-einlagerung/arbeit/s5_beiseite.sh ---
+Ausgabe (vollständig, stdout und stderr):
+Archiv vorher: 998459631 B 600 · SHA-256 11ed18d49f6297b92009f907046c6476ed76e97973c62e8520740882c91d557d
+Archiv jetzt: /root/biotop-einlagerung/verworfen/komplett-01/biotop-einlagerung-20260925-komplett.tar.gz · 998459631 B 600 · SHA-256 11ed18d49f6297b92009f907046c6476ed76e97973c62e8520740882c91d557d
+paket/verworfen-01: MANIFEST-GEGENPROBE.tsv MANIFEST-KOMPLETT-aus-stufe.tsv MANIFEST-KOMPLETT.tsv MANIFEST-PROBE-komplett.tsv altabdeckung-fehlt.tsv 
+probe-verworfen-01: entpackt gegenprobe 
+archiv/: 0 Einträge · stufe/MANIFEST-KOMPLETT.tsv vorhanden: nein
+=== Ende EB69 ===

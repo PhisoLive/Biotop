@@ -1,0 +1,63 @@
+# Elternabgleich des Originalaudits
+
+{
+  "original_abdeckung_unveraendert": {
+    "stand_utc": "2026-09-20T17:04:20.059027+00:00",
+    "inventar_dateien": 126,
+    "gruppen": {
+      "konfiguration_oder_dokument": 9,
+      "produkt": 36,
+      "pruefskript": 63,
+      "eigentest": 11,
+      "vertrag_fixture": 7
+    },
+    "gelesen": 126,
+    "dateistatus": {
+      "gelesen_relevant": 74,
+      "gelesen_keine_entsprechende_Logik": 52
+    },
+    "relevante_dateien": 74,
+    "semantische_lesebloecke": 145,
+    "scope_lesebloecke": {
+      "kernpfad": 86,
+      "kernpfad_eigentest": 14,
+      "ausserhalb_kern": 45
+    },
+    "deduplizierte_bestaetigte_mechanismen": 16,
+    "mechanismen_mit_kernort": 12,
+    "mechanismen_mit_aussenort": 6,
+    "aussen_bestaetigte_leseorte": 11,
+    "aussen_bestaetigte_dateien": 11,
+    "offene_semantische_kandidaten": 8,
+    "breite_kandidatenzeilen": 661,
+    "kandidatenzeilen_status": {
+      "semantischem_Block_zugeordnet": 488,
+      "kein_eigenstaendiger_Leser": 87,
+      "Datei_ohne_entsprechende_Logik_gelesen": 41,
+      "Feinzuordnung_offen": 45
+    },
+    "phase4_offen": 4,
+    "biotop_code_ausgefuehrt": false,
+    "produktivskripte_ausgefuehrt": false,
+    "docker_netze_modelle_genutzt": false,
+    "externe_db_oder_werke_gelesen_oder_geschrieben": false,
+    "vollstaendige_Dateilesung": true,
+    "vollstaendige_semantische_Suche_bewiesen": false,
+    "begrenzung": "Alle126 Inventardateien gelesen. Dokumentierte logische Leserblöcke sind keine Behauptung jedes denkbaren Lesers; verbleibende Kandidaten-/Feinzuordnungen explizit offen. Keine externen Bestandsdaten oder Fixausführung verifiziert."
+  },
+  "eltern_quellhashes_geprueft": 126,
+  "eltern_quellbereiche_bytegleich_geprueft": 145,
+  "befundorte_zugeordnet": 50,
+  "befundort_status": {
+    "eingegrenzter_Kern_oder_sein_Eigennachweis": 31,
+    "ausserhalb_der_eingegrenzten_Runde": 19
+  },
+  "aussen_orte": 19,
+  "aussen_dateien": 14,
+  "aussen_historische_pruefdateien": 11,
+  "aussen_produkt_orte": 8,
+  "suche_semantisch_vollstaendig": false,
+  "wichtig": "Die originale breite Audit-Scopezählung wird nicht still ersetzt. Die zweite Spalte benennt ausschließlich den engeren Reparaturauftrag; bestätigt offen bedeutet nicht repariert. Statischer Befund ist keine Behauptung seines Auftretens in einer aktuellen DB."
+}
+
+Die Originaldateilesung ist die dokumentierte Leistung des Auditagenten. Parent hat hier Hashes, Originalquellbereiche, Mengen und Referenzen nachgerechnet, nicht eine zusätzliche vollständige semantische Prüfung behauptet. Die breite Auditklassifikation umfasst auch Vorstufen und Anzeigen. BEFUNDZUORDNUNG.json erhält jede Originalzuordnung und stellt den engeren Reparaturauftrag ausdrücklich daneben.

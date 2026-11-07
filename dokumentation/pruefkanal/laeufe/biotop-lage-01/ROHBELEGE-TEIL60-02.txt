@@ -1,0 +1,382 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 60 (Teile 4–165 dieses Stands) · enthält R53 bis R55
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R53 · Teil A: Fassungen — Bruchstücke, Änderungsverzeichnisse in späteren Fassungen, Verweise auf fehlende Fassungen, Kopien v8, Freigabe-Stellen v5–v8
+Beginn: 2026-09-25 16:16:24 CEST (UTC+0200)
+Ende:   2026-09-25 16:16:27 CEST (UTC+0200)
+Dauer:  3.2 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/entscheidungen/a2_fassungen.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/entscheidungen/a2_fassungen.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil A (nur lesend) — Fakten für FK15/FK19:
+1. Bruchstücke vom 19.09. 14:01:46: Größe, Anfang, Zeilen, die wörtlich in der vollen Fassung derselben Nummer stehen.
+2. Änderungsverzeichnisse (arbeit/fassungen/aenderungen-vN.md): stehen ihre Zeilen wörtlich in jeder späteren Fassung?
+3. Verweise auf Fassungen, die es nicht gibt (Fassung 9+, v9+, Buchstabenfassungen wie 7b) in arbeit/lesen/*.md,
+   in Berichten des Prüfkanals (laeufe/biotop-*/, gedaechtnis/; *.md, *.txt) und in /root/biotop-vor-t4*/ (*.md).
+4. Kopien von Fassung 8 außerhalb der Sitzungsdatenbank (Inhaltssuche nach der Stand-Zeile), Auszug MASTERPROMPT-V8-TOR4.txt.
+5. Freigabe-/Vollmacht-Stellen in v5–v8 mit Zeilennummer.
+Der Prüfkanal-Schlüssel wird in der Ausgabe durch {LAEUFE} ersetzt."""
+import hashlib
+import re
+from pathlib import Path
+
+if Path('/tmp/biotop-kammer-exklusiv').exists():
+    raise SystemExit('ABBRUCH: /tmp/biotop-kammer-exklusiv besteht (Zeitmessung läuft) — keine Suchläufe.')
+W = Path('/root/sicherung/biotop-lage-01')
+D = W / 'arbeit/dokumente'
+F = W / 'arbeit/fassungen'
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+L = Path(f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe')
+
+
+def maske(s: str) -> str:
+    return str(s).replace(str(L), '{LAEUFE}').replace(K, '<schlüssel>')
+
+
+def sha(b: bytes) -> str:
+    return hashlib.sha256(b).hexdigest()
+
+
+voll, bruch = {}, {}
+for p in sorted(D.glob('*INFINITE-EVOLUTION-BIOTOP-Masterprompt-v*.md')):
+    v = int(re.search(r'-v(\d)\.md$', p.name).group(1))
+    (bruch if p.name.startswith('2026-09-19_140146') else voll)[v] = p
+print('Volle Fassungen:', {k: v.name for k, v in voll.items()})
+print('Bruchstücke:', {k: v.name for k, v in bruch.items()})
+
+print('\n== 1. Bruchstücke')
+for v, p in bruch.items():
+    t = p.read_text()
+    z = [x for x in t.splitlines() if x.strip()]
+    ganz = voll[v].read_text()
+    drin = sum(1 for x in z if x in ganz)
+    print(f'-- {p.name}: {len(t.encode())} Bytes, {len(z)} nichtleere Zeilen; davon wörtlich in voller v{v}: {drin} von {len(z)};'
+          f' ganzes Bruchstück Teilzeichenkette der vollen v{v}: {t.strip() in ganz}')
+    for x in t.splitlines()[:6]:
+        print('   |', x[:160])
+    for x in z:
+        if x not in ganz:
+            print('   NICHT in voller Fassung:', x[:200])
+
+print('\n== 2. Änderungsverzeichnisse in späteren Fassungen (Zeilen wörtlich enthalten, x von y)')
+for n in range(1, 9):
+    a = (F / f'aenderungen-v{n}.md').read_text()
+    zeilen = [x for x in a.splitlines() if x.strip() and x.strip() != '---']
+    reihe = []
+    for m in range(n, 9):
+        t = voll[m].read_text()
+        reihe.append(f'v{m}: {sum(1 for x in zeilen if x in t)}/{len(zeilen)}')
+    print(f'aenderungen-v{n}.md ({len(a.encode())} Bytes, {len(zeilen)} Zeilen): ' + ' · '.join(reihe))
+    if n >= 2:
+        t8 = voll[8].read_text()
+        for x in zeilen:
+            if x not in t8:
+                print(f'   v{n}-Zeile nicht wörtlich in v8: {x[:220]}')
+
+print('\n== 3. Verweise auf nicht vorhandene Fassungen')
+muster = {
+    'Fassung ≥9': re.compile(r'\bFassung\s+(9|1\d)\b'),
+    'Masterprompt v≥9': re.compile(r'Masterprompt[^\n]{0,30}?\bv(9|1\d)\b|Masterprompt-v(9|1\d)'),
+    'Buchstabenfassung (7b, v7b)': re.compile(r'\bFassung\s+\d+\s?[a-e]\b|Masterprompt[^\n]{0,30}?\bv\d[a-e]\b'),
+}
+quellen = sorted((W / 'arbeit/lesen').glob('*.md'))
+quellen += sorted(q for d in sorted(L.glob('biotop-*')) + [L / 'gedaechtnis'] for q in d.rglob('*')
+                  if q.is_file() and q.suffix in ('.md', '.txt') and q.stat().st_size < 2_000_000)
+quellen += sorted(q for d in sorted(Path('/root').glob('biotop-vor-t4*')) for q in d.rglob('*.md') if q.is_file())
+print('Durchsuchte Dateien:', len(quellen))
+for name, rx in muster.items():
+    treffer = []
+    for q in quellen:
+        try:
+            for i, z in enumerate(q.read_text(errors='replace').splitlines(), 1):
+                if rx.search(z):
+                    treffer.append((q, i, z))
+        except OSError:
+            continue
+    dateien = {t[0] for t in treffer}
+    print(f'-- {name}: {len(treffer)} Zeilen in {len(dateien)} Dateien')
+    for q, i, z in treffer[:40]:
+        m = rx.search(z)
+        s = max(0, m.start() - 90)
+        print(f'   {maske(q)}:{i}: …{z[s:m.end() + 90]}…')
+
+print('\n== 4. Kopien von Fassung 8 (Stand-Zeile) und Auszug MASTERPROMPT-V8-TOR4.txt')
+v8 = voll[8].read_bytes()
+stand8 = 'Stand: 23.09.2026 · Fassung 8'
+orte = [L] + sorted(Path('/root').glob('biotop-vor-t4*')) + [Path('/root/biotop-t3'), Path('/root/.hermes/cache')]
+n = 0
+for o in orte:
+    for q in o.rglob('*'):
+        if q.is_file() and q.suffix in ('.md', '.txt') and q.stat().st_size < 3_000_000:
+            try:
+                if stand8 in q.read_text(errors='replace'):
+                    b = q.read_bytes()
+                    n += 1
+                    art = 'GLEICH (ohne NL)' if b == v8 else ('GLEICH (mit NL)' if b == v8 + b'\n' else 'anderer Inhalt')
+                    print(f'   {maske(q)}: {len(b)} Bytes, sha256 {sha(b)} -> {art}')
+            except OSError:
+                pass
+print('Dateien mit der Stand-Zeile von Fassung 8:', n)
+t8 = v8.decode()
+for q in [Path('/root/biotop-vor-t4-05/bau/MASTERPROMPT-V8-TOR4.txt'), L / 'biotop-vor-t4-05/MASTERPROMPT-V8-TOR4.txt']:
+    if q.exists():
+        b = q.read_bytes()
+        z = [x for x in b.decode(errors='replace').splitlines() if x.strip()]
+        print(f'   {maske(q)}: {len(b)} Bytes, sha256 {sha(b)}, nichtleere Zeilen {len(z)}, davon wörtlich in v8: '
+              f'{sum(1 for x in z if x in t8)}; Anfang: {z[0][:120] if z else "-"}')
+
+print('\n== 5. Freigabe-/Vollmacht-Stellen in v5–v8')
+rx = re.compile(r'Vollmacht|ausschließlich durch Philipp|gibt jede Generation frei|Philipp gibt frei|stellvertretende Freigabe|allein frei')
+for m in range(5, 9):
+    for i, z in enumerate(voll[m].read_text().splitlines(), 1):
+        if rx.search(z):
+            print(f'v{m}:{i}: {z[:260]}')
+--- Ende /root/sicherung/biotop-lage-01/entwurf/entscheidungen/a2_fassungen.py ---
+Ausgabe (vollständig, stdout und stderr):
+Volle Fassungen: {1: '2026-09-18_205908_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v1.md', 2: '2026-09-19_003630_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v2.md', 3: '2026-09-19_022342_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v3.md', 4: '2026-09-19_123925_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v4.md', 5: '2026-09-19_193553_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v5.md', 6: '2026-09-20_001844_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v6.md', 7: '2026-09-21_021434_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v7.md', 8: '2026-09-23_155353_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v8.md'}
+Bruchstücke: {1: '2026-09-19_140146_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v1.md', 4: '2026-09-19_140146_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v4.md'}
+
+== 1. Bruchstücke
+-- 2026-09-19_140146_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v1.md: 4672 Bytes, 49 nichtleere Zeilen; davon wörtlich in voller v1: 0 von 49; ganzes Bruchstück Teilzeichenkette der vollen v1: False
+   | > # INFINITE EVOLUTION — Das Biotop
+   | > 
+   | > **Übergabedokument und Masterprompt für Hermes**
+   | > Stand: 18.09.2026 · Fassung 1 · Auftraggeber: Philipp Zöllisch · Prüfer: Chat-Claude
+   | > 
+   | > ---
+   NICHT in voller Fassung: > # INFINITE EVOLUTION — Das Biotop
+   NICHT in voller Fassung: > 
+   NICHT in voller Fassung: > **Übergabedokument und Masterprompt für Hermes**
+   NICHT in voller Fassung: > Stand: 18.09.2026 · Fassung 1 · Auftraggeber: Philipp Zöllisch · Prüfer: Chat-Claude
+   NICHT in voller Fassung: > 
+   NICHT in voller Fassung: > ---
+   NICHT in voller Fassung: > 
+   NICHT in voller Fassung: > ## 0. Auftrag in drei Sätzen
+   NICHT in voller Fassung: > 
+   NICHT in voller Fassung: > Baue ein System, in das man ein Software-Werk hineinlegt (Quelltext beliebiger Art, als ZIP, Git-Adresse oder Ordner) und das dieses Werk in Generationen auf ein messbar höheres Niveau hebt — jeden 
+   NICHT in voller Fassung: > 
+   NICHT in voller Fassung: > ---
+   NICHT in voller Fassung: > 
+   NICHT in voller Fassung: > ## 1. Das Bild
+   NICHT in voller Fassung: > 
+   NICHT in voller Fassung: > Kein Werkzeug, sondern ein **Biotop**. Ein Werk wird hineingelegt und lebt dort: Es wird kartiert, bekommt eine Verfassung, wächst in Generationen, wird von einem Ankläger geprüft, kann jederzeit in
+   NICHT in voller Fassung: > 
+   NICHT in voller Fassung: > Der Vorgänger dieses Vorhabens (das Projekt `infinite-evolution-ai` vom März 2026) hatte diese Begriffswelt bereits — Aegis, Genesis, Nexus, Schwarm, neuronales Gedächtnis, Lazarus, Entropie —, aber
+   NICHT in voller Fassung: > 
+   NICHT in voller Fassung: > ---
+   NICHT in voller Fassung: > 
+   NICHT in voller Fassung: > ## 2. Die Verfassung des Biotops — unverhandelbar
+   NICHT in voller Fassung: > 
+   NICHT in voller Fassung: > Diese elf Sätze gelten für jede Zeile Code, die Hermes schreibt. Verstößt ein Bauteil gegen einen davon, ist das Bauteil falsch, nicht der Satz.
+   NICHT in voller Fassung: > 
+   NICHT in voller Fassung: > 1. **Die Messung entscheidet, nie die KI.** Kein Modell beurteilt, ob sein eigener oder ein fremder Vorschlag besser ist. Es erzeugt, die Messung wählt.
+   NICHT in voller Fassung: > 2. **Das Maß steht vor der ersten Generation fest und wird danach nicht verhandelt.** Änderung nur durch Philipp, und dann beginnt ein neuer Lauf.
+   NICHT in voller Fassung: > 3. **Kein Bereich verbessert sich auf Kosten eines anderen.** Steigt A und fällt B, ist die Generation abgelehnt (Pareto-Regel).
+   NICHT in voller Fassung: > 4. **Das laufende Biotop verändert seinen eigenen Code nie.** Soll es sich selbst heben, wird eine Kopie als Werk eingelegt; Philipp entscheidet, ob die gehobene Kopie das neue Werkzeug wird.
+   NICHT in voller Fassung: > 5. **Jede angenommene Generation ist ein vollständiger, rückholbarer Schnappschuss** (Lazarus). Es gibt keinen Vorschlag, der das Werk unwiederbringlich verändert.
+   NICHT in voller Fassung: > 6. **Laut scheitern, nie still.** Eine Prüfung ohne Gegenstand (kein Test, keine Messung, kein Werk) meldet das und stoppt, statt zu bestehen.
+   NICHT in voller Fassung: > 7. **Jeder gefundene Fehler wird zu einem Test** (Immunisierung). Derselbe Fehler kann das Werk nie zweimal treffen.
+   NICHT in voller Fassung: > 8. **Die Kasse ist Teil des Kerns.** Ein Budget je Lauf, vor dem Start gesetzt; bei Erreichen Abbruch mit Meldung vor dem nächsten Modellaufruf — nie danach.
+   NICHT in voller Fassung: > 9. **Alle Gedächtnisse liegen dauerhaft auf dem Server**, nie im Arbeitsspeicher, und sie werden gelesen, nicht nur beschrieben.
+   NICHT in voller Fassung: > 10. **Kein Schalter, kein Wert, keine Phase in der Oberfläche ohne Wirkung dahinter.** Für jedes Bedienelement muss Hermes die Codestelle belegen, die es liest.
+   NICHT in voller Fassung: > 11. **Ethische Grenze:** Das Biotop hebt kein Werk, das schädlichen Zwecken dient (Rüstung, Kriegsgerät, Überwachung von Menschen, Betrug). Diese Prüfung ist Teil der Aufnahme und wird nicht vom Wer
+   NICHT in voller Fassung: > 
+   NICHT in voller Fassung: > Belegregeln für alle Berichte von Hermes: messen statt annehmen; „bestätigt durch Ausführung" nur mit beigefügter Ausgabe, sonst „gelesen, nicht ausgeführt"; jede Zahl mit Bezugsgröße (nicht „alle T
+   NICHT in voller Fassung: > 
+   NICHT in voller Fassung: > ---
+   NICHT in voller Fassung: > 
+   NICHT in voller Fassung: > ## 3. Die Organe
+   NICHT in voller Fassung: > 
+   NICHT in voller Fassung: > Jedes Organ ist ein …[truncated]
+   NICHT in voller Fassung: (Every real user message from the compacted region, quoted verbatim. These are the user's actual words and override any paraphrase of them above.)
+   NICHT in voller Fassung: ## Context Recovery
+   NICHT in voller Fassung: The 343 compacted message(s) remain fully preserved in session history. If you need any detail this summary does not carry (exact command output, file contents, error text, earlier reasoning), recover
+   NICHT in voller Fassung: --- END OF CONTEXT SUMMARY — respond to the message below, not the summary above ---
+   NICHT in voller Fassung: You've reached the maximum number of tool-calling iterations allowed. Please provide a final response summarizing what you've found and accomplished so far, without calling any more tools.
+-- 2026-09-19_140146_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v4.md: 1500 Bytes, 11 nichtleere Zeilen; davon wörtlich in voller v4: 3 von 11; ganzes Bruchstück Teilzeichenkette der vollen v4: False
+   | > # INFINITE EVOLUTION — Das Biotop
+   | > 
+   | > **Übergabedokument und Masterprompt für Hermes**
+   | > Stand: 19.09.2026 (nach Phase 2) · Fassung 4 · Auftraggeber: Philipp Zöllisch · Prüfer: Chat-Claude
+   | > 
+   | > **Änderungen gegenüber Fassung 3** (aus der Prüfung des Abschlussordners Phase 2, Läufe 11–13):
+   NICHT in voller Fassung: > # INFINITE EVOLUTION — Das Biotop
+   NICHT in voller Fassung: > **Übergabedokument und Masterprompt für Hermes**
+   NICHT in voller Fassung: > Stand: 19.09.2026 (nach Phase 2) · Fassung 4 · Auftraggeber: Philipp Zöllisch · Prüfer: Chat-Claude
+   NICHT in voller Fassung: > **Änderungen gegenüber Fassung 3** (aus der Prüfung des Abschlussordners Phase 2, Läufe 11–13):
+   NICHT in voller Fassung: > - 3.5: Grenzmaße messen gegen den **Bestwert des Laufs** (beste angenommene Generation je Maß), nicht gegen den Laufausgang; ohne Kernmaßgewinn nur Rauschtoleranz +15 %, mit Kernmaßgewinn Tauschrege
+   NICHT in voller Fassung: > - 3.5: Generation 0 — äquivalente Mutanten werden vor der Zählung mit Beleg aussortiert; Bezugsgröße „von n nicht-äquivalenten"; zwei Testbau-Durchläufe je blindem Mutanten. Grund: 2 von 3 ungefange
+   NICHT in voller Fassung: > - 3.6: „KEIN VORSCHLAG" ist für die Bandit-Gewichtung neutral, kein Misserfolg. Grund: Ein ehrliches „nichts gefunden" wurde wie ein Fehlschlag gebucht — das züchtet Scheinvorschläge.
+   NICHT in voller Fassung: > - 3.7: Norm-Regel gilt für **alle** Tests, die mit einem Kandidaten neu ins Spiel kommen (Ankläger-Tests und mitgebrachte Tests); Vertrags-/Verfassungsbezug nur durch expliziten Verweis (Vertragstes
+
+== 2. Änderungsverzeichnisse in späteren Fassungen (Zeilen wörtlich enthalten, x von y)
+aenderungen-v1.md (1 Bytes, 0 Zeilen): v1: 0/0 · v2: 0/0 · v3: 0/0 · v4: 0/0 · v5: 0/0 · v6: 0/0 · v7: 0/0 · v8: 0/0
+aenderungen-v2.md (1185 Bytes, 8 Zeilen): v2: 8/8 · v3: 8/8 · v4: 8/8 · v5: 8/8 · v6: 8/8 · v7: 8/8 · v8: 8/8
+aenderungen-v3.md (1847 Bytes, 9 Zeilen): v3: 9/9 · v4: 9/9 · v5: 9/9 · v6: 9/9 · v7: 9/9 · v8: 9/9
+aenderungen-v4.md (2952 Bytes, 11 Zeilen): v4: 11/11 · v5: 11/11 · v6: 11/11 · v7: 11/11 · v8: 11/11
+aenderungen-v5.md (3519 Bytes, 14 Zeilen): v5: 14/14 · v6: 14/14 · v7: 14/14 · v8: 14/14
+aenderungen-v6.md (2624 Bytes, 12 Zeilen): v6: 12/12 · v7: 12/12 · v8: 12/12
+aenderungen-v7.md (1563 Bytes, 7 Zeilen): v7: 7/7 · v8: 6/7
+   v7-Zeile nicht wörtlich in v8: **Änderungen gegenüber Fassung 6** (aus der Abnahme von Vorbedingung 1 und Philipps Richtungsentscheidung vom 21.09.2026):
+aenderungen-v8.md (1608 Bytes, 6 Zeilen): v8: 6/6
+
+== 3. Verweise auf nicht vorhandene Fassungen
+Durchsuchte Dateien: 3626
+-- Fassung ≥9: 0 Zeilen in 0 Dateien
+-- Masterprompt v≥9: 0 Zeilen in 0 Dateien
+-- Buchstabenfassung (7b, v7b): 0 Zeilen in 0 Dateien
+
+== 4. Kopien von Fassung 8 (Stand-Zeile) und Auszug MASTERPROMPT-V8-TOR4.txt
+Dateien mit der Stand-Zeile von Fassung 8: 0
+   /root/biotop-vor-t4-05/bau/MASTERPROMPT-V8-TOR4.txt: 8912 Bytes, sha256 888ab89a27871f31f099aee733f57f42af0789975b92c6272fa2979c0732067e, nichtleere Zeilen 49, davon wörtlich in v8: 48; Anfang: Quelle: messages / content
+   {LAEUFE}/biotop-vor-t4-05/MASTERPROMPT-V8-TOR4.txt: 8912 Bytes, sha256 888ab89a27871f31f099aee733f57f42af0789975b92c6272fa2979c0732067e, nichtleere Zeilen 49, davon wörtlich in v8: 48; Anfang: Quelle: messages / content
+
+== 5. Freigabe-/Vollmacht-Stellen in v5–v8
+v5:16: - 4: **Richtungswahl unter Vollmacht** bei Übungswerken (protokolliert); bei Werken mit Betriebszweck wählt Philipp.
+v5:48: - 4: Vollmacht für Übungswerke (Freigaben durch Hermes mit Protokoll; echte Werke nur durch Philipp).
+v5:219: 8. **Freigabe** → Philipp gibt frei oder lehnt ab; Ablehnung mit Grund → Immunisierung + Geschmacksgedächtnis.
+v5:223: Philipp gibt jede Generation frei. Vollautomatik über mehrere Generationen kommt erst, wenn das Messgerät über mindestens drei Werke ohne einen einzigen unbemerkten Rückschritt gearbeitet hat — und dann nur auf Philipps Satz.
+v5:224: **Vollmacht für Übungswerke (Fassung 2, erweitert in Fassung 5):** Für Werke ohne Betriebszweck, die Hermes selbst erzeugt hat, gilt eine schriftliche Vollmacht: Hermes gibt Generationen frei **und wählt die Richtung des Mentors**, protokolliert je Entscheidun
+v5:356: **Besonderheiten:** Das Werk hat derzeit 135 reproduzierbare Testfehlschläge und Risikomodule, die nicht im Orderpfad liegen — Generation 0 wird dort lang und ist der eigentliche erste Ertrag. Verfassung des Werks enthält die harten Grenzen: gesetzliche Hebelg
+v6:29: - 4: **Richtungswahl unter Vollmacht** bei Übungswerken (protokolliert); bei Werken mit Betriebszweck wählt Philipp.
+v6:61: - 4: Vollmacht für Übungswerke (Freigaben durch Hermes mit Protokoll; echte Werke nur durch Philipp).
+v6:259: 8. **Freigabe** → Philipp gibt frei oder lehnt ab; Ablehnung mit Grund → Immunisierung + Geschmacksgedächtnis.
+v6:263: Philipp gibt jede Generation frei. Vollautomatik über mehrere Generationen kommt erst, wenn das Messgerät über mindestens drei Werke ohne einen einzigen unbemerkten Rückschritt gearbeitet hat — und dann nur auf Philipps Satz.
+v6:264: **Vollmacht für Übungswerke (Fassung 2, erweitert in Fassung 5):** Für Werke ohne Betriebszweck, die Hermes selbst erzeugt hat, gilt eine schriftliche Vollmacht: Hermes gibt Generationen frei **und wählt die Richtung des Mentors**, protokolliert je Entscheidun
+v6:390: **Besonderheiten:** Das Werk hat derzeit 135 reproduzierbare Testfehlschläge und Risikomodule, die nicht im Orderpfad liegen — Generation 0 wird dort lang und ist der eigentliche erste Ertrag. **Freigaben ausschließlich durch Philipp** (Abschnitt 4) — hier beg
+v6:411: - Freigaben: 100 % durch Philipp, 0 unter Vollmacht.
+v7:37: - 4: **Richtungswahl unter Vollmacht** bei Übungswerken (protokolliert); bei Werken mit Betriebszweck wählt Philipp.
+v7:69: - 4: Vollmacht für Übungswerke (Freigaben durch Hermes mit Protokoll; echte Werke nur durch Philipp).
+v7:271: 8. **Freigabe** → Philipp gibt frei oder lehnt ab; Ablehnung mit Grund → Immunisierung + Geschmacksgedächtnis.
+v7:275: Philipp gibt jede Generation frei. Vollautomatik über mehrere Generationen kommt erst, wenn das Messgerät über mindestens drei Werke ohne einen einzigen unbemerkten Rückschritt gearbeitet hat — und dann nur auf Philipps Satz.
+v7:276: **Vollmacht für Übungswerke (Fassung 2, erweitert in Fassung 5):** Für Werke ohne Betriebszweck, die Hermes selbst erzeugt hat, gilt eine schriftliche Vollmacht: Hermes gibt Generationen frei **und wählt die Richtung des Mentors**, protokolliert je Entscheidun
+v7:452: 4. **Freigaben ausschließlich durch Philipp**; die Vollmacht für Übungswerke gilt hier nicht. Hier beginnt das echte Geschmacksgedächtnis.
+v8:44: - 4: **Richtungswahl unter Vollmacht** bei Übungswerken (protokolliert); bei Werken mit Betriebszweck wählt Philipp.
+v8:76: - 4: Vollmacht für Übungswerke (Freigaben durch Hermes mit Protokoll; echte Werke nur durch Philipp).
+v8:283: 8. **Freigabe** → Philipp gibt frei oder lehnt ab; Ablehnung mit Grund → Immunisierung + Geschmacksgedächtnis.
+v8:287: Philipp gibt jede Generation frei. Vollautomatik über mehrere Generationen kommt erst, wenn das Messgerät über mindestens drei Werke ohne einen einzigen unbemerkten Rückschritt gearbeitet hat — und dann nur auf Philipps Satz.
+v8:288: **Vollmacht für Übungswerke (Fassung 2, erweitert in Fassung 5):** Für Werke ohne Betriebszweck, die Hermes selbst erzeugt hat, gilt eine schriftliche Vollmacht: Hermes gibt Generationen frei **und wählt die Richtung des Mentors**, protokolliert je Entscheidun
+v8:491: 4. **Freigaben ausschließlich durch Philipp**; die Vollmacht für Übungswerke gilt hier nicht. Hier beginnt das echte Geschmacksgedächtnis.
+=== Ende R53 ===
+
+
+R54 · Teil H: FK39/FK40 Nennungen der Liste nach T3 und offener Philipp-Fragen in Berichten R1–R5, Übergabe R6, ABSCHLUSS-03 (nur lesend)
+Beginn: 2026-09-25 16:16:54 CEST (UTC+0200)
+Ende:   2026-09-25 16:16:54 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/sicherung/biotop-lage-01/entwurf/lage-offen/h6_liste_nach_t3.sh
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/lage-offen/h6_liste_nach_t3.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-LAGE-01 Teil H (nur lesend): FK39/FK40 — Nennungen der „Liste nach T3“-Punkte und der offenen Philipp-Fragen in den
+# Berichten und Übergaben der Runden vor T4 (Arbeitsordner) und in T3; je Datei Zeilennummer und 150 Zeichen.
+date '+== Zeitpunkt %Y-%m-%d %H:%M:%S %Z (UTC%z)'
+K=$(cat /etc/pruefkanal/schluessel); L=/var/pruefkanal/oeffentlich/_akte/$K/laeufe
+F="/root/biotop-vor-t4/BERICHT.md /root/biotop-vor-t4-02/BERICHT.md /root/biotop-vor-t4-03/BERICHT.md /root/biotop-vor-t4-04/BERICHT.md /root/biotop-vor-t4-05/BERICHT.md /root/biotop-vor-t4-06/UEBERGABE.md $L/biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md $L/biotop-t3-typescript/abschluss-03/UEBERGABE.md"
+for w in 'Erreichbarkeit' 'Verfallsbedingung' '_beschleunigen' 'Rauschrohwert' 'Einzelwerte' 'Bestwert als Minimum' 'Minimum' 'Grenzmaß-Ablehnungen' 'roh oder geeicht' 'K3106' 'Referenzlast hinaus' 'Offen für Philipp' 'Weiter offen' 'Liste nach T3' 'eigener Auftrag' 'Ansageabweich' 'Abweichungsquote' 'Phase-4-Lücke' 'Außenort' 'Kappe am echten' 'nicht angefragt' 'Wächter je Turn' 'Gateway-Dump' 'Bauzeit gepaart' 'Fehlerklassierer' 'Gemini' 'SPERRE-02' 'Tresor' 'eigene Domain' 'Domain'; do
+  echo "-- '$w'"
+  grep -n -- "$w" $F 2>/dev/null | sed "s#$L#{LAEUFE}#" | cut -c1-230
+done
+--- Ende /root/sicherung/biotop-lage-01/entwurf/lage-offen/h6_liste_nach_t3.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== Zeitpunkt 2026-09-25 16:16:54 CEST (UTC+0200)
+-- 'Erreichbarkeit'
+/root/biotop-vor-t4/BERICHT.md:59:| 11 | Erreichbarkeit, Verfall, `_beschleunigen`, Rohwerte | wie `58bd9f9` | Laufweg `anbieter.aufrufen` → `nischen.waehlen`: 3 Drosselungen → qwen in 0 von 15 Wahlen (`test_review5_drosselung
+{LAEUFE}/biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md:452:- Erreichbarkeitsführung;
+-- 'Verfallsbedingung'
+{LAEUFE}/biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md:453:- Verfallsbedingung der Ausnahmeliste des Python-Wächters;
+-- '_beschleunigen'
+/root/biotop-vor-t4/BERICHT.md:59:| 11 | Erreichbarkeit, Verfall, `_beschleunigen`, Rohwerte | wie `58bd9f9` | Laufweg `anbieter.aufrufen` → `nischen.waehlen`: 3 Drosselungen → qwen in 0 von 15 Wahlen (`test_review5_drosselung
+{LAEUFE}/biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md:454:- `_beschleunigen` entfernen;
+-- 'Rauschrohwert'
+{LAEUFE}/biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md:455:- Rauschrohwerte speichern.
+-- 'Einzelwerte'
+/root/biotop-vor-t4-03/BERICHT.md:194:- K3091 D2, `planung` gepoolt (10 je Seite): Vorgeneration Median 9,61 ms, Standardabweichung der Einzelwerte 0,64 ms
+-- 'Bestwert als Minimum'
+{LAEUFE}/biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md:446:- Bestwert als Minimum;
+-- 'Minimum'
+/root/biotop-vor-t4-06/UEBERGABE.md:206:  Minimum 17,4 / 28,6 ms (Kriterium < 0,25 und ≥ 10 ms erfüllt). Verhandlung: begonnen (K7, Nachbar beta), Paar mit
+{LAEUFE}/biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md:356:- Der Bestwert ist das Minimum über alle angenommenen Generationen; jede Annahme kann den Bezug nur senken.
+{LAEUFE}/biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md:377:- das Minimum als Bezug;
+{LAEUFE}/biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md:446:- Bestwert als Minimum;
+-- 'Grenzmaß-Ablehnungen'
+{LAEUFE}/biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md:378:- ob Laufzeit-Grenzmaß-Ablehnungen im Projektgedächtnis als gescheiterter Weg sperren sollen.
+{LAEUFE}/biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md:447:- Laufzeit-Grenzmaß-Ablehnungen im Projektgedächtnis;
+-- 'roh oder geeicht'
+{LAEUFE}/biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md:43:     Ob Schwarm und Befundklassen roh oder geeicht lesen sollen, entscheidet Philipp (§10).
+{LAEUFE}/biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md:448:- Schwarm und Befundklassen roh oder geeicht;
+-- 'K3106'
+/root/biotop-vor-t4/BERICHT.md:50:| 2 | Verhaltensvergleich, Randfall-Korpus, x von y | Korpus aus den deklarierten Signaturen der Vorgeneration. Nach Review Nr. 1: „entfernt“ aus den Beobachtungen beider Seiten bestimmt, y au
+/root/biotop-vor-t4/BERICHT.md:155:| 7 | mittel | Nachspiele nicht an `58bd9f9` gebunden | Nachspiel-Skript schreibt jetzt Commit und Arbeitsbaumstatus. Alle 7 Fälle an `330b4ec` wiederholt: K2904 abgelehnt (vorher ueberlebt; Abw
+/root/biotop-vor-t4-02/BERICHT.md:215:- K3106: 8 ungedeckt, 7 von 7 beobachtet.
+{LAEUFE}/biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md:123:| 5 | bericht | K3106 (wild) | nur Fehlalarm-Regel: `bericht` 4 → 1 | abgelehnt | Kernmaß unverändert |
+{LAEUFE}/biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md:142:**Blinder Fleck, K3106.** Ohne Eichung überlebt K3106 mit „0 Abweichungen“ (`NACHSPIEL-OHNE-EICHUNG.txt`), obwohl eine gezielte
+{LAEUFE}/biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md:202:| K3106 | 3 | 0 Abweichungen, aber nur Korpus beobachtet | 0 von 421 | Umformung **mit** Verhaltensänderung: gezielte Probe 3 von 50 (§2) |
+{LAEUFE}/biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md:210:- Die 6 sind **bloße Umformungen, soweit die Eingaben reichen**. Dieselbe Randfallsonde fand auch bei K3106 nichts (0 von 421),
+{LAEUFE}/biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md:406:| 2 | hoch | Verhaltensvergleich urteilt ohne Beobachtung (K3106: 0 von 7) | bestätigt, §2 berichtigt; T4-Vorbedingung 2, Spezifikation rot |
+{LAEUFE}/biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md:449:- Korpus des Verhaltensvergleichs über die Referenzlast hinaus (K3106).
+-- 'Referenzlast hinaus'
+{LAEUFE}/biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md:449:- Korpus des Verhaltensvergleichs über die Referenzlast hinaus (K3106).
+-- 'Offen für Philipp'
+/root/biotop-vor-t4/BERICHT.md:321:## 12. Offen für Philipp
+/root/biotop-vor-t4-02/BERICHT.md:412:## 12. Offen für Philipp
+/root/biotop-vor-t4-03/BERICHT.md:433:## 14. Offen für Philipp
+/root/biotop-vor-t4-04/BERICHT.md:357:## 14. Offen für Philipp
+/root/biotop-vor-t4-05/BERICHT.md:567:## 15. Offen für Philipp
+/root/biotop-vor-t4-06/UEBERGABE.md:135:  „Runde 6“, U-1…U-4 als ausstehend) — der Stand gilt aus DIESER Datei. Offen für Philipp: Modell bleibt Gemini (eigene
+{LAEUFE}/biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md:376:**Offen für Philipp:**
+{LAEUFE}/biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md:445:**Offen für Philipp:**
+-- 'Weiter offen'
+{LAEUFE}/biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md:451:**Weiter offen aus der Liste nach T3:**
+-- 'Liste nach T3'
+{LAEUFE}/biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md:451:**Weiter offen aus der Liste nach T3:**
+-- 'eigener Auftrag'
+-- 'Ansageabweich'
+-- 'Abweichungsquote'
+-- 'Phase-4-Lücke'
+-- 'Außenort'
+-- 'Kappe am echten'
+/root/biotop-vor-t4-05/BERICHT.md:596:**Entschieden am 24.09.** (Entscheidungen Chat-Claude zu Runde 6): Nr. 1 → (1) mit typtreuer Verfälschung; Nr. 2 → (5); Nr. 3 → (4), Eichphase mit Spannweite < 0,25 über 8 Messungen un
+/root/biotop-vor-t4-06/UEBERGABE.md:20:8. **Kappe am echten T4-Werk messen; TypeScript-Proben vor T5.**
+-- 'nicht angefragt'
+-- 'Wächter je Turn'
+-- 'Gateway-Dump'
+/root/biotop-vor-t4/BERICHT.md:288:2. **Beleg am frischen CLI-Prozess statt am Gateway.** Ein Gateway-Dump bräuchte `HERMES_DUMP_REQUESTS=1` in `.env`. Das
+/root/biotop-vor-t4/BERICHT.md:330:5. Gateway-Dump als Beleg am Gateway selbst (Eigene Entscheidung 2): gewünscht?
+-- 'Bauzeit gepaart'
+/root/biotop-vor-t4/BERICHT.md:331:6. Aus dem Entwurf: Bauzeit gepaart messen? Auslegung „Korpus aus den Verträgen“ bestätigen.
+-- 'Fehlerklassierer'
+/root/biotop-vor-t4-06/UEBERGABE.md:145:  (anthropic_adapter.py:128), der Fehlerklassierer nur „reasoning is mandatory“ (error_classifier.py:406). Behebung im
+/root/biotop-vor-t4-06/UEBERGABE.md:169:  (3) Kernstand-Abweichung Eichphase → Vorspann sperrt (S4 Aufgabe 6). Offen bei Philipp: Hermes-Fehlerklassierer (a)/(b).
+-- 'Gemini'
+/root/biotop-vor-t4-06/UEBERGABE.md:135:  „Runde 6“, U-1…U-4 als ausstehend) — der Stand gilt aus DIESER Datei. Offen für Philipp: Modell bleibt Gemini (eigene
+-- 'SPERRE-02'
+/root/biotop-vor-t4-06/UEBERGABE.md:154:  Auswertung danach als Skriptdateien) → `sperre/SPERRE-02-S3-gateway-waechter.md`: VORHER-NACHHER-S3 (686/687) gilt
+-- 'Tresor'
+-- 'eigene Domain'
+-- 'Domain'
+=== Ende R54 ===
+
+
+R55 · Teil A: Gedächtnisordner im Prüfkanal — Dateiliste
+Beginn: 2026-09-25 16:17:03 CEST (UTC+0200)
+Ende:   2026-09-25 16:17:03 CEST (UTC+0200)
+Dauer:  0.0 s
+Exit-Code: 0
+Befehl (wörtlich):
+cd /var/pruefkanal/oeffentlich/_akte/$(cat /etc/pruefkanal/schluessel)/laeufe/gedaechtnis && ls -la --time-style='+%Y-%m-%d %H:%M:%S %z'
+Ausgabe (vollständig, stdout und stderr):
+total 40
+drwxr-x---   2 root caddy 4096 2026-09-20 05:17:33 +0200 .
+drwxr-x--- 112 root caddy 4096 2026-09-25 15:09:49 +0200 ..
+-rw-r-----   1 root caddy  238 2026-09-20 05:17:33 +0200 DATEIEN-01.txt
+-rw-r-----   1 root caddy  341 2026-09-20 05:17:33 +0200 PRUEFSUMME-ORDNER-01.txt
+-rw-r-----   1 root caddy 4504 2026-09-20 05:17:33 +0200 REGELN-01.md
+-rw-r-----   1 root caddy 4386 2026-09-20 05:17:33 +0200 STAND-01.md
+-rw-r-----   1 root caddy 4965 2026-09-20 05:17:33 +0200 UNTERBAU-01.md
+=== Ende R55 ===

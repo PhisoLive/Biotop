@@ -1,0 +1,48 @@
+EB4 · Schritt 1: Sicherungskopien MEMORY.md und auftrag.json
+Beginn: 2026-09-25 23:31:58 CEST (UTC+0200)
+Ende:   2026-09-25 23:31:58 CEST (UTC+0200)
+Dauer:  0.0 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/biotop-einlagerung/arbeit/s1_sicherungskopien.sh
+--- Inhalt von /root/biotop-einlagerung/arbeit/s1_sicherungskopien.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-EINLAGERUNG-01 Schritt 1: Sicherungskopien vor jeder Änderung (nichts wird überschrieben: cp --no-clobber,
+# Ziel unter /root/biotop-einlagerung/vorher/). Gesichert: MEMORY.md (vor dem Stillstandsvermerk) und auftrag.json des
+# Zwischenbericht-Wächters (vor der Umstellung auf diesen Auftrag). Ausgabe: SHA-256 von Original und Kopie.
+set -eu
+V=/root/biotop-einlagerung/vorher
+mkdir -p $V
+date '+Zeitpunkt %Y-%m-%d %H:%M:%S %Z (UTC%z)'
+cp -p --no-clobber /root/.hermes/memories/MEMORY.md $V/MEMORY.md.vor-einlagerung
+cp -p --no-clobber /root/.hermes/zwischenbericht/auftrag.json $V/auftrag.json.vor-biotop-einlagerung-01
+# zweite Kopie der auftrag.json am Ort (wie in BIOTOP-LAGE-01, waechter_umstellen.sh), exklusiv
+cp -p --no-clobber /root/.hermes/zwischenbericht/auftrag.json /root/.hermes/zwischenbericht/auftrag.json.vor-biotop-einlagerung-01
+sha256sum /root/.hermes/memories/MEMORY.md $V/MEMORY.md.vor-einlagerung /root/.hermes/zwischenbericht/auftrag.json \
+  $V/auftrag.json.vor-biotop-einlagerung-01 /root/.hermes/zwischenbericht/auftrag.json.vor-biotop-einlagerung-01
+wc -c /root/.hermes/memories/MEMORY.md
+ls -la --time-style='+%Y-%m-%d %H:%M:%S' /root/.hermes/zwischenbericht/
+--- Ende /root/biotop-einlagerung/arbeit/s1_sicherungskopien.sh ---
+Ausgabe (vollständig, stdout und stderr):
+Zeitpunkt 2026-09-25 23:31:58 CEST (UTC+0200)
+cp: warning: behavior of -n is non-portable and may change in future; use --update=none instead
+cp: warning: behavior of -n is non-portable and may change in future; use --update=none instead
+cp: warning: behavior of -n is non-portable and may change in future; use --update=none instead
+dddff83375bad37fd6cdf71b8d238d1de02a679bc8cb0f28a96bb02ef2ba2d67  /root/.hermes/memories/MEMORY.md
+dddff83375bad37fd6cdf71b8d238d1de02a679bc8cb0f28a96bb02ef2ba2d67  /root/biotop-einlagerung/vorher/MEMORY.md.vor-einlagerung
+e6b91328fed4470f531fbe8a1c27ca3dbead9de9cc90a43d958b6ebc3737cb9f  /root/.hermes/zwischenbericht/auftrag.json
+e6b91328fed4470f531fbe8a1c27ca3dbead9de9cc90a43d958b6ebc3737cb9f  /root/biotop-einlagerung/vorher/auftrag.json.vor-biotop-einlagerung-01
+e6b91328fed4470f531fbe8a1c27ca3dbead9de9cc90a43d958b6ebc3737cb9f  /root/.hermes/zwischenbericht/auftrag.json.vor-biotop-einlagerung-01
+2224 /root/.hermes/memories/MEMORY.md
+total 68
+drwxr-xr-x  3 root root  4096 2026-09-25 23:31:58 .
+drwx------ 28 root root  4096 2026-09-25 23:31:57 ..
+drwxr-xr-x  2 root root  4096 2026-09-23 21:26:25 __pycache__
+-rw-r--r--  1 root root   274 2026-09-24 23:52:05 auftrag.json
+-rw-r--r--  1 root root   274 2026-09-24 23:52:05 auftrag.json.vor-biotop-einlagerung-01
+-rw-r--r--  1 root root   228 2026-09-24 02:20:49 auftrag.json.vor-t4-02
+-rw-r--r--  1 root root 15671 2026-09-25 23:31:56 ausgeloest.json
+-rw-r--r--  1 root root   771 2026-09-25 23:31:56 herzschlag.json
+-rw-r--r--  1 root root 14244 2026-09-23 21:26:04 test_waechter.py
+-rw-r--r--  1 root root  7756 2026-09-23 15:36:36 test_waechter.py.vor-kontext-20260923-212241
+=== Ende EB4 ===

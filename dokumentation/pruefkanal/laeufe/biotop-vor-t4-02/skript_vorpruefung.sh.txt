@@ -1,0 +1,13 @@
+#!/bin/bash
+# Vorprüfung am Arbeitsbaum vor dem Commit (nacheinander, keine parallelen Kammerläufe). Kein Modellaufruf.
+cd /root/biotop
+export BIOTOP_KAMMER_IMAGE=biotop-kammer:ts1 BIOTOP_AUFTRAG_LAUF_AB=26 BIOTOP_AUFTRAG_BUDGET_EUR=10
+echo "=== a) Teillauf $(date -Is)"
+/root/biotop-t3/venv/bin/python -m pytest tests/test_vor_t4_02.py tests/test_eichproben.py tests/test_t3_python_annahmen.py \
+  tests/test_vorspann.py tests/test_t3_verhaltensvergleich.py tests/test_vor_t4.py -q -p no:cacheprovider --tb=line -rf 2>&1 | tail -8
+echo "=== b) TS-Sonde direkt (K3106/K3121/K3324) $(date -Is)"
+/root/biotop-t3/venv/bin/python /root/biotop-vor-t4-02/bau/vv_kammerprobe_02.py 2>&1 | cut -c1-700
+echo "=== c) K2868 Nachspiel am Arbeitsbaum $(date -Is)"
+mkdir -p /root/biotop-vor-t4-02/bau/nachspiel-vorab
+NACHSPIEL_AUS=/root/biotop-vor-t4-02/bau/nachspiel-vorab /root/biotop-t3/venv/bin/python /root/biotop-vor-t4/nachspiel_vor_t4.py k2868 2>&1 | cut -c1-900
+echo "=== ende $(date -Is)"

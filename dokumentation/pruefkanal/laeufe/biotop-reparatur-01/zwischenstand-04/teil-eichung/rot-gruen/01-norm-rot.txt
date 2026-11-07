@@ -1,0 +1,31 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.1.1, pluggy-1.6.0 -- /root/reparatur-01/venv/bin/python
+cachedir: .pytest_cache
+rootdir: /root/reparatur-01/teil-eichung/repo
+collecting ... collected 1 item
+
+tests/test_eichproben.py::test_norm_aendert_vorhandene_funktion_statt_importfehler NORM BASIS {'.py::tests.test_lieferant_eichprobe_norm': {'ok': False, 'bestaetigt': False, 'meldung': 'collection failure', 'ort': 'tests/test_lieferant_eichprobe_norm.py'}, 'tests/test_lieferant_eichprobe_norm.py::*': {'ok': False, 'bestaetigt': False, 'meldung': 'Sammelfehler (Import) in tests/test_lieferant_eichprobe_norm.py'}} NORM KANDIDAT {'tests/test_lieferant_eichprobe_norm.py::test_lieferant_eichprobe_norm': {'ok': True, 'bestaetigt': False, 'meldung': ''}}
+FAILED
+
+=================================== FAILURES ===================================
+___________ test_norm_aendert_vorhandene_funktion_statt_importfehler ___________
+
+werk = PosixPath('/root/reparatur-01/teil-eichung/tmp/pytest-01/test_norm_aendert_vorhandene_f0/werk')
+
+    def test_norm_aendert_vorhandene_funktion_statt_importfehler(werk):
+        diff, rel_test, _ = eichproben._normtest(werk, "beispiel", "lieferant")
+        dateien = aegis.kandidat_dateien(werk, diff)
+        assert dateien is not None
+        basis = aegis.junit_lauf(werk, "beispiel", {rel_test: dateien[rel_test]}, [rel_test])
+        kandidat = aegis.junit_lauf(werk, "beispiel", dateien, [rel_test])
+        print("NORM BASIS", basis, "NORM KANDIDAT", kandidat)
+        echte_tests = [x for n, x in basis.items() if not n.endswith("::*")]
+        assert len(echte_tests) == 1
+>       assert echte_tests[0]["bestaetigt"] is True, "Norm braucht eine Assertion, keinen Importfehler"
+E       AssertionError: Norm braucht eine Assertion, keinen Importfehler
+E       assert False is True
+
+tests/test_eichproben.py:44: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_eichproben.py::test_norm_aendert_vorhandene_funktion_statt_importfehler
+============================== 1 failed in 1.54s ===============================

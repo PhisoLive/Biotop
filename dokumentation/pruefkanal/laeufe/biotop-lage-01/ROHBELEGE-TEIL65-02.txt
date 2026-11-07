@@ -1,0 +1,231 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 65 (Teile 4–165 dieses Stands) · enthält R61 bis R61
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R61 · Teil A: Entscheidungen Hermes in Berichten (Prüfkanal biotop-*, /root/biotop-vor-t4*), nur lesend
+Beginn: 2026-09-25 16:19:16 CEST (UTC+0200)
+Ende:   2026-09-25 16:19:16 CEST (UTC+0200)
+Dauer:  0.3 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/entscheidungen/a4_hermes_entscheidungen.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/entscheidungen/a4_hermes_entscheidungen.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil A (nur lesend) — FK17: Entscheidungen Hermes in Berichten.
+Sucht in {LAEUFE}/biotop-*/ (nur *.md, ohne Unterordner ausgaben/, werk/, biotop/, quellen/) und in /root/biotop-vor-t4*/
+(*.md, ohne bau/) nach „Entscheidung Hermes“, „eigene Entscheidung“, „Eigene Entscheidungen“, „Auslegung Hermes“,
+„Entscheidung (Hermes)“, „meine Entscheidung“, „Lesart Hermes“.
+Ausgabe: je Datei Anzahl Treffer; danach je Treffer Datei:Zeile und die Zeile (gekürzt auf 230 Zeichen).
+Zusätzlich: Abschnitte mit Überschrift „Eigene Entscheidungen“ — Anzahl ihrer Aufzählungspunkte/Tabellenzeilen.
+Schlüssel des Prüfkanals maskiert."""
+import re
+from pathlib import Path
+
+if Path('/tmp/biotop-kammer-exklusiv').exists():
+    raise SystemExit('ABBRUCH: /tmp/biotop-kammer-exklusiv besteht — keine Suchläufe.')
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+L = Path(f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe')
+AUS = {'ausgaben', 'werk', 'biotop', 'quellen', 'bau', 'node_modules', '.git'}
+rx = re.compile(r'Entscheidung Hermes|[Ee]igene[n]? Entscheidung|Auslegung Hermes|Entscheidung \(Hermes\)|[Mm]eine Entscheidung|Lesart Hermes')
+
+
+def dateien(wurzel: Path):
+    for q in sorted(wurzel.rglob('*.md')):
+        if any(t in AUS for t in q.relative_to(wurzel).parts[:-1]):
+            continue
+        yield q
+
+
+quellen = []
+for d in sorted(L.glob('biotop-*')):
+    quellen += list(dateien(d))
+for d in sorted(Path('/root').glob('biotop-vor-t4*')):
+    quellen += list(dateien(d))
+print('Durchsuchte Dateien:', len(quellen))
+treffer = {}
+abschnitte = []
+for q in quellen:
+    z = q.read_text(errors='replace').splitlines()
+    for i, s in enumerate(z, 1):
+        if rx.search(s):
+            treffer.setdefault(q, []).append((i, s))
+        m = re.match(r'^(#+) .*(Eigene Entscheidungen|Entscheidungen Hermes|Eigene Entscheidung)', s)
+        if m:
+            ebene = len(m.group(1))
+            j = i
+            n = 0
+            while j < len(z) and not re.match(rf'^#{{1,{ebene}}} ', z[j]):
+                if re.match(r'^\s*([-*]|\d+\.|\|\s*[A-Z0-9])', z[j]) and not re.match(r'^\|\s*-', z[j]):
+                    n += 1
+                j += 1
+            abschnitte.append((q, i, s.strip(), n, j))
+m = lambda p: str(p).replace(str(L), '{LAEUFE}')
+print(f'Dateien mit Treffern: {len(treffer)}; Trefferzeilen gesamt: {sum(len(v) for v in treffer.values())}')
+print('\n== Anzahl je Datei')
+for q, v in treffer.items():
+    print(f'{len(v):4d}  {m(q)}')
+print('\n== Abschnitte „Eigene Entscheidungen“ (Datei:Zeile, Überschrift, Aufzählungspunkte/Tabellenzeilen, Ende-Zeile)')
+for q, i, s, n, j in abschnitte:
+    print(f'{m(q)}:{i}: {s} — {n} Punkte (bis Zeile {j})')
+print('\n== Trefferzeilen')
+for q, v in treffer.items():
+    for i, s in v:
+        print(f'{m(q)}:{i}: {s.strip()[:230]}')
+--- Ende /root/sicherung/biotop-lage-01/entwurf/entscheidungen/a4_hermes_entscheidungen.py ---
+Ausgabe (vollständig, stdout und stderr):
+Durchsuchte Dateien: 420
+Dateien mit Treffern: 48; Trefferzeilen gesamt: 77
+
+== Anzahl je Datei
+   2  {LAEUFE}/biotop-gesamtstand/ABWEICHUNGEN-01.md
+   1  {LAEUFE}/biotop-gesamtstand/pruefungen/pruefung-a/BEFUND.md
+   1  {LAEUFE}/biotop-gesamtstand/pruefungen/pruefung-b/BEFUND.md
+   2  {LAEUFE}/biotop-lage-01/START-01.md
+   5  {LAEUFE}/biotop-phase-1/BERICHT.md
+   4  {LAEUFE}/biotop-phase-1-nachlauf/BERICHT.md
+   3  {LAEUFE}/biotop-phase-2/BERICHT.md
+   3  {LAEUFE}/biotop-phase-3/BERICHT.md
+   1  {LAEUFE}/biotop-phase-4-vorbedingung-1/nach-reparatur-02/MESSPLAN.md
+   1  {LAEUFE}/biotop-phase-4-vorbedingung-1/nach-reparatur-02/abschluss-01/BERICHT.md
+   1  {LAEUFE}/biotop-phase-4-vorbedingung-1/nach-reparatur-02/abschluss-01/MESSPLAN.md
+   1  {LAEUFE}/biotop-phase-4-vorbedingung-1/nach-reparatur-02/abschluss-01/UEBERGABE-PHASE-4.md
+   1  {LAEUFE}/biotop-phase-4-vorbedingung-1/nach-reparatur-02/abschluss-01/ZWISCHENBERICHT.md
+   1  {LAEUFE}/biotop-reparatur-01/zwischenstand-04/historische-referenzquellen/doc_f18e4c5d9f14_ABNAHME_Vorbedingung-1_2026-09-20.md
+   2  {LAEUFE}/biotop-t3-typescript/MASTERPROMPT-v7.md
+   2  {LAEUFE}/biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md
+   1  {LAEUFE}/biotop-t3-typescript/abschluss-03/SPERREN.md
+   1  {LAEUFE}/biotop-t3-typescript/verfassung-02/ZWISCHENBERICHT.md
+   3  {LAEUFE}/biotop-vor-t4/BERICHT.md
+   1  {LAEUFE}/biotop-vor-t4/REVIEW.md
+   1  {LAEUFE}/biotop-vor-t4-02/BERICHT.md
+   2  {LAEUFE}/biotop-vor-t4-02/REVIEW.md
+   2  {LAEUFE}/biotop-vor-t4-03/BERICHT.md
+   1  {LAEUFE}/biotop-vor-t4-03/REVIEW-AUFTRAG.md
+   1  {LAEUFE}/biotop-vor-t4-04/BERICHT.md
+   1  {LAEUFE}/biotop-vor-t4-04/UEBERGABE.md
+   1  {LAEUFE}/biotop-vor-t4-05/BERICHT-vor-fuellen.md
+   1  {LAEUFE}/biotop-vor-t4-05/BERICHT-vor-review.md
+   1  {LAEUFE}/biotop-vor-t4-05/BERICHT.md
+   1  {LAEUFE}/biotop-vor-t4-06/zwischenbericht-20260925-000624-r29-verdichtung/ZWISCHENBERICHT.md
+   1  {LAEUFE}/biotop-vor-t4-06/zwischenbericht-20260925-011225-r12-verdichtung/UEBERGABE-1-UEBERGABE.md
+   2  {LAEUFE}/biotop-wiedereinstieg-2026-09-20-01/INFINITE-EVOLUTION-BIOTOP-Masterprompt-v6-01.md
+   3  /root/biotop-vor-t4/BERICHT.md
+   1  /root/biotop-vor-t4/REVIEW.md
+   1  /root/biotop-vor-t4-02/BERICHT.md
+   2  /root/biotop-vor-t4-02/REVIEW.md
+   2  /root/biotop-vor-t4-03/BERICHT.md
+   1  /root/biotop-vor-t4-03/REVIEW-AUFTRAG.md
+   1  /root/biotop-vor-t4-04/BERICHT.md
+   1  /root/biotop-vor-t4-04/UEBERGABE.md
+   1  /root/biotop-vor-t4-05/BERICHT.md
+   2  /root/biotop-vor-t4-06/BAU-S1B-M2B.md
+   1  /root/biotop-vor-t4-06/BAU-S4-VERDRAHTUNG.md
+   1  /root/biotop-vor-t4-06/S1-ABBRUCH.md
+   5  /root/biotop-vor-t4-06/UEBERGABE.md
+   1  /root/biotop-vor-t4-06/VERDICHTUNG-OPENROUTER.md
+   1  /root/biotop-vor-t4-06/sperre/SPERRE-02-S3-gateway-waechter.md
+   1  /root/biotop-vor-t4-06/sperre/SPERRE-04-S1b-formatsperre.md
+
+== Abschnitte „Eigene Entscheidungen“ (Datei:Zeile, Überschrift, Aufzählungspunkte/Tabellenzeilen, Ende-Zeile)
+{LAEUFE}/biotop-phase-1/BERICHT.md:74: ## 4. Eigene Entscheidungen von Hermes (Konfiguration, keine Architektur) — 8 Punkte (bis Zeile 85)
+{LAEUFE}/biotop-phase-1-nachlauf/BERICHT.md:109: ## 7. Eigene Entscheidungen von Hermes — 8 Punkte (bis Zeile 120)
+{LAEUFE}/biotop-phase-2/BERICHT.md:110: ## 6. Eigene Entscheidungen von Hermes — 9 Punkte (bis Zeile 122)
+{LAEUFE}/biotop-phase-4-vorbedingung-1/nach-reparatur-02/MESSPLAN.md:8: ## Eigene Entscheidungen von Hermes vor den Ergebnissen — 4 Punkte (bis Zeile 13)
+{LAEUFE}/biotop-phase-4-vorbedingung-1/nach-reparatur-02/abschluss-01/BERICHT.md:51: ## Eigene Entscheidungen und Messgrenzen — 0 Punkte (bis Zeile 56)
+{LAEUFE}/biotop-phase-4-vorbedingung-1/nach-reparatur-02/abschluss-01/MESSPLAN.md:8: ## Eigene Entscheidungen von Hermes vor den Ergebnissen — 4 Punkte (bis Zeile 13)
+{LAEUFE}/biotop-phase-4-vorbedingung-1/nach-reparatur-02/abschluss-01/ZWISCHENBERICHT.md:51: ## Eigene Entscheidungen und Messgrenzen — 0 Punkte (bis Zeile 56)
+{LAEUFE}/biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md:479: ## Eigene Entscheidungen (mit Begründung) — 7 Punkte (bis Zeile 489)
+{LAEUFE}/biotop-vor-t4/BERICHT.md:283: ## 10. Eigene Entscheidungen — 11 Punkte (bis Zeile 309)
+{LAEUFE}/biotop-vor-t4-02/BERICHT.md:368: ## 10. Eigene Entscheidungen — 10 Punkte (bis Zeile 390)
+{LAEUFE}/biotop-vor-t4-03/BERICHT.md:395: ## 12. Eigene Entscheidungen — 9 Punkte (bis Zeile 415)
+{LAEUFE}/biotop-vor-t4-04/BERICHT.md:319: ## 12. Eigene Entscheidungen — 7 Punkte (bis Zeile 340)
+{LAEUFE}/biotop-vor-t4-05/BERICHT-vor-fuellen.md:367: ## 13. Eigene Entscheidungen — 19 Punkte (bis Zeile 398)
+{LAEUFE}/biotop-vor-t4-05/BERICHT-vor-review.md:460: ## 13. Eigene Entscheidungen — 19 Punkte (bis Zeile 491)
+{LAEUFE}/biotop-vor-t4-05/BERICHT.md:504: ## 13. Eigene Entscheidungen — 19 Punkte (bis Zeile 535)
+/root/biotop-vor-t4/BERICHT.md:283: ## 10. Eigene Entscheidungen — 11 Punkte (bis Zeile 309)
+/root/biotop-vor-t4-02/BERICHT.md:368: ## 10. Eigene Entscheidungen — 10 Punkte (bis Zeile 390)
+/root/biotop-vor-t4-03/BERICHT.md:395: ## 12. Eigene Entscheidungen — 9 Punkte (bis Zeile 415)
+/root/biotop-vor-t4-04/BERICHT.md:319: ## 12. Eigene Entscheidungen — 7 Punkte (bis Zeile 340)
+/root/biotop-vor-t4-05/BERICHT.md:504: ## 13. Eigene Entscheidungen — 19 Punkte (bis Zeile 535)
+/root/biotop-vor-t4-06/VERDICHTUNG-OPENROUTER.md:50: ## Eigene Entscheidungen — 2 Punkte (bis Zeile 59)
+
+== Trefferzeilen
+{LAEUFE}/biotop-gesamtstand/ABWEICHUNGEN-01.md:22: **Eigenanteil Hermes:** Landkarte Z.3–4 verschiebt tree-sitter ausdrücklich als „Entscheidung Hermes“ nach hinten, weil Phase 1 nur Python-Werke hat. Das belegt eine frühere Scope-Entscheidung, keine heutige F6-Freigabe für die we
+{LAEUFE}/biotop-gesamtstand/ABWEICHUNGEN-01.md:581: geschmack_merken speichert jede gewählte Kandidaten-ID einer Freigabe als eigene Entscheidung. geschmack_modell ohne quelle filtert weder nach echter Person noch nach Simulationsherkunft; der Web-Aufruf lässt quelle weg. Die Schwe
+{LAEUFE}/biotop-gesamtstand/pruefungen/pruefung-a/BEFUND.md:57: **Hermes-Bezug:** Landkarte Z.3–4 verschiebt tree-sitter ausdrücklich als „Entscheidung Hermes“ nach hinten, weil Phase 1 nur Python-Werke hat. Das belegt eine frühere Scope-Entscheidung, keine heutige F6-Freigabe für die weiterhi
+{LAEUFE}/biotop-gesamtstand/pruefungen/pruefung-b/BEFUND.md:269: **Mechanik:** geschmack_merken speichert jede gewählte Kandidaten-ID einer Freigabe als eigene Entscheidung. geschmack_modell ohne quelle filtert weder nach echter Person noch nach Simulationsherkunft; der Web-Aufruf lässt quelle 
+{LAEUFE}/biotop-lage-01/START-01.md:28: - **Auslegung Hermes (Abschnitt 3):** S1c ist kein Lauf im Sinne der Kasse, aber „ein anderer Biotop-Prozess“, der `/root/biotop` ändert.
+{LAEUFE}/biotop-lage-01/START-01.md:32: - **Entscheidung Hermes:** Nach dem Ende von S1c ruht die Behebungsrunde 6 bis zum Abschluss dieses Auftrags: kein Commit, kein weiterer Bau (Regel 2.1; Abschnitt 0: „baut nichts, repariert nichts“).
+{LAEUFE}/biotop-phase-1/BERICHT.md:7: Belegregeln: Jede Zahl mit Bezugsgröße. „Bestätigt durch Ausführung" nur mit Datei in `ausgaben/`. Eigene Entscheidungen von Hermes sind mit **[Entscheidung Hermes]** gekennzeichnet.
+{LAEUFE}/biotop-phase-1/BERICHT.md:35: | Kasse | `biotop/kern/kasse.py` | Preistabelle (USD/Mio Token, OpenRouter-Katalog 18.09.2026, Kurs 1,08 fest **[Entscheidung Hermes]**), `vorpruefung()` vor **jedem** Aufruf (Zeile 65), `generation_vorpruefung()` vor jeder Genera
+{LAEUFE}/biotop-phase-1/BERICHT.md:38: | Messgerät (harte Maße) | `biotop/kern/messgeraet.py`, `kern/referenzlast/lagerhaus.py` | je Bereich: tests_bestanden/fehlgeschlagen (junit), sicherheit_punkte (bandit HIGH 10/MEDIUM 3/LOW 1), tote_funktionen (vulture ≥ 60 %), la
+{LAEUFE}/biotop-phase-1/BERICHT.md:70: **Was der Ankläger geleistet hat (bestätigt durch Ausführung):** 6 Immuntest-Dateien mit 10 Testfunktionen im Werk (Tests 50 → 60), alle aus Angriffstests, die am Ausgangszustand fehlschlugen und am Kandidaten bestehen — darunter 
+{LAEUFE}/biotop-phase-1/BERICHT.md:74: ## 4. Eigene Entscheidungen von Hermes (Konfiguration, keine Architektur)
+{LAEUFE}/biotop-phase-1-nachlauf/BERICHT.md:9: Belegregeln: jede Zahl mit Bezugsgröße; „bestätigt durch Ausführung" nur mit Datei in `ausgaben/`; Entscheidungen von Hermes mit **[Entscheidung Hermes]**.
+{LAEUFE}/biotop-phase-1-nachlauf/BERICHT.md:36: | 3.5 F2 Pareto-Maße | fehlgeschlagene Tests, Sicherheitspunkte, tote Funktionen, baut — **je Test**: ein Test, der an der Vorgeneration besteht und am Kandidaten fällt, tötet den Kandidaten unabhängig von der Summe **[Entscheidun
+{LAEUFE}/biotop-phase-1-nachlauf/BERICHT.md:89: Alle **[Entscheidung Hermes]**, jeweils Maßänderung → neuer Lauf vom selben Ausgang (Verfassungssatz 2), protokolliert (`lauf.abgebrochen` #1424, #1720, #2164).
+{LAEUFE}/biotop-phase-1-nachlauf/BERICHT.md:109: ## 7. Eigene Entscheidungen von Hermes
+{LAEUFE}/biotop-phase-2/BERICHT.md:8: Belegregeln: jede Zahl mit Bezugsgröße; „bestätigt durch Ausführung" nur mit Datei in `ausgaben/`; Entscheidungen von Hermes mit **[Entscheidung Hermes]**; eingeschleuste Proben-Kandidaten sind im Protokoll (`probe.eingeschleust`)
+{LAEUFE}/biotop-phase-2/BERICHT.md:22: | 7 | Vertragsprobe: ohne Anpassung des Nachbarn abgelehnt; mit Anpassung angenommen (je 1 Fall) | **bestanden** | ohne: K1019/K1020 abgelehnt am Vertrag `test_vertrag_preise_formeln::test_konsument_preise_uebergibt_waehrung`; mit
+{LAEUFE}/biotop-phase-2/BERICHT.md:110: ## 6. Eigene Entscheidungen von Hermes
+{LAEUFE}/biotop-phase-3/BERICHT.md:13: jeweilige Datei steht in Klammern. Wo ich etwas entschieden habe, steht „**Entscheidung Hermes**". Wo eine Zeile
+{LAEUFE}/biotop-phase-3/BERICHT.md:26: **Entscheidung Hermes, ausdrücklich kennzeichnungspflichtig.**
+{LAEUFE}/biotop-phase-3/BERICHT.md:44: **Zweites Übungswerk (Entscheidung Hermes):** `logmuehle` liest Zugriffsprotokolle im Common Log Format und wertet
+{LAEUFE}/biotop-phase-4-vorbedingung-1/nach-reparatur-02/MESSPLAN.md:8: ## Eigene Entscheidungen von Hermes vor den Ergebnissen
+{LAEUFE}/biotop-phase-4-vorbedingung-1/nach-reparatur-02/abschluss-01/BERICHT.md:51: ## Eigene Entscheidungen und Messgrenzen
+{LAEUFE}/biotop-phase-4-vorbedingung-1/nach-reparatur-02/abschluss-01/MESSPLAN.md:8: ## Eigene Entscheidungen von Hermes vor den Ergebnissen
+{LAEUFE}/biotop-phase-4-vorbedingung-1/nach-reparatur-02/abschluss-01/UEBERGABE-PHASE-4.md:271: Dazu Satz 2: Maß und Messgerät während des Laufs unverändert. Jede Änderung beendet den Lauf; ein neuer beginnt nur ausdrücklich vom gleichen Ausgang, nicht still unter alter Kennung. Keine Schwellenverschiebung wegen eines Fehlsc
+{LAEUFE}/biotop-phase-4-vorbedingung-1/nach-reparatur-02/abschluss-01/ZWISCHENBERICHT.md:51: ## Eigene Entscheidungen und Messgrenzen
+{LAEUFE}/biotop-reparatur-01/zwischenstand-04/historische-referenzquellen/doc_f18e4c5d9f14_ABNAHME_Vorbedingung-1_2026-09-20.md:89: ## 5. Kassenstand — meine Entscheidung, als eigene gekennzeichnet
+{LAEUFE}/biotop-t3-typescript/MASTERPROMPT-v7.md:121: Belegregeln für alle Berichte von Hermes: messen statt annehmen; „bestätigt durch Ausführung" nur mit beigefügter Ausgabe, sonst „gelesen, nicht ausgeführt"; jede Zahl mit Bezugsgröße (nicht „alle Tests grün", sondern „184 von 184
+{LAEUFE}/biotop-t3-typescript/MASTERPROMPT-v7.md:461: - `BERICHT.md`: Was gebaut wurde, was gemessen wurde, jede Torzeile mit Ergebnis und Verweis auf die Ausgabedatei; eigene Entscheidungen von Hermes gekennzeichnet; offene Punkte auf der Liste für danach.
+{LAEUFE}/biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md:421: *Eigene Entscheidung:* Die Code-Befunde behebe ich **nicht** in T3.
+{LAEUFE}/biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md:479: ## Eigene Entscheidungen (mit Begründung)
+{LAEUFE}/biotop-t3-typescript/abschluss-03/SPERREN.md:84: es danach **unverändert ausgeführt**, exit 0. *(Eigene Entscheidung.)* Ergebnis:
+{LAEUFE}/biotop-t3-typescript/verfassung-02/ZWISCHENBERICHT.md:5: - Auflage 2 → Satz 3: Entscheidung Hermes: exakte Zwischenrechnung; Half-up auf ganze Cent genau einmal am Endpreis jeder Sendung nach Zuschlägen und Rabatten; Sammelsumme aus den bereits abgerechneten Sendungen, ohne weitere Rund
+{LAEUFE}/biotop-vor-t4/BERICHT.md:99: Spezifikation dieser ungedeckten Abweichung, Text in `S1-DECKUNG.json`. Sie ist nicht im Baum, siehe Eigene Entscheidung 7.
+{LAEUFE}/biotop-vor-t4/BERICHT.md:283: ## 10. Eigene Entscheidungen
+{LAEUFE}/biotop-vor-t4/BERICHT.md:330: 5. Gateway-Dump als Beleg am Gateway selbst (Eigene Entscheidung 2): gewünscht?
+{LAEUFE}/biotop-vor-t4/REVIEW.md:95: 19. **Eigene Entscheidung 4** (Auslegung „Korpus aus den Verträgen“) ist als Auslegung gekennzeichnet und zur Bestätigung vorgelegt.
+{LAEUFE}/biotop-vor-t4-02/BERICHT.md:368: ## 10. Eigene Entscheidungen
+{LAEUFE}/biotop-vor-t4-02/REVIEW.md:42: | 6 | hoch | **In der gebauten Form ist eine beabsichtigte Verhaltensänderung auf dem Lastpfad praktisch nicht deckbar.** Gemessen an TS mit `export function`: Ein richtiger Test `expect(f('a')).toBe('A')` deckt 2 von 28 Abweichun
+{LAEUFE}/biotop-vor-t4-02/REVIEW.md:44: | 8 | mittel | **Ein Test kann eine Abweichung decken, die er nicht festhält.** `test_g_neu` sichert nur `g(1) == 2` zu und ruft `f('a')` nebenbei. Er deckt 4 Abweichungen, darunter `f~rand#2` und `f~rand#2@alias`. Der Aufzeichner
+{LAEUFE}/biotop-vor-t4-03/BERICHT.md:173: (2 × 5 Werte je Seite) entscheidet („gepoolt“, eigene Entscheidung, §12 Nr. 2). Nachmessung ungültig: zurückgestellt.
+{LAEUFE}/biotop-vor-t4-03/BERICHT.md:395: ## 12. Eigene Entscheidungen
+{LAEUFE}/biotop-vor-t4-03/REVIEW-AUFTRAG.md:65: Generalprobe `lauf.py`): Band, Richtung, gepoolter Median bei Widerspruch (eigene Entscheidung), ungültige
+{LAEUFE}/biotop-vor-t4-04/BERICHT.md:319: ## 12. Eigene Entscheidungen
+{LAEUFE}/biotop-vor-t4-04/UEBERGABE.md:105: - 16:10 BERICHT §12 (eigene Entscheidungen) und §13 (eigene Fehler) geschrieben; §3 zahlform_null_vorn gelesen
+{LAEUFE}/biotop-vor-t4-05/BERICHT-vor-fuellen.md:367: ## 13. Eigene Entscheidungen
+{LAEUFE}/biotop-vor-t4-05/BERICHT-vor-review.md:460: ## 13. Eigene Entscheidungen
+{LAEUFE}/biotop-vor-t4-05/BERICHT.md:504: ## 13. Eigene Entscheidungen
+{LAEUFE}/biotop-vor-t4-06/zwischenbericht-20260925-000624-r29-verdichtung/ZWISCHENBERICHT.md:11: Zuerst Runde 5 abschließen: Es gilt das zweite Review (/tmp/review-vor-t4-05/REVIEW.md) — seine Messungen sind nachweislich eigene; beim ersten ist nicht auszuschließen, dass es das überschriebene Skript ausgeführt hat. Das erste 
+{LAEUFE}/biotop-vor-t4-06/zwischenbericht-20260925-011225-r12-verdichtung/UEBERGABE-1-UEBERGABE.md:118: Modellwahl (eigene Entscheidung): `google/gemini-3.6-flash` — Hermes' eigenes Verdichtungsmodell der Nous-Bahn
+{LAEUFE}/biotop-wiedereinstieg-2026-09-20-01/INFINITE-EVOLUTION-BIOTOP-Masterprompt-v6-01.md:110: Belegregeln für alle Berichte von Hermes: messen statt annehmen; „bestätigt durch Ausführung" nur mit beigefügter Ausgabe, sonst „gelesen, nicht ausgeführt"; jede Zahl mit Bezugsgröße (nicht „alle Tests grün", sondern „184 von 184
+{LAEUFE}/biotop-wiedereinstieg-2026-09-20-01/INFINITE-EVOLUTION-BIOTOP-Masterprompt-v6-01.md:419: - `BERICHT.md`: Was gebaut wurde, was gemessen wurde, jede Torzeile mit Ergebnis und Verweis auf die Ausgabedatei; eigene Entscheidungen von Hermes gekennzeichnet; offene Punkte auf der Liste für danach.
+/root/biotop-vor-t4/BERICHT.md:99: Spezifikation dieser ungedeckten Abweichung, Text in `S1-DECKUNG.json`. Sie ist nicht im Baum, siehe Eigene Entscheidung 7.
+/root/biotop-vor-t4/BERICHT.md:283: ## 10. Eigene Entscheidungen
+/root/biotop-vor-t4/BERICHT.md:330: 5. Gateway-Dump als Beleg am Gateway selbst (Eigene Entscheidung 2): gewünscht?
+/root/biotop-vor-t4/REVIEW.md:95: 19. **Eigene Entscheidung 4** (Auslegung „Korpus aus den Verträgen“) ist als Auslegung gekennzeichnet und zur Bestätigung vorgelegt.
+/root/biotop-vor-t4-02/BERICHT.md:368: ## 10. Eigene Entscheidungen
+/root/biotop-vor-t4-02/REVIEW.md:42: | 6 | hoch | **In der gebauten Form ist eine beabsichtigte Verhaltensänderung auf dem Lastpfad praktisch nicht deckbar.** Gemessen an TS mit `export function`: Ein richtiger Test `expect(f('a')).toBe('A')` deckt 2 von 28 Abweichun
+/root/biotop-vor-t4-02/REVIEW.md:44: | 8 | mittel | **Ein Test kann eine Abweichung decken, die er nicht festhält.** `test_g_neu` sichert nur `g(1) == 2` zu und ruft `f('a')` nebenbei. Er deckt 4 Abweichungen, darunter `f~rand#2` und `f~rand#2@alias`. Der Aufzeichner
+/root/biotop-vor-t4-03/BERICHT.md:173: (2 × 5 Werte je Seite) entscheidet („gepoolt“, eigene Entscheidung, §12 Nr. 2). Nachmessung ungültig: zurückgestellt.
+/root/biotop-vor-t4-03/BERICHT.md:395: ## 12. Eigene Entscheidungen
+/root/biotop-vor-t4-03/REVIEW-AUFTRAG.md:65: Generalprobe `lauf.py`): Band, Richtung, gepoolter Median bei Widerspruch (eigene Entscheidung), ungültige
+/root/biotop-vor-t4-04/BERICHT.md:319: ## 12. Eigene Entscheidungen
+/root/biotop-vor-t4-04/UEBERGABE.md:105: - 16:10 BERICHT §12 (eigene Entscheidungen) und §13 (eigene Fehler) geschrieben; §3 zahlform_null_vorn gelesen
+/root/biotop-vor-t4-05/BERICHT.md:504: ## 13. Eigene Entscheidungen
+/root/biotop-vor-t4-06/BAU-S1B-M2B.md:29: ## Warum M2(b) in diese Runde gehört (Entscheidung Hermes, nach der Startregel)
+/root/biotop-vor-t4-06/BAU-S1B-M2B.md:100: ## Teil C — Nebenwirkung abstellen (Entscheidung Hermes)
+/root/biotop-vor-t4-06/BAU-S4-VERDRAHTUNG.md:134: 6. **Kernstand zwischen Eichphase und Vorspann (Entscheidung Hermes).** Weicht der Kernstand beim Vorspann vom
+/root/biotop-vor-t4-06/S1-ABBRUCH.md:41: **Eigene Entscheidung:** S1 wird als Fortsetzung neu gestartet, mit dem gemessenen Stand (`BAU-S1-FORTSETZUNG.md`). Die
+/root/biotop-vor-t4-06/UEBERGABE.md:118: Modellwahl (eigene Entscheidung): `google/gemini-3.6-flash` — Hermes' eigenes Verdichtungsmodell der Nous-Bahn
+/root/biotop-vor-t4-06/UEBERGABE.md:159: Verdrahtungslauf, Befehlszeile `stufe2` und tor4-Belege, Typsieb-Protokoll, **eigene Entscheidung: Kernstand-Abweichung
+/root/biotop-vor-t4-06/UEBERGABE.md:164: - 05:02 Eigene Entscheidungen (für Bericht §Entscheidungen): (1) VORHER-NACHHER-S3 endgültig gestrichen (Ergebnis einer
+/root/biotop-vor-t4-06/UEBERGABE.md:178: - 08:50 **Eigene Entscheidung: M2(b) in diese Runde** (Startregel + Philipp 25.09.: stiller Durchlass → diese Runde;
+/root/biotop-vor-t4-06/UEBERGABE.md:225: - 12:55 **Eigene Entscheidung: Klasse statt Fall** — gelesen (`bau/hermes/H-LESEN-WEGE.txt`): `verhaltensvergleich.pruefen`
+/root/biotop-vor-t4-06/VERDICHTUNG-OPENROUTER.md:50: ## Eigene Entscheidungen
+/root/biotop-vor-t4-06/sperre/SPERRE-02-S3-gateway-waechter.md:37: **Folgen (eigene Entscheidungen):**
+/root/biotop-vor-t4-06/sperre/SPERRE-04-S1b-formatsperre.md:16: Prüfung bestanden. Entscheidung Hermes: das gespeicherte Skript wird unverändert ausgeführt (Ausgabe
+=== Ende R61 ===

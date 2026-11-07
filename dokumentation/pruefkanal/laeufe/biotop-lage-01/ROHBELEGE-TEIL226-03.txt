@@ -1,0 +1,62 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 03 · Teil 226 (Teile 166–239 dieses Stands) · enthält R223 bis R223
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R223 · Geheimnissuche mit Gegenprobe über den ganzen Abschlussordner (Abschnitt 8)
+Beginn: 2026-09-25 20:49:04 CEST (UTC+0200)
+Ende:   2026-09-25 20:49:06 CEST (UTC+0200)
+Dauer:  2.2 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/s11_geheimnis.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/s11_geheimnis.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 · Geheimnissuche mit Gegenprobe über den ganzen Abschlussordner (Abschnitt 8), nur lesend im Ordner.
+1. Suche: arbeit/geheimnis.py über jede Datei in laeufe/biotop-lage-01/ (Muster und Werte aus .env/auth.json).
+2. Gegenprobe: Testdatei in /root/sicherung/biotop-lage-01/tmp/ mit einem erfundenen Schlüssel im OpenRouter-Muster
+   (zur Laufzeit zufällig erzeugt, nie ausgegeben); dieselbe Suche muss genau diese Datei mit dem Muster
+   „OpenRouter-Schlüssel“ melden. Die Testdatei wird danach umbenannt (.erledigt), nicht gelöscht.
+Ausgabe: Treffer je Datei (geschwärzt, nur Fundort), Zählung, Ergebnis der Gegenprobe."""
+import os
+import re
+import secrets
+import subprocess
+import sys
+from pathlib import Path
+
+W = Path('/root/sicherung/biotop-lage-01')
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+ORD = Path(f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe/biotop-lage-01')
+G = [sys.executable, str(W / 'arbeit' / 'geheimnis.py')]
+dateien = sorted(str(p) for p in ORD.rglob('*') if p.is_file())
+print(f'== 1. Suche über den Ordner: {len(dateien)} Dateien')
+r = subprocess.run(G + dateien, capture_output=True, text=True)
+treffer = [z for z in r.stdout.splitlines() if z.startswith('TREFFER')]
+print('\n'.join(z.replace(str(ORD) + '/', '') for z in treffer) or '(keine Treffer)')
+print([z for z in r.stdout.splitlines() if z.startswith('Durchsucht')][0], f'· rc {r.returncode}')
+je = sorted({re.search(r': (\S+?):\d+: \[', z).group(1).replace(str(ORD) + '/', '') for z in treffer})
+print(f'Dateien mit Treffer: {len(je)} {je}')
+print('== 2. Gegenprobe')
+test = W / 'tmp' / 'geheimnis-gegenprobe-03.txt'
+fd = os.open(test, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+with os.fdopen(fd, 'w') as f:
+    f.write('Gegenprobe BIOTOP-LAGE-01: erfundener Schlüssel im OpenRouter-Muster\nsk-or-v1-' + secrets.token_hex(32) + '\n')
+g = subprocess.run(G + [str(test)], capture_output=True, text=True)
+gt = [z for z in g.stdout.splitlines() if z.startswith('TREFFER')]
+print('\n'.join(gt) or '(keine Treffer)')
+ok = len(gt) == 1 and 'OpenRouter-Schlüssel' in gt[0] and str(test) in gt[0]
+print(f'Gegenprobe angeschlagen: {"ja" if ok else "NEIN"} (verlangt: genau 1 Treffer, Muster OpenRouter-Schlüssel, in der Testdatei)')
+test.rename(test.with_name(test.name + '.erledigt'))
+print(f'Testdatei umbenannt: {test.name}.erledigt (Inhalt bleibt auf dem Server, nicht im Prüfkanal)')
+--- Ende /root/sicherung/biotop-lage-01/arbeit/s11_geheimnis.py ---
+Ausgabe (vollständig, stdout und stderr):
+== 1. Suche über den Ordner: 261 Dateien
+TREFFER Wert aus /root/.hermes/.env:TELEGRAM_ALLOWED_USERS: zwischenbericht-20260925-163807-r114/ZWISCHENBERICHT.md:12: [GESCHWÄRZT, 10 Zeichen]
+Durchsucht: 261 Dateien · Treffer: 1 · rc 1
+Dateien mit Treffer: 1 ['zwischenbericht-20260925-163807-r114/ZWISCHENBERICHT.md']
+== 2. Gegenprobe
+TREFFER Muster OpenRouter-Schlüssel: /root/sicherung/biotop-lage-01/tmp/geheimnis-gegenprobe-03.txt:2: [GESCHWÄRZT, 73 Zeichen]
+Gegenprobe angeschlagen: ja (verlangt: genau 1 Treffer, Muster OpenRouter-Schlüssel, in der Testdatei)
+Testdatei umbenannt: geheimnis-gegenprobe-03.txt.erledigt (Inhalt bleibt auf dem Server, nicht im Prüfkanal)
+=== Ende R223 ===

@@ -1,0 +1,585 @@
+.....................................................................s.. [  7%]
+........................................................................ [ 15%]
+..................................s..................................... [ 22%]
+..........................................................FF............ [ 30%]
+........................................................................ [ 37%]
+........................................................................ [ 45%]
+........................................................................ [ 52%]
+........................................................................ [ 60%]
+........................................................................ [ 67%]
+........................................................................ [ 75%]
+........................................................................ [ 83%]
+......................................FFFFFF...FF.FF.................... [ 90%]
+........................................................................ [ 98%]
+.................                                                        [100%]
+=================================== FAILURES ===================================
+_ test_ts_instrumentaenderung_invalidiert_versiegelten_nachweis[biotop/kern/ts/messen.mjs] _
+
+unit_vorspann = (<sqlite3.Connection object at 0x71e2168e9e40>, {'rauschen': {'toleranz': {'alpha': 1.2, 'beta': 1.3}, 'gesperrt': [],...fuehrt': True, 'pruefbar': True, 'bestanden': False, 'grund': 'Unit-Negativkontrolle', ...}}}, 'reihenfolge': [], ...})
+tmp_path = PosixPath('/root/biotop-einlagerung/probe/tmp-lauf-entpackt/pytest-of-root/pytest-0/test_ts_instrumentaenderung_in0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x71e2169fb110>
+geaendert = 'biotop/kern/ts/messen.mjs'
+
+    @pytest.mark.parametrize('geaendert', ['biotop/kern/ts/messen.mjs', 'kammer/typescript/package-lock.json'])
+    def test_ts_instrumentaenderung_invalidiert_versiegelten_nachweis(unit_vorspann,tmp_path,monkeypatch,geaendert):
+        # Charakterisierung der neuen Bindung: kontrollierter Kernbestand,
+        # echte Hashänderung, ursprünglicher Vorspann-Verbraucher.
+        con,_=unit_vorspann
+        wurzel=tmp_path/'instrument'; (wurzel/'biotop/kern/ts').mkdir(parents=True)
+        (wurzel/'kammer/typescript/node_modules').mkdir(parents=True)
+        for p in ('biotop/kern/ts/messen.mjs','kammer/typescript/package-lock.json','kammer/Dockerfile'):
+            (wurzel/p).write_text('ursprünglicher Instrumentinhalt')
+        ignoriert=wurzel/'kammer/typescript/node_modules/fremd.json'
+        ignoriert.write_text('{}')
+        monkeypatch.setattr(vorspann,'WURZEL',wurzel)
+>       r=vorspann.ausfuehren(con,1)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_t3_bindung.py:34: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/vorspann.py:195: in ausfuehren
+    _stufe2_kern_vorpruefung(con, lauf_id)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+con = <sqlite3.Connection object at 0x71e2168e9e40>, lauf_id = 1
+
+    def _stufe2_kern_vorpruefung(con, lauf_id):
+        """Behebungsrunde 6 (Bau S4, Entscheidung Hermes): weicht der Kernstand beim Vorspann vom Kernstand der Eichphase
+        der Stufe 2 ab, verweigert der Vorspann — Satz 2, eine Messgerätänderung zwischen Eichung und Messung. Vor jeder
+        Messung und OHNE den Eichversuch zu verbrauchen (wie die Verweigerung ohne Siegel): der Lauf bleibt frisch; mit
+        dem Kernstand der Eichphase läuft derselbe Vorspann. Hat der Lauf schon einen Eichversuch, ist er nicht frisch
+        oder ohne lesbares Siegel, entscheidet der gewohnte Weg (_ausfuehren)."""
+        from .. import lauf as L
+        if con.execute('SELECT 1 FROM vorspann_nachweise WHERE lauf_id=?', (lauf_id,)).fetchone():
+            return
+        try:
+            if _frisch_grund(con, lauf_id, L._lauf(con, lauf_id)):
+                return
+            kern = _stufe2_kern(con, lauf_id)
+        except (L.LaufFehler, stufe2.Stufe2Fehler):
+            return
+        if kern is None or kern[0] == kern[1]:
+            return
+        grund = (f'Kernstand seit der Eichphase der Stufe 2 verändert (Eichphase {str(kern[0])[:16]}…, jetzt '
+                 f'{kern[1][:16]}…) — Satz 2: Messgerätänderung zwischen Eichung und Messung; kein Eichversuch '
+                 f'verbraucht (Kernstand der Eichphase wiederherstellen oder neuer Lauf)')
+        protokoll.schreiben(con, 'vorspann.verweigert', lauf_id=lauf_id, phase='vorspann', grund=grund,
+                            eichphase=kern[0], vorspann=kern[1])
+>       raise VorspannFehler(f'Vorspann Lauf {lauf_id}: {grund}')
+E       biotop.organe.vorspann.VorspannFehler: Vorspann Lauf 1: Kernstand seit der Eichphase der Stufe 2 verändert (Eichphase 53e95afdaa588722…, jetzt a91cbef507ecc259…) — Satz 2: Messgerätänderung zwischen Eichung und Messung; kein Eichversuch verbraucht (Kernstand der Eichphase wiederherstellen oder neuer Lauf)
+
+biotop/organe/vorspann.py:188: VorspannFehler
+_ test_ts_instrumentaenderung_invalidiert_versiegelten_nachweis[kammer/typescript/package-lock.json] _
+
+unit_vorspann = (<sqlite3.Connection object at 0x71e2168e93f0>, {'rauschen': {'toleranz': {'alpha': 1.2, 'beta': 1.3}, 'gesperrt': [],...fuehrt': True, 'pruefbar': True, 'bestanden': False, 'grund': 'Unit-Negativkontrolle', ...}}}, 'reihenfolge': [], ...})
+tmp_path = PosixPath('/root/biotop-einlagerung/probe/tmp-lauf-entpackt/pytest-of-root/pytest-0/test_ts_instrumentaenderung_in1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x71e2169fa330>
+geaendert = 'kammer/typescript/package-lock.json'
+
+    @pytest.mark.parametrize('geaendert', ['biotop/kern/ts/messen.mjs', 'kammer/typescript/package-lock.json'])
+    def test_ts_instrumentaenderung_invalidiert_versiegelten_nachweis(unit_vorspann,tmp_path,monkeypatch,geaendert):
+        # Charakterisierung der neuen Bindung: kontrollierter Kernbestand,
+        # echte Hashänderung, ursprünglicher Vorspann-Verbraucher.
+        con,_=unit_vorspann
+        wurzel=tmp_path/'instrument'; (wurzel/'biotop/kern/ts').mkdir(parents=True)
+        (wurzel/'kammer/typescript/node_modules').mkdir(parents=True)
+        for p in ('biotop/kern/ts/messen.mjs','kammer/typescript/package-lock.json','kammer/Dockerfile'):
+            (wurzel/p).write_text('ursprünglicher Instrumentinhalt')
+        ignoriert=wurzel/'kammer/typescript/node_modules/fremd.json'
+        ignoriert.write_text('{}')
+        monkeypatch.setattr(vorspann,'WURZEL',wurzel)
+>       r=vorspann.ausfuehren(con,1)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_t3_bindung.py:34: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/vorspann.py:195: in ausfuehren
+    _stufe2_kern_vorpruefung(con, lauf_id)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+con = <sqlite3.Connection object at 0x71e2168e93f0>, lauf_id = 1
+
+    def _stufe2_kern_vorpruefung(con, lauf_id):
+        """Behebungsrunde 6 (Bau S4, Entscheidung Hermes): weicht der Kernstand beim Vorspann vom Kernstand der Eichphase
+        der Stufe 2 ab, verweigert der Vorspann — Satz 2, eine Messgerätänderung zwischen Eichung und Messung. Vor jeder
+        Messung und OHNE den Eichversuch zu verbrauchen (wie die Verweigerung ohne Siegel): der Lauf bleibt frisch; mit
+        dem Kernstand der Eichphase läuft derselbe Vorspann. Hat der Lauf schon einen Eichversuch, ist er nicht frisch
+        oder ohne lesbares Siegel, entscheidet der gewohnte Weg (_ausfuehren)."""
+        from .. import lauf as L
+        if con.execute('SELECT 1 FROM vorspann_nachweise WHERE lauf_id=?', (lauf_id,)).fetchone():
+            return
+        try:
+            if _frisch_grund(con, lauf_id, L._lauf(con, lauf_id)):
+                return
+            kern = _stufe2_kern(con, lauf_id)
+        except (L.LaufFehler, stufe2.Stufe2Fehler):
+            return
+        if kern is None or kern[0] == kern[1]:
+            return
+        grund = (f'Kernstand seit der Eichphase der Stufe 2 verändert (Eichphase {str(kern[0])[:16]}…, jetzt '
+                 f'{kern[1][:16]}…) — Satz 2: Messgerätänderung zwischen Eichung und Messung; kein Eichversuch '
+                 f'verbraucht (Kernstand der Eichphase wiederherstellen oder neuer Lauf)')
+        protokoll.schreiben(con, 'vorspann.verweigert', lauf_id=lauf_id, phase='vorspann', grund=grund,
+                            eichphase=kern[0], vorspann=kern[1])
+>       raise VorspannFehler(f'Vorspann Lauf {lauf_id}: {grund}')
+E       biotop.organe.vorspann.VorspannFehler: Vorspann Lauf 1: Kernstand seit der Eichphase der Stufe 2 verändert (Eichphase 53e95afdaa588722…, jetzt a91cbef507ecc259…) — Satz 2: Messgerätänderung zwischen Eichung und Messung; kein Eichversuch verbraucht (Kernstand der Eichphase wiederherstellen oder neuer Lauf)
+
+biotop/organe/vorspann.py:188: VorspannFehler
+_ test_w_g_schreiben_in_fremde_module_python_am_organ[attribut-    k.RATE = 19\n-    k.RATE = 7\n-paket.m.a:<schreibt:k>] _
+
+tmp_path = PosixPath('/root/biotop-einlagerung/probe/tmp-lauf-entpackt/pytest-of-root/pytest-0/test_w_g_schreiben_in_fremde_m0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x71e217222ae0>
+fall = 'attribut', alt = '    k.RATE = 19\n', neu = '    k.RATE = 7\n'
+soll = 'paket.m.a:<schreibt:k>'
+
+    @pytest.mark.parametrize("fall,alt,neu,soll", [
+        ("attribut", "    k.RATE = 19\n", "    k.RATE = 7\n", f"{W_MA}:<schreibt:k>"),
+        ("methode", "    R.append(x)\n", "    R.append(x + 1)\n", f"{W_MA}:<schreibt:R>"),
+        ("setattr", "    k.RATE = 19\n", '    setattr(k, "RATE", 7)\n', f"{W_MA}:<schreibt:k>"),
+        ("globals", "    return x + 1\n", '    globals()["ZUSATZ"] = x\n    return x + 1\n', f"{W_MA}:<schreibt:globals()>"),
+        ("ruft_fremd", "    k.setze(19)\n", "    k.setze(7)\n", f"{W_MA}:<ruft:paket.m.k:setze>"),
+        ("ruft_innen", "    _merke(x)\n", "    _merke(x + 1)\n", f"{W_MA}:STAND"),
+        ("gegen_lokal", "    k.append(1)\n", "    k.append(2)\n", "geurteilt"),
+        ("gegen_liest", "    return k.lies() + x\n", "    return x + k.lies()\n", "geurteilt"),
+        ("gegen_rein", "    return x + 1\n", "    return 1 + x\n", "geurteilt"),
+    ])
+    def test_w_g_schreiben_in_fremde_module_python_am_organ(tmp_path, monkeypatch, fall, alt, neu, soll):
+        """G, Python (Auslegung S1c, dieselbe Klasse; Syntaxbaum echt, Sonde gestellt: alle öffentlichen Funktionen von `a`
+        beobachtet, ohne Abweichung). Proben — Enthaltung, Schlüssel in `ausserhalb`: eine geänderte Funktion schreibt in
+        ein importiertes Modul (`k.RATE = …`, `setattr(k, …)`), verändert ein importiertes Objekt (`R.append`, R = k.REG),
+        schreibt über `globals()`, ruft eine schreibende Funktion eines anderen Moduls (`k.setze`), ruft einen schreibenden
+        Helfer im eigenen Modul (`_merke` schreibt STAND, `b` liest STAND → C). Gegenproben — geurteilt: der Parameter `k`
+        verdeckt das Modul (Argumentzustand beobachtet die Sonde), die gerufene fremde Funktion schreibt nicht (`k.lies`),
+        eine Änderung ohne jedes Schreiben."""
+        assert W_G_A.count(alt) == 1, alt
+        w = _werk(tmp_path, W_G_A)
+        (w / "paket" / "m" / "k.py").write_text(W_G_K)
+        (w / "paket" / "m" / "b.py").write_text(W_G_B)
+    
+        def seite():
+            return {"gueltig": True, "beobachtungen": {f"{W_MA}:{f}#0": "1" for f in W_G_BEOB},
+                    "inhalt": {f"{W_MA}:{f}": 1 for f in W_G_BEOB}, "eingewickelt": {W_MA: W_G_BEOB},
+                    "muster": {f"{W_MA}:{f}#0": [] for f in W_G_BEOB}}
+        monkeypatch.setattr(vv, "beobachten", lambda *a, **k: seite())
+        r = vv.pruefen(w, {"paket/m/a.py": W_G_A.replace(alt, neu)}, _ref("from paket.m.a import f\nf(1)"), ["m"], {})
+        befund = (r.get("grund_art"), r.get("grund"), r.get("ausserhalb"), r.get("betroffene_enthaltungen"))
+        if soll == "geurteilt":
+            assert r["geurteilt"] is True and r["tragfaehig"] is True and not r.get("enthaltung"), befund
+        else:
+>           assert r.get("enthaltung") is True and r["tragfaehig"] is False and r["geurteilt"] is False, befund
+E           AssertionError: ('geurteilt', 'keine Verhaltensabweichung (7 von 7 Funktionen beobachtet)', {}, {})
+E           assert (None is True)
+E            +  where None = <built-in method get of dict object at 0x71e2171ad200>('enthaltung')
+E            +    where <built-in method get of dict object at 0x71e2171ad200> = {'module': ['paket.m.a'], 'bereiche': ['m'], 'kappe': 8, 'sprache': 'python', ...}.get
+
+tests/test_vor_t4_06.py:1667: AssertionError
+_ test_w_g_schreiben_in_fremde_module_python_am_organ[methode-    R.append(x)\n-    R.append(x + 1)\n-paket.m.a:<schreibt:R>] _
+
+tmp_path = PosixPath('/root/biotop-einlagerung/probe/tmp-lauf-entpackt/pytest-of-root/pytest-0/test_w_g_schreiben_in_fremde_m1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x71e21735f800>
+fall = 'methode', alt = '    R.append(x)\n', neu = '    R.append(x + 1)\n'
+soll = 'paket.m.a:<schreibt:R>'
+
+    @pytest.mark.parametrize("fall,alt,neu,soll", [
+        ("attribut", "    k.RATE = 19\n", "    k.RATE = 7\n", f"{W_MA}:<schreibt:k>"),
+        ("methode", "    R.append(x)\n", "    R.append(x + 1)\n", f"{W_MA}:<schreibt:R>"),
+        ("setattr", "    k.RATE = 19\n", '    setattr(k, "RATE", 7)\n', f"{W_MA}:<schreibt:k>"),
+        ("globals", "    return x + 1\n", '    globals()["ZUSATZ"] = x\n    return x + 1\n', f"{W_MA}:<schreibt:globals()>"),
+        ("ruft_fremd", "    k.setze(19)\n", "    k.setze(7)\n", f"{W_MA}:<ruft:paket.m.k:setze>"),
+        ("ruft_innen", "    _merke(x)\n", "    _merke(x + 1)\n", f"{W_MA}:STAND"),
+        ("gegen_lokal", "    k.append(1)\n", "    k.append(2)\n", "geurteilt"),
+        ("gegen_liest", "    return k.lies() + x\n", "    return x + k.lies()\n", "geurteilt"),
+        ("gegen_rein", "    return x + 1\n", "    return 1 + x\n", "geurteilt"),
+    ])
+    def test_w_g_schreiben_in_fremde_module_python_am_organ(tmp_path, monkeypatch, fall, alt, neu, soll):
+        """G, Python (Auslegung S1c, dieselbe Klasse; Syntaxbaum echt, Sonde gestellt: alle öffentlichen Funktionen von `a`
+        beobachtet, ohne Abweichung). Proben — Enthaltung, Schlüssel in `ausserhalb`: eine geänderte Funktion schreibt in
+        ein importiertes Modul (`k.RATE = …`, `setattr(k, …)`), verändert ein importiertes Objekt (`R.append`, R = k.REG),
+        schreibt über `globals()`, ruft eine schreibende Funktion eines anderen Moduls (`k.setze`), ruft einen schreibenden
+        Helfer im eigenen Modul (`_merke` schreibt STAND, `b` liest STAND → C). Gegenproben — geurteilt: der Parameter `k`
+        verdeckt das Modul (Argumentzustand beobachtet die Sonde), die gerufene fremde Funktion schreibt nicht (`k.lies`),
+        eine Änderung ohne jedes Schreiben."""
+        assert W_G_A.count(alt) == 1, alt
+        w = _werk(tmp_path, W_G_A)
+        (w / "paket" / "m" / "k.py").write_text(W_G_K)
+        (w / "paket" / "m" / "b.py").write_text(W_G_B)
+    
+        def seite():
+            return {"gueltig": True, "beobachtungen": {f"{W_MA}:{f}#0": "1" for f in W_G_BEOB},
+                    "inhalt": {f"{W_MA}:{f}": 1 for f in W_G_BEOB}, "eingewickelt": {W_MA: W_G_BEOB},
+                    "muster": {f"{W_MA}:{f}#0": [] for f in W_G_BEOB}}
+        monkeypatch.setattr(vv, "beobachten", lambda *a, **k: seite())
+        r = vv.pruefen(w, {"paket/m/a.py": W_G_A.replace(alt, neu)}, _ref("from paket.m.a import f\nf(1)"), ["m"], {})
+        befund = (r.get("grund_art"), r.get("grund"), r.get("ausserhalb"), r.get("betroffene_enthaltungen"))
+        if soll == "geurteilt":
+            assert r["geurteilt"] is True and r["tragfaehig"] is True and not r.get("enthaltung"), befund
+        else:
+>           assert r.get("enthaltung") is True and r["tragfaehig"] is False and r["geurteilt"] is False, befund
+E           AssertionError: ('geurteilt', 'keine Verhaltensabweichung (7 von 7 Funktionen beobachtet)', {}, {})
+E           assert (None is True)
+E            +  where None = <built-in method get of dict object at 0x71e217815f40>('enthaltung')
+E            +    where <built-in method get of dict object at 0x71e217815f40> = {'module': ['paket.m.a'], 'bereiche': ['m'], 'kappe': 8, 'sprache': 'python', ...}.get
+
+tests/test_vor_t4_06.py:1667: AssertionError
+_ test_w_g_schreiben_in_fremde_module_python_am_organ[setattr-    k.RATE = 19\n-    setattr(k, "RATE", 7)\n-paket.m.a:<schreibt:k>] _
+
+tmp_path = PosixPath('/root/biotop-einlagerung/probe/tmp-lauf-entpackt/pytest-of-root/pytest-0/test_w_g_schreiben_in_fremde_m2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x71e2172f4410>
+fall = 'setattr', alt = '    k.RATE = 19\n', neu = '    setattr(k, "RATE", 7)\n'
+soll = 'paket.m.a:<schreibt:k>'
+
+    @pytest.mark.parametrize("fall,alt,neu,soll", [
+        ("attribut", "    k.RATE = 19\n", "    k.RATE = 7\n", f"{W_MA}:<schreibt:k>"),
+        ("methode", "    R.append(x)\n", "    R.append(x + 1)\n", f"{W_MA}:<schreibt:R>"),
+        ("setattr", "    k.RATE = 19\n", '    setattr(k, "RATE", 7)\n', f"{W_MA}:<schreibt:k>"),
+        ("globals", "    return x + 1\n", '    globals()["ZUSATZ"] = x\n    return x + 1\n', f"{W_MA}:<schreibt:globals()>"),
+        ("ruft_fremd", "    k.setze(19)\n", "    k.setze(7)\n", f"{W_MA}:<ruft:paket.m.k:setze>"),
+        ("ruft_innen", "    _merke(x)\n", "    _merke(x + 1)\n", f"{W_MA}:STAND"),
+        ("gegen_lokal", "    k.append(1)\n", "    k.append(2)\n", "geurteilt"),
+        ("gegen_liest", "    return k.lies() + x\n", "    return x + k.lies()\n", "geurteilt"),
+        ("gegen_rein", "    return x + 1\n", "    return 1 + x\n", "geurteilt"),
+    ])
+    def test_w_g_schreiben_in_fremde_module_python_am_organ(tmp_path, monkeypatch, fall, alt, neu, soll):
+        """G, Python (Auslegung S1c, dieselbe Klasse; Syntaxbaum echt, Sonde gestellt: alle öffentlichen Funktionen von `a`
+        beobachtet, ohne Abweichung). Proben — Enthaltung, Schlüssel in `ausserhalb`: eine geänderte Funktion schreibt in
+        ein importiertes Modul (`k.RATE = …`, `setattr(k, …)`), verändert ein importiertes Objekt (`R.append`, R = k.REG),
+        schreibt über `globals()`, ruft eine schreibende Funktion eines anderen Moduls (`k.setze`), ruft einen schreibenden
+        Helfer im eigenen Modul (`_merke` schreibt STAND, `b` liest STAND → C). Gegenproben — geurteilt: der Parameter `k`
+        verdeckt das Modul (Argumentzustand beobachtet die Sonde), die gerufene fremde Funktion schreibt nicht (`k.lies`),
+        eine Änderung ohne jedes Schreiben."""
+        assert W_G_A.count(alt) == 1, alt
+        w = _werk(tmp_path, W_G_A)
+        (w / "paket" / "m" / "k.py").write_text(W_G_K)
+        (w / "paket" / "m" / "b.py").write_text(W_G_B)
+    
+        def seite():
+            return {"gueltig": True, "beobachtungen": {f"{W_MA}:{f}#0": "1" for f in W_G_BEOB},
+                    "inhalt": {f"{W_MA}:{f}": 1 for f in W_G_BEOB}, "eingewickelt": {W_MA: W_G_BEOB},
+                    "muster": {f"{W_MA}:{f}#0": [] for f in W_G_BEOB}}
+        monkeypatch.setattr(vv, "beobachten", lambda *a, **k: seite())
+        r = vv.pruefen(w, {"paket/m/a.py": W_G_A.replace(alt, neu)}, _ref("from paket.m.a import f\nf(1)"), ["m"], {})
+        befund = (r.get("grund_art"), r.get("grund"), r.get("ausserhalb"), r.get("betroffene_enthaltungen"))
+        if soll == "geurteilt":
+            assert r["geurteilt"] is True and r["tragfaehig"] is True and not r.get("enthaltung"), befund
+        else:
+>           assert r.get("enthaltung") is True and r["tragfaehig"] is False and r["geurteilt"] is False, befund
+E           AssertionError: ('geurteilt', 'keine Verhaltensabweichung (7 von 7 Funktionen beobachtet)', {}, {})
+E           assert (None is True)
+E            +  where None = <built-in method get of dict object at 0x71e216f80480>('enthaltung')
+E            +    where <built-in method get of dict object at 0x71e216f80480> = {'module': ['paket.m.a'], 'bereiche': ['m'], 'kappe': 8, 'sprache': 'python', ...}.get
+
+tests/test_vor_t4_06.py:1667: AssertionError
+_ test_w_g_schreiben_in_fremde_module_python_am_organ[globals-    return x + 1\n-    globals()["ZUSATZ"] = x\n    return x + 1\n-paket.m.a:<schreibt:globals()>] _
+
+tmp_path = PosixPath('/root/biotop-einlagerung/probe/tmp-lauf-entpackt/pytest-of-root/pytest-0/test_w_g_schreiben_in_fremde_m3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x71e2172235c0>
+fall = 'globals', alt = '    return x + 1\n'
+neu = '    globals()["ZUSATZ"] = x\n    return x + 1\n'
+soll = 'paket.m.a:<schreibt:globals()>'
+
+    @pytest.mark.parametrize("fall,alt,neu,soll", [
+        ("attribut", "    k.RATE = 19\n", "    k.RATE = 7\n", f"{W_MA}:<schreibt:k>"),
+        ("methode", "    R.append(x)\n", "    R.append(x + 1)\n", f"{W_MA}:<schreibt:R>"),
+        ("setattr", "    k.RATE = 19\n", '    setattr(k, "RATE", 7)\n', f"{W_MA}:<schreibt:k>"),
+        ("globals", "    return x + 1\n", '    globals()["ZUSATZ"] = x\n    return x + 1\n', f"{W_MA}:<schreibt:globals()>"),
+        ("ruft_fremd", "    k.setze(19)\n", "    k.setze(7)\n", f"{W_MA}:<ruft:paket.m.k:setze>"),
+        ("ruft_innen", "    _merke(x)\n", "    _merke(x + 1)\n", f"{W_MA}:STAND"),
+        ("gegen_lokal", "    k.append(1)\n", "    k.append(2)\n", "geurteilt"),
+        ("gegen_liest", "    return k.lies() + x\n", "    return x + k.lies()\n", "geurteilt"),
+        ("gegen_rein", "    return x + 1\n", "    return 1 + x\n", "geurteilt"),
+    ])
+    def test_w_g_schreiben_in_fremde_module_python_am_organ(tmp_path, monkeypatch, fall, alt, neu, soll):
+        """G, Python (Auslegung S1c, dieselbe Klasse; Syntaxbaum echt, Sonde gestellt: alle öffentlichen Funktionen von `a`
+        beobachtet, ohne Abweichung). Proben — Enthaltung, Schlüssel in `ausserhalb`: eine geänderte Funktion schreibt in
+        ein importiertes Modul (`k.RATE = …`, `setattr(k, …)`), verändert ein importiertes Objekt (`R.append`, R = k.REG),
+        schreibt über `globals()`, ruft eine schreibende Funktion eines anderen Moduls (`k.setze`), ruft einen schreibenden
+        Helfer im eigenen Modul (`_merke` schreibt STAND, `b` liest STAND → C). Gegenproben — geurteilt: der Parameter `k`
+        verdeckt das Modul (Argumentzustand beobachtet die Sonde), die gerufene fremde Funktion schreibt nicht (`k.lies`),
+        eine Änderung ohne jedes Schreiben."""
+        assert W_G_A.count(alt) == 1, alt
+        w = _werk(tmp_path, W_G_A)
+        (w / "paket" / "m" / "k.py").write_text(W_G_K)
+        (w / "paket" / "m" / "b.py").write_text(W_G_B)
+    
+        def seite():
+            return {"gueltig": True, "beobachtungen": {f"{W_MA}:{f}#0": "1" for f in W_G_BEOB},
+                    "inhalt": {f"{W_MA}:{f}": 1 for f in W_G_BEOB}, "eingewickelt": {W_MA: W_G_BEOB},
+                    "muster": {f"{W_MA}:{f}#0": [] for f in W_G_BEOB}}
+        monkeypatch.setattr(vv, "beobachten", lambda *a, **k: seite())
+        r = vv.pruefen(w, {"paket/m/a.py": W_G_A.replace(alt, neu)}, _ref("from paket.m.a import f\nf(1)"), ["m"], {})
+        befund = (r.get("grund_art"), r.get("grund"), r.get("ausserhalb"), r.get("betroffene_enthaltungen"))
+        if soll == "geurteilt":
+            assert r["geurteilt"] is True and r["tragfaehig"] is True and not r.get("enthaltung"), befund
+        else:
+>           assert r.get("enthaltung") is True and r["tragfaehig"] is False and r["geurteilt"] is False, befund
+E           AssertionError: ('geurteilt', 'keine Verhaltensabweichung (7 von 7 Funktionen beobachtet)', {}, {})
+E           assert (None is True)
+E            +  where None = <built-in method get of dict object at 0x71e216b01740>('enthaltung')
+E            +    where <built-in method get of dict object at 0x71e216b01740> = {'module': ['paket.m.a'], 'bereiche': ['m'], 'kappe': 8, 'sprache': 'python', ...}.get
+
+tests/test_vor_t4_06.py:1667: AssertionError
+_ test_w_g_schreiben_in_fremde_module_python_am_organ[ruft_fremd-    k.setze(19)\n-    k.setze(7)\n-paket.m.a:<ruft:paket.m.k:setze>] _
+
+tmp_path = PosixPath('/root/biotop-einlagerung/probe/tmp-lauf-entpackt/pytest-of-root/pytest-0/test_w_g_schreiben_in_fremde_m4')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x71e21735cfe0>
+fall = 'ruft_fremd', alt = '    k.setze(19)\n', neu = '    k.setze(7)\n'
+soll = 'paket.m.a:<ruft:paket.m.k:setze>'
+
+    @pytest.mark.parametrize("fall,alt,neu,soll", [
+        ("attribut", "    k.RATE = 19\n", "    k.RATE = 7\n", f"{W_MA}:<schreibt:k>"),
+        ("methode", "    R.append(x)\n", "    R.append(x + 1)\n", f"{W_MA}:<schreibt:R>"),
+        ("setattr", "    k.RATE = 19\n", '    setattr(k, "RATE", 7)\n', f"{W_MA}:<schreibt:k>"),
+        ("globals", "    return x + 1\n", '    globals()["ZUSATZ"] = x\n    return x + 1\n', f"{W_MA}:<schreibt:globals()>"),
+        ("ruft_fremd", "    k.setze(19)\n", "    k.setze(7)\n", f"{W_MA}:<ruft:paket.m.k:setze>"),
+        ("ruft_innen", "    _merke(x)\n", "    _merke(x + 1)\n", f"{W_MA}:STAND"),
+        ("gegen_lokal", "    k.append(1)\n", "    k.append(2)\n", "geurteilt"),
+        ("gegen_liest", "    return k.lies() + x\n", "    return x + k.lies()\n", "geurteilt"),
+        ("gegen_rein", "    return x + 1\n", "    return 1 + x\n", "geurteilt"),
+    ])
+    def test_w_g_schreiben_in_fremde_module_python_am_organ(tmp_path, monkeypatch, fall, alt, neu, soll):
+        """G, Python (Auslegung S1c, dieselbe Klasse; Syntaxbaum echt, Sonde gestellt: alle öffentlichen Funktionen von `a`
+        beobachtet, ohne Abweichung). Proben — Enthaltung, Schlüssel in `ausserhalb`: eine geänderte Funktion schreibt in
+        ein importiertes Modul (`k.RATE = …`, `setattr(k, …)`), verändert ein importiertes Objekt (`R.append`, R = k.REG),
+        schreibt über `globals()`, ruft eine schreibende Funktion eines anderen Moduls (`k.setze`), ruft einen schreibenden
+        Helfer im eigenen Modul (`_merke` schreibt STAND, `b` liest STAND → C). Gegenproben — geurteilt: der Parameter `k`
+        verdeckt das Modul (Argumentzustand beobachtet die Sonde), die gerufene fremde Funktion schreibt nicht (`k.lies`),
+        eine Änderung ohne jedes Schreiben."""
+        assert W_G_A.count(alt) == 1, alt
+        w = _werk(tmp_path, W_G_A)
+        (w / "paket" / "m" / "k.py").write_text(W_G_K)
+        (w / "paket" / "m" / "b.py").write_text(W_G_B)
+    
+        def seite():
+            return {"gueltig": True, "beobachtungen": {f"{W_MA}:{f}#0": "1" for f in W_G_BEOB},
+                    "inhalt": {f"{W_MA}:{f}": 1 for f in W_G_BEOB}, "eingewickelt": {W_MA: W_G_BEOB},
+                    "muster": {f"{W_MA}:{f}#0": [] for f in W_G_BEOB}}
+        monkeypatch.setattr(vv, "beobachten", lambda *a, **k: seite())
+        r = vv.pruefen(w, {"paket/m/a.py": W_G_A.replace(alt, neu)}, _ref("from paket.m.a import f\nf(1)"), ["m"], {})
+        befund = (r.get("grund_art"), r.get("grund"), r.get("ausserhalb"), r.get("betroffene_enthaltungen"))
+        if soll == "geurteilt":
+            assert r["geurteilt"] is True and r["tragfaehig"] is True and not r.get("enthaltung"), befund
+        else:
+>           assert r.get("enthaltung") is True and r["tragfaehig"] is False and r["geurteilt"] is False, befund
+E           AssertionError: ('geurteilt', 'keine Verhaltensabweichung (7 von 7 Funktionen beobachtet)', {}, {})
+E           assert (None is True)
+E            +  where None = <built-in method get of dict object at 0x71e217730680>('enthaltung')
+E            +    where <built-in method get of dict object at 0x71e217730680> = {'module': ['paket.m.a'], 'bereiche': ['m'], 'kappe': 8, 'sprache': 'python', ...}.get
+
+tests/test_vor_t4_06.py:1667: AssertionError
+_ test_w_g_schreiben_in_fremde_module_python_am_organ[ruft_innen-    _merke(x)\n-    _merke(x + 1)\n-paket.m.a:STAND] _
+
+tmp_path = PosixPath('/root/biotop-einlagerung/probe/tmp-lauf-entpackt/pytest-of-root/pytest-0/test_w_g_schreiben_in_fremde_m5')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x71e2172c7fb0>
+fall = 'ruft_innen', alt = '    _merke(x)\n', neu = '    _merke(x + 1)\n'
+soll = 'paket.m.a:STAND'
+
+    @pytest.mark.parametrize("fall,alt,neu,soll", [
+        ("attribut", "    k.RATE = 19\n", "    k.RATE = 7\n", f"{W_MA}:<schreibt:k>"),
+        ("methode", "    R.append(x)\n", "    R.append(x + 1)\n", f"{W_MA}:<schreibt:R>"),
+        ("setattr", "    k.RATE = 19\n", '    setattr(k, "RATE", 7)\n', f"{W_MA}:<schreibt:k>"),
+        ("globals", "    return x + 1\n", '    globals()["ZUSATZ"] = x\n    return x + 1\n', f"{W_MA}:<schreibt:globals()>"),
+        ("ruft_fremd", "    k.setze(19)\n", "    k.setze(7)\n", f"{W_MA}:<ruft:paket.m.k:setze>"),
+        ("ruft_innen", "    _merke(x)\n", "    _merke(x + 1)\n", f"{W_MA}:STAND"),
+        ("gegen_lokal", "    k.append(1)\n", "    k.append(2)\n", "geurteilt"),
+        ("gegen_liest", "    return k.lies() + x\n", "    return x + k.lies()\n", "geurteilt"),
+        ("gegen_rein", "    return x + 1\n", "    return 1 + x\n", "geurteilt"),
+    ])
+    def test_w_g_schreiben_in_fremde_module_python_am_organ(tmp_path, monkeypatch, fall, alt, neu, soll):
+        """G, Python (Auslegung S1c, dieselbe Klasse; Syntaxbaum echt, Sonde gestellt: alle öffentlichen Funktionen von `a`
+        beobachtet, ohne Abweichung). Proben — Enthaltung, Schlüssel in `ausserhalb`: eine geänderte Funktion schreibt in
+        ein importiertes Modul (`k.RATE = …`, `setattr(k, …)`), verändert ein importiertes Objekt (`R.append`, R = k.REG),
+        schreibt über `globals()`, ruft eine schreibende Funktion eines anderen Moduls (`k.setze`), ruft einen schreibenden
+        Helfer im eigenen Modul (`_merke` schreibt STAND, `b` liest STAND → C). Gegenproben — geurteilt: der Parameter `k`
+        verdeckt das Modul (Argumentzustand beobachtet die Sonde), die gerufene fremde Funktion schreibt nicht (`k.lies`),
+        eine Änderung ohne jedes Schreiben."""
+        assert W_G_A.count(alt) == 1, alt
+        w = _werk(tmp_path, W_G_A)
+        (w / "paket" / "m" / "k.py").write_text(W_G_K)
+        (w / "paket" / "m" / "b.py").write_text(W_G_B)
+    
+        def seite():
+            return {"gueltig": True, "beobachtungen": {f"{W_MA}:{f}#0": "1" for f in W_G_BEOB},
+                    "inhalt": {f"{W_MA}:{f}": 1 for f in W_G_BEOB}, "eingewickelt": {W_MA: W_G_BEOB},
+                    "muster": {f"{W_MA}:{f}#0": [] for f in W_G_BEOB}}
+        monkeypatch.setattr(vv, "beobachten", lambda *a, **k: seite())
+        r = vv.pruefen(w, {"paket/m/a.py": W_G_A.replace(alt, neu)}, _ref("from paket.m.a import f\nf(1)"), ["m"], {})
+        befund = (r.get("grund_art"), r.get("grund"), r.get("ausserhalb"), r.get("betroffene_enthaltungen"))
+        if soll == "geurteilt":
+            assert r["geurteilt"] is True and r["tragfaehig"] is True and not r.get("enthaltung"), befund
+        else:
+>           assert r.get("enthaltung") is True and r["tragfaehig"] is False and r["geurteilt"] is False, befund
+E           AssertionError: ('geurteilt', 'keine Verhaltensabweichung (7 von 7 Funktionen beobachtet)', {}, {})
+E           assert (None is True)
+E            +  where None = <built-in method get of dict object at 0x71e216c40a80>('enthaltung')
+E            +    where <built-in method get of dict object at 0x71e216c40a80> = {'module': ['paket.m.a'], 'bereiche': ['m'], 'kappe': 8, 'sprache': 'python', ...}.get
+
+tests/test_vor_t4_06.py:1667: AssertionError
+_ test_w_g_schreiben_in_fremde_module_typescript_am_organ[methode-  REG.push(x);\n-  REG.push(x + 1);\n-m/a:<schreibt:REG>] _
+
+tmp_path = PosixPath('/root/biotop-einlagerung/probe/tmp-lauf-entpackt/pytest-of-root/pytest-0/test_w_g_schreiben_in_fremde_m9')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x71e217222ab0>
+fall = 'methode', alt = '  REG.push(x);\n', neu = '  REG.push(x + 1);\n'
+soll = 'm/a:<schreibt:REG>'
+
+    @pytest.mark.parametrize("fall,alt,neu,soll", [
+        ("methode", "  REG.push(x);\n", "  REG.push(x + 1);\n", "m/a:<schreibt:REG>"),
+        ("ruft_fremd", "  setze(x);\n", "  setze(x + 1);\n", "m/a:<ruft:n/k:setze>"),
+        ("gegen_liest", "  return lies() + x;\n", "  return x + lies();\n", "geurteilt"),
+    ])
+    def test_w_g_schreiben_in_fremde_module_typescript_am_organ(tmp_path, monkeypatch, fall, alt, neu, soll):
+        """G, TypeScript am Organ mit gestellter Sonde (ohne Parser): eine geänderte, beobachtete Funktion verändert ein
+        importiertes Objekt (`REG.push`) bzw. ruft eine importierte Funktion, die den Zustand ihres Moduls schreibt
+        (`setze` schreibt `RATE`) → Enthaltung. Gegenprobe: die gerufene importierte Funktion schreibt nicht (`lies`) →
+        geurteilt. Sonde gestellt: f, r, l beobachtet, ohne Abweichung."""
+        assert W_TS_GA.count(alt) == 1, alt
+        w = tmp_path / "ts"
+        (w / "src" / "m").mkdir(parents=True)
+        (w / "src" / "n").mkdir(parents=True)
+        (w / "package.json").write_text('{"type":"module"}')
+        (w / "src" / "m" / "a.ts").write_text(W_TS_GA)
+        (w / "src" / "n" / "k.ts").write_text(W_TS_GK)
+        fs = ["f", "r", "l"]
+    
+        def seite():
+            return {"gueltig": True, "beobachtungen": {f"m/a:{f}#0": "1" for f in fs},
+                    "inhalt": {f"m/a:{f}": 1 for f in fs}, "eingewickelt": {"m/a": fs},
+                    "muster": {f"m/a:{f}#0": [] for f in fs}}
+        monkeypatch.setattr(vv, "beobachten", lambda *a, **k: seite())
+        r = vv.pruefen(w, {"src/m/a.ts": W_TS_GA.replace(alt, neu)}, "export function last_m() {}\n", ["m"], {})
+        befund = (r.get("grund_art"), r.get("grund"), r.get("ausserhalb"))
+        if soll == "geurteilt":
+            assert r["geurteilt"] is True and r["tragfaehig"] is True and not r.get("enthaltung"), befund
+        else:
+>           assert r.get("enthaltung") is True and r["tragfaehig"] is False and r["geurteilt"] is False, befund
+E           AssertionError: ('geurteilt', 'keine Verhaltensabweichung (3 von 3 Funktionen beobachtet)', {})
+E           assert (None is True)
+E            +  where None = <built-in method get of dict object at 0x71e21708fdc0>('enthaltung')
+E            +    where <built-in method get of dict object at 0x71e21708fdc0> = {'module': ['m/a'], 'bereiche': ['m'], 'kappe': 8, 'sprache': 'typescript', ...}.get
+
+tests/test_vor_t4_06.py:1709: AssertionError
+_ test_w_g_schreiben_in_fremde_module_typescript_am_organ[ruft_fremd-  setze(x);\n-  setze(x + 1);\n-m/a:<ruft:n/k:setze>] _
+
+tmp_path = PosixPath('/root/biotop-einlagerung/probe/tmp-lauf-entpackt/pytest-of-root/pytest-0/test_w_g_schreiben_in_fremde_m10')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x71e217223980>
+fall = 'ruft_fremd', alt = '  setze(x);\n', neu = '  setze(x + 1);\n'
+soll = 'm/a:<ruft:n/k:setze>'
+
+    @pytest.mark.parametrize("fall,alt,neu,soll", [
+        ("methode", "  REG.push(x);\n", "  REG.push(x + 1);\n", "m/a:<schreibt:REG>"),
+        ("ruft_fremd", "  setze(x);\n", "  setze(x + 1);\n", "m/a:<ruft:n/k:setze>"),
+        ("gegen_liest", "  return lies() + x;\n", "  return x + lies();\n", "geurteilt"),
+    ])
+    def test_w_g_schreiben_in_fremde_module_typescript_am_organ(tmp_path, monkeypatch, fall, alt, neu, soll):
+        """G, TypeScript am Organ mit gestellter Sonde (ohne Parser): eine geänderte, beobachtete Funktion verändert ein
+        importiertes Objekt (`REG.push`) bzw. ruft eine importierte Funktion, die den Zustand ihres Moduls schreibt
+        (`setze` schreibt `RATE`) → Enthaltung. Gegenprobe: die gerufene importierte Funktion schreibt nicht (`lies`) →
+        geurteilt. Sonde gestellt: f, r, l beobachtet, ohne Abweichung."""
+        assert W_TS_GA.count(alt) == 1, alt
+        w = tmp_path / "ts"
+        (w / "src" / "m").mkdir(parents=True)
+        (w / "src" / "n").mkdir(parents=True)
+        (w / "package.json").write_text('{"type":"module"}')
+        (w / "src" / "m" / "a.ts").write_text(W_TS_GA)
+        (w / "src" / "n" / "k.ts").write_text(W_TS_GK)
+        fs = ["f", "r", "l"]
+    
+        def seite():
+            return {"gueltig": True, "beobachtungen": {f"m/a:{f}#0": "1" for f in fs},
+                    "inhalt": {f"m/a:{f}": 1 for f in fs}, "eingewickelt": {"m/a": fs},
+                    "muster": {f"m/a:{f}#0": [] for f in fs}}
+        monkeypatch.setattr(vv, "beobachten", lambda *a, **k: seite())
+        r = vv.pruefen(w, {"src/m/a.ts": W_TS_GA.replace(alt, neu)}, "export function last_m() {}\n", ["m"], {})
+        befund = (r.get("grund_art"), r.get("grund"), r.get("ausserhalb"))
+        if soll == "geurteilt":
+            assert r["geurteilt"] is True and r["tragfaehig"] is True and not r.get("enthaltung"), befund
+        else:
+>           assert r.get("enthaltung") is True and r["tragfaehig"] is False and r["geurteilt"] is False, befund
+E           AssertionError: ('geurteilt', 'keine Verhaltensabweichung (3 von 3 Funktionen beobachtet)', {})
+E           assert (None is True)
+E            +  where None = <built-in method get of dict object at 0x71e217583740>('enthaltung')
+E            +    where <built-in method get of dict object at 0x71e217583740> = {'module': ['m/a'], 'bereiche': ['m'], 'kappe': 8, 'sprache': 'typescript', ...}.get
+
+tests/test_vor_t4_06.py:1709: AssertionError
+_________ test_w_g_schreiben_in_fremde_module_durch_aegis[g_schreibt] __________
+
+tmp_path = PosixPath('/root/biotop-einlagerung/probe/tmp-lauf-entpackt/pytest-of-root/pytest-0/test_w_g_schreiben_in_fremde_m12')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x71e2172239e0>
+fall = 'g_schreibt'
+
+    @pytest.mark.parametrize("fall", list(W_G_FAELLE))
+    def test_w_g_schreiben_in_fremde_module_durch_aegis(tmp_path, monkeypatch, fall):
+        """G durch aegis.pruefen in der echten Kammer (Prüfwerk probewerk, gestellt nur Modell und Laufzeit): die zwei
+        gemessenen Befunde (schreibt, ruft) → zurückgestellt, `enthaltung` True (am Baum vor G: `ueberlebt`, geurteilt
+        „9 von 9“); Gegenprobe: `setze` ruft nur eine lesende Funktion → überlebt, geurteilt."""
+        alt, neu, soll, schluessel = W_G_FAELLE[fall]
+        kern_alt, kern_neu = R3.QUELLE + alt, R3.QUELLE + neu
+        monkeypatch.setattr(R3, "QUELLE", kern_alt)
+        monkeypatch.setattr(R3, "REFERENZLAST", R3.REFERENZLAST + W_G_LAST)
+        diff = _w_diff(kern_alt, kern_neu, "probewerk/werk/kern.py")
+        u, v = R3._pruefen(tmp_path, monkeypatch, diff, werk_extra={"probewerk/werk/konst.py": W_G_KONST,
+                                                                    "probewerk/werk/leser.py": W_G_LESER})
+        befund = {"status": u["status"], "grund": str(u.get("grund"))[:500], "grund_art": v.get("grund_art"),
+                  "enthaltung": v.get("enthaltung"), "tragfaehig": v.get("tragfaehig"), "geurteilt": v.get("geurteilt"),
+                  "beobachtet": v.get("beobachtete_funktionen"), "ausserhalb": v.get("ausserhalb")}
+>       assert u["status"] == soll, befund
+E       AssertionError: {'status': 'ueberlebt', 'grund': 'Nische schnell: werk.laufzeit_ms: 5.0 → 4.0 (−20 %) Kernmaß -7 → -7', 'grund_art': 'geurteilt', 'enthaltung': None, ...}
+E       assert 'ueberlebt' == 'zurueckgestellt'
+E         
+E         - zurueckgestellt
+E         + ueberlebt
+
+tests/test_vor_t4_06.py:1750: AssertionError
+___________ test_w_g_schreiben_in_fremde_module_durch_aegis[g_ruft] ____________
+
+tmp_path = PosixPath('/root/biotop-einlagerung/probe/tmp-lauf-entpackt/pytest-of-root/pytest-0/test_w_g_schreiben_in_fremde_m13')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x71e217223620>
+fall = 'g_ruft'
+
+    @pytest.mark.parametrize("fall", list(W_G_FAELLE))
+    def test_w_g_schreiben_in_fremde_module_durch_aegis(tmp_path, monkeypatch, fall):
+        """G durch aegis.pruefen in der echten Kammer (Prüfwerk probewerk, gestellt nur Modell und Laufzeit): die zwei
+        gemessenen Befunde (schreibt, ruft) → zurückgestellt, `enthaltung` True (am Baum vor G: `ueberlebt`, geurteilt
+        „9 von 9“); Gegenprobe: `setze` ruft nur eine lesende Funktion → überlebt, geurteilt."""
+        alt, neu, soll, schluessel = W_G_FAELLE[fall]
+        kern_alt, kern_neu = R3.QUELLE + alt, R3.QUELLE + neu
+        monkeypatch.setattr(R3, "QUELLE", kern_alt)
+        monkeypatch.setattr(R3, "REFERENZLAST", R3.REFERENZLAST + W_G_LAST)
+        diff = _w_diff(kern_alt, kern_neu, "probewerk/werk/kern.py")
+        u, v = R3._pruefen(tmp_path, monkeypatch, diff, werk_extra={"probewerk/werk/konst.py": W_G_KONST,
+                                                                    "probewerk/werk/leser.py": W_G_LESER})
+        befund = {"status": u["status"], "grund": str(u.get("grund"))[:500], "grund_art": v.get("grund_art"),
+                  "enthaltung": v.get("enthaltung"), "tragfaehig": v.get("tragfaehig"), "geurteilt": v.get("geurteilt"),
+                  "beobachtet": v.get("beobachtete_funktionen"), "ausserhalb": v.get("ausserhalb")}
+>       assert u["status"] == soll, befund
+E       AssertionError: {'status': 'ueberlebt', 'grund': 'Nische schnell: werk.laufzeit_ms: 5.0 → 4.0 (−20 %) Kernmaß -6 → -6', 'grund_art': 'geurteilt', 'enthaltung': None, ...}
+E       assert 'ueberlebt' == 'zurueckgestellt'
+E         
+E         - zurueckgestellt
+E         + ueberlebt
+
+tests/test_vor_t4_06.py:1750: AssertionError
+============================= slowest 8 durations ==============================
+1287.87s call     tests/test_verdrahtung.py::test_jedes_organ_wird_im_lauf_aufgerufen
+50.74s call     tests/test_eichproben.py::test_vier_paare_ohne_freeze_und_ohne_spuren_im_original
+41.23s call     tests/test_vor_t4_06.py::test_b3_haengende_bereichslast_wird_wie_ein_abbruch_eingegrenzt
+23.80s call     tests/test_eichproben.py::test_unbaubare_probe_bleibt_ungeprueft_statt_erwuenscht_falsch
+21.09s call     tests/test_vor_t4_02.py::test_deckungsaufzeichner_in_der_kammer_je_abweichung[ts-True]
+17.90s call     tests/test_vor_t4_05.py::test_e8_parametrisierter_eigener_test_deckt_nicht[exakt-ueberlebt]
+16.95s call     tests/test_vor_t4_05.py::test_e8_parametrisierter_eigener_test_deckt_nicht[kennung-abgelehnt]
+16.90s call     tests/test_vor_t4_05.py::test_k4_kappe_stellt_zurueck_mit_grund[24-ueberlebt]
+=========================== short test summary info ============================
+FAILED tests/test_t3_bindung.py::test_ts_instrumentaenderung_invalidiert_versiegelten_nachweis[biotop/kern/ts/messen.mjs]
+FAILED tests/test_t3_bindung.py::test_ts_instrumentaenderung_invalidiert_versiegelten_nachweis[kammer/typescript/package-lock.json]
+FAILED tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_python_am_organ[attribut-    k.RATE = 19\n-    k.RATE = 7\n-paket.m.a:<schreibt:k>]
+FAILED tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_python_am_organ[methode-    R.append(x)\n-    R.append(x + 1)\n-paket.m.a:<schreibt:R>]
+FAILED tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_python_am_organ[setattr-    k.RATE = 19\n-    setattr(k, "RATE", 7)\n-paket.m.a:<schreibt:k>]
+FAILED tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_python_am_organ[globals-    return x + 1\n-    globals()["ZUSATZ"] = x\n    return x + 1\n-paket.m.a:<schreibt:globals()>]
+FAILED tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_python_am_organ[ruft_fremd-    k.setze(19)\n-    k.setze(7)\n-paket.m.a:<ruft:paket.m.k:setze>]
+FAILED tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_python_am_organ[ruft_innen-    _merke(x)\n-    _merke(x + 1)\n-paket.m.a:STAND]
+FAILED tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_typescript_am_organ[methode-  REG.push(x);\n-  REG.push(x + 1);\n-m/a:<schreibt:REG>]
+FAILED tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_typescript_am_organ[ruft_fremd-  setze(x);\n-  setze(x + 1);\n-m/a:<ruft:n/k:setze>]
+FAILED tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_durch_aegis[g_schreibt]
+FAILED tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_durch_aegis[g_ruft]
+SKIPPED [1] tests/test_eichproben.py:280: Private Werk-/DB-Kopie nicht angegeben
+SKIPPED [1] tests/test_review_vertrag.py:229: Private Werk-/DB-Kopie nicht angegeben
+12 failed, 939 passed, 2 skipped, 93 deselected in 2457.86s (0:40:57)

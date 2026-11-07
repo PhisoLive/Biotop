@@ -1,0 +1,148 @@
+--- a/tests/test_review_vertrag.py
++++ b/tests/test_review_vertrag.py
+@@ -4,12 +4,14 @@
+ import hashlib
+ import json
+ import os
++import re
+ import sqlite3
++import xml.etree.ElementTree as ET
+ 
+ import pytest
+ 
+ from biotop.kern import datenbank, messgeraet
+-from biotop.organe import aegis, eichgegenstand, eichproben, kammer, verfassung, vertraege
++from biotop.organe import aegis, eichgegenstand, eichproben, kammer, verfassung, vertraege, vorspann
+ 
+ VERTRAG = 'tests/vertraege/test_vertrag_abnehmer_lieferant.py'
+ VERTRAGSTEST = VERTRAG + '::test_eichprobe_vertrag_neue_zusicherung'
+@@ -73,9 +75,9 @@
+     assert basis['gueltig']
+     g = dict(von_bereich='abnehmer', nach_bereich='lieferant', vertrag_pfad=VERTRAG)
+ 
+-    def pruefen(gegenprobe):
++    def pruefen(gegenprobe, name='vertrag'):
+         row = eichproben._einzelprobe(db, 1, 1, vertragswerk, 'beispiel', bereiche, [],
+-                                     basis, basis, None, {}, 0, g, 'vertrag', gegenprobe)
++                                     basis, basis, None, {}, 0, g, name, gegenprobe)
+         _belegen(request.node.name, row)
+         return row
+ 
+@@ -83,7 +85,46 @@
+     db.close()
+ 
+ 
+-@pytest.mark.parametrize('art', ['setup', 'aufruf', 'sammlung', 'fehlend'])
++@pytest.mark.parametrize('art', ['skip', 'xfail', 'fehlend', 'pass'])
++def test_normgegenprobe_braucht_ausgefuehrtes_zeugenpaar(vertragswerk, vertragspruefung, art):
++    """Die negative Normprobe misst ohne Normtest: JUnit davor bleibt Pflicht."""
++    if art in ('skip', 'xfail'):
++        code = ('import pytest\ndef pytest_runtest_setup(item):\n'
++                "    if item.name == 'test_lieferant_eichprobe_norm':\n"
++                f"        pytest.{art}('Normzeuge nicht ausgeführt')\n")
++    elif art == 'fehlend':
++        code = ('def pytest_collection_modifyitems(items):\n'
++                "    items[:] = [i for i in items if i.name != 'test_lieferant_eichprobe_norm']\n")
++    else:
++        code = ''
++    (vertragswerk / 'tests/conftest.py').write_text(code)
++    row = vertragspruefung(True, 'norm')
++    assert row['ausgefuehrt'] is True
++    assert row['belege']['messung']['gueltig'] is True
++    assert row['bestanden'] is False
++    assert row['pruefbar'] is (art == 'pass'), \
++        'Spätere Messung ersetzt kein ausgeführtes Norm-Zeugenpaar'
++    batterie = _batterie_unit(row, 'norm')
++    assert eichproben._vollstaendig(batterie['proben'], batterie['gegenproben']) is (art == 'pass')
++    if art == 'pass':
++        assert vorspann._qualitaet(batterie) == dict(positive=4, negative=4, erwartet_je=4)
++    else:
++        with pytest.raises(ValueError, match='gegenproben'):
++            vorspann._qualitaet(batterie)
++
++
++def _batterie_unit(gegenprobe, name='vertrag'):
++    """Nur Verbraucher-Unit-Grenze: sieben gestellte Flags + eine echte Zeile.
++
++    Kein Nachweis einer frisch ausgeführten Gesamtbatterie.
++    """
++    return {'bestanden': True,
++            'proben': {n: dict(ausgefuehrt=True, pruefbar=True, bestanden=True) for n in eichproben.PROBEN},
++            'gegenproben': {n: gegenprobe if n == name else
++                           dict(ausgefuehrt=True, pruefbar=True, bestanden=False) for n in eichproben.PROBEN}}
++
++
++@pytest.mark.parametrize('art', ['setup', 'aufruf', 'sammlung', 'fehlend', 'skip', 'xfail'])
+ def test_test_eigener_fehler_ist_keine_pruefbare_vertragsgegenprobe(vertragswerk, vertragspruefung, art):
+     """Echte Fixturedefekte, keine erwarteten False-Kontrollen; setup war TDD-Rot."""
+     if art in ('sammlung', 'fehlend'):
+@@ -91,6 +132,11 @@
+                 "    if any(i.name == 'test_eichprobe_vertrag_neue_zusicherung' for i in items):\n")
+         code += ("        raise RuntimeError('Vertrags-Sammelfehler')\n" if art == 'sammlung' else
+                  "        items[:] = [i for i in items if i.name != 'test_eichprobe_vertrag_neue_zusicherung']\n")
++    elif art in ('skip', 'xfail'):
++        code = ('import pytest\n'
++                'def pytest_runtest_setup(item):\n'
++                "    if item.name == 'test_eichprobe_vertrag_neue_zusicherung':\n"
++                f"        pytest.{art}('Pflichtzeuge nicht ausgeführt')\n")
+     else:
+         hook = 'setup' if art == 'setup' else 'call'
+         code = (f'def pytest_runtest_{hook}(item):\n'
+@@ -98,12 +144,35 @@
+                 "        raise NameError('EINGABE fehlt im Vertragsfixture')\n")
+     (vertragswerk / 'tests/conftest.py').write_text(code)
+     rows = [vertragspruefung(g) for g in (False, True)]
++    if art in ('skip', 'xfail'):
++        # Echtes Docker-JUnit: kein gebautes XML und kein Host-runpy.
++        junit = [ET.fromstring(m.group(1)) for k in rows[1]['kammer']
++                 if (m := re.search(r'@@J@@(.*)@@E@@', k['stdout'], re.S))]
++        zeugen = [tc for xml in junit for tc in xml.iter('testcase')
++                  if tc.get('name') == VERTRAGSTEST.split('::')[1]]
++        assert zeugen and all(tc.find('skipped') is not None for tc in zeugen)
++        assert eichproben._vertrag_pruefbar(rows[1]['belege'], True) is False, \
++            'Übersprungener benannter Vertragszeuge wird als ausgeführte Gegenkontrolle akzeptiert'
++        for row in rows:
++            zeuge = row['belege']['kandidat_tests'][VERTRAGSTEST]
++            assert zeuge['ok'] is False and zeuge['bestaetigt'] is False
++            assert zeuge['uebersprungen'] is True
++            assert 'Pflichtzeuge nicht ausgeführt' in zeuge['meldung']
+     for row in rows:
+-        if art != 'sammlung':
+-            assert row['belege']['messung']['gueltig'] is True
++        # F7: Setup-/Skip-/Sammelabbruch macht auch die Messhülle ungültig.
++        # Ein ausgeführter Call-Fehler bleibt Inhalt. Der entfernte benannte
++        # Vertrag wird zusätzlich vom Zeugenprüfer erkannt, nicht erfunden.
++        messung_gueltig = art in ('aufruf', 'fehlend')
++        assert row['belege']['messung']['gueltig'] is messung_gueltig
++        if not messung_gueltig:
++            assert 'kernmass' not in row['belege']['messung']
+         assert row['ausgefuehrt'] is True
+-        assert row['pruefbar'] is False, 'Gültige Messhülle verdeckt defekten benannten Vertrag'
++        assert row['pruefbar'] is False, 'Defekter benannter Vertrag darf keine gültige Gegenprobe sein'
+         assert row['bestanden'] is False
++    batterie = _batterie_unit(rows[1])
++    assert eichproben._vollstaendig(batterie['proben'], batterie['gegenproben']) is False
++    with pytest.raises(ValueError, match='gegenproben'):
++        vorspann._qualitaet(batterie)
+ 
+ 
+ def test_modulhelfer_und_konstanten_bleiben_im_eigenen_namensraum(vertragswerk, vertragspruefung):
+@@ -122,6 +191,7 @@
+         assert row['pruefbar'] is True
+         assert row['bestanden'] is (not g)
+         b = row['belege']
++        assert eichproben._vertrag_pruefbar(b, g) is True
+         assert b['kandidat_tests'][VERTRAGSTEST]['ok'] is g
+         assert b['kandidat_tests'][VERTRAG + '::test_eigener_namensraum']['ok'] is True
+         assert eichproben._bestanden('vertrag', b) is (not g)
+@@ -142,6 +212,10 @@
+             meldung='AssertionError: eichprobe_zusicherung fehlt', ort=VERTRAG)
+         assert eichproben._vertrag_pruefbar(falsch, g) is False
+         assert eichproben._bestanden('vertrag', falsch) is False
++
++    batterie = _batterie_unit(rows[1])
++    assert eichproben._vollstaendig(batterie['proben'], batterie['gegenproben']) is True
++    assert vorspann._qualitaet(batterie) == dict(positive=4, negative=4, erwartet_je=4)
+ 
+ 
+ def test_syntaxfehler_im_verbrauchertest_wird_als_unbaubar_gemeldet(vertragswerk):

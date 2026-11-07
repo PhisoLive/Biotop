@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="5" skipped="0" tests="12" time="0.159" timestamp="2026-09-20T16:41:56.306576+02:00" hostname="ubuntu"><testcase classname="tests.test_artvorlage" name="test_ungerades_fenster_reserviert_mindestens_die_haelfte" time="0.007"><failure message="assert (12 * 2) &gt;= (12 + 13)&#10; +  where 12 = len([43, 42, 41, 40, 39, 38, ...])&#10; +  and   12 = len([43, 42, 41, 40, 39, 38, ...])&#10; +  and   13 = len([30, 29, 28, 27, 26, 25, ...])">con = &lt;sqlite3.Connection object at 0x7ea216c3e020&gt;
+
+    def test_ungerades_fenster_reserviert_mindestens_die_haelfte(con):
+        eintraege(con, "eigen", 30)
+        fremd_ids = eintraege(con, "fremd", 13)
+        fremd, eigen = gezeigt(con)
+        assert len(fremd) + len(eigen) == 25
+&gt;       assert len(fremd) * 2 &gt;= len(fremd) + len(eigen)
+E       assert (12 * 2) &gt;= (12 + 13)
+E        +  where 12 = len([43, 42, 41, 40, 39, 38, ...])
+E        +  and   12 = len([43, 42, 41, 40, 39, 38, ...])
+E        +  and   13 = len([30, 29, 28, 27, 26, 25, ...])
+
+tests/test_artvorlage.py:44: AssertionError</failure></testcase><testcase classname="tests.test_artvorlage" name="test_alte_fremde_muster_bleiben_trotz_mehr_als_200_eigener_sichtbar" time="0.007"><failure message="AssertionError: Ein Gesamtlimit vor der Fremdauswahl versteckt verfügbare Muster&#10;assert {2, 3, 4, 5, 6, 7, ...} == {1, 2, 3, 4, 5, 6, ...}&#10;  &#10;  Extra items in the right set:&#10;  1&#10;  Use -v to get more diff">con = &lt;sqlite3.Connection object at 0x7ea216c3d990&gt;
+
+    def test_alte_fremde_muster_bleiben_trotz_mehr_als_200_eigener_sichtbar(con):
+        fremd_ids = eintraege(con, "fremd", 13)
+        eintraege(con, "eigen", 220)
+        fremd, eigen = gezeigt(con)
+&gt;       assert set(fremd) == set(fremd_ids), "Ein Gesamtlimit vor der Fremdauswahl versteckt verfügbare Muster"
+E       AssertionError: Ein Gesamtlimit vor der Fremdauswahl versteckt verfügbare Muster
+E       assert {2, 3, 4, 5, 6, 7, ...} == {1, 2, 3, 4, 5, 6, ...}
+E         
+E         Extra items in the right set:
+E         1
+E         Use -v to get more diff
+
+tests/test_artvorlage.py:52: AssertionError</failure></testcase><testcase classname="tests.test_artvorlage" name="test_mindestanteil_soweit_vorhanden_ohne_erfundene_eintraege[0-0]" time="0.004" /><testcase classname="tests.test_artvorlage" name="test_mindestanteil_soweit_vorhanden_ohne_erfundene_eintraege[0-30]" time="0.004" /><testcase classname="tests.test_artvorlage" name="test_mindestanteil_soweit_vorhanden_ohne_erfundene_eintraege[3-30]" time="0.004" /><testcase classname="tests.test_artvorlage" name="test_mindestanteil_soweit_vorhanden_ohne_erfundene_eintraege[5-30]" time="0.006" /><testcase classname="tests.test_artvorlage" name="test_mindestanteil_soweit_vorhanden_ohne_erfundene_eintraege[12-30]" time="0.007" /><testcase classname="tests.test_artvorlage" name="test_mindestanteil_soweit_vorhanden_ohne_erfundene_eintraege[13-30]" time="0.006"><failure message="assert 12 &gt;= 13&#10; +  where 12 = len([13, 12, 11, 10, 9, 8, ...])&#10; +  and   13 = min(13, 13)&#10; +    where 13 = max(5, ((25 + 1) // 2))">con = &lt;sqlite3.Connection object at 0x7ea216c3dd50&gt;, fremd_anzahl = 13
+eigen_anzahl = 30
+
+    @pytest.mark.parametrize("fremd_anzahl,eigen_anzahl", [(0,0), (0,30), (3,30), (5,30), (12,30), (13,30), (30,30), (30,0), (5,2)])
+    def test_mindestanteil_soweit_vorhanden_ohne_erfundene_eintraege(con, fremd_anzahl, eigen_anzahl):
+        alle_ids = set(eintraege(con, "fremd", fremd_anzahl) + eintraege(con, "eigen", eigen_anzahl))
+        fremd, eigen = gezeigt(con)
+        gesamt = len(fremd) + len(eigen)
+        assert gesamt == min(25, fremd_anzahl + eigen_anzahl)
+&gt;       assert len(fremd) &gt;= min(fremd_anzahl, max(5, (gesamt + 1) // 2))
+E       assert 12 &gt;= 13
+E        +  where 12 = len([13, 12, 11, 10, 9, 8, ...])
+E        +  and   13 = min(13, 13)
+E        +    where 13 = max(5, ((25 + 1) // 2))
+
+tests/test_artvorlage.py:62: AssertionError</failure></testcase><testcase classname="tests.test_artvorlage" name="test_mindestanteil_soweit_vorhanden_ohne_erfundene_eintraege[30-30]" time="0.006"><failure message="assert 12 &gt;= 13&#10; +  where 12 = len([30, 29, 28, 27, 26, 25, ...])&#10; +  and   13 = min(30, 13)&#10; +    where 13 = max(5, ((25 + 1) // 2))">con = &lt;sqlite3.Connection object at 0x7ea216c3e890&gt;, fremd_anzahl = 30
+eigen_anzahl = 30
+
+    @pytest.mark.parametrize("fremd_anzahl,eigen_anzahl", [(0,0), (0,30), (3,30), (5,30), (12,30), (13,30), (30,30), (30,0), (5,2)])
+    def test_mindestanteil_soweit_vorhanden_ohne_erfundene_eintraege(con, fremd_anzahl, eigen_anzahl):
+        alle_ids = set(eintraege(con, "fremd", fremd_anzahl) + eintraege(con, "eigen", eigen_anzahl))
+        fremd, eigen = gezeigt(con)
+        gesamt = len(fremd) + len(eigen)
+        assert gesamt == min(25, fremd_anzahl + eigen_anzahl)
+&gt;       assert len(fremd) &gt;= min(fremd_anzahl, max(5, (gesamt + 1) // 2))
+E       assert 12 &gt;= 13
+E        +  where 12 = len([30, 29, 28, 27, 26, 25, ...])
+E        +  and   13 = min(30, 13)
+E        +    where 13 = max(5, ((25 + 1) // 2))
+
+tests/test_artvorlage.py:62: AssertionError</failure></testcase><testcase classname="tests.test_artvorlage" name="test_mindestanteil_soweit_vorhanden_ohne_erfundene_eintraege[30-0]" time="0.005" /><testcase classname="tests.test_artvorlage" name="test_mindestanteil_soweit_vorhanden_ohne_erfundene_eintraege[5-2]" time="0.004" /><testcase classname="tests.test_artvorlage" name="test_deduplizierung_verbraucht_keine_plaetze_fuer_aeltere_muster" time="0.011"><failure message="assert 12 == 13&#10; +  where 12 = len([233, 13, 12, 11, 10, 9, ...])">con = &lt;sqlite3.Connection object at 0x7ea216c3ef20&gt;
+
+    def test_deduplizierung_verbraucht_keine_plaetze_fuer_aeltere_muster(con):
+        alte = eintraege(con, "fremd", 13)
+        neue = eintraege(con, "fremd", 220)
+        con.executemany("UPDATE artgedaechtnis SET muster='derselbe Satz' WHERE id=?", [(i,) for i in neue])
+        eintraege(con, "eigen", 30)
+        fremd, eigen = gezeigt(con)
+&gt;       assert len(fremd) == 13
+E       assert 12 == 13
+E        +  where 12 = len([233, 13, 12, 11, 10, 9, ...])
+
+tests/test_artvorlage.py:73: AssertionError</failure></testcase></testsuite></testsuites>

@@ -1,0 +1,457 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 36 (Teile 4–165 dieses Stands) · enthält R40 bis R40
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R40 · Teil D: Befehle, Umgebungsvariablen, Modelle, Ports, Kammer, Kassenschema am Commit 0c2f058 (FK33, FK34, FK36)
+Beginn: 2026-09-25 16:13:53 CEST (UTC+0200)
+Ende:   2026-09-25 16:13:53 CEST (UTC+0200)
+Dauer:  0.8 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/aufbau/d3_befehle_modelle_schema.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/aufbau/d3_befehle_modelle_schema.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil D (nur lesend): Befehle, Umgebungsvariablen, Modelle, Ports, Kammer-Abbilder am Commit 0c2f058
+und Kassenschema — FK33, FK34, FK36.
+
+Liest Code nur über `git show 0c2f058:<pfad>` (kein Import von Biotop-Code).
+Datenbanken: STAMM nur mit mode=ro&immutable=1 und nur, wenn biotop.db-wal 0 Bytes hat; T3 mit mode=ro.
+"""
+import os
+import re
+import sqlite3
+import subprocess
+
+REPO = '/root/biotop'
+C = '0c2f058'
+
+
+def show(p: str) -> str:
+    return subprocess.run(['git', '-C', REPO, 'show', f'{C}:{p}'], check=True,
+                          stdout=subprocess.PIPE).stdout.decode('utf-8', 'replace')
+
+
+dateien = [z for z in subprocess.run(['git', '-C', REPO, 'ls-tree', '-r', '--name-only', C], check=True,
+                                     stdout=subprocess.PIPE).stdout.decode().splitlines()]
+code = {p: show(p) for p in dateien if p.startswith(('biotop/', 'kammer/', 'pruefung/')) and
+        p.endswith(('.py', '.mjs', '.sh', 'Dockerfile', '.json')) and 'package-lock' not in p}
+
+print('== 1. biotop/__main__.py am Commit (Wortlaut, mit Zeilennummern)')
+for i, z in enumerate(show('biotop/__main__.py').splitlines(), 1):
+    print(f'{i:4d}| {z}')
+
+print('\n== 2. Umgebungsvariablen (environ) im Code: Datei:Zeile | Zeile')
+for p in sorted(code):
+    for i, z in enumerate(code[p].splitlines(), 1):
+        if re.search(r'environ|getenv|\$\{?[A-Z_]{4,}', z) and not z.strip().startswith('#!'):
+            print(f'{p}:{i} | {z.strip()[:170]}')
+
+print('\n== 3. Modellkennungen im Code (anbieter/modell-Muster): Datei:Zeile | Zeile')
+MUSTER = re.compile(r'(openai|google|anthropic|deepseek|qwen|meta-llama|mistralai|x-ai)/[a-z0-9.\-]+')
+for p in sorted(code):
+    if not p.startswith('biotop/'):
+        continue
+    for i, z in enumerate(code[p].splitlines(), 1):
+        if MUSTER.search(z):
+            print(f'{p}:{i} | {z.strip()[:190]}')
+
+print('\n== 4. Ports, Bindung, Kammer-Abbilder, docker-Aufrufe: Datei:Zeile | Zeile')
+for p in sorted(code):
+    for i, z in enumerate(code[p].splitlines(), 1):
+        if re.search(r'8642|127\.0\.0\.1|0\.0\.0\.0|biotop-kammer|KAMMER_IMAGE|--network|docker|FROM |port', z):
+            print(f'{p}:{i} | {z.strip()[:170]}')
+
+print('\n== 5. kammer/Dockerfile und kammer/typescript/Dockerfile, package.json (Wortlaut)')
+for p in ('kammer/Dockerfile', 'kammer/typescript/Dockerfile', 'kammer/typescript/package.json'):
+    print(f'--- {p} ---')
+    print(show(p))
+
+print('\n== 6. Nischen, Zweck-Präfixe, schwer/leicht: Zeilen mit NISCHEN/HERSTELLER/SCHWER/zweck in organe und anbieter')
+for p in sorted(code):
+    if not p.startswith('biotop/'):
+        continue
+    for i, z in enumerate(code[p].splitlines(), 1):
+        if re.search(r'NISCHEN|HERSTELLER|SCHWER|MODELLE|MODELL\b|JURY_|MENTOR_|zweck=|zweck =|\bmodell=', z):
+            print(f'{p}:{i} | {z.strip()[:190]}')
+
+print('\n== 7. Kassenschema (sqlite_master)')
+wal = '/root/biotop/daten/biotop.db-wal'
+g = os.path.getsize(wal) if os.path.exists(wal) else None
+print(f'biotop.db-wal: {g} Bytes')
+if g == 0:
+    con = sqlite3.connect('file:/root/biotop/daten/biotop.db?mode=ro&immutable=1', uri=True)
+    print('-- STAMM /root/biotop/daten/biotop.db (mode=ro&immutable=1)')
+    for typ, name, sql in con.execute("SELECT type, name, sql FROM sqlite_master WHERE sql IS NOT NULL ORDER BY type DESC, name"):
+        print(f'[{typ} {name}]')
+        print(sql + ';')
+    print('-- STAMM Zeilen je Tabelle:')
+    for (name,) in con.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").fetchall():
+        print(f'   {name}: {con.execute(f"SELECT count(*) FROM {name!r}").fetchone()[0]}')
+    con.close()
+else:
+    print('STAMM NICHT GEÖFFNET: -wal nicht 0 Bytes')
+con = sqlite3.connect('file:/root/biotop-t3/t3.db?mode=ro', uri=True)
+stamm_t = set()
+print('-- T3 /root/biotop-t3/t3.db (mode=ro): Tabellen, die STAMM nicht hat, und abweichende CREATE-Anweisungen')
+t3 = {n: s for n, s in con.execute("SELECT name, sql FROM sqlite_master WHERE sql IS NOT NULL")}
+if g == 0:
+    con2 = sqlite3.connect('file:/root/biotop/daten/biotop.db?mode=ro&immutable=1', uri=True)
+    st = {n: s for n, s in con2.execute("SELECT name, sql FROM sqlite_master WHERE sql IS NOT NULL")}
+    con2.close()
+    for n in sorted(t3):
+        if n not in st:
+            print(f'[nur T3: {n}]')
+            print(t3[n] + ';')
+        elif t3[n] != st[n]:
+            print(f'[abweichend in T3: {n}]')
+            print(t3[n] + ';')
+    for n in sorted(st):
+        if n not in t3:
+            print(f'[nur STAMM: {n}]')
+print('-- T3 Zeilen je Tabelle:')
+for (name,) in con.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").fetchall():
+    print(f'   {name}: {con.execute(f"SELECT count(*) FROM {name!r}").fetchone()[0]}')
+con.close()
+--- Ende /root/sicherung/biotop-lage-01/entwurf/aufbau/d3_befehle_modelle_schema.py ---
+Ausgabe (vollständig, stdout und stderr):
+== 1. biotop/__main__.py am Commit (Wortlaut, mit Zeilennummern)
+   1| """Befehlszeile des Biotops (Phase 1: einzige Oberfläche).
+   2| 
+   3|   biotop lauf anlegen --budget 30
+   4|   biotop einlegen <lauf> <name> <quelle>
+   5|   biotop kartieren <lauf>
+   6|   biotop vorspann <lauf>            (Generation minus eins, vor gen0 und mass)
+   7|   biotop tor4 <lauf> --altlasten <liste.json>   (Tor-4-Skript: Torzeile „Schwächen“ mit doppelter Prüfung)
+   8|   biotop gen0 <lauf>
+   9|   biotop mass <lauf> --bestaetigt-von Philipp
+  10|   biotop generation <lauf>
+  11|   biotop freigabe <lauf> <nummer> frei|ablehnen --grund "..." --von Philipp
+  12|   biotop abbrechen <lauf> --grund "..." --von "..." [--art satz2|budget|philipp|sonst]   (Pflicht, nie gesperrt)
+  13|   biotop lazarus liste|rueckkehr <lauf> [nummer] [--ziel PFAD]
+  14|   biotop kasse <lauf>
+  15|   biotop protokoll [--ab N] [--art X]
+  16|   biotop benutzer <name>            (Kennwort über Umgebungsvariable BIOTOP_KENNWORT)
+  17| """
+  18| 
+  19| from __future__ import annotations
+  20| 
+  21| import argparse
+  22| import json
+  23| import os
+  24| from pathlib import Path
+  25| import sys
+  26| 
+  27| from . import lauf as L
+  28| from .kern import anmeldung, kasse, protokoll
+  29| from .kern.datenbank import verbinden
+  30| from .organe import lazarus
+  31| 
+  32| 
+  33| def _p(obj):
+  34|     print(json.dumps(obj, ensure_ascii=False, indent=1, default=str))
+  35| 
+  36| 
+  37| def main(argv=None) -> int:
+  38|     ap = argparse.ArgumentParser(prog="biotop")
+  39|     sub = ap.add_subparsers(dest="cmd", required=True)
+  40|     s = sub.add_parser("lauf"); s.add_argument("aktion", choices=["anlegen"]); s.add_argument("--budget", type=float, required=True)
+  41|     s = sub.add_parser("einlegen"); s.add_argument("lauf", type=int); s.add_argument("name"); s.add_argument("quelle")
+  42|     s = sub.add_parser("kartieren"); s.add_argument("lauf", type=int)
+  43|     s = sub.add_parser("vorspann"); s.add_argument("lauf", type=int)
+  44|     s = sub.add_parser("tor4"); s.add_argument("lauf", type=int); s.add_argument("--altlasten", required=True)
+  45|     s = sub.add_parser("mass"); s.add_argument("lauf", type=int); s.add_argument("--bestaetigt-von", required=True)
+  46|     s = sub.add_parser("generation"); s.add_argument("lauf", type=int); s.add_argument("--einschleusen", help="JSON-Datei mit Proben-Kandidaten [{bereich, diff, begruendung, vertraege, probe}]")
+  47|     s = sub.add_parser("abbrechen"); s.add_argument("lauf", type=int); s.add_argument("--grund", required=True)
+  48|     s.add_argument("--von", required=True); s.add_argument("--art", choices=["satz2", "budget", "philipp", "sonst"], default="satz2")
+  49|     s = sub.add_parser("freigabe"); s.add_argument("lauf", type=int); s.add_argument("nummer", type=int)
+  50|     s.add_argument("entscheidung", choices=["frei", "ablehnen"]); s.add_argument("--grund", default=""); s.add_argument("--von", required=True)
+  51|     s = sub.add_parser("lazarus"); s.add_argument("aktion", choices=["liste", "rueckkehr"]); s.add_argument("lauf", type=int)
+  52|     s.add_argument("nummer", type=int, nargs="?"); s.add_argument("--ziel")
+  53|     s = sub.add_parser("kasse"); s.add_argument("lauf", type=int, nargs="?")
+  54|     s = sub.add_parser("protokoll"); s.add_argument("--ab", type=int, default=0); s.add_argument("--art"); s.add_argument("--limit", type=int, default=200)
+  55|     s = sub.add_parser("protokoll-pruefen")
+  56|     s = sub.add_parser("benutzer"); s.add_argument("name")
+  57|     s = sub.add_parser("verfassung"); s.add_argument("lauf", type=int); s.add_argument("text_md"); s.add_argument("regeln_json"); s.add_argument("--von", required=True)
+  58|     s = sub.add_parser("gen0"); s.add_argument("lauf", type=int); s.add_argument("--mutanten", help="JSON-Datei mit von Hermes gesetzten Mutanten"); s.add_argument("--ziel", type=float, default=0.8, help="absolute Zahl oder Anteil ≤ 1 (Vorgabe 0,8)")
+  59|     s = sub.add_parser("vertraege"); s.add_argument("lauf", type=int); s.add_argument("verzeichnis"); s.add_argument("--von", required=True)
+  60|     s = sub.add_parser("kurve"); s.add_argument("lauf", type=int); s.add_argument("--testbestand-von-lauf", type=int)
+  61|     s = sub.add_parser("mentor"); s.add_argument("lauf", type=int)
+  62|     s = sub.add_parser("richtung"); s.add_argument("lauf", type=int); s.add_argument("name"); s.add_argument("--von", required=True)
+  63|     s = sub.add_parser("gedaechtnis"); s.add_argument("aktion", choices=["import", "art", "projekt", "geschmack"]); s.add_argument("lauf", type=int, nargs="?"); s.add_argument("--bereich")
+  64|     s = sub.add_parser("entropie"); s.add_argument("lauf", type=int)
+  65|     s = sub.add_parser("dienst"); s.add_argument("--port", type=int, default=8642); s.add_argument("--host", default="127.0.0.1")
+  66|     s = sub.add_parser("oberflaeche-belege")
+  67|     a = ap.parse_args(argv)
+  68|     con = verbinden()
+  69|     try:
+  70|         if a.cmd == "lauf":
+  71|             _p({"lauf": L.anlegen(con, a.budget), "budget_eur": a.budget})
+  72|         elif a.cmd == "einlegen":
+  73|             _p(L.einlegen(con, a.lauf, a.name, a.quelle))
+  74|         elif a.cmd == "kartieren":
+  75|             _p(L.kartieren(con, a.lauf))
+  76|         elif a.cmd == "vorspann":
+  77|             _p(L.vorspann.ausfuehren(con, a.lauf))
+  78|         elif a.cmd == "tor4":
+  79|             from . import tor4 as T4
+  80|             _p(T4.ausfuehren(con, a.lauf, a.altlasten))
+  81|         elif a.cmd == "mass":
+  82|             r = L.mass_einfrieren(con, a.lauf, a.bestaetigt_von)
+  83|             _p({"mass": r["mass"], "kernmass": r["messung"]["kernmass"], "bereiche": {b: {k: v for k, v in m.items() if not isinstance(v, (list, dict))} for b, m in r["messung"]["bereiche"].items()}, "schnappschuss": r["schnappschuss"]})
+  84|         elif a.cmd == "generation":
+  85|             ein = json.loads(Path(a.einschleusen).read_text()) if a.einschleusen else None
+  86|             r = L.generation(con, a.lauf, einschleusen=ein)
+  87|             m = r.get("messung")
+  88|             _p({"nummer": r["nummer"], "status": r["status"], "grund": r["grund"], "kandidaten": r["kandidaten"],
+  89|                 "kernmass": m["kernmass"] if m else None, "schnappschuss": r.get("schnappschuss"), "kasse": kasse.stand(con, a.lauf)})
+  90|         elif a.cmd == "abbrechen":
+  91|             _p(L.abbrechen(con, a.lauf, a.grund, a.von, a.art))
+  92|         elif a.cmd == "freigabe":
+  93|             _p(L.freigabe(con, a.lauf, a.nummer, a.entscheidung, a.grund, a.von))
+  94|         elif a.cmd == "lazarus":
+  95|             if a.aktion == "liste":
+  96|                 _p(lazarus.liste(con, a.lauf))
+  97|             else:
+  98|                 werk = L._werk(con, L._lauf(con, a.lauf)["werk_id"])
+  99|                 _p(lazarus.rueckkehr(con, a.lauf, a.nummer, Path(werk["pfad"]), Path(a.ziel) if a.ziel else None))
+ 100|         elif a.cmd == "kasse":
+ 101|             if a.lauf:
+ 102|                 _p(kasse.stand(con, a.lauf))
+ 103|             print(kasse.bericht_md(con, a.lauf))
+ 104|         elif a.cmd == "protokoll":
+ 105|             for z in protokoll.lesen(con, a.ab, a.art, a.limit):
+ 106|                 print(f"#{z['nr']} {z['zeit']} {z['art']} {z['inhalt']}")
+ 107|         elif a.cmd == "protokoll-pruefen":
+ 108|             ok, n = protokoll.pruefen(con)
+ 109|             _p({"kette_in_ordnung": ok, "geprueft": n})
+ 110|         elif a.cmd == "verfassung":
+ 111|             from .organe import verfassung as V
+ 112|             lauf = L._lauf(con, a.lauf)
+ 113|             V.einlegen(con, lauf["werk_id"], Path(a.text_md).read_text(), json.loads(Path(a.regeln_json).read_text()), f"{a.text_md} + {a.regeln_json}", a.von)
+ 114|             _p({"werk_id": lauf["werk_id"], "eingelegt": True})
+ 115|         elif a.cmd == "gen0":
+ 116|             _p(L.generation0(con, a.lauf, a.mutanten, a.ziel))
+ 117|         elif a.cmd == "vertraege":
+ 118|             from .organe import vertraege as VT
+ 119|             lauf = L._lauf(con, a.lauf); werk = L._werk(con, lauf["werk_id"])
+ 120|             vs = {}
+ 121|             from .kern import sprachprofil
+ 122|             endung = sprachprofil.testendung(Path(werk["pfad"]))
+ 123|             for f in sorted(Path(a.verzeichnis).glob("test_vertrag_*" + endung)):
+ 124|                 a_, b_ = sprachprofil.testname_ohne_endung(f.name).replace("test_vertrag_", "").split("_", 1)
+ 125|                 vs[(a_, b_)] = f.read_text()
+ 126|             _p({"eingelegt": VT.einlegen(con, werk["id"], Path(werk["pfad"]), vs, f"{a.verzeichnis} ({a.von})")})
+ 127|         elif a.cmd == "kurve":
+ 128|             _p(L.kurve_nachrechnen(con, a.lauf, a.testbestand_von_lauf))
+ 129|         elif a.cmd == "mentor":
+ 130|             from .organe import mentor as M
+ 131|             _p(M.richtungen(con, a.lauf))
+ 132|         elif a.cmd == "richtung":
+ 133|             from .organe import mentor as M
+ 134|             _p(M.waehlen(con, a.lauf, a.name, a.von))
+ 135|         elif a.cmd == "gedaechtnis":
+ 136|             from .organe import gedaechtnis as G
+ 137|             if a.aktion == "import":
+ 138|                 werk = L._werk(con, L._lauf(con, a.lauf)["werk_id"])
+ 139|                 _p({"lauf": a.lauf, "projekt_importiert": G.projekt_import(con, a.lauf, Path(werk["pfad"])), "art_importiert": G.art_import(con, a.lauf)})
+ 140|             elif a.aktion == "art":
+ 141|                 _p(G.art_zusammenfassung(con))
+ 142|             elif a.aktion == "projekt":
+ 143|                 werk = L._werk(con, L._lauf(con, a.lauf)["werk_id"])
+ 144|                 _p(G.gescheiterte_wege(con, werk["id"], a.bereich, 200) if a.bereich else [dict(z) for z in con.execute("SELECT werk, bereich, grundklasse, COUNT(*) n FROM projektgedaechtnis GROUP BY werk, bereich, grundklasse")])
+ 145|             else:
+ 146|                 _p([dict(z) for z in con.execute("SELECT werk, quelle, entscheidung, COUNT(*) n FROM geschmack GROUP BY werk, quelle, entscheidung")])
+ 147|         elif a.cmd == "entropie":
+ 148|             from .organe import entropie as E
+ 149|             _p({"verlauf": E.verlauf(con, a.lauf), "saettigung": E.saettigung(con, a.lauf)})
+ 150|         elif a.cmd == "oberflaeche-belege":
+ 151|             from . import oberflaeche as O
+ 152|             _p(O.belege())
+ 153|         elif a.cmd == "dienst":
+ 154|             from . import dienst as D
+ 155|             D.starten(a.host, a.port)
+ 156|         elif a.cmd == "benutzer":
+ 157|             anmeldung.benutzer_anlegen(con, a.name, os.environ.get("BIOTOP_KENNWORT", ""))
+ 158|             _p({"benutzer": a.name, "angelegt": True})
+ 159|         return 0
+ 160|     except (L.LaufFehler, L.vorspann.VorspannFehler, kasse.BudgetErschoepft) as e:
+ 161|         print(f"ABBRUCH: {e}", file=sys.stderr)
+ 162|         return 1
+ 163| 
+ 164| 
+ 165| if __name__ == "__main__":
+ 166|     sys.exit(main())
+
+== 2. Umgebungsvariablen (environ) im Code: Datei:Zeile | Zeile
+biotop/__main__.py:157 | anmeldung.benutzer_anlegen(con, a.name, os.environ.get("BIOTOP_KENNWORT", ""))
+biotop/anbieter/__init__.py:76 | v = os.environ.get(name)
+biotop/kern/befundklassen.py:30 | "[c for c in ().__class__.__base__.__subclasses__() if c.__name__ == 'BuiltinImporter'][0].load_module('os').environ.setdefault('BIOTOP_UMGEHUNG_B307', 'ausgefuehrt').__l
+biotop/kern/befundklassen.py:81 | "    if marker: os.environ.pop(marker, None)",
+biotop/kern/befundklassen.py:90 | "        assert os.environ.get(marker) is None, 'Umgehung wurde AUSGEFUEHRT (Marker gesetzt) und erst danach abgewiesen'",
+biotop/kern/datenbank.py:16 | DB_PFAD = Path(os.environ.get("BIOTOP_DB", "/root/biotop/daten/biotop.db"))
+biotop/kern/kasse.py:47 | AUFTRAG_LAUF_AB = int(_os.environ.get("BIOTOP_AUFTRAG_LAUF_AB", "0") or 0)
+biotop/kern/kasse.py:48 | AUFTRAG_BUDGET_EUR = float(_os.environ.get("BIOTOP_AUFTRAG_BUDGET_EUR", "0") or 0)
+biotop/kern/py/verhalten.py:37 | if __name__ == '__main__' and os.environ.get('PYTHONHASHSEED') != HASHSAAT:
+biotop/kern/py/verhalten.py:38 | os.execve(sys.executable, [sys.executable, *sys.argv], {**os.environ, 'PYTHONHASHSEED': HASHSAAT})
+biotop/kern/py/verhalten.py:1694 | 'verfaelscht': REQ.get('verfaelschen'), 'hashsaat': os.environ.get('PYTHONHASHSEED'),
+biotop/kern/py/verhalten.py:1753 | 'vertragslauf': vertragslauf, 'hashsaat': os.environ.get('PYTHONHASHSEED'),
+biotop/kern/ts/einwickeln.mjs:21 | const aufruf = n => `${G}[${JSON.stringify(hook)}](${JSON.stringify(modul + ':' + n)}, a, (...b${A}) => `
+biotop/kern/ts/kanon.mjs:16 | if (versteckt.length) fehlend.push(`${name}: nicht aufzählbare Eigenschaften ${JSON.stringify(versteckt.slice(0, 5))}`);
+biotop/kern/ts/vitest.config.mjs:7 | globals:false,environment:'node',pool:'forks',poolOptions:{forks:{singleFork:true}},
+biotop/kern/ts/vitest.deck.config.mjs:21 | test: {include: req.testdateien ?? [], exclude: [], globals: false, environment: 'node', pool: 'forks',
+biotop/oberflaeche.py:140 | const r=await api('POST',`/laeufe/${LAUF}/freigabe`,{entscheidung:ent,grund:g}); $('freigabe-hinweis').textContent=JSON.stringify(r); await laden();}
+biotop/oberflaeche.py:142 | $('richtung-waehlen').onclick=async()=>{const r=await api('POST',`/laeufe/${LAUF}/richtung`,{name:$('richtung-name').value}); $('richtung-hinweis').textContent=JSON.strin
+biotop/organe/kammer.py:25 | IMAGE = os.environ.get("BIOTOP_KAMMER_IMAGE", "biotop-kammer:1")
+biotop/organe/kammer.py:26 | ZEITLIMIT_S = int(os.environ.get("BIOTOP_KAMMER_ZEITLIMIT", "120"))
+biotop/organe/kammer.py:27 | SPEICHER = os.environ.get("BIOTOP_KAMMER_SPEICHER", "512m")
+kammer/typescript/Dockerfile:15 | ENV PATH="/opt/biotop-ts/node_modules/.bin:${PATH}"
+pruefung/generationen.sh:3 | LAUF=$1; VON=$2; BIS=$3; A=$4; export PYTHONPATH=/root/biotop BIOTOP_AUFTRAG_LAUF_AB=${BIOTOP_AUFTRAG_LAUF_AB:-14} BIOTOP_AUFTRAG_BUDGET_EUR=${BIOTOP_AUFTRAG_BUDGET_EUR:-
+pruefung/generationen.sh:8 | z=verbinden().execute(\"SELECT nummer FROM generationen WHERE lauf_id=$LAUF AND status='vorgelegt'\").fetchone(); print(z[0] if z else '')")
+pruefung/generationen.sh:13 | z=verbinden().execute(\"SELECT masse, grund FROM generationen WHERE lauf_id=$LAUF AND nummer=$offen\").fetchone(); m=lj(z['masse']) or {}
+pruefung/generationen.sh:15 | python3 -m biotop freigabe $LAUF $offen frei --von "Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungswerk, regeln.uebungswerk=true)" --grund "$grund" > $A/${PRE
+pruefung/generationen.sh:19 | python3 -m biotop generation $LAUF > $A/${PREFIX:-2}$g-gen$g.json 2>$A/${PREFIX:-2}$g-gen$g.err; rc=$?
+pruefung/generationen.sh:20 | cat $A/${PREFIX:-2}$g-gen$g.err
+pruefung/generationen.sh:22 | import json; d=json.load(open("$A/${PREFIX:-2}$g-gen$g.json")); print(d['status'], d['grund'][:250])
+pruefung/generationen.sh:32 | print(verbinden().execute(\"SELECT status FROM laeufe WHERE id=$LAUF\").fetchone()[0])")
+pruefung/generationen.sh:33 | if [ "$st" = "gesaettigt" ]; then echo "=== Lauf $LAUF GESÄTTIGT nach Generation $g ==="; break; fi
+pruefung/generationen.sh:39 | z=verbinden().execute(\"SELECT nummer FROM generationen WHERE lauf_id=$LAUF AND status='vorgelegt'\").fetchone(); print(z[0] if z else '')")
+pruefung/generationen.sh:41 | python3 -m biotop freigabe $LAUF $offen frei --von "Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungswerk, regeln.uebungswerk=true)" --grund "Generalprobe besta
+pruefung/generationen.sh:42 | echo "Gen $offen freigegeben (Ende)"; cat $A/${PREFIX:-2}${offen}-gen${offen}-freigabe.json | tr -d '\n' | cut -c1-300; echo
+pruefung/lauf7.sh:4 | python3 -m biotop lauf anlegen --budget 2 > $A/${PREFIX}0-lauf-anlegen.txt
+pruefung/lauf7.sh:5 | LAUF=$(python3 -c "import json;print(json.load(open('$A/${PREFIX}0-lauf-anlegen.txt'))['lauf'])")
+pruefung/lauf7.sh:6 | echo "LAUF=$LAUF"
+pruefung/lauf7.sh:7 | python3 -m biotop einlegen $LAUF lagerhaus-nachlauf$PREFIX /root/uebungswerk > $A/${PREFIX}1-aufnahme.json
+pruefung/lauf7.sh:8 | python3 -c "import json;d=json.load(open('$A/${PREFIX}1-aufnahme.json'));print('Aufnahme:',d['status'],d['erster_testlauf']['bestanden'],'von',d['erster_testlauf']['gesam
+pruefung/lauf7.sh:9 | python3 -m biotop kartieren $LAUF > $A/${PREFIX}2-landkarte.json; cat $A/${PREFIX}2-landkarte.json | tr -d '\n '; echo
+pruefung/lauf7.sh:10 | python3 -m biotop verfassung $LAUF /root/biotop/verfassungen/lagerhaus.md /root/biotop/verfassungen/lagerhaus.regeln.json --von "Chat-Claude (Anhang A, Masterprompt v2), 
+pruefung/lauf7.sh:11 | python3 -m biotop mass $LAUF --bestaetigt-von "Masterprompt v2 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2" > $A/${PREFIX}4-mass.json
+pruefung/lauf7.sh:12 | python3 -c "import json;d=json.load(open('$A/${PREFIX}4-mass.json'));print('Ausgang F1',d['kernmass'],'Schnappschuss',d['schnappschuss']['tag'],d['schnappschuss']['pruefs
+pruefung/lauf7.sh:13 | /root/biotop/pruefung/generationen.sh $LAUF 1 $N $A
+pruefung/lauf_nachlauf.sh:5 | python3 -m biotop lauf anlegen --budget $BUDGET > $A/${PREFIX}0-lauf-anlegen.txt
+pruefung/lauf_nachlauf.sh:6 | LAUF=$(python3 -c "import json;print(json.load(open('$A/${PREFIX}0-lauf-anlegen.txt'))['lauf'])"); echo "LAUF=$LAUF"
+pruefung/lauf_nachlauf.sh:7 | python3 -m biotop einlegen $LAUF lagerhaus-p3-$LAUF /root/uebungswerk-nachlauf > $A/${PREFIX}1-aufnahme.json
+pruefung/lauf_nachlauf.sh:8 | python3 -c "import json;d=json.load(open('$A/${PREFIX}1-aufnahme.json'));print('Aufnahme:',d['status'],d['erster_testlauf']['bestanden'],'von',d['erster_testlauf']['gesam
+pruefung/lauf_nachlauf.sh:9 | python3 -m biotop kartieren $LAUF > $A/${PREFIX}2-landkarte.json; tr -d '\n ' < $A/${PREFIX}2-landkarte.json | cut -c1-200; echo
+pruefung/lauf_nachlauf.sh:10 | python3 -m biotop verfassung $LAUF /root/biotop/verfassungen/lagerhaus.md /root/biotop/verfassungen/lagerhaus.regeln.json --von "Chat-Claude (Anhang A, Masterprompt v4), 
+pruefung/lauf_nachlauf.sh:11 | python3 -m biotop vertraege $LAUF /root/biotop/verfassungen/vertraege-lagerhaus --von "Hermes, abgeleitet aus Anhang A Satz 3-5 und Docstring-Vertraegen" > $A/${PREFIX}4-
+pruefung/lauf_nachlauf.sh:21 | python3 -m biotop mass $LAUF --bestaetigt-von "Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Norm-Regel 3.7 in der Fassung Philipp 19.09.2026; Grenzmasse gegen Bes
+pruefung/lauf_nachlauf.sh:22 | python3 -c "import json;d=json.load(open('$A/${PREFIX}6-mass.json'));print('Ausgang',d['schnappschuss']['tag'],d['schnappschuss']['pruefsumme'][:16],'Kernmass F1',d['kern
+pruefung/lauf_nachlauf.sh:23 | echo $LAUF > $A/${PREFIX}LAUF
+pruefung/lauf_p2.sh:4 | python3 -m biotop lauf anlegen --budget 8 > $A/${PREFIX}0-lauf-anlegen.txt
+pruefung/lauf_p2.sh:5 | LAUF=$(python3 -c "import json;print(json.load(open('$A/${PREFIX}0-lauf-anlegen.txt'))['lauf'])"); echo "LAUF=$LAUF"
+pruefung/lauf_p2.sh:6 | python3 -m biotop einlegen $LAUF lagerhaus-p2-$LAUF /root/uebungswerk-p2 > $A/${PREFIX}1-aufnahme.json
+pruefung/lauf_p2.sh:7 | python3 -c "import json;d=json.load(open('$A/${PREFIX}1-aufnahme.json'));print('Aufnahme:',d['status'],d['erster_testlauf']['bestanden'],'von',d['erster_testlauf']['gesam
+pruefung/lauf_p2.sh:8 | python3 -m biotop kartieren $LAUF > $A/${PREFIX}2-landkarte.json; tr -d '\n ' < $A/${PREFIX}2-landkarte.json; echo
+pruefung/lauf_p2.sh:9 | python3 -m biotop verfassung $LAUF /root/biotop/verfassungen/lagerhaus.md /root/biotop/verfassungen/lagerhaus.regeln.json --von "Chat-Claude (Anhang A, Masterprompt v3), 
+pruefung/lauf_p2.sh:10 | python3 -m biotop vertraege $LAUF /root/biotop/verfassungen/vertraege-lagerhaus --von "Hermes, abgeleitet aus Anhang A Satz 3–5 und Docstring-Verträgen" > $A/${PREFIX}4-v
+pruefung/lauf_p2.sh:11 | python3 -m biotop gen0 $LAUF --mutanten /root/versiegelt/MUTANTEN-phase2.json --ziel 16 > $A/${PREFIX}5-generation0.json 2> $A/${PREFIX}5-generation0.err
+pruefung/lauf_p2.sh:12 | python3 -c "import json;d=json.load(open('$A/${PREFIX}5-generation0.json'));print('Gen0: vorher',d['gefangen_vorher'],'nachher',d['gefangen_nachher'],'von',d['mutanten'],
+pruefung/lauf_p2.sh:13 | python3 -m biotop mass $LAUF --bestaetigt-von "Masterprompt v3 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2; groesste_funktion absolut 60" > $A/${PREF
+pruefung/lauf_p2.sh:14 | python3 -c "import json;d=json.load(open('$A/${PREFIX}6-mass.json'));print('Ausgang Schnappschuss',d['schnappschuss']['tag'],d['schnappschuss']['pruefsumme'][:16]); [prin
+pruefung/lauf_p2.sh:15 | PREFIX=${PREFIX}g /root/biotop/pruefung/generationen.sh $LAUF 1 $N $A
+pruefung/lauf_p3_anlegen.sh:5 | python3 -m biotop lauf anlegen --budget $BUDGET > $A/${PREFIX}0-lauf-anlegen.txt
+pruefung/lauf_p3_anlegen.sh:6 | LAUF=$(python3 -c "import json;print(json.load(open('$A/${PREFIX}0-lauf-anlegen.txt'))['lauf'])"); echo "LAUF=$LAUF"
+pruefung/lauf_p3_anlegen.sh:7 | python3 -m biotop einlegen $LAUF lagerhaus-$SUF-$LAUF /root/uebungswerk-p3 > $A/${PREFIX}1-aufnahme.json
+pruefung/lauf_p3_anlegen.sh:8 | python3 -c "import json;d=json.load(open('$A/${PREFIX}1-aufnahme.json'));print('Aufnahme:',d['status'],d['erster_testlauf']['bestanden'],'von',d['erster_testlauf']['gesam
+pruefung/lauf_p3_anlegen.sh:9 | python3 -m biotop kartieren $LAUF > $A/${PREFIX}2-landkarte.json; tr -d '\n ' < $A/${PREFIX}2-landkarte.json | cut -c1-300; echo
+pruefung/lauf_p3_anlegen.sh:10 | python3 -m biotop verfassung $LAUF /root/biotop/verfassungen/lagerhaus.md /root/biotop/verfassungen/lagerhaus.regeln.json --von "Chat-Claude (Anhang A, Masterprompt v4), 
+pruefung/lauf_p3_anlegen.sh:11 | python3 -m biotop vertraege $LAUF /root/biotop/verfassungen/vertraege-lagerhaus --von "Hermes, abgeleitet aus Anhang A Satz 3–5 und Docstring-Verträgen (unverändert seit 
+pruefung/lauf_p3_anlegen.sh:12 | python3 -m biotop gen0 $LAUF --mutanten /root/versiegelt/MUTANTEN-phase3.json --ziel 16 > $A/${PREFIX}5-generation0.json 2> $A/${PREFIX}5-generation0.err
+pruefung/lauf_p3_anlegen.sh:13 | python3 -c "import json;d=json.load(open('$A/${PREFIX}5-generation0.json'));print('Gen0:',d['bezugsgroesse'],'| vorher',d['gefangen_vorher'],'| erreicht',d['erreicht'],'|
+pruefung/lauf_p3_anlegen.sh:14 | python3 -m biotop mass $LAUF --bestaetigt-von "Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2; Grenzmaße gegen Bestwert des Laufs; groes
+pruefung/lauf_p3_anlegen.sh:15 | python3 -c "import json;d=json.load(open('$A/${PREFIX}6-mass.json'));print('Ausgang Schnappschuss',d['schnappschuss']['tag'],d['schnappschuss']['pruefsumme'][:16],'Kernma
+pruefung/lauf_p3_anlegen.sh:16 | echo $LAUF > $A/${PREFIX}LAUF
+pruefung/lauf_p3_lauf18.sh:5 | python3 -m biotop lauf anlegen --budget $BUDGET > $A/${PREFIX}0-lauf-anlegen.txt
+pruefung/lauf_p3_lauf18.sh:6 | LAUF=$(python3 -c "import json;print(json.load(open('$A/${PREFIX}0-lauf-anlegen.txt'))['lauf'])"); echo "LAUF=$LAUF"
+pruefung/lauf_p3_lauf18.sh:7 | python3 -m biotop einlegen $LAUF lagerhaus-p3-$LAUF /root/uebungswerk-p3c > $A/${PREFIX}1-aufnahme.json
+pruefung/lauf_p3_lauf18.sh:8 | python3 -c "import json;d=json.load(open('$A/${PREFIX}1-aufnahme.json'));print('Aufnahme:',d['status'],d['erster_testlauf']['bestanden'],'von',d['erster_testlauf']['gesam
+pruefung/lauf_p3_lauf18.sh:9 | python3 -m biotop kartieren $LAUF > $A/${PREFIX}2-landkarte.json; tr -d '\n ' < $A/${PREFIX}2-landkarte.json | cut -c1-200; echo
+pruefung/lauf_p3_lauf18.sh:10 | python3 -m biotop verfassung $LAUF /root/biotop/verfassungen/lagerhaus.md /root/biotop/verfassungen/lagerhaus.regeln.json --von "Chat-Claude (Anhang A, Masterprompt v4), 
+pruefung/lauf_p3_lauf18.sh:11 | python3 -m biotop vertraege $LAUF /root/biotop/verfassungen/vertraege-lagerhaus --von "Hermes, abgeleitet aus Anhang A Satz 3-5 und Docstring-Vertraegen" > $A/${PREFIX}4-
+pruefung/lauf_p3_lauf18.sh:21 | python3 -m biotop mass $LAUF --bestaetigt-von "Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Norm-Regel 3.7 in der Fassung Philipp 19.09.2026; Grenzmasse gegen Bes
+pruefung/lauf_p3_lauf18.sh:22 | python3 -c "import json;d=json.load(open('$A/${PREFIX}6-mass.json'));print('Ausgang',d['schnappschuss']['tag'],d['schnappschuss']['pruefsumme'][:16],'Kernmass F1',d['kern
+pruefung/lauf_p3_lauf18.sh:23 | echo $LAUF > $A/${PREFIX}LAUF
+pruefung/lauf_p3_lauf19.sh:5 | python3 -m biotop lauf anlegen --budget $BUDGET > $A/${PREFIX}0-lauf-anlegen.txt
+pruefung/lauf_p3_lauf19.sh:6 | LAUF=$(python3 -c "import json;print(json.load(open('$A/${PREFIX}0-lauf-anlegen.txt'))['lauf'])"); echo "LAUF=$LAUF"
+pruefung/lauf_p3_lauf19.sh:7 | python3 -m biotop einlegen $LAUF lagerhaus-p3-$LAUF /root/uebungswerk-p3c > $A/${PREFIX}1-aufnahme.json
+pruefung/lauf_p3_lauf19.sh:8 | python3 -c "import json;d=json.load(open('$A/${PREFIX}1-aufnahme.json'));print('Aufnahme:',d['status'],d['erster_testlauf']['bestanden'],'von',d['erster_testlauf']['gesam
+pruefung/lauf_p3_lauf19.sh:9 | python3 -m biotop kartieren $LAUF > $A/${PREFIX}2-landkarte.json; tr -d '\n ' < $A/${PREFIX}2-landkarte.json | cut -c1-200; echo
+pruefung/lauf_p3_lauf19.sh:10 | python3 -m biotop verfassung $LAUF /root/biotop/verfassungen/lagerhaus.md /root/biotop/verfassungen/lagerhaus.regeln.json --von "Chat-Claude (Anhang A, Masterprompt v4), 
+pruefung/lauf_p3_lauf19.sh:11 | python3 -m biotop vertraege $LAUF /root/biotop/verfassungen/vertraege-lagerhaus --von "Hermes, abgeleitet aus Anhang A Satz 3-5 und Docstring-Vertraegen" > $A/${PREFIX}4-
+pruefung/lauf_p3_lauf19.sh:21 | python3 -m biotop mass $LAUF --bestaetigt-von "Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Norm-Regel 3.7 in der Fassung Philipp 19.09.2026; Grenzmasse gegen Bes
+pruefung/lauf_p3_lauf19.sh:22 | python3 -c "import json;d=json.load(open('$A/${PREFIX}6-mass.json'));print('Ausgang',d['schnappschuss']['tag'],d['schnappschuss']['pruefsumme'][:16],'Kernmass F1',d['kern
+pruefung/lauf_p3_lauf19.sh:23 | echo $LAUF > $A/${PREFIX}LAUF
+pruefung/lauf_p3_lauf20.sh:5 | python3 -m biotop lauf anlegen --budget $BUDGET > $A/${PREFIX}0-lauf-anlegen.txt
+pruefung/lauf_p3_lauf20.sh:6 | LAUF=$(python3 -c "import json;print(json.load(open('$A/${PREFIX}0-lauf-anlegen.txt'))['lauf'])"); echo "LAUF=$LAUF"
+pruefung/lauf_p3_lauf20.sh:7 | python3 -m biotop einlegen $LAUF lagerhaus-p3-$LAUF /root/uebungswerk-p3d > $A/${PREFIX}1-aufnahme.json
+pruefung/lauf_p3_lauf20.sh:8 | python3 -c "import json;d=json.load(open('$A/${PREFIX}1-aufnahme.json'));print('Aufnahme:',d['status'],d['erster_testlauf']['bestanden'],'von',d['erster_testlauf']['gesam
+pruefung/lauf_p3_lauf20.sh:9 | python3 -m biotop kartieren $LAUF > $A/${PREFIX}2-landkarte.json; tr -d '\n ' < $A/${PREFIX}2-landkarte.json | cut -c1-200; echo
+pruefung/lauf_p3_lauf20.sh:10 | python3 -m biotop verfassung $LAUF /root/biotop/verfassungen/lagerhaus.md /root/biotop/verfassungen/lagerhaus.regeln.json --von "Chat-Claude (Anhang A, Masterprompt v4), 
+pruefung/lauf_p3_lauf20.sh:11 | python3 -m biotop vertraege $LAUF /root/biotop/verfassungen/vertraege-lagerhaus --von "Hermes, abgeleitet aus Anhang A Satz 3-5 und Docstring-Vertraegen" > $A/${PREFIX}4-
+pruefung/lauf_p3_lauf20.sh:21 | python3 -m biotop mass $LAUF --bestaetigt-von "Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Norm-Regel 3.7 in der Fassung Philipp 19.09.2026; Grenzmasse gegen Bes
+pruefung/lauf_p3_lauf20.sh:22 | python3 -c "import json;d=json.load(open('$A/${PREFIX}6-mass.json'));print('Ausgang',d['schnappschuss']['tag'],d['schnappschuss']['pruefsumme'][:16],'Kernmass F1',d['kern
+pruefung/lauf_p3_lauf20.sh:23 | echo $LAUF > $A/${PREFIX}LAUF
+pruefung/lauf_p3_werk2.sh:4 | python3 -m biotop lauf anlegen --budget $BUDGET > $A/${PREFIX}0-lauf-anlegen.txt
+pruefung/lauf_p3_werk2.sh:5 | LAUF=$(python3 -c "import json;print(json.load(open('$A/${PREFIX}0-lauf-anlegen.txt'))['lauf'])"); echo "LAUF=$LAUF"
+pruefung/lauf_p3_werk2.sh:6 | python3 -m biotop einlegen $LAUF logmuehle-$LAUF $QUELLE > $A/${PREFIX}1-aufnahme.json
+pruefung/lauf_p3_werk2.sh:7 | python3 -c "import json;d=json.load(open('$A/${PREFIX}1-aufnahme.json'));print('Aufnahme:',d['status'],d['erster_testlauf']['bestanden'],'von',d['erster_testlauf']['gesam
+pruefung/lauf_p3_werk2.sh:8 | python3 -m biotop kartieren $LAUF > $A/${PREFIX}2-landkarte.json; tr -d '\n ' < $A/${PREFIX}2-landkarte.json | cut -c1-300; echo
+pruefung/lauf_p3_werk2.sh:9 | python3 -m biotop verfassung $LAUF /root/biotop/verfassungen/logmuehle.md /root/biotop/verfassungen/logmuehle.regeln.json --von "Hermes (Entwurf, Masterprompt v4 Phase 3;
+pruefung/lauf_p3_werk2.sh:10 | python3 -m biotop vertraege $LAUF /root/biotop/verfassungen/vertraege-logmuehle --von "Hermes, abgeleitet aus Verfassung logmuehle Satz 3–5 und Docstring-Verträgen" > $A/
+pruefung/lauf_p3_werk2.sh:11 | python3 -m biotop gen0 $LAUF --ziel 0.8 > $A/${PREFIX}5-generation0.json 2> $A/${PREFIX}5-generation0.err
+pruefung/lauf_p3_werk2.sh:12 | python3 -c "import json;d=json.load(open('$A/${PREFIX}5-generation0.json'));print('Gen0:',d['bezugsgroesse'],'| vorher',d['gefangen_vorher'],'| erreicht',d['erreicht'],'|
+pruefung/lauf_p3_werk2.sh:13 | python3 -m biotop mass $LAUF --bestaetigt-von "Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Verfassung logmuehle Satz 2; Grenzmaße gegen Bestwert des 
+pruefung/lauf_p3_werk2.sh:14 | python3 -c "import json;d=json.load(open('$A/${PREFIX}6-mass.json'));print('Ausgang Schnappschuss',d['schnappschuss']['tag'],d['schnappschuss']['pruefsumme'][:16],'Kernma
+pruefung/lauf_p3_werk2.sh:15 | echo $LAUF > $A/${PREFIX}LAUF
+pruefung/tor1.py:98 | os.environ["BIOTOP_KENNWORT"] = "pruef-" + os.urandom(8).hex()
+pruefung/tor1.py:99 | anmeldung.benutzer_anlegen(con, "philipp", os.environ["BIOTOP_KENNWORT"])
+pruefung/tor1.py:100 | srv = subprocess.Popen([sys.executable, "-m", "biotop.dienst", "8642"], cwd="/root/biotop", env={**os.environ, "PYTHONPATH": "/root/biotop"},
+pruefung/tor1.py:116 | tok = anfrage("POST", "/anmelden", body={"name": "philipp", "kennwort": os.environ["BIOTOP_KENNWORT"]})[1].get("token")
+pruefung/tor1.py:122 | s_mit = anfrage("POST", "/anmelden", body={"name": "philipp", "kennwort": os.environ["BIOTOP_KENNWORT"]})[0]
+pruefung/tor3_oberflaeche.py:17 | os.environ["BIOTOP_KENNWORT"] = "pruef-" + os.urandom(8).hex()
+pruefung/tor3_oberflaeche.py:18 | anmeldung.benutzer_anlegen(con, "philipp", os.environ["BIOTOP_KENNWORT"])
+pruefung/tor3_oberflaeche.py:20 | env = {**os.environ, "PYTHONPATH": "/root/biotop"}
+pruefung/tor3_oberflaeche.py:65 | st, body, _ = anfrage("POST", "/anmelden", body={"name": "philipp", "kennwort": os.environ["BIOTOP_KENNWORT"]})
+
+== 3. Modellkennungen im Code (anbieter/modell-Muster): Datei:Zeile | Zeile
+biotop/anbieter/__init__.py:136 | # Schnellmodelle mit eingebautem Denken (deepseek/qwen) würden sonst das Token-Budget mit Denk-Token
+biotop/anbieter/__init__.py:139 | if modell.startswith("google/gemini-3"):
+biotop/kern/kasse.py:24 | "openai/gpt-4.1-mini": (0.40, 1.60),
+biotop/kern/kasse.py:25 | "google/gemini-2.5-flash": (0.30, 2.50),
+biotop/kern/kasse.py:26 | "google/gemini-2.5-flash-lite": (0.10, 0.40),
+biotop/kern/kasse.py:27 | "deepseek/deepseek-chat-v3.1": (0.25, 0.95),
+biotop/kern/kasse.py:28 | "qwen/qwen3-coder": (0.30, 1.00),
+biotop/kern/kasse.py:29 | "mistralai/mistral-small-3.2-24b-instruct": (0.09, 0.25),
+biotop/kern/kasse.py:30 | "openai/gpt-4o-mini": (0.15, 0.60),
+biotop/kern/kasse.py:31 | "openai/gpt-5-mini": (0.25, 2.00),
+biotop/kern/kasse.py:32 | "anthropic/claude-haiku-4.5": (1.00, 5.00),
+biotop/kern/kasse.py:35 | "anthropic/claude-sonnet-4.5": (3.00, 15.00),
+biotop/kern/kasse.py:37 | "openai/gpt-5.6-luna": (0.20, 1.20),            # ersetzt gpt-4.1-mini (0.40/1.60)
+biotop/kern/kasse.py:38 | "google/gemini-3.5-flash-lite": (0.30, 2.50),   # ersetzt gemini-2.5-flash (0.30/2.50), gleicher Preis
+biotop/kern/kasse.py:39 | "google/gemini-3.1-flash-lite": (0.25, 1.50),
+biotop/kern/kasse.py:40 | "deepseek/deepseek-v4.1-flash": (0.15, 0.60),   # dritter Hersteller
+biotop/kern/kasse.py:41 | "qwen/qwen3.8-flash": (0.15, 0.47),             # vierter Hersteller
+biotop/kern/kasse.py:42 | "anthropic/claude-sonnet-5": (2.00, 10.00),     # schweres Modell, ersetzt sonnet-4.5 (3.00/15.00)
+biotop/organe/aegis.py:33 | MODELL_ANGRIFF = ("openrouter", "google/gemini-3.5-flash-lite")
+biotop/organe/aegis.py:34 | MODELL_ANGRIFF_SCHWER = ("openrouter", "anthropic/claude-sonnet-5")
+biotop/organe/aufnahme.py:28 | MODELL_ETHIK = ("openrouter", "openai/gpt-5.6-luna")
+biotop/organe/gedaechtnis.py:331 | MUSTER_MODELL = ("openrouter", "openai/gpt-5.6-luna")   # Masse-Modell; ein Aufruf je angenommener Generation
+biotop/organe/jury.py:19 | JUROREN = [("openrouter", "openai/gpt-5.6-luna"), ("openrouter", "google/gemini-3.5-flash-lite"), ("openrouter", "deepseek/deepseek-v4.1-flash")]
+biotop/organe/landkarte.py:25 | MODELL_ZUSAMMENFASSUNG = ("openrouter", "google/gemini-3.1-flash-lite")
+biotop/organe/mentor.py:24 | MODELL = ("openrouter", "anthropic/claude-sonnet-5")  # schwerer Aufruf (Abschnitt 6), zweck-Präfix schwer.
+biotop/organe/nischen.py:12 | openai/gpt-5.6-luna 0.20/1.20 · google/gemini-3.5-flash-lite 0.30/2.50 ·
+biotop/organe/nischen.py:13 | deepseek/deepseek-v4.1-flash 0.15/0.60 · qwen/qwen3.8-flash 0.15/0.47  (USD/Mio)
+biotop/organe/nischen.py:25 | "openai": "openai/gpt-5.6-luna",
+biotop/organe/nischen.py:26 | "google": "google/gemini-3.5-flash-lite",
+biotop/organe/nischen.py:27 | "deepseek": "deepseek/deepseek-v4.1-flash",
+biotop/organe/nischen.py:28 | "qwen": "qwen/qwen3.8-flash",
+
+== 4. Ports, Bindung, Kammer-Abbilder, docker-Aufrufe: Datei:Zeile | Zeile
+biotop/__main__.py:19 | from __future__ import annotations
+biotop/__main__.py:21 | import argparse
+biotop/__main__.py:22 | import json
+biotop/__main__.py:23 | import os
+biotop/__main__.py:24 | from pathlib import Path
+biotop/__main__.py:25 | import sys
+biotop/__main__.py:27 | from . import lauf as L

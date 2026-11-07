@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="21" time="0.170" timestamp="2026-09-20T15:50:00.593655+02:00" hostname="ubuntu"><testcase classname="tests.test_rauschmessung" name="test_rauschmessung_braucht_genau_fuenf_werte[0]" time="0.003" /><testcase classname="tests.test_rauschmessung" name="test_rauschmessung_braucht_genau_fuenf_werte[1]" time="0.002" /><testcase classname="tests.test_rauschmessung" name="test_rauschmessung_braucht_genau_fuenf_werte[2]" time="0.001" /><testcase classname="tests.test_rauschmessung" name="test_rauschmessung_braucht_genau_fuenf_werte[3]" time="0.001" /><testcase classname="tests.test_rauschmessung" name="test_rauschmessung_braucht_genau_fuenf_werte[4]" time="0.001" /><testcase classname="tests.test_rauschmessung" name="test_rauschmessung_braucht_genau_fuenf_werte[6]" time="0.001" /><testcase classname="tests.test_rauschmessung" name="test_ungueltige_rauschwerte_sind_keine_toleranz[0]" time="0.001" /><testcase classname="tests.test_rauschmessung" name="test_ungueltige_rauschwerte_sind_keine_toleranz[-1]" time="0.001" /><testcase classname="tests.test_rauschmessung" name="test_ungueltige_rauschwerte_sind_keine_toleranz[nan]" time="0.002" /><testcase classname="tests.test_rauschmessung" name="test_ungueltige_rauschwerte_sind_keine_toleranz[inf]" time="0.001" /><testcase classname="tests.test_rauschmessung" name="test_ungueltige_rauschwerte_sind_keine_toleranz[-inf]" time="0.001" /><testcase classname="tests.test_rauschmessung" name="test_ungueltige_rauschwerte_sind_keine_toleranz[True]" time="0.001" /><testcase classname="tests.test_rauschmessung" name="test_aussetzer_wird_ungekuerzt_entfernt_und_einmal_ersetzt" time="0.021" /><testcase classname="tests.test_rauschmessung" name="test_gescheitertes_nachmessen_sperrt_den_bereich[9.8765]" time="0.022" /><testcase classname="tests.test_rauschmessung" name="test_gescheitertes_nachmessen_sperrt_den_bereich[None]" time="0.022" /><testcase classname="tests.test_rauschmessung" name="test_urteil_verwendet_gemessene_statt_fester_rauschtoleranz[118.0-1.2-True]" time="0.002" /><testcase classname="tests.test_rauschmessung" name="test_urteil_verwendet_gemessene_statt_fester_rauschtoleranz[118.0-1.15-False]" time="0.001" /><testcase classname="tests.test_rauschmessung" name="test_urteil_verwendet_gemessene_statt_fester_rauschtoleranz[120.0-1.2-True]" time="0.002" /><testcase classname="tests.test_rauschmessung" name="test_urteil_verwendet_gemessene_statt_fester_rauschtoleranz[120.01-1.2-False]" time="0.002" /><testcase classname="tests.test_rauschmessung" name="test_rauschsperre_wirkt_nur_auf_betroffenen_wirkungskreis[wirkungskreis0-True]" time="0.002"><failure message="assert False is True">messung = &lt;function messung.&lt;locals&gt;.bauen at 0x7bbd7edefce0&gt;
+wirkungskreis = ['alpha'], erwartet = True
+
+    @pytest.mark.parametrize("wirkungskreis,erwartet", [(["alpha"], True), (["alpha", "beta"], False)])
+    def test_rauschsperre_wirkt_nur_auf_betroffenen_wirkungskreis(messung, wirkungskreis, erwartet):
+        basis, kandidat = messung(tote_funktionen=1), messung(tote_funktionen=1)
+        kandidat["bereiche"]["alpha"]["tote_funktionen"] = 0
+        kandidat["bereiche"]["beta"]["laufzeit_ms"] = 10000.
+        r = M.urteil_f2(basis, kandidat, basis, ["alpha", "beta"], wirkungskreis,
+                        {"_rauschtoleranz": {"alpha": 1.15}, "_gesperrte_bereiche": ["beta"]})
+&gt;       assert r["ok"] is erwartet
+E       assert False is True
+
+tests/test_rauschmessung.py:68: AssertionError</failure></testcase><testcase classname="tests.test_rauschmessung" name="test_rauschsperre_wirkt_nur_auf_betroffenen_wirkungskreis[wirkungskreis1-False]" time="0.002"><failure message="AssertionError: assert ('gesperrt' in 'Grenzmaß gerissen: beta.laufzeit_ms: 10000.0 &gt; Grenze 200.0 (Ausgang 100.0 × 2.00)')">messung = &lt;function messung.&lt;locals&gt;.bauen at 0x7bbd7ee5c220&gt;
+wirkungskreis = ['alpha', 'beta'], erwartet = False
+
+    @pytest.mark.parametrize("wirkungskreis,erwartet", [(["alpha"], True), (["alpha", "beta"], False)])
+    def test_rauschsperre_wirkt_nur_auf_betroffenen_wirkungskreis(messung, wirkungskreis, erwartet):
+        basis, kandidat = messung(tote_funktionen=1), messung(tote_funktionen=1)
+        kandidat["bereiche"]["alpha"]["tote_funktionen"] = 0
+        kandidat["bereiche"]["beta"]["laufzeit_ms"] = 10000.
+        r = M.urteil_f2(basis, kandidat, basis, ["alpha", "beta"], wirkungskreis,
+                        {"_rauschtoleranz": {"alpha": 1.15}, "_gesperrte_bereiche": ["beta"]})
+        assert r["ok"] is erwartet
+        if not erwartet:
+&gt;           assert "gesperrt" in r["grund"] and "beta" in r["grund"]
+E           AssertionError: assert ('gesperrt' in 'Grenzmaß gerissen: beta.laufzeit_ms: 10000.0 &gt; Grenze 200.0 (Ausgang 100.0 × 2.00)')
+
+tests/test_rauschmessung.py:70: AssertionError</failure></testcase></testsuite></testsuites>

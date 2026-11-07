@@ -1,0 +1,36 @@
+# Lauf 25 — Pfadnachweis für C durch den laufenden Kern (gestellter Gegenstand, echter Pfad)
+# Masterprompt Abschnitt 4.1: Der Unterschied ist nicht „natürlich gegen gestellt“, sondern
+# „durch den laufenden Pfad gegen offline rekonstruiert“.
+
+Vorrat des Bereichs `lager` vor der Prüfung: 19 Behauptungen
+  darunter: reserviert|Eq:zahl, verfuegbar|GtE:zahl, reservierung_einloesen|raises:NichtGenugBestand, reserviert|GtE:name, reserviert|Eq:name, bestand|Eq:zahl …
+
+Zwei Angriffstests werden dem Kandidaten beigegeben:
+  test_rot_wiederholt_vorhandene_behauptung → `reserviert|Eq:zahl` (im Vorrat: True)
+  test_gruen_neue_behauptung → `inventur|Eq:text` (im Vorrat: False)
+
+Kandidat K2680 eingeschleust (ist_probe=1, kommt in kein Gedächtnis).
+
+## Ergebnis des Anklägerlaufs
+  Urteil: abgelehnt — Kernmaß unverändert (-20 → -20); bestandene Tests zählen nicht
+  Angriffstests am Kandidaten bestätigt: []
+  als Norm eingestuft: ['test_gruen_neue_behauptung', 'test_rot_wiederholt_vorhandene_behauptung']
+  Aufnahmesperre im Urteil: {'aufgenommen': [], 'abgewiesen': [{'test': 'test_rot_wiederholt_vorhandene_behauptung', 'behauptung': 'reserviert|Eq:zahl', 'art': 'norm'}]}
+
+## Pfadnachweis
+  Aufrufe von C vor der Prüfung: 1 · nach der Prüfung: 2 → **1 Aufruf(e)**
+  Sperrungen vor: 1 · nach: 2 → **1 Sperrung(en)**
+  ERGEBNIS: C liegt im Aufnahmepfad und wird erreicht: True
+
+  Protokoll #16015: {"behauptung": "reserviert|Eq:zahl", "bereich": "lager", "gegenstueck": "bereits im Vorrat des Bereichs", "kandidat": 2680, "lauf_id": 25, "regel": "Aufnahmesperre C (F7): der Schlüssel des geschriebenen Tests wird vor der Aufnahme gegen den Vorrat geprüft — d
+  Protokoll #16014: {"anzahl": 2, "bereich": "lager", "kandidat": 2680, "lauf_id": 25, "sperrart": "norm", "tests": ["test_gruen_neue_behauptung", "test_rot_wiederholt_vorhandene_behauptung"], "vorrat_groesse": 19, "werk_id": 22}
+  Protokoll #16011: {"behauptung": "reserviert|Eq:zahl", "bereich": "lager", "gegenstueck": "bereits im Vorrat des Bereichs", "kandidat": 2680, "lauf_id": 25, "regel": "Aufnahmesperre C (F7): der Schlüssel des geschriebenen Tests wird vor der Aufnahme gegen den Vorrat geprüft — d
+  Protokoll #16010: {"anzahl": 2, "bereich": "lager", "kandidat": 2680, "lauf_id": 25, "sperrart": "norm", "tests": ["test_gruen_neue_behauptung", "test_rot_wiederholt_vorhandene_behauptung"], "vorrat_groesse": 19, "werk_id": 22}
+
+## Eichfälle (aus dem Immunsystem nachgelesen, nicht aus dem Rückgabewert)
+  ROT   `test_rot_wiederholt_vorhandene_behauptung` (`reserviert|Eq:zahl`, im Vorrat): von C ABGEWIESEN → [{'test': 'test_rot_wiederholt_vorhandene_behauptung', 'behauptung': 'reserviert|Eq:zahl', 'art': 'norm'}]
+  GRÜN  Eintrag `norm_k2680_lager` wurde angelegt: Norm-Test ohne Absturz/Vertragsbezug (3.7 F3), Kandidat 2680 behauptung=inventur|Eq:text
+
+  Hinweis zur Herkunft: Der Rückgabewert `aufnahmesperre.aufgenommen` im Urteil führt nur die Funde;
+  Norm-Einträge werden in einem eigenen Zweig angelegt und erscheinen dort nicht. Die Eichfälle sind
+  deshalb am Immunsystem und am Protokoll `immun.norm` abgelesen, nicht am Rückgabewert.

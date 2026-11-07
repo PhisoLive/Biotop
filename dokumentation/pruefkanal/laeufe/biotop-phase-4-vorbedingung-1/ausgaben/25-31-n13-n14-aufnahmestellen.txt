@@ -1,0 +1,37 @@
+# N13 und N14 — Aufnahmestelle benennen und die zweite Stelle belegen (0 Modellaufrufe)
+
+## N13 — Welche Stelle hat `#16014` geschrieben?
+  #16010: sperrart = **norm** · bereich lager · kandidat 2680 · anzahl 2
+  #16014: sperrart = **norm** · bereich lager · kandidat 2680 · anzahl 2
+
+  C hat zwei Aufrufstellen im Kern (`biotop/organe/aegis.py`):
+    Zeile 621: Aufnahme von **Funden**      → `aufnahmesperre(..., art='fund')`
+    Zeile 654: Aufnahme von **Norm-Tests**  → `aufnahmesperre(..., art='norm')`
+  Das Feld `sperrart` im Protokoll benennt die Stelle eindeutig.
+
+  **ANTWORT: Beide Protokollzeilen tragen `sperrart='norm'` — belegt war nur die NORM-Stelle.**
+  Die Fund-Stelle (Zeile 621) ist damit unbelegt. Der Prüfbefund trifft zu, und er trifft die
+  gefährlichere Stelle: `aegis_k2500_preise`, einer der beiden in Lauf 24 gemessenen Durchrutscher,
+  war ein Fund. N14 ist nötig.
+
+## N14 — Beleg für die Fund-Stelle, mit einer ANDEREN Doppelung
+  Bereich `preise`, Vorrat: 7 Behauptungen — Staffel|GtE:zahl, preis_fuer|GtE:zahl, stueckpreis|GtE:zahl, Staffel|Eq:zahl, preis_fuer|Eq:zahl, runde_cent|Eq:zahl, stueckpreis|raises:ValueError
+  Gewählte Doppelung: `preis_fuer|GtE:zahl` — **eine andere als im ersten Fall** (`reserviert|Eq:zahl`, Bereich lager) und genau die Behauptung, auf der `aegis_k2500_preise` durchrutschte.
+
+  Kandidat ändert `lagerhaus/preise/katalog.py` (reiner Kommentar, keine Laufzeitwirkung);
+  der beigegebene Angriffstest FÄLLT am Kandidaten — nur dann entsteht ein Fund und C wird an
+  der Fund-Stelle erreicht.
+    test_rot2_preis_fuer_wiederholte_behauptung → `preis_fuer|GtE:zahl` (im Vorrat: True)
+    test_gruen2_neue_behauptung_im_fund_zweig → `anzahl|Lt:name` (im Vorrat: False)
+
+  Kandidat K2680 eingeschleust (ist_probe=1).
+
+## Ergebnis
+  Urteil: abgelehnt — Grenzmaß gerissen: bericht.laufzeit_ms: 7.83 > Grenze 7.4 (Ausgang 6.47 × 1.15, ohne Kernmaßgewinn nur Rückfal
+  am Kandidaten bestätigt: ['test_gruen2_neue_behauptung_im_fund_zweig', 'test_rot2_preis_fuer_wiederholte_behauptung']
+  als Norm: []
+  Aufnahmesperre: {'aufgenommen': ['test_gruen2_neue_behauptung_im_fund_zweig'], 'abgewiesen': [{'test': 'test_rot2_preis_fuer_wiederholte_behauptung', 'behauptung': 'preis_fuer|GtE:zahl'}]}
+  Aufrufe von C mit sperrart='fund': 0 → 1
+
+  Protokoll #16027: {"behauptung": "preis_fuer|GtE:zahl", "bereich": "preise", "gegenstueck": "bereits im Vorrat des Bereichs", "kandidat": 2680, "lauf_id": 25, "regel": "Aufnahmesperre C (F7): der Schlüssel des geschriebenen Tests wird vor der Aufnahme gegen den Vorrat geprüft — deterministisch, oh
+  Protokoll #16026: {"anzahl": 2, "bereich": "preise", "kandidat": 2680, "lauf_id": 25, "sperrart": "fund", "tests": ["test_gruen2_neue_behauptung_im_fund_zweig", "test_rot2_preis_fuer_wiederholte_behauptung"], "vorrat_groesse": 7, "werk_id": 22}

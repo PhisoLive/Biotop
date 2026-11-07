@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="0" tests="6" time="6.560" timestamp="2026-09-20T18:33:06.865917+02:00" hostname="ubuntu"><testcase classname="tests.test_messnachweise" name="test_ausgefuehrter_erfolg_und_fehlschlag_bleiben_messbar[1]" time="1.020" /><testcase classname="tests.test_messnachweise" name="test_ausgefuehrter_erfolg_und_fehlschlag_bleiben_messbar[2]" time="1.082" /><testcase classname="tests.test_messnachweise" name="test_teilabbruch_mit_pytest_rc1_bleibt_rot[maxfail]" time="1.057"><failure message="AssertionError: {'bereiche': {'alpha': {'tests_bestanden': 0, 'tests_fehlgeschlagen': 1, 'tests_gesamt': 1, 'sicherheit_punkte': 0, .....uzeit_ms': 20.8, 'baut': True, 'bau_fehler': '', 'tests_ohne_bereich': [], ...}, 'gueltig': True, 'dauer_s': 1.05, ...}&#10;assert True is False">messen_werk = &lt;function messen_werk.&lt;locals&gt;.messen at 0x712b31b9a200&gt;
+art = 'maxfail'
+
+    @pytest.mark.integration
+    @pytest.mark.parametrize("art", ["maxfail", "exit1", "setupfehler", "sammlungsfehler"])
+    def test_teilabbruch_mit_pytest_rc1_bleibt_rot(messen_werk, art):
+        dateien = {}
+        if art == "maxfail":
+            test = GUTER_TEST.replace("wert() == 1", "wert() == 2") + "\ndef test_z_nie():\n    assert True\n"
+            dateien["pytest.ini"] = "[pytest]\naddopts = --maxfail=1\n"
+        elif art == "exit1":
+            test = GUTER_TEST + "\ndef test_z_nie():\n    import pytest\n    pytest.exit('Abbruch', returncode=1)\n"
+        elif art == "setupfehler":
+            test = GUTER_TEST
+            dateien["tests/conftest.py"] = "import pytest\n@pytest.fixture(autouse=True)\ndef kaputt():\n    raise RuntimeError('Setup, Testkoerper nie ausgefuehrt')\n"
+        else:
+            test = GUTER_TEST
+            dateien["pytest.ini"] = "[pytest]\naddopts = --continue-on-collection-errors\n"
+            dateien["tests/test_alpha_kaputt.py"] = "raise RuntimeError('Sammlungsfehler')\n"
+        m, roh = messen_werk(test, dateien)
+        assert "@@PYTEST_RC@@1" in roh["stdout"]
+        assert "&lt;testcase " in roh["stdout"]
+&gt;       assert m["gueltig"] is False, m
+E       AssertionError: {'bereiche': {'alpha': {'tests_bestanden': 0, 'tests_fehlgeschlagen': 1, 'tests_gesamt': 1, 'sicherheit_punkte': 0, .....uzeit_ms': 20.8, 'baut': True, 'bau_fehler': '', 'tests_ohne_bereich': [], ...}, 'gueltig': True, 'dauer_s': 1.05, ...}
+E       assert True is False
+
+tests/test_messnachweise.py:143: AssertionError</failure></testcase><testcase classname="tests.test_messnachweise" name="test_teilabbruch_mit_pytest_rc1_bleibt_rot[exit1]" time="1.317"><failure message="AssertionError: {'bereiche': {'alpha': {'tests_bestanden': 1, 'tests_fehlgeschlagen': 0, 'tests_gesamt': 1, 'sicherheit_punkte': 0, .....uzeit_ms': 20.4, 'baut': True, 'bau_fehler': '', 'tests_ohne_bereich': [], ...}, 'gueltig': True, 'dauer_s': 1.31, ...}&#10;assert True is False">messen_werk = &lt;function messen_werk.&lt;locals&gt;.messen at 0x712b31b99800&gt;
+art = 'exit1'
+
+    @pytest.mark.integration
+    @pytest.mark.parametrize("art", ["maxfail", "exit1", "setupfehler", "sammlungsfehler"])
+    def test_teilabbruch_mit_pytest_rc1_bleibt_rot(messen_werk, art):
+        dateien = {}
+        if art == "maxfail":
+            test = GUTER_TEST.replace("wert() == 1", "wert() == 2") + "\ndef test_z_nie():\n    assert True\n"
+            dateien["pytest.ini"] = "[pytest]\naddopts = --maxfail=1\n"
+        elif art == "exit1":
+            test = GUTER_TEST + "\ndef test_z_nie():\n    import pytest\n    pytest.exit('Abbruch', returncode=1)\n"
+        elif art == "setupfehler":
+            test = GUTER_TEST
+            dateien["tests/conftest.py"] = "import pytest\n@pytest.fixture(autouse=True)\ndef kaputt():\n    raise RuntimeError('Setup, Testkoerper nie ausgefuehrt')\n"
+        else:
+            test = GUTER_TEST
+            dateien["pytest.ini"] = "[pytest]\naddopts = --continue-on-collection-errors\n"
+            dateien["tests/test_alpha_kaputt.py"] = "raise RuntimeError('Sammlungsfehler')\n"
+        m, roh = messen_werk(test, dateien)
+        assert "@@PYTEST_RC@@1" in roh["stdout"]
+        assert "&lt;testcase " in roh["stdout"]
+&gt;       assert m["gueltig"] is False, m
+E       AssertionError: {'bereiche': {'alpha': {'tests_bestanden': 1, 'tests_fehlgeschlagen': 0, 'tests_gesamt': 1, 'sicherheit_punkte': 0, .....uzeit_ms': 20.4, 'baut': True, 'bau_fehler': '', 'tests_ohne_bereich': [], ...}, 'gueltig': True, 'dauer_s': 1.31, ...}
+E       assert True is False
+
+tests/test_messnachweise.py:143: AssertionError</failure></testcase><testcase classname="tests.test_messnachweise" name="test_teilabbruch_mit_pytest_rc1_bleibt_rot[setupfehler]" time="1.000"><failure message="AssertionError: {'bereiche': {'alpha': {'tests_bestanden': 0, 'tests_fehlgeschlagen': 1, 'tests_gesamt': 1, 'sicherheit_punkte': 0, .....uzeit_ms': 18.9, 'baut': True, 'bau_fehler': '', 'tests_ohne_bereich': [], ...}, 'gueltig': True, 'dauer_s': 0.99, ...}&#10;assert True is False">messen_werk = &lt;function messen_werk.&lt;locals&gt;.messen at 0x712b31b9ac00&gt;
+art = 'setupfehler'
+
+    @pytest.mark.integration
+    @pytest.mark.parametrize("art", ["maxfail", "exit1", "setupfehler", "sammlungsfehler"])
+    def test_teilabbruch_mit_pytest_rc1_bleibt_rot(messen_werk, art):
+        dateien = {}
+        if art == "maxfail":
+            test = GUTER_TEST.replace("wert() == 1", "wert() == 2") + "\ndef test_z_nie():\n    assert True\n"
+            dateien["pytest.ini"] = "[pytest]\naddopts = --maxfail=1\n"
+        elif art == "exit1":
+            test = GUTER_TEST + "\ndef test_z_nie():\n    import pytest\n    pytest.exit('Abbruch', returncode=1)\n"
+        elif art == "setupfehler":
+            test = GUTER_TEST
+            dateien["tests/conftest.py"] = "import pytest\n@pytest.fixture(autouse=True)\ndef kaputt():\n    raise RuntimeError('Setup, Testkoerper nie ausgefuehrt')\n"
+        else:
+            test = GUTER_TEST
+            dateien["pytest.ini"] = "[pytest]\naddopts = --continue-on-collection-errors\n"
+            dateien["tests/test_alpha_kaputt.py"] = "raise RuntimeError('Sammlungsfehler')\n"
+        m, roh = messen_werk(test, dateien)
+        assert "@@PYTEST_RC@@1" in roh["stdout"]
+        assert "&lt;testcase " in roh["stdout"]
+&gt;       assert m["gueltig"] is False, m
+E       AssertionError: {'bereiche': {'alpha': {'tests_bestanden': 0, 'tests_fehlgeschlagen': 1, 'tests_gesamt': 1, 'sicherheit_punkte': 0, .....uzeit_ms': 18.9, 'baut': True, 'bau_fehler': '', 'tests_ohne_bereich': [], ...}, 'gueltig': True, 'dauer_s': 0.99, ...}
+E       assert True is False
+
+tests/test_messnachweise.py:143: AssertionError</failure></testcase><testcase classname="tests.test_messnachweise" name="test_teilabbruch_mit_pytest_rc1_bleibt_rot[sammlungsfehler]" time="0.991"><failure message="AssertionError: {'bereiche': {'alpha': {'tests_bestanden': 1, 'tests_fehlgeschlagen': 0, 'tests_gesamt': 1, 'sicherheit_punkte': 0, .....uzeit_ms': 18.9, 'baut': True, 'bau_fehler': '', 'tests_ohne_bereich': [], ...}, 'gueltig': True, 'dauer_s': 0.98, ...}&#10;assert True is False">messen_werk = &lt;function messen_werk.&lt;locals&gt;.messen at 0x712b31b9b2e0&gt;
+art = 'sammlungsfehler'
+
+    @pytest.mark.integration
+    @pytest.mark.parametrize("art", ["maxfail", "exit1", "setupfehler", "sammlungsfehler"])
+    def test_teilabbruch_mit_pytest_rc1_bleibt_rot(messen_werk, art):
+        dateien = {}
+        if art == "maxfail":
+            test = GUTER_TEST.replace("wert() == 1", "wert() == 2") + "\ndef test_z_nie():\n    assert True\n"
+            dateien["pytest.ini"] = "[pytest]\naddopts = --maxfail=1\n"
+        elif art == "exit1":
+            test = GUTER_TEST + "\ndef test_z_nie():\n    import pytest\n    pytest.exit('Abbruch', returncode=1)\n"
+        elif art == "setupfehler":
+            test = GUTER_TEST
+            dateien["tests/conftest.py"] = "import pytest\n@pytest.fixture(autouse=True)\ndef kaputt():\n    raise RuntimeError('Setup, Testkoerper nie ausgefuehrt')\n"
+        else:
+            test = GUTER_TEST
+            dateien["pytest.ini"] = "[pytest]\naddopts = --continue-on-collection-errors\n"
+            dateien["tests/test_alpha_kaputt.py"] = "raise RuntimeError('Sammlungsfehler')\n"
+        m, roh = messen_werk(test, dateien)
+        assert "@@PYTEST_RC@@1" in roh["stdout"]
+        assert "&lt;testcase " in roh["stdout"]
+&gt;       assert m["gueltig"] is False, m
+E       AssertionError: {'bereiche': {'alpha': {'tests_bestanden': 1, 'tests_fehlgeschlagen': 0, 'tests_gesamt': 1, 'sicherheit_punkte': 0, .....uzeit_ms': 18.9, 'baut': True, 'bau_fehler': '', 'tests_ohne_bereich': [], ...}, 'gueltig': True, 'dauer_s': 0.98, ...}
+E       assert True is False
+
+tests/test_messnachweise.py:143: AssertionError</failure></testcase></testsuite></testsuites>

@@ -1,0 +1,291 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 94 (Teile 4–165 dieses Stands) · enthält R123 bis R123
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+[R123 · Fortsetzung, Stück 3 von 3]
+        s += ['', '*abgelesen* (OpenRouter), *gerechnet* (Kasse, Differenz = OpenRouter − Kasse). Mögliche Ursachen '
+              '(Auslegung Hermes, nicht geprüft): (1) derselbe Schlüssel wird außerhalb der Biotop-Kasse genutzt '
+              '(Hermes-Verdichtung seit 25.09. 01:10 laut Teilauftrag, andere Vorhaben); (2) die Kasse rechnet Kosten '
+              'aus Token und eigener Preistabelle (Stand 18.09.) mit festem Kurs, nicht aus der Abrechnung. Die '
+              'Aufteilung ist UNBEKANNT, weil die Anzeige keine Einzelposten führt.']
+        B.luecke('Differenz Kasse ↔ OpenRouter nicht einzeln erklärt', 'Nutzungsanzeige ohne Einzelposten; derselbe '
+                 'Schlüssel außerhalb des Biotops genutzt', 'Einzelaufrufe bei OpenRouter abrufen (Aktivitätsliste) oder '
+                 'getrennte Schlüssel je Vorhaben', 'Hermes (Abfrage) oder Philipp (Konto)')
+    # A7 Tagesbilanz
+    s += ['', '### Abgleich 7 — Tagesbilanz 18.09.2026 bis Stich', '']
+    tage = []
+    d0 = AB18
+    while d0 <= stich:
+        tage.append(d0)
+        d0 = d0 + dt.timedelta(days=1)
+    tb = []
+    for d0 in tage:
+        d1 = d0 + dt.timedelta(days=1)
+        ende = min(d1, stich)
+        tg = tag(d0)
+
+        def ab_n(pred):
+            if d0 > v_mtime:
+                return 'NICHT ABGEDECKT'
+            n = sum(1 for e in bio if d0 <= e['dt'] < ende and pred(e))
+            return f'{n} (bis {z(v_mtime)[11:16]})' if v_mtime < ende else str(n)
+        l_beg = sum(1 for l in L1 if l['beginn'] and d0 <= l['beginn'] < ende)
+        l_prot = len({(l_['schluessel']) for l_ in L1 for p in prot_je_lauf.get(l_['key'], [])
+                      if p[1] == 'lauf.angelegt' and p[0] and d0 <= p[0] < ende})
+        l_buch = len({e['lauf'] for e in kasse.values() if e['zeit'] and d0 <= e['zeit'] < ende})
+        cm = sum(1 for c in commits if d0 <= c['zeit'] < ende)
+        af_n = sum(1 for f in af_sha.values() if d0 <= f['mtime'] < ende)
+        orv = [o for o in ors if tag(zeit(o['zeit']).astimezone(UTC)) == tg] if ors else []
+        tb.append([tg, ab_n(lambda e: e['absender'] == 'Philipp' and e['art'] == 'Auftrag'),
+                   ab_n(lambda e: e['absender'] == 'Philipp' and e['art'] == 'Anweisung'),
+                   ab_n(lambda e: e['absender'] == 'Philipp' and e['art'] == 'Frage'),
+                   ab_n(lambda e: e['absender'] == 'Hermes→Subagent'), af_n, l_beg, l_prot, l_buch,
+                   ab_n(lambda e: e['absender'] == 'Hermes'), ab_n(lambda e: e['absender'] == 'Subagent'),
+                   ab_n(lambda e: e['absender'].startswith('System')), cm, eur(k_tag.get(tg, 0.0)),
+                   (f'{orv[-1]["key_usage_daily"]:.4f} USD (UTC-Tag bis {z(zeit(orv[-1]["zeit"]))[11:16]})'
+                    if orv else 'NICHT ABGEDECKT')])
+    s += tabelle(['Tag', 'Auftrag Ph.', 'Anweisung Ph.', 'Frage Ph.', 'Auftrag H→S', 'Auftragsdateien (mtime)',
+                  'Läufe begonnen (Kasse)', 'lauf.angelegt (Protokoll)', 'Läufe mit Buchung (Kasse)',
+                  'Meldungen Hermes', 'Berichte Subagent', 'Systemmeldungen', 'Commits (git)', 'Kosten € (Kasse)',
+                  'OpenRouter'], tb)
+    s += ['', 'Quellen je Spalte: Nachrichtenverzeichnis (Ph. = Philipp, H→S = Hermes an Subagent, Meldungen, Berichte, '
+          'System; nur Biotop ja), Auftragsdateien aus I4 (eindeutige Inhalte nach frühester mtime; zeigt nur die '
+          'letzte Änderung), Kasse (entdoppelt), Protokoll (entdoppelt), git (Commit-Zeit), OpenRouter (nur '
+          'Abfragetag). 0 heißt: die Quelle führt den Tag und zählt nichts; „bis hh:mm“: Quelle endet am Tag. '
+          f'Tage gelten in CEST, der letzte endet mit dem Stich {z(stich)}. *gerechnet*']
+    if abeginn:
+        nb = sum(1 for e in bio if e['dt'] >= abeginn)
+        s.append(f'- Davon ab Beginn BIOTOP-LAGE-01 ({z(abeginn)}): {nb} Biotop-Nachrichten (Arbeit an diesem '
+                 'Auftrag und am Bau S1c). *gerechnet*')
+    # A8
+    s += ['', '### Abgleich 8 — Nummernkreise: Kassen-Kennung ↔ Laufnummer ↔ Ordnername', '']
+    s += tabelle(['Lauf (Kennung dieses Inventars)', 'Kassen-id je Zweig', 'Beginn (UTC, Kasse)', 'Ordnername'],
+                 [[l['schluessel'], ' '.join(f'{k}{l["nr"]}' for k in l['zweige']), laeufe[l['key']]['beginn_roh'],
+                   l['ort'] or 'NICHT GEFUNDEN'] for l in L1 if alle_nr[l['nr']] > 1 or not l['ort']])
+    s += ['', f'Nur Läufe mit mehrfach vergebener Nummer oder ohne Ordner; alle übrigen {sum(1 for l in L1 if alle_nr[l["nr"]] == 1 and l["ort"])} '
+          'Läufe haben eine eindeutige Nummer — ihre Zuordnung steht in I1. Weitere Nummernkreise: „Lauf 3“ des '
+          'Masterprompts v2 ist Kassen-Lauf 9 (Bericht `biotop-phase-1-nachlauf`, R30); Ordner der Behebungsrunden '
+          '`biotop-vor-t4*` gehören zu Aufträgen ohne Lauf.']
+    # A9
+    s += ['', '### Abgleich 9 — Gegenprobe', ''] + gp
+    B.ab('10. Abgleiche 1–9', s)
+
+    # ---- 11. Lückenvorschläge, Widersprüche
+    s = ['Mechanisch aus den Abgleichen; Kennung LV-I-nn nur für diesen Entwurf (die Lückenliste LU.. vergibt Hermes).',
+         '']
+    s += tabelle(['Kennung', 'was fehlt', 'warum', 'was es schließt', 'wer'],
+                 [[f'LV-I-{i:02d}', *x] for i, x in enumerate(B.lv, 1)])
+    s += ['', '**Widersprüche zwischen Quellen (beide Belege):**', '']
+    s += tabelle(['Nr', 'Widerspruch', 'Beleg 1', 'Beleg 2'], [[i, *x] for i, x in enumerate(B.wid, 1)]) \
+        if B.wid else ['keine gefunden.']
+    B.ab('11. Lückenvorschläge und Widersprüche', s)
+
+    # =========================================================================================== LISTEN
+    li = {}
+    li['1. Laufnummern'] = [f'{l["schluessel"]} | Nr {l["nr"]} | Zweige {l["zweige"]} | Beginn {z(l["beginn"])} | '
+                            f'Ende {z(l["ende"])} | Status {l["status"]} | Werk {l["werk"]} | Ergebnisort '
+                            f'{l["ort"] or "NICHT GEFUNDEN"} ({l["ort_art"]})' for l in L1]
+    li['2. Ordner im Prüfkanal'] = [f'{{LAEUFE}}/{o["name"]}/ | Dateien {o["dateien"]} | {z(o["aelteste"])} – '
+                                    f'{z(o["juengste"])} | Läufe genannt {",".join(map(str, sorted(o["laeufe_genannt"]))) or "—"} | '
+                                    f'{o["zuordnung"]}' for o in ordner]
+    li['3. Nachrichtenverzeichnis (ohne Inhalt)'] = [
+        f'{e["zeit"]} | id {e["id"]} | {e["absender"]} | {e["art"]} | Biotop {e["biotop"]} | {e["sitzung"]}'
+        + (f' | Status {e["status"]}' if e.get('status') else '') for e in nach_stich]
+    li['4. Commits seit 18.09.'] = [f'{c["hash"][:12]} | {z(c["zeit"])} | {c["autor"]} | {c["nachricht"]} | '
+                                    f'{c.get("zuo", "")}' for c in commits]
+    li['5. Geänderte Dateien unter /root/biotop seit 21.09.'] = (
+        [f'{z(e["mtime"])} | {e["bytes"]} | {e["pfad"]} | {e["zuo"]}' for e in geaendert] +
+        [f'NACH DEM STICH: {z(e["mtime"])} | {e["bytes"]} | {e["pfad"]}' for e in nach_stich_geaendert] +
+        ([f'git status (von Hermes): {x}' for x in gstatus] if gstatus else []))
+    li['6. Fassungen und Auftragsdateien (alle Fundorte)'] = [
+        f'{f["sha"]} | {f["typ"]} | {z(f["mtime"])} | {f["bytes"]} | {fn(f["pfad"])}'
+        for f in sorted(i4, key=lambda x: (x['sha'], str(x['pfad'])))]
+
+    # =========================================================================================== KASSE
+    kt = []
+    kopf_l = ['lauf', 'nr', 'zweige', 'begonnen_am', 'beendet_am', 'status', 'werk', 'budget_eur', 'buchungen',
+              'kosten_eur', 'erste_buchung', 'letzte_buchung']
+    kt.append(('laeufe', kopf_l, [[l['schluessel'], l['nr'], l['zweige'], laeufe[l['key']]['beginn_roh'],
+                                   laeufe[l['key']]['varianten'][l['herkunft']]['ende'] or '', l['status'], l['werk'] or '',
+                                   zahl(l['budget']), l['buchungen'], f'{l["kosten"]:.6f}',
+                                   l['erste'].astimezone(UTC).isoformat() if l['erste'] else '',
+                                   l['letzte'].astimezone(UTC).isoformat() if l['letzte'] else ''] for l in L1]))
+    sp = next((Z[n]['kasse_sp'] for n in namen_z if Z[n].get('kasse_sp')), [])
+    lk = {l['key']: l['schluessel'] for l in L1}
+    kt.append(('kasse', ['lauf', 'zweige'] + sp,
+               [[lk.get(e['lauf'], ''), ''.join(e['zweige'])] + [zahl(e['row'][c]) for c in sp]
+                for e in sorted(kasse.values(), key=lambda x: (x['row']['zeit'] or '', x['row']['id']))]))
+    esp = next((Z[n]['eich_sp'] for n in namen_z if Z[n].get('eich_sp')), [])
+    kt.append(('eichkosten', ['zweig'] + esp, [[n] + [zahl(d[c]) for c in esp] for n, d in eich.values()]))
+
+    # =========================================================================================== Schreiben
+    dateien = schreibe_md(aus, kopf, B.abschnitte, K, L)
+    dateien += schreibe_csv(aus, kt, K, L)
+    dateien += schreibe_listen(aus, li, K, L)
+    for name, kz, pfad in ZWEIGE:
+        if Z[name].get('wal_nachher') != Z[name]['wal_vorher']:
+            print(f'HINWEIS: -wal {name} vorher {Z[name]["wal_vorher"]} nachher {Z[name].get("wal_nachher")}')
+    print(f'Stichzeitpunkt {z(stich)} CEST; Lesebeginn {z(beginn)} CEST')
+    print(f'I1 {len(L1)} Läufe · Kasse {len(kasse)} Buchungen · I2 {len(nach_stich)} Nachrichten (Biotop {len(bio)}) · '
+          f'I3 {len(ordner)} Ordner · I4 {len(i4)} Fundorte · I5 {len(werke)} Werke · I6 {len(commits)} Commits, '
+          f'{len(geaendert)} Dateien · I7 {len(gd)} Dateien')
+    print(f'Abgleich 1: offen {sorted(offen_l | offen_o) or "keine"}')
+    print('\n'.join(gp))
+    print(f'Lückenvorschläge {len(B.lv)} · Widersprüche {len(B.wid)}')
+    for d in dateien:
+        print(f'{d.name} {d.stat().st_size} Bytes sha256 {sha_datei(d)}')
+    print(f'Laufzeit {time.time() - T0:.1f} s')
+
+
+# ----------------------------------------------------------------------------------------------- Schreiben
+def saeubern(t, K, L):
+    t = t.replace(str(L), '{LAEUFE}').replace(K, '<schlüssel>')
+    for name, m in geheimnis.MUSTER.items():
+        t = re.sub(m, f'[GESCHWÄRZT: {name}]', t)
+    return t
+
+
+def exklusiv(p, text):
+    with open(p, 'x', encoding='utf-8') as f:
+        f.write(text)
+    return p
+
+
+def schreibe(aus, name, text, K, L):
+    return exklusiv(aus / name, saeubern(text, K, L))
+
+
+def schreibe_md(aus, kopf, abschnitte, K, L):
+    bloecke = []
+    for titel, zeilen in abschnitte:
+        teil, cur = [], [f'## {titel}', '']
+        for x in zeilen:
+            x = saeubern(x, K, L)
+            if len('\n'.join(cur + [x]).encode()) > MAX_MD - 2500:
+                teil.append(cur)
+                cur = [f'## {titel} (Fortsetzung)', '']
+                if x.startswith('|') and not x.startswith('|---'):
+                    kz = next((c for c in reversed(teil[-1]) if c.startswith('|---')), None)
+                    ki = teil[-1].index(kz) if kz else None
+                    if ki:
+                        cur += [teil[-1][ki - 1], kz]
+            cur.append(x)
+        teil.append(cur)
+        bloecke += ['\n'.join(b) + '\n' for b in teil]
+    k = saeubern('\n'.join(kopf) + '\n', K, L)
+    teile, cur = [], k
+    for b in bloecke:
+        if len((cur + '\n' + b).encode()) > MAX_MD - 400:
+            teile.append(cur)
+            cur = ''
+        cur = (cur + '\n' + b) if cur else b
+    teile.append(cur)
+    if len(teile) == 1:
+        return [exklusiv(aus / 'INVENTAR.md', teile[0])]
+    out = []
+    for i, t in enumerate(teile, 1):
+        vor = f'> INVENTAR Teil {i} von {len(teile)} (INVENTAR-TEIL1.md … INVENTAR-TEIL{len(teile)}.md)\n\n'
+        out.append(exklusiv(aus / f'INVENTAR-TEIL{i}.md', vor + t))
+    return out
+
+
+def schreibe_csv(aus, tabellen, K, L):
+    out, n = [], 0
+    for name, kopf, zeilen in tabellen:
+        buf = io.StringIO()
+        csv.writer(buf, delimiter=';', lineterminator='\n').writerow(kopf)
+        kopfz = buf.getvalue()
+        cur = kopfz
+        for r in zeilen:
+            b = io.StringIO()
+            csv.writer(b, delimiter=';', lineterminator='\n').writerow([saeubern(str(x), K, L) for x in r])
+            zl = b.getvalue()
+            if len((cur + zl).encode()) > MAX_ROH:
+                n += 1
+                out.append(exklusiv(aus / f'KASSE-TEIL{n}.csv', cur))
+                cur = kopfz
+            cur += zl
+        n += 1
+        out.append(exklusiv(aus / f'KASSE-TEIL{n}.csv', cur))
+    return out
+
+
+def schreibe_listen(aus, li, K, L):
+    out, n, cur = [], 0, ''
+    for titel, zeilen in li.items():
+        kopf = f'== {titel} ({len(zeilen)} Einträge)\n'
+        if len((cur + kopf).encode()) > MAX_ROH - 200:
+            n += 1
+            out.append(exklusiv(aus / f'LISTEN-TEIL{n}.txt', cur))
+            cur = ''
+        cur += kopf
+        for x in zeilen:
+            x = saeubern(x, K, L) + '\n'
+            if len((cur + x).encode()) > MAX_ROH:
+                n += 1
+                out.append(exklusiv(aus / f'LISTEN-TEIL{n}.txt', cur))
+                cur = f'== {titel} (Fortsetzung)\n'
+            cur += x
+    n += 1
+    out.append(exklusiv(aus / f'LISTEN-TEIL{n}.txt', cur))
+    return out
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except FileExistsError as e:
+        print(f'ABBRUCH: Ausgabedatei besteht schon (nie überschreiben): {e}')
+        sys.exit(4)
+--- Ende /root/sicherung/biotop-lage-01/entwurf/inventar/inventar.py ---
+Ausgabe (vollständig, stdout und stderr):
+Stichzeitpunkt 2026-09-25 17:28:42 CEST; Lesebeginn 2026-09-25 17:28:42 CEST
+I1 40 Läufe · Kasse 6919 Buchungen · I2 1415 Nachrichten (Biotop 1400) · I3 20 Ordner · I4 147 Fundorte · I5 24 Werke · I6 75 Commits, 202 Dateien · I7 5 Dateien
+Abgleich 1: offen keine
+- Kopie der Inventare im Speicher: I1 40 → 41 Läufe (+ `ERFUNDEN/999`, Beginn 2026-09-22 12:00:00 CEST), I3 20 → 21 Ordner (+ `laeufe/biotop-erfunden-99/`, 3 Dateien). *gerechnet*
+- Abgleich 1 am Original: unzugeordnet 0 Läufe, 0 Ordner: keine.
+- Abgleich 1 an der Kopie: unzugeordnet 1 Läufe, 1 Ordner: ['ERFUNDEN/999', 'biotop-erfunden-99'].
+- Neu unzugeordnet (Kopie − Original): ['ERFUNDEN/999', 'biotop-erfunden-99']; weggefallen (Original − Kopie): keine.
+- **Gegenprobe angeschlagen: ja** — Bedingung: neu unzugeordnet sind genau ['ERFUNDEN/999', 'biotop-erfunden-99'] und nichts fällt weg. Genau diese beiden und sonst nichts unzugeordnet: ja.
+- Regel: Zuordnung nur mit Beleg (Nennung im Ordnertext, Zweig-Arbeitsordner, Chronikzeile, Nennung des Ordnernamens in einer Biotop-Nachricht bis 2026-09-25 14:44:20 CEST oder in einer Auftragsdatei); der eigene Ordner `biotop-lage-01` zählt nicht als Beleg.
+Lückenvorschläge 5 · Widersprüche 1
+INVENTAR-TEIL1.md 20952 Bytes sha256 2594984c159796b18168e8d7c5012297c01098bc8d106e218e825b65347d8c4b
+INVENTAR-TEIL2.md 32091 Bytes sha256 0e9fdf5a14979250bcf188006b0a043ace24722d600e512b12fe5ed5b07e898e
+INVENTAR-TEIL3.md 1839 Bytes sha256 7eb13a2425ecfe310b55e36f903d598d13093f6b5f49bf86302650c1b8db4065
+KASSE-TEIL1.csv 6650 Bytes sha256 eb7b1ff4071eff9ba9f19a62b41a20e4b4e678c3cb6758d0f14218841a161a5c
+KASSE-TEIL2.csv 37902 Bytes sha256 1d25fe4b5fb5de6aa0a30cf0ec49775121ec7af471a4596c85fbb123315bd411
+KASSE-TEIL3.csv 37960 Bytes sha256 dddd7b248a9ef0c0e0e734b1e1eb68ece9e5ce57ebe4f7ab617dae19592dd3ff
+KASSE-TEIL4.csv 37862 Bytes sha256 a3f437725b892843a5c43d268788ac65e96a43c61ca4fb0377746e32f7c2cfcc
+KASSE-TEIL5.csv 37885 Bytes sha256 92bf6c66c15b2d345a93952add516080f4fa5f79eaf432a89e1aa54228566248
+KASSE-TEIL6.csv 37997 Bytes sha256 d0a98e95d38ac3b7703c33bdf729146bb3072c94244efd95e38c972cb7a61c0e
+KASSE-TEIL7.csv 37971 Bytes sha256 41a9a996cb9e01aaf18596c876a8710274f5b5082c2a52b658aaab5f917b9e8e
+KASSE-TEIL8.csv 37885 Bytes sha256 2024c1e0d40bc80c5bacd093dc56dd6d4fa8e66d1f4e7536f24c6fc17edb16e7
+KASSE-TEIL9.csv 37881 Bytes sha256 285fe035150f607137c162a7121519a4e6e9b89094f0cbc0f285a6c3db7f8643
+KASSE-TEIL10.csv 37878 Bytes sha256 e9a248b58cec15cabef88a6e5dcfb749348313e84c09ac75917c0faccf157958
+KASSE-TEIL11.csv 37849 Bytes sha256 9fa526375ecaa89bce061e85e4163528ba083266e9ede75088ebe89cb7732cad
+KASSE-TEIL12.csv 37882 Bytes sha256 0ed268295ef524e10215f6e8723b604870ba727e7b2ab488521eab52f97f9972
+KASSE-TEIL13.csv 37936 Bytes sha256 797967b0d52868e51df2ce882a1c95bb07fe5bd1045780fe1cb45c3e92d2db4e
+KASSE-TEIL14.csv 37932 Bytes sha256 e8117b99321939fcd918d9eb20a6e4159316ad6e6411b5650c2c7737982605a9
+KASSE-TEIL15.csv 37869 Bytes sha256 bead2e6fa678cd85496ac5acf1364f4c17f377dc06b3b80cb532ea30d5cbff82
+KASSE-TEIL16.csv 37864 Bytes sha256 854649fd5433ce523c87a69fb4be8bc9ee3db4d837abc8fc5807a3a8ed238008
+KASSE-TEIL17.csv 37876 Bytes sha256 f45fae82749ad90d0be6bffe63d636aba8aec2530f4a9bf9088dbebb53e6aa35
+KASSE-TEIL18.csv 37923 Bytes sha256 c4ca4fed7b7f236bd8b5a1d4c8eae02b18cb8d18e736af96f2d9d723d6e70800
+KASSE-TEIL19.csv 37993 Bytes sha256 d7a7b53001f87e9704bd33a899f72252d581aa23acd7cbce97625413e658fd73
+KASSE-TEIL20.csv 37999 Bytes sha256 752b42a52f1ff55ee184d6397532165bbf5b08f3be8d3f7d93d8c9d5a5bc9967
+KASSE-TEIL21.csv 37872 Bytes sha256 331e14012a582e0cff30b692246f43d18ca8b90e2b32a0b48c37d8206f5cc548
+KASSE-TEIL22.csv 37880 Bytes sha256 22bdbf69b4b07f365195344ddc841f4f9ad24c13ee786099ba7ae1ca1d900f76
+KASSE-TEIL23.csv 37999 Bytes sha256 b51f4b3cd8c4e0e2fbde8edd28a01b2a48d726c83081fa2822a2555a3809f2c6
+KASSE-TEIL24.csv 37975 Bytes sha256 d2ee7c12b53b2b538104c5af18c4d897606cf428dbf0902b6f856878a0b7cd8f
+KASSE-TEIL25.csv 37882 Bytes sha256 47da48c32bacc437140e0e5d3ee6f46fddf327a3d5c9a959b98e5910f74537c5
+KASSE-TEIL26.csv 37933 Bytes sha256 e2ff772034d151b8b7c3320cdb7c444e3402a2017070b1395a4e41c35e44629b
+KASSE-TEIL27.csv 36373 Bytes sha256 4b1a653ccb4138e426a9ddc4e6b1f72f484eb983b9a1db0967935c3f6bc88f74
+KASSE-TEIL28.csv 10514 Bytes sha256 51b95d28f7b031df948005fb6c98c6dacb2fc73e91558cf74316f69d007fa815
+LISTEN-TEIL1.txt 38000 Bytes sha256 17aab3bad49f307dcbc2b86a6bfaee891ceb4073a8ffccdea2506c605f8f2ada
+LISTEN-TEIL2.txt 37944 Bytes sha256 1aa5fdd46f5de7b3f9849e91b6292cd7cdacbb50bf62d9b6954debc6cd92cbca
+LISTEN-TEIL3.txt 37923 Bytes sha256 bd99a88523a510d4a68b800b73749dc6801734f30be9601bf6629d4a2e4faac0
+LISTEN-TEIL4.txt 37933 Bytes sha256 5bff39a6d8d83bcd9f10994517da4bb21421d9335dcf7a9b10d10f39b7084fe0
+LISTEN-TEIL5.txt 37896 Bytes sha256 a08f5b049ef1d79b370ecd981277dd3dfd632af9528c27de639b88d98948a45e
+LISTEN-TEIL6.txt 24536 Bytes sha256 f392dc5fab35f91c3454da36931c86e0faf0fba0bd42707a9ea0060c810dfe60
+Laufzeit 8.3 s
+=== Ende R123 ===

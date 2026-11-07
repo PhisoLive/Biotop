@@ -1,0 +1,9 @@
+Skill 'biotop-phase-bauen' (software-development) is user-owned, not curator-managed: autonomous patches are refused. Lessons from Biotop sessions can only be written after `hermes curator adopt biotop-phase-bauen` — offer that before spending a review pass on patches.
+§
+Dauerhaftes fachliches Gedächtnis (V19) liegt im Prüfkanal: https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/gedaechtnis/ — nummerierte STAND-, REGELN-, UNTERBAU-Dateien plus Manifeste; kein Obsidian-Tresor. Nur HERMES-1 schreibt, HERMES-2/3 lesen. V17: eine Sitzung, ein Auftrag; Abschlussordner vor bewusstem Reset.
+§
+Wird ein Befehl von der Ausführungsschicht gestoppt, gilt: Meldung wörtlich zitieren, Quelle benennen (abgelaufene Befehlsfreigabe / Policy-Filter / Modellablehnung) und danach handeln — Freigabe neu anfordern, bei Filter oder Ablehnung anhalten und den Nutzer entscheiden lassen. Nie umformulieren, nie auf ein anderes Modell oder einen Umweg ausweichen; nur ein nachweislich auslösendes Aufrufmuster darf durch eine äquivalente schlichte Form ersetzt werden.
+§
+Freigaberegel (Philipp, verbindlich): Eine abgelehnte oder abgelaufene Befehlsfreigabe wird NIE umgangen — nicht durch Umformulieren, nicht durch einen anderen Befehl, nicht über einen anderen Weg. Entweder neu anfordern oder mit Meldung der wörtlichen Blockmeldung anhalten. Freigaberegeln setzt ausschließlich Philipp. Gegenbeispiel aus der Praxis: PYTHONPATH= durch cd ersetzen beseitigt nur das erkannte Muster, nicht das Risiko.
+§
+Prüfkanal-Lieferung an Philipp: Verzeichnisse sind nicht abrufbar — jede Abholadresse als vollständige Datei-URL in eigener Zeile schicken (…/uebernahme-01/DATEIEN.txt). Bei langen autonomen Läufen keine Zwischenmeldungen, nur die Endmeldung; Ausnahmen Budgetstopp, Kernfehler, Sitzungsende — dann Zwischenbericht in den Prüfkanal, aus dem eine frische Sitzung ohne Vorgeschichte übernehmen kann.

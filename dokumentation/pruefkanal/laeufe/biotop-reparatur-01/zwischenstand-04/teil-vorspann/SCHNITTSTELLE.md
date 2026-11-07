@@ -1,0 +1,15 @@
+# Vorspann: Integrationsschnittstelle
+
+Stand: Gate/CLI fertig; vollständige Eigen-Suite 70 passed (Rohdaten 32-abschluss), nochmals 70 passed nach echter Patchanwendung (33-patch-anwendung). Kein echter Modell-/Eichkampagnenlauf durch diesen Teilagenten.
+
+- EIN Kernpfad: `biotop.organe.vorspann.ausfuehren(con, lauf_id)`; `python -m biotop vorspann <lauf>` und `pruefung/vorspann.py <ausgaben-dir> <lauf>` nutzen denselben Kernpfad.
+- Reihenfolge: frischer Lauf + Werk/Verfassung/Karte/Verträge → Vorspann (Proben `generation=-1`, ohne `mass`/Generation-0-Zeile) → `gen0` → `mass` → `generation`.
+- Ergebnis von eichproben.proben: Positionsparameter unverändert; exakt vier Schlüsselnamen `nebenwirkung, regression, norm, vertrag` in `proben` und `gegenproben`; JEWEILS `ausgefuehrt is True`, `pruefbar is True`, positive `bestanden is True`, negative `bestanden is False`; `bestanden is True` gesamt. `gegenstand` muss die gesicherte volle Gegenstandszeile sein (wie bisherige API), kein anderes Ziel.
+- Nachweise: eigene Tabelle `vorspann_nachweise`; kompletter Rohbericht, Qualitätszählung, Rauschdaten, WerkID/Verfassung/Referenzlast-Inhalte/alle biotop-Python-Dateien/Kammer-Dockerfile, tatsächliche `docker image inspect --format {{.Id}}`-ID plus Speicher/Zeitlimit. Erfolg an hashverketteten Protokolleintrag gebunden. Weiterverwendung prüft aktuelle Quellen/Ergebnis-Hash/Protokollkette. Ungültigkeit dauerhaft; ID kann nicht erneut geeicht werden.
+- Eingefrorenes Maß bekommt `vorspann_sha256`, eigener `mass_sha256` atomar mit Speicherung. Zweites mass/gen0 nach mass gesperrt. Gen0-Abschluss wird über zeitlich nachgeordneten echten Protokolleintrag verlangt; die getrennte ≥80%-Frage wurde nicht neu bewertet/verschärft.
+- L.generation übergibt validierte `_rauschtoleranz`, `_gesperrte_bereiche` sowie `_rauschbelege`, `_vorspann_sha256` an Aegis/Generalprobe. Gesperrte Bereiche erzeugen weder normale/eingeschleuste Kandidaten noch Verhandlungsnachbarn; Skip mit Toleranz/Nachweisquelle. Generalprobe nimmt Vereinigung gespeicherter Wirkungskreise, Pareto weiterhin alle Bereiche. Kein Laufzeitbonus aus gesperrten Nebenbereichen.
+- Referenzlast jetzt relativ zur tatsächlich importierten Laufmodul-Kopie statt `/root/biotop` fest verdrahtet.
+- Die aktuellen isolierten Proben liefern Kosten nur in der Rückgabe: der Kernvorspann persistiert acht getrennte probe./gegenprobe.-Kostenzeilen, zusätzlich fundpruefung und eichausgang.
+- Parent-messgeraet.py/eichung.py wurden unverändert importiert (parent-imports.json); NICHT im Teilpatch. Agent1-Eichprobenänderungen noch nicht importiert/real integriert: Parent führt echte Gesamtkalibration aus.
+
+Gate-Tests sind ausdrücklich UNIT-Tests: teure Messung/Fundbewertung/Proben und zum Ablauf Mutantenfang/Schnappschuss kontrolliert ersetzt; rohe Fixturezahlen sind KEINE echte Eichung. CLI-Verweigerungen laufen zusätzlich in echten Subprozessen mit temporärer DB und Netz/Kammersperre. Negativläufe 16/19 enthalten entdeckte Testharness-Fehler; korrigierte reproduzierbare Rots stehen in 17/20. Insbesondere TMPDIR darf nicht innerhalb des vom Kammer-Kopierer kopierten Werkes liegen.

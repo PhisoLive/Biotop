@@ -1,0 +1,55 @@
+#!/bin/bash
+# Behebungsrunde 3 vor T4: (0) rote Spezifikationen der Vorrunden am Arbeitsbaum, (1) eigener Commit auf 6243377
+# (Geschichte nicht umgeschrieben), (2) volle Regression am Commit samt Verdrahtungstest, (3) Nachspiele am Commit:
+# D1 = K2904, K3091, K2868 in vier Fassungen (2×2: Korpus × Deckungsregel), D2/D3 = K2904, K3091, (4) echte Rissprobe,
+# (5) Doppelprüfung der Gegenzeugen am Commit, (6) Vorher-Messung derselben Fälle am Code von 6243377. Nacheinander, keine parallelen Kammerläufe. Kein Modellaufruf.
+set -u
+A=/root/biotop-vor-t4-03
+PY=/root/biotop-t3/venv/bin/python
+cd /root/biotop
+echo "=== start $(date -Is) HEAD=$(git rev-parse --short HEAD)"
+echo "=== rote Spezifikationen der Vorrunden am Arbeitsbaum"
+# unveränderte Kopie aus laeufe/biotop-vor-t4-02/spez (dort an 6243377: 2 von 4 rot); Kopie, damit der Ordner der
+# Vorrunde unberührt bleibt (pytest schreibt __pycache__ neben die Datei)
+cmp -s /root/biotop-vor-t4-02/spez/test_spez_gewinnschwelle_nachmessung.py $A/spez/test_spez_gewinnschwelle_nachmessung.py && echo "spez-kopie unverändert"
+BIOTOP_KAMMER_IMAGE=biotop-kammer:ts1 $PY -m pytest $A/spez/test_spez_gewinnschwelle_nachmessung.py \
+  -q -p no:cacheprovider > $A/spez/SPEZ-GEWINNSCHWELLE-am-arbeitsbaum.txt 2>&1
+echo "spez-rc=$? $(tail -1 $A/spez/SPEZ-GEWINNSCHWELLE-am-arbeitsbaum.txt)"
+echo "=== Signatur-/Importzeilen im Diff gegen HEAD"
+git diff HEAD | grep '^[-+]def \|^[-+]from \|^[-+]import \|^[-+]export ' || true
+git add -A biotop tests
+git status --short
+git commit -q -F $A/COMMIT-NACHRICHT.txt
+echo "commit-rc=$?"
+git log --oneline -3
+git status --short -- biotop tests; echo "(Ende Status)"
+git show --stat HEAD | tail -45 > $A/COMMIT-STAT.txt
+git show HEAD > $A/KERN-COMMIT.patch.txt
+echo "patch $(wc -l < $A/KERN-COMMIT.patch.txt) Zeilen"
+echo "regression start $(date -Is) HEAD=$(git rev-parse --short HEAD) fremde_container=$(docker ps -q | wc -l)"
+export BIOTOP_KAMMER_IMAGE=biotop-kammer:ts1 BIOTOP_AUFTRAG_LAUF_AB=26 BIOTOP_AUFTRAG_BUDGET_EUR=10
+export T3_VERDRAHTUNG_BELEG=$A/VERDRAHTUNG-BELEG-REGRESSION.json
+$PY -m pytest tests/ -q -m "not integration" -p no:cacheprovider -rfEs --durations=8 \
+  --junitxml=$A/REGRESSION.junit.xml > $A/REGRESSION.txt 2>&1
+echo "regression pytest-rc=$? $(tail -1 $A/REGRESSION.txt)"
+git status --short -- biotop tests; echo "(Ende Status nach Regression)"
+for d in 1 2 3; do
+  mkdir -p $A/nachspiel/d$d
+  echo "nachspiel durchgang $d start $(date -Is) HEAD=$(git rev-parse --short HEAD) fremde_container=$(docker ps -q | wc -l)"
+  if [ $d -eq 1 ]; then FAELLE="s2_k2904 s2_k3091 k2868 k2868_nur_korpus k2868_nur_regel k2868_keins"; else FAELLE="s2_k2904 s2_k3091"; fi
+  NACHSPIEL_AUS=$A/nachspiel/d$d BIOTOP_KAMMER_IMAGE=biotop-kammer:ts1 $PY $A/nachspiel/nachspiel_vor_t4_03.py $FAELLE \
+    > $A/nachspiel/NACHSPIEL-D$d.txt 2>&1
+  echo "nachspiel durchgang $d rc=$?"
+done
+echo "rissprobe start $(date -Is)"
+BIOTOP_KAMMER_IMAGE=biotop-kammer:1 $PY $A/proben/rissprobe_echt.py > $A/proben/RISSPROBE-ECHT.txt 2>&1
+echo "rissprobe rc=$?"
+echo "gegenzeugen start $(date -Is)"
+(cd $A/s1 && $PY gegenzeugen_doppelt.py > GEGENZEUGEN-DOPPELT-am-commit.txt 2>&1; echo "gegenzeugen rc=$?")
+echo "vorher-6243377 start $(date -Is)"
+ALT=$(mktemp -d /tmp/biotop-6243377-XXXX)
+git archive 6243377 | tar -x -C $ALT
+BIOTOP_KAMMER_IMAGE=biotop-kammer:1 $PY $A/proben/vorher_6243377.py $ALT > $A/proben/VORHER-6243377.txt 2>&1
+echo "vorher-6243377 rc=$? ($ALT)"
+git status --short -- biotop tests; echo "(Ende Status)"
+echo "ende $(date -Is)"

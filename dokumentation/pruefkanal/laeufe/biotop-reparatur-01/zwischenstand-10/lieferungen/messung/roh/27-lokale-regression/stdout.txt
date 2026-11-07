@@ -1,0 +1,38 @@
+........................................................................ [ 54%]
+.........................................s...........F.....s             [100%]
+=================================== FAILURES ===================================
+____ test_test_eigener_fehler_ist_keine_pruefbare_vertragsgegenprobe[setup] ____
+
+vertragswerk = PosixPath('/root/reparatur-01/nachbesserung-02/messung/tmp/pytest-of-root/pytest-26/test_test_eigener_fehler_ist_k0/werk')
+vertragspruefung = <function vertragspruefung.<locals>.pruefen at 0x76b6064bce00>
+art = 'setup'
+
+    @pytest.mark.parametrize('art', ['setup', 'aufruf', 'sammlung', 'fehlend'])
+    def test_test_eigener_fehler_ist_keine_pruefbare_vertragsgegenprobe(vertragswerk, vertragspruefung, art):
+        """Echte Fixturedefekte, keine erwarteten False-Kontrollen; setup war TDD-Rot."""
+        if art in ('sammlung', 'fehlend'):
+            code = ('def pytest_collection_modifyitems(items):\n'
+                    "    if any(i.name == 'test_eichprobe_vertrag_neue_zusicherung' for i in items):\n")
+            code += ("        raise RuntimeError('Vertrags-Sammelfehler')\n" if art == 'sammlung' else
+                     "        items[:] = [i for i in items if i.name != 'test_eichprobe_vertrag_neue_zusicherung']\n")
+        else:
+            hook = 'setup' if art == 'setup' else 'call'
+            code = (f'def pytest_runtest_{hook}(item):\n'
+                    "    if item.name == 'test_eichprobe_vertrag_neue_zusicherung':\n"
+                    "        raise NameError('EINGABE fehlt im Vertragsfixture')\n")
+        (vertragswerk / 'tests/conftest.py').write_text(code)
+        rows = [vertragspruefung(g) for g in (False, True)]
+        for row in rows:
+            if art != 'sammlung':
+>               assert row['belege']['messung']['gueltig'] is True
+E               assert False is True
+
+tests/test_review_vertrag.py:103: AssertionError
+----------------------------- Captured stdout call -----------------------------
+test_test_eigener_fehler_ist_keine_pruefbare_vertragsgegenprobe[setup] {'gegenprobe': False, 'pruefbar': False, 'bestanden': False, 'grund': 'Kammer (Kandidat): Kammer abgebrochen (rc=1) (rc=1)', 'kammerlaeufe': 4}
+test_test_eigener_fehler_ist_keine_pruefbare_vertragsgegenprobe[setup] {'gegenprobe': True, 'pruefbar': False, 'bestanden': False, 'grund': 'Kammer (Kandidat): Kammer abgebrochen (rc=1) (rc=1)', 'kammerlaeufe': 4}
+=========================== short test summary info ============================
+SKIPPED [1] tests/test_eichproben.py:224: Private Werk-/DB-Kopie nicht angegeben
+SKIPPED [1] tests/test_review_vertrag.py:155: Private Werk-/DB-Kopie nicht angegeben
+FAILED tests/test_review_vertrag.py::test_test_eigener_fehler_ist_keine_pruefbare_vertragsgegenprobe[setup]
+1 failed, 129 passed, 2 skipped in 227.88s (0:03:47)

@@ -1,0 +1,385 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 01 · Teil 2 von 3 · enthält R2 bis R3
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+
+R2 · Schritt 1: laufende Biotop-Prozesse, Container, Zeitgeber, Cron, Subagenten, Ports
+Beginn: 2026-09-25 14:49:28 CEST (UTC+0200)
+Ende:   2026-09-25 14:49:29 CEST (UTC+0200)
+Dauer:  1.3 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/sicherung/biotop-lage-01/arbeit/s1_prozesse.sh
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/s1_prozesse.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-LAGE-01 Schritt 1: Läuft ein Biotop-Lauf oder ein anderer Biotop-Prozess (Prozesse, Container, Zeitgeber,
+# Cron-Jobs, Subagenten)? Nur lesend.
+echo "== Zeitpunkt"; date '+%Y-%m-%d %H:%M:%S %Z (UTC%z)'
+echo "== Prozesse mit biotop / pytest / kammer / vitest / tsc im Befehl (Start, Laufzeit, Befehl)"
+ps -eo pid,lstart,etime,args --sort=start_time | grep -E "biotop|pytest|kammer|vitest|tsc " | grep -v -E "grep -E|s1_prozesse" || echo "(keine)"
+echo "== Container (docker ps)"
+docker ps --format '{{.ID}} | {{.Image}} | seit {{.RunningFor}} | {{.Status}} | {{.Names}}'
+echo "(Anzahl laufender Container: $(docker ps -q | wc -l))"
+echo "== Kammer-Sperrdatei /tmp/biotop-kammer-exklusiv"
+ls -ld /tmp/biotop-kammer-exklusiv 2>&1
+echo "== crontab root"
+crontab -l 2>&1
+echo "== /etc/cron.d"
+ls -la /etc/cron.d 2>&1
+echo "== systemd-Zeitgeber"
+systemctl list-timers --all --no-pager 2>&1
+echo "== systemd-Dienste mit biotop/hermes/caddy/pruef im Namen"
+systemctl list-units --type=service --all --no-pager 2>&1 | grep -i -E "biotop|hermes|caddy|pruef" || echo "(keine)"
+echo "== Hermes-Zeitgeber (Cron-Jobs von Hermes): Name, Zeitplan, Status, nächster Lauf, Skript"
+python3 - <<'EOF'
+import json, glob, os
+for p in sorted(glob.glob('/root/.hermes/cron/*.json')):
+    try:
+        d = json.load(open(p))
+    except Exception as e:
+        print(p, 'nicht lesbar', e); continue
+    jobs = d.get('jobs') if isinstance(d, dict) else d
+    if not isinstance(jobs, list):
+        print(p, 'Form:', type(d).__name__, list(d)[:10] if isinstance(d, dict) else ''); continue
+    print(p, len(jobs), 'Jobs')
+    for j in jobs:
+        print('  ', {k: j.get(k) for k in ('id', 'name', 'schedule', 'enabled', 'state', 'next_run_at', 'last_run_at', 'script', 'no_agent', 'repeat')})
+EOF
+echo "== Subagenten (Delegationen) mit Stand 'laufend' laut Manifest"
+for m in /root/.hermes/cache/delegation/live/*/manifest.json; do
+  python3 - "$m" <<'EOF'
+import json, sys, os, time
+m = sys.argv[1]
+d = json.load(open(m))
+aufgaben = d.get('tasks') or d.get('children') or []
+laeuft = [t for t in aufgaben if str(t.get('status', '')).lower() in ('running', 'laufend', 'started', 'queued')] if isinstance(aufgaben, list) else []
+if laeuft or str(d.get('status', '')).lower() == 'running':
+    print(os.path.dirname(m), json.dumps({k: d.get(k) for k in ('delegation_id', 'status', 'started_at', 'dispatched_at')}, ensure_ascii=False)[:300])
+    for t in laeuft:
+        print('   ', json.dumps({k: t.get(k) for k in ('subagent_id', 'status', 'goal', 'started_at')}, ensure_ascii=False)[:400])
+EOF
+done
+echo "== jüngste Delegation (Auftrag S1c): Manifest und letzte 12 Zeilen des Transkripts"
+D=/root/.hermes/cache/delegation/live/deleg_c88798ee
+cat $D/manifest.json 2>&1 | head -c 1500; echo
+tail -12 $D/task-0.log 2>&1 | cut -c1-260
+echo "== Dienste auf Ports (ss -ltnp)"
+ss -ltnp 2>&1
+--- Ende /root/sicherung/biotop-lage-01/arbeit/s1_prozesse.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== Zeitpunkt
+2026-09-25 14:49:28 CEST (UTC+0200)
+== Prozesse mit biotop / pytest / kammer / vitest / tsc im Befehl (Start, Laufzeit, Befehl)
+(keine)
+== Container (docker ps)
+(Anzahl laufender Container: 0)
+== Kammer-Sperrdatei /tmp/biotop-kammer-exklusiv
+ls: cannot access '/tmp/biotop-kammer-exklusiv': No such file or directory
+== crontab root
+no crontab for root
+== /etc/cron.d
+total 28
+drwxr-xr-x   2 root root  4096 Jul 25 15:10 .
+drwxr-xr-x 126 root root 12288 Sep 25 06:38 ..
+-rw-r--r--   1 root root   102 Mar 31  2024 .placeholder
+-rw-r--r--   1 root root   201 Apr  8  2024 e2scrub_all
+-rw-r--r--   1 root root   396 Jan  9  2024 sysstat
+== systemd-Zeitgeber
+NEXT                                  LEFT LAST                               PASSED UNIT                           ACTIVATES
+Fri 2026-09-25 14:49:36 CEST            8s Fri 2026-09-25 14:44:36 CEST 4min 51s ago meldebremse-sammlung.timer     meldebremse-sammlung.service
+Fri 2026-09-25 14:49:57 CEST           28s Fri 2026-09-25 14:47:57 CEST 1min 31s ago anfragen-melder.timer          anfragen-melder.service
+Fri 2026-09-25 14:50:00 CEST           31s Fri 2026-09-25 14:40:00 CEST     9min ago sysstat-collect.timer          sysstat-collect.service
+Fri 2026-09-25 14:50:20 CEST           52s Fri 2026-09-25 14:49:20 CEST       7s ago netz-wache.timer               netz-wache.service
+Fri 2026-09-25 14:50:20 CEST           52s Fri 2026-09-25 14:49:20 CEST       7s ago speicher-mitschreiber.timer    speicher-mitschreiber.service
+Fri 2026-09-25 14:50:39 CEST      1min 10s Fri 2026-09-25 14:48:39 CEST      49s ago seiten-wache.timer             seiten-wache.service
+Fri 2026-09-25 14:53:20 CEST      3min 52s Fri 2026-09-25 14:38:20 CEST    11min ago melder-wache.timer             melder-wache.service
+Fri 2026-09-25 14:53:50 CEST      4min 22s Fri 2026-09-25 14:43:50 CEST     5min ago bild-wache.timer               bild-wache.service
+Fri 2026-09-25 15:04:49 CEST         15min Fri 2026-09-25 14:04:20 CEST    45min ago fwupd-refresh.timer            fwupd-refresh.service
+Fri 2026-09-25 16:38:00 CEST      1h 48min Fri 2026-09-25 04:13:30 CEST      10h ago apt-daily.timer                apt-daily.service
+Fri 2026-09-25 20:07:24 CEST      5h 17min Fri 2026-09-25 14:07:40 CEST    41min ago formular-wache.timer           formular-wache.service
+Sat 2026-09-26 00:00:00 CEST            9h Fri 2026-09-25 00:00:00 CEST      14h ago dpkg-db-backup.timer           dpkg-db-backup.service
+Sat 2026-09-26 00:00:00 CEST            9h Fri 2026-09-25 00:00:00 CEST      14h ago logrotate.timer                logrotate.service
+Sat 2026-09-26 00:07:00 CEST            9h Fri 2026-09-25 00:07:00 CEST      14h ago sysstat-summary.timer          sysstat-summary.service
+Sat 2026-09-26 00:28:21 CEST            9h Fri 2026-09-25 00:45:56 CEST      14h ago zertifikat-wache.timer         zertifikat-wache.service
+Sat 2026-09-26 00:40:55 CEST            9h Fri 2026-09-25 00:40:55 CEST      14h ago update-notifier-download.timer update-notifier-download.service
+Sat 2026-09-26 00:50:20 CEST           10h Fri 2026-09-25 00:50:20 CEST      13h ago systemd-tmpfiles-clean.timer   systemd-tmpfiles-clean.service
+Sat 2026-09-26 06:22:25 CEST           15h Fri 2026-09-25 06:24:07 CEST       8h ago analytics-wache.timer          analytics-wache.service
+Sat 2026-09-26 06:26:12 CEST           15h Fri 2026-09-25 06:38:37 CEST       8h ago apt-daily-upgrade.timer        apt-daily-upgrade.service
+Sat 2026-09-26 09:17:09 CEST           18h Fri 2026-09-25 14:30:25 CEST    19min ago motd-news.timer                motd-news.service
+Sat 2026-09-26 11:28:30 CEST           20h Fri 2026-09-25 07:29:11 CEST       7h ago man-db.timer                   man-db.service
+Sun 2026-09-27 03:10:24 CEST     1 day 12h Sun 2026-09-20 03:10:40 CEST   5 days ago e2scrub_all.timer              e2scrub_all.service
+Sun 2026-09-27 13:54:11 CEST     1 day 23h Sun 2026-09-20 14:10:00 CEST   5 days ago update-notifier-motd.timer     update-notifier-motd.service
+Mon 2026-09-28 01:28:35 CEST        2 days Mon 2026-09-21 00:23:08 CEST   4 days ago fstrim.timer                   fstrim.service
+Tue 2026-10-06 02:25:00 CEST 1 week 3 days -                                       - kaltstart-ankuendigung.timer   kaltstart-ankuendigung.service
+Tue 2026-10-06 03:00:00 CEST 1 week 3 days -                                       - kaltstart.timer                kaltstart.service
+-                                        - -                                       - apport-autoreport.timer        apport-autoreport.service
+-                                        - -                                       - snapd.snap-repair.timer        snapd.snap-repair.service
+-                                        - -                                       - ua-timer.timer                 ua-timer.service
+
+29 timers listed.
+== systemd-Dienste mit biotop/hermes/caddy/pruef im Namen
+● analytics-wache.service                        loaded    failed   failed  analytics-wache — taeglich pruefen, ob die Besuchermessung traegt (Auftrag SEO 1, Aufgabe C)
+  caddy.service                                  loaded    active   running Caddy
+● hermes.service                                 not-found inactive dead    hermes.service
+● melder-wache.service                           loaded    failed   failed  Prueft, ob der Anfragen-Melder noch laeuft (Gegenlese Lauf 1)
+● speicher-mitschreiber.service                  loaded    failed   failed  Schreibt mit, wieviel hermes.service wirklich braucht
+  zertifikat-wache.service                       loaded    inactive dead    Prueft die Restlaufzeit des ausgelieferten TLS-Zertifikats
+== Hermes-Zeitgeber (Cron-Jobs von Hermes): Name, Zeitplan, Status, nächster Lauf, Skript
+/root/.hermes/cron/jobs.json 2 Jobs
+   {'id': '26fbb1513a1a', 'name': 'zwischenbericht-waechter', 'schedule': {'kind': 'interval', 'minutes': 1, 'display': 'every 1m'}, 'enabled': True, 'state': 'scheduled', 'next_run_at': '2026-09-25T14:48:58.437910+02:00', 'last_run_at': '2026-09-25T14:47:58.437910+02:00', 'script': 'zwischenbericht_waechter.py', 'no_agent': True, 'repeat': {'times': None, 'completed': 1415}}
+   {'id': '5825fd644daa', 'name': 'Endmeldung Runde 5 (vor T4)', 'schedule': {'kind': 'once', 'run_at': '2026-09-24T23:53:16.849038+02:00', 'display': 'once in 1m'}, 'enabled': False, 'state': 'completed', 'next_run_at': None, 'last_run_at': '2026-09-24T23:54:23.855222+02:00', 'script': 'biotop_endmeldung_r5.py', 'no_agent': True, 'repeat': {'times': 1, 'completed': 1}}
+== Subagenten (Delegationen) mit Stand 'laufend' laut Manifest
+/root/.hermes/cache/delegation/live/deleg_c88798ee {"delegation_id": "deleg_c88798ee", "status": null, "started_at": null, "dispatched_at": null}
+    {"subagent_id": null, "status": "running", "goal": "Setze den Bauauftrag /root/biotop-vor-t4-06/BAU-S1C-UNBEOBACHTET.md um: die Klasse „Wirkung außerhalb der Beobachtung“ schließen (A unbeobachtet, B Vorgeneration nicht beobachtbar, C geänderte Modulwerte außerhalb gelesen, D Nicht-Quelldateien im Quellpaket → gezählte Enthaltung → zurückgestellt) und die zwei Fehlalarme von M2(b) (E neue Funktion
+== jüngste Delegation (Auftrag S1c): Manifest und letzte 12 Zeilen des Transkripts
+{
+  "delegation_id": "deleg_c88798ee",
+  "started": "2026-09-25 12:51:42",
+  "task_count": 1,
+  "model": null,
+  "provider": null,
+  "tasks": [
+    {
+      "index": 0,
+      "goal": "Setze den Bauauftrag /root/biotop-vor-t4-06/BAU-S1C-UNBEOBACHTET.md um: die Klasse „Wirkung außerhalb der Beobachtung“ schließen (A unbeobachtet, B Vorgeneration nicht beobachtbar, C geänderte Modulwerte außerhalb gelesen, D Nicht-Quelldateien im Quellpaket → gezählte Enthaltung → zurückgestellt) und die zwei Fehlalarme von M2(b) (E neue Funktionen, F Selbstaufruf) beheben — rote Spezifikationen test_w_* mit Gegenproben, Bau je Teil, Kosten an vier Werken, Teillauf Durchgang 5 — und berichte geä",
+      "log": "/root/.hermes/cache/delegation/live/deleg_c88798ee/task-0.log",
+      "status": "running"
+    }
+  ]
+}
+14:48:42 tool     | -> write_file(/tmp/r6-s1c/vorher_anhaengen.py)
+14:48:42 result   | write_file ok 0.1s: {"bytes_written": 5657, "dirs_created": true, "verified": true, "lint": {"status": "ok", "output": ""}, "resolved_path": "/tmp/r6-s1c/vorher_anhaengen.py", "files_modified": ["/tmp/r6-s1c/vorher_anhaengen.py"]}
+14:48:54 tool     | -> write_file(/tmp/r6-s1c/vorher_gegenrechnung.py)
+14:48:54 result   | write_file ok 0.1s: {"bytes_written": 550, "dirs_created": true, "verified": true, "lint": {"status": "ok", "output": ""}, "resolved_path": "/tmp/r6-s1c/vorher_gegenrechnung.py", "files_modified": ["/tmp/r6-s1c/vorher_gegenrechnung.py"]}
+14:48:54 tool     | -> terminal(/root/biotop-t3/venv/bin/python /tmp/...)
+14:48:54 result   | terminal ok 0.3s: {"output": "test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis {'Probe': 'n=6 baum_rot=6 vorher_rot=6', 'Gegenprobe': 'n=5 baum_rot=0 vorher_rot=0', 'Wächter': 'n=2 baum_rot=0 vorher_rot=2'}\ntest_w_c_modulwerte_python
+14:49:04 think    | Tabelle stimmt mit der Gegenrechnung. Anhängen, dann Plan fortschreiben.
+14:49:04 assistant| Tabelle stimmt mit der Gegenrechnung. Anhängen, dann Plan fortschreiben.
+14:49:04 tool     | -> terminal(/root/biotop-t3/venv/bin/python /tmp/...)
+14:49:05 result   | terminal ok 0.3s: {"output": "S1-VORHER-0c2f058.txt: e9d812f22e11502a… → b84ca19ab22e4958…\nS1-VORHER-EINORDNUNG.md: 81ba3837c43e398a… → e95bc36b51c28857…", "exit_code": 0, "error": null}
+14:49:05 tool     | -> execute_code(p = "/root/biotop-vor-t4-06/bau/S1C-P...)
+14:49:05 result   | execute_code ok 0.0s: {"status": "success", "output": "ok\n", "exit_code": 0, "tool_calls_made": 0, "duration_seconds": 0.0, "kernel": {"mode": "session", "reused": true, "execution_count": 16, "state_reset": false}, "stdout_truncated": fal
+== Dienste auf Ports (ss -ltnp)
+State  Recv-Q Send-Q Local Address:Port  Peer Address:PortProcess                                                   
+LISTEN 0      4096       127.0.0.1:38493      0.0.0.0:*    users:(("containerd",pid=1001840,fd=14))                 
+LISTEN 0      4096   127.0.0.53%lo:53         0.0.0.0:*    users:(("systemd-resolve",pid=377439,fd=15))             
+LISTEN 0      4096         0.0.0.0:22         0.0.0.0:*    users:(("sshd",pid=377419,fd=3),("systemd",pid=1,fd=124))
+LISTEN 0      4096       127.0.0.1:2019       0.0.0.0:*    users:(("caddy",pid=377380,fd=3))                        
+LISTEN 0      4096      127.0.0.54:53         0.0.0.0:*    users:(("systemd-resolve",pid=377439,fd=17))             
+LISTEN 0      511        127.0.0.1:3000       0.0.0.0:*    users:(("next-server (v1",pid=377437,fd=21))             
+LISTEN 0      4096               *:80               *:*    users:(("caddy",pid=377380,fd=9))                        
+LISTEN 0      4096            [::]:22            [::]:*    users:(("sshd",pid=377419,fd=4),("systemd",pid=1,fd=125))
+LISTEN 0      4096               *:443              *:*    users:(("caddy",pid=377380,fd=7))                        
+=== Ende R2 ===
+
+
+R3 · Schritt 1: Abrufstelle Prüfkanal, bestehende Ordner, Caddy, robots.txt
+Beginn: 2026-09-25 14:49:29 CEST (UTC+0200)
+Ende:   2026-09-25 14:49:29 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/sicherung/biotop-lage-01/arbeit/s1_pruefkanal.sh
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/s1_pruefkanal.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-LAGE-01 Schritt 1: gültige Abrufstelle des Prüfkanals, bestehende Biotop-Ordner, Rechte, Caddy (nur lesend).
+K=$(cat /etc/pruefkanal/schluessel)
+L=/var/pruefkanal/oeffentlich/_akte/$K/laeufe
+echo "== Schlüsseldatei /etc/pruefkanal/schluessel: Länge $(printf %s "$K" | wc -c) Zeichen"
+echo "== Abrufstelle (Stand 20.09.: /var/pruefkanal/oeffentlich/_akte/<kennung>/laeufe/)"
+ls -ld /var/pruefkanal /var/pruefkanal/oeffentlich /var/pruefkanal/oeffentlich/_akte "$L" 2>&1
+echo "== weitere Kennungen unter _akte/"
+ls -la /var/pruefkanal/oeffentlich/_akte/ 2>&1
+echo "== Ordner unter laeufe/ (Name, Rechte, Eigentümer, Änderungszeit)"
+ls -la --time-style='+%Y-%m-%d %H:%M:%S %z' "$L" 2>&1
+echo "== biotop-lage-01 schon vorhanden?"
+ls -la "$L/biotop-lage-01" 2>&1
+echo "== Caddy: Auslieferung des Prüfkanals (Caddyfile, nur lesen)"
+grep -n -E "pruefkanal|_akte|root |file_server|robots|header" /etc/caddy/Caddyfile 2>&1
+echo "== robots.txt, wie ausgeliefert"
+curl -s -o /dev/null -w "robots.txt: HTTP %{http_code}, %{size_download} Bytes\n" https://milieulux-reinigung-muenchen.de/robots.txt
+curl -s https://milieulux-reinigung-muenchen.de/robots.txt | head -40
+--- Ende /root/sicherung/biotop-lage-01/arbeit/s1_pruefkanal.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== Schlüsseldatei /etc/pruefkanal/schluessel: Länge 32 Zeichen
+== Abrufstelle (Stand 20.09.: /var/pruefkanal/oeffentlich/_akte/<kennung>/laeufe/)
+drwxr-x---   4 root caddy 4096 Aug 10 16:58 /var/pruefkanal
+drwxr-x---   3 root caddy 4096 Aug 10 16:58 /var/pruefkanal/oeffentlich
+drwxr-x---   4 root caddy 4096 Aug 16 02:51 /var/pruefkanal/oeffentlich/_akte
+drwxr-x--- 111 root caddy 4096 Sep 25 00:06 /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe
+== weitere Kennungen unter _akte/
+total 16
+drwxr-x--- 4 root caddy 4096 Aug 16 02:51 .
+drwxr-x--- 3 root caddy 4096 Aug 10 16:58 ..
+drwxr-x--- 4 root caddy 4096 Aug 31 02:22 3qfc8gxpdvjsqxcbuj39mupe92a82agy
+drwxr-x--- 2 root caddy 4096 Aug 16 02:52 laeufe
+== Ordner unter laeufe/ (Name, Rechte, Eigentümer, Änderungszeit)
+total 452
+drwxr-x--- 111 root caddy  4096 2026-09-25 00:06:24 +0200 .
+drwxr-x---   4 root caddy  4096 2026-08-31 02:22:50 +0200 ..
+drwxr-x---   3 root caddy  4096 2026-08-16 23:12:45 +0200 abgabeadresse
+drwxr-x---   4 root caddy  4096 2026-08-15 13:16:53 +0200 abnahmeliste
+drwxr-x---   3 root caddy  4096 2026-08-24 00:20:25 +0200 abnahmezeile-faellt
+drwxr-x---   3 root caddy  4096 2026-08-15 11:34:52 +0200 abschluss
+drwxr-x---   6 root caddy  4096 2026-08-16 04:15:47 +0200 abschluss-vorhaben
+drwxr-x---   3 root caddy  4096 2026-08-29 09:28:02 +0200 abschlusslauf
+drwxr-x---   3 root caddy  4096 2026-08-22 21:50:38 +0200 acht-abbrueche
+drwxr-x---   5 root caddy  4096 2026-09-02 00:55:17 +0200 aufraeumen-20260831
+drwxr-x---   3 root caddy  4096 2026-08-14 11:46:02 +0200 auftrag-gesamt
+drwxr-x---   3 root caddy  4096 2026-08-21 05:31:33 +0200 ausrollen
+drwxr-x---   3 root caddy  4096 2026-08-21 13:56:47 +0200 befund-ueber-das-messen
+drwxr-x---   7 root caddy  4096 2026-09-20 07:52:04 +0200 biotop-gesamtstand
+drwxr-x---   5 root caddy  4096 2026-09-19 00:22:27 +0200 biotop-phase-1
+drwxr-x---   5 root caddy  4096 2026-09-19 02:16:45 +0200 biotop-phase-1-nachlauf
+drwxr-x---   5 root caddy  4096 2026-09-19 05:36:28 +0200 biotop-phase-2
+drwxr-x---   5 root caddy  4096 2026-09-19 18:31:36 +0200 biotop-phase-3
+drwxr-x---   5 root caddy  4096 2026-09-19 23:59:59 +0200 biotop-phase-3-nachlauf
+drwxr-x---   2 root caddy  4096 2026-09-21 01:51:39 +0200 biotop-phase-4-einstieg-20260921-01
+drwxr-xr-x   6 root root   4096 2026-09-20 21:27:09 +0200 biotop-phase-4-vorbedingung-1
+drwxr-x---  20 root caddy  4096 2026-09-20 20:01:19 +0200 biotop-reparatur-01
+drwxr-x---   2 root caddy  4096 2026-09-20 20:55:18 +0200 biotop-reparatur-02
+drwxr-x---  12 root caddy  4096 2026-09-23 15:47:24 +0200 biotop-t3-typescript
+drwxr-x---   3 root caddy  4096 2026-09-23 22:27:41 +0200 biotop-vor-t4
+drwxr-x---   6 root caddy  4096 2026-09-24 02:10:06 +0200 biotop-vor-t4-02
+drwxr-x---   5 root caddy  4096 2026-09-24 11:56:57 +0200 biotop-vor-t4-03
+drwxr-x---   6 root caddy  4096 2026-09-24 17:19:53 +0200 biotop-vor-t4-04
+drwxr-x---   6 root caddy 12288 2026-09-24 23:45:54 +0200 biotop-vor-t4-05
+drwxr-x---   6 root caddy  4096 2026-09-25 01:12:25 +0200 biotop-vor-t4-06
+drwxr-x---   7 root caddy  4096 2026-09-20 05:17:33 +0200 biotop-wiedereinstieg-2026-09-20-01
+drwxr-x---   3 root caddy  4096 2026-08-27 13:26:54 +0200 block-1-schliessen
+drwxr-x---   5 root caddy  4096 2026-08-14 22:21:05 +0200 cls-beleg-und-d113
+drwxr-x---   3 root caddy  4096 2026-08-14 19:58:29 +0200 cls-und-restmessung
+drwxr-x---   3 root caddy  4096 2026-08-16 18:03:27 +0200 d139-ketten
+drwxr-x---   3 root caddy  4096 2026-08-23 06:50:44 +0200 d153-einwilligungsband
+drwxr-x---   3 root caddy  4096 2026-08-21 00:09:28 +0200 der-rest
+drwxr-x---   3 root caddy  4096 2026-08-23 03:37:41 +0200 der-sechste-ausloeser
+drwxr-x---   3 root caddy  4096 2026-08-23 21:14:11 +0200 die-dreizehn
+drwxr-xr-x   6 root caddy  4096 2026-09-02 16:23:06 +0200 fable51-traeger-20260902
+drwxr-x---   3 root caddy  4096 2026-08-19 20:31:04 +0200 fehlende-kante
+drwxr-x---   7 root caddy  4096 2026-08-16 02:54:22 +0200 freigabe-und-repack
+drwxr-x---   3 root caddy  4096 2026-08-20 06:07:24 +0200 g5-g6-g7
+drwxr-x---   2 root caddy  4096 2026-09-20 05:17:33 +0200 gedaechtnis
+drwxr-x---   7 root caddy  4096 2026-08-17 03:47:56 +0200 gestaltungsfinale
+drwxr-x---   3 root caddy  4096 2026-08-19 22:19:16 +0200 grenze-bewegt
+drwxr-x---   4 root caddy  4096 2026-08-15 20:54:46 +0200 hermes-fassung3
+drwxr-xr-x   6 root caddy  4096 2026-09-09 00:36:56 +0200 hermes-instandsetzung-20260902
+drwxr-xr-x   6 root caddy  4096 2026-09-09 01:01:38 +0200 instanzname-ausgang-20260909
+drwxr-x---   3 root caddy  4096 2026-08-17 01:05:27 +0200 kennzahl-und-zaehlung
+drwxr-x---   3 root caddy  4096 2026-08-23 10:45:09 +0200 lauf-1-nachgang
+drwxr-x---   3 root caddy  4096 2026-08-24 14:39:38 +0200 lauf-1-schliessen
+drwxr-x---   4 root caddy  4096 2026-08-25 02:27:43 +0200 lauf-13-die-42-bilder
+drwxr-x---   2 root caddy  4096 2026-08-25 05:11:27 +0200 lauf-13b-die-39
+drwxr-x---   4 root caddy  4096 2026-08-26 18:57:40 +0200 lauf-13c-stapel-b-und-c
+drwxr-x---   4 root caddy  4096 2026-08-26 19:07:28 +0200 lauf-13d-neubestellung-und-d189
+drwxr-x---   3 root caddy  4096 2026-08-24 22:46:12 +0200 lauf-2-abschluss
+drwxr-x---   3 root caddy  4096 2026-08-24 18:34:35 +0200 lauf-2-drei-sichtbare
+drwxr-x---   3 root caddy  4096 2026-08-14 10:44:02 +0200 lauf-3
+drwxr-x---   4 root caddy  4096 2026-08-27 02:19:56 +0200 lauf-3-abschluss
+drwxr-x---   3 root caddy  4096 2026-08-14 10:44:49 +0200 lauf-3-nachgang
+drwxr-x---   3 root caddy  4096 2026-08-11 03:22:46 +0200 lauf-4
+drwxr-x---   3 root caddy  4096 2026-08-28 00:45:32 +0200 lauf-4-drei-letzte-zeilen
+drwxr-x---   3 root caddy  4096 2026-08-29 12:24:05 +0200 lauf-4-kontaktseite
+drwxr-x---   3 root caddy  4096 2026-08-11 05:38:56 +0200 lauf-4-nachgang
+drwxr-x---   3 root caddy  4096 2026-08-14 10:46:30 +0200 lauf-5
+drwxr-x---   3 root caddy  4096 2026-08-14 10:47:24 +0200 lauf-5-nachgang
+drwxr-x---   3 root caddy  4096 2026-08-30 02:33:05 +0200 lauf-5-setzen
+drwxr-x---   3 root caddy  4096 2026-08-30 00:12:12 +0200 lauf-5-startseite
+drwxr-x---   3 root caddy  4096 2026-08-14 10:48:11 +0200 lauf-6
+drwxr-x---   3 root caddy  4096 2026-08-14 10:48:57 +0200 lauf-7
+drwxr-x---   3 root caddy  4096 2026-08-15 18:14:08 +0200 letzte-vier-zeilen
+drwxr-x---   2 root caddy  4096 2026-08-14 10:50:27 +0200 letzter-nachgang
+drwxr-x---   3 root caddy  4096 2026-08-22 01:44:25 +0200 lichtkante
+drwxr-x---   3 root caddy  4096 2026-08-14 10:52:01 +0200 livegang
+drwxr-x---   3 root caddy  4096 2026-08-22 01:08:42 +0200 messen-statt-waehlen
+drwxr-x---   3 root caddy  4096 2026-08-19 16:09:44 +0200 mittel-1
+drwxr-xr-x   5 root caddy  4096 2026-09-02 16:23:18 +0200 modellwechsel-20260902
+drwxr-x---   3 root caddy  4096 2026-08-14 11:44:05 +0200 nach-der-messung
+drwxr-x---   4 root caddy  4096 2026-08-14 11:46:49 +0200 nach-stufe2
+drwxr-x---   3 root caddy  4096 2026-08-15 15:37:23 +0200 nachbesserung-abnahmeliste
+drwxr-x---   3 root caddy  4096 2026-08-15 00:42:03 +0200 nachgang-live
+drwxr-x---   3 root caddy  4096 2026-08-23 16:47:30 +0200 offene-zeilen
+drwxr-x---   2 root caddy  4096 2026-08-13 19:11:06 +0200 phase-a-massstab
+drwxr-x---   3 root caddy  4096 2026-08-14 10:57:15 +0200 pruefkanal
+drwxr-x---   3 root caddy  4096 2026-08-14 10:45:34 +0200 pruefkanal-abschluss
+drwxr-x---   5 root caddy  4096 2026-08-16 14:58:59 +0200 ruecknahme-verschluss
+drwxr-x---   3 root caddy  4096 2026-08-14 11:45:12 +0200 schlusspruefung
+drwxr-x---   3 root caddy  4096 2026-08-20 02:52:44 +0200 schnitt-weg3
+drwxr-x---   3 root caddy  4096 2026-08-19 18:09:03 +0200 selbstpaare
+drwxr-x---   3 root caddy  4096 2026-08-30 06:51:02 +0200 seo-1-messung
+drwxr-x---   3 root caddy  4096 2026-08-30 10:53:30 +0200 seo-2-seite
+drwxr-x---   4 root caddy  4096 2026-08-30 14:47:51 +0200 seo-3-aussen
+drwxr-x---   3 root caddy  4096 2026-09-01 23:41:41 +0200 seo-4-abschluss
+drwxr-x---   3 root caddy  4096 2026-08-23 00:40:11 +0200 sichtbar-machen
+drwxr-x---   3 root caddy  4096 2026-08-14 14:19:27 +0200 sperre-messprofil-sockel
+drwxr-xr-x   8 root caddy  4096 2026-09-09 02:51:56 +0200 startkorrekturen-20260909
+drwxr-xr-x   6 root caddy  4096 2026-09-09 00:40:12 +0200 system-schliessen-20260905
+drwxr-x---   4 root caddy  4096 2026-08-20 00:49:54 +0200 totenspalte
+drwxr-x---   3 root caddy  4096 2026-09-21 01:13:10 +0200 traeger-umstellung-20260921
+drwxr-x---   8 root caddy  4096 2026-08-16 01:48:59 +0200 ursachen-und-rest
+drwxr-x---   4 root caddy  4096 2026-08-26 19:46:47 +0200 v13-abschluss
+drwxr-x---   5 root caddy  4096 2026-08-23 08:14:51 +0200 versandbetrieb-1
+drwxr-x---   4 root caddy  4096 2026-08-17 22:40:31 +0200 vier-entscheidungen
+drwxr-x---   6 root caddy  4096 2026-08-11 15:17:44 +0200 visitenkarte
+drwxr-x---   3 root caddy  4096 2026-08-17 16:02:13 +0200 vor-dem-ausrollen
+drwxr-x---   3 root caddy  4096 2026-08-28 04:18:30 +0200 was-am-bild-auffiel
+drwxr-x---   4 root caddy  4096 2026-08-17 20:08:26 +0200 weg-3-freigabe
+drwxr-x---   3 root caddy  4096 2026-08-19 15:44:15 +0200 weg-a
+drwxr-x---   3 root caddy  4096 2026-08-22 21:16:50 +0200 zuschnitt
+drwxr-x---   4 root caddy  4096 2026-08-17 17:19:23 +0200 zwei-von-drei-antworten
+== biotop-lage-01 schon vorhanden?
+ls: cannot access '/var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-lage-01': No such file or directory
+== Caddy: Auslieferung des Prüfkanals (Caddyfile, nur lesen)
+65:	header {
+93:	# Adresse abrufen koennen muss. Statisch, vor dem Proxy, aus /var/pruefkanal.
+107:	# Der `file_server` des Kanals darf nur ein Verzeichnis sehen, in dem nichts
+108:	# als `_akte/` liegt. Laege die robots.txt in derselben Wurzel, waere sie
+112:	root * /var/pruefkanal/robots
+114:	@akte path /_akte /_akte/ /_akte/*
+116:		root * /var/pruefkanal/oeffentlich
+117:		header {
+150:		# `/_akte/%2e%2e/_akte/<schluessel>/aktuell/PROBE.md` -> HTTP 200 mit
+164:		header @akte_text Content-Type "text/plain; charset=utf-8"
+167:		# kein Inhaltsverzeichnis - /_akte/ allein verraet keinen Schluessel.
+168:		file_server
+171:	# robots.txt. Der Kanal braucht eine Sperrzeile, die Website hat schon eine
+172:	# eigene robots.txt aus Next.js. Statt sie zu ersetzen, wird sie vom
+177:	@robots_erzeugt {
+178:		path /robots.txt
+179:		file /robots.txt
+181:	handle @robots_erzeugt {
+182:		file_server
+186:		header_up X-Real-IP {remote_host}
+187:		header_up X-Forwarded-Proto {scheme}
+191:	# 10.08.2026 auf einer zweiten Instanz: die `header`-Anweisung im
+204:		@akte_fehler path /_akte /_akte/ /_akte/*
+206:			header X-Robots-Tag "noindex, nofollow, noarchive, nosnippet"
+207:			header -Server
+224:				request>headers>Cookie delete
+== robots.txt, wie ausgeliefert
+robots.txt: HTTP 200, 436 Bytes
+User-Agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/
+Disallow: /_next/static/chunks/
+Disallow: /danke
+Disallow: /en/thank-you
+Disallow: /designsystem
+
+User-Agent: GPTBot
+Allow: /
+
+User-Agent: ClaudeBot
+Allow: /
+
+User-Agent: PerplexityBot
+Allow: /
+
+User-Agent: Google-Extended
+Allow: /
+
+User-Agent: Applebot-Extended
+Allow: /
+
+Host: https://milieulux-reinigung-muenchen.de
+Sitemap: https://milieulux-reinigung-muenchen.de/sitemap.xml
+=== Ende R3 ===

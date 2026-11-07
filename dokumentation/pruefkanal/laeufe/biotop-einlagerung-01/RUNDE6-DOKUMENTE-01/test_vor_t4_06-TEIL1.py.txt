@@ -1,0 +1,696 @@
+"""Behebungsrunde 6 vor T4, Teil S1 — Sonde und Verhaltensvergleich ohne stillen Durchlass (Entscheidungen Chat-Claude
+24.09.2026 zum Review 05: 1, 2, 3, 7; Bauauftrag /root/biotop-vor-t4-06/BAU-S1-SONDE.md).
+Je Entscheidung Probe und Gegenprobe; wo ein Organ im Annahmepfad wirkt, durch `aegis.pruefen` in der echten Kammer
+(gestellt nur Modell und Laufzeit, wie tests/test_vor_t4_03.py::_pruefen), sonst am Organ `verhaltensvergleich.pruefen`
+in der echten Kammer (biotop-kammer:1, Proben des Reviews 05: review-proben/kammerprobe05.py), lokale `kan`-Fälle als
+Unit (review-proben/lokal_b.py). Die Datei läuft auch am alten Stand (Vorher, 0c2f058): neue Schnittstellen werden nur
+über `getattr`/`hasattr` angesprochen, Hänger am alten Stand über ein gekapptes Kammer-Zeitlimit.
+
+T  Entscheidung 1 — typtreue Verfälschung mit R6-4: x5 (isinstance), x5b (Tautologie), x3 (Idempotenz, bleibt abgelehnt),
+   x3k; positive Kontrolle; R6-4 Zahl/Liste/Wahrheitswert am Aufzeichner; nicht verfälschbar → unentschieden → Enthaltung;
+   hängender Test unter Verfälschung → 'fehler'.
+U  Entscheidung 2 — undurchsichtige Objekte: p24b, p25 (Kammer), 11 blinde Arten aus lokal_b (lokal), Kontrollen.
+B  Entscheidung 3 — Enthaltung je Funktion (betroffene Funktionen), Zeitgrenze je Funktion: a3x, f1, f2, R6-1-Laufweg,
+   p24, privater Helfer, d1, Lastfrist mit Eingrenzung, Frist der Kindprozesse, TS-Weg (gestellt).
+X  Entscheidung 7 — Ausnahmen nach Typ und Inhalt: p26 und Gegenprobe, lokal.
+M  M2(b) (S1b, BAU-S1B-M2B.md): direkt geänderte, von der Sonde nicht beobachtete und nicht gedeckte Funktion
+   → gezählte Enthaltung → zurückgestellt; Proben und Gegenproben durch aegis.pruefen, Deckungsregel am Organ.
+W  S1c (BAU-S1C-UNBEOBACHTET.md): Wirkung außerhalb der Beobachtung — A unbeobachtet, B Vorgeneration nicht
+   beobachtbar, C geänderte Modulwerte außerhalb gelesen (Python und TypeScript), D Nicht-Quelldateien im Quellpaket →
+   gezählte Enthaltung → zurückgestellt; E neue, am Kandidaten beobachtete Funktion, F Selbstaufruf (Fehlalarme M2(b)).
+"""
+import array
+import collections
+import dataclasses
+import datetime
+import decimal
+import fractions
+import functools
+import importlib.util
+import io
+import pathlib
+import sys
+import threading
+import time
+import weakref
+from pathlib import Path
+from typing import NamedTuple
+
+import pytest
+
+from biotop.organe import kammer
+from biotop.organe import verhaltensvergleich as vv
+
+sys.path.insert(0, str(Path(__file__).parent))
+import test_vor_t4_03 as R3  # noqa: E402
+
+QUELLE = R3.QUELLE
+ALT_NORMIEREN = '    return " ".join(text.split())\n'
+RICHTIG = '    return "_".join(text.split())\n'
+K2 = '    if "\\t" in text:\n        return text\n    return "_".join(text.split())\n'
+SOLL_ALLE = {"gewoehnlich": ("a b", "a_b"), "rand": (" a b ", "a_b"), "gross": ("A B", "A_B"),
+             "lang": ("x " * 25, "_".join(["x"] * 25)), "zahlform": ("a 01 2.50", "a_01_2.50"), "nichtascii": ("Ä ö", "Ä_ö"),
+             "tab": ("a\tb", "a_b"), "lf": ("a\nb", "a_b"), "crlf": ("a\r\nb", "a_b"), "nbsp": ("a\u00a0b", "a_b"),
+             "doppelt": ("a  b", "a_b")}
+X_BASIS = {k: v for k, v in SOLL_ALLE.items() if k not in ("gewoehnlich", "tab")}
+
+
+def _norm_tests(faelle: dict) -> dict:
+    return {f"tests/test_werk_normieren_{n}.py": R3.TEST_NORMIEREN.format(name=n, eingabe=e, erwartet=x)
+            for n, (e, x) in faelle.items()}
+
+
+def _vh():
+    """Die Sonde des Arbeitsbaums als Modul (lokal, ohne Kammer)."""
+    spec = importlib.util.spec_from_file_location("vh_r6", Path(__file__).parent.parent / "biotop/kern/py/verhalten.py")
+    vh = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(vh)
+    return vh
+
+
+def _werk(basis: Path, quelle: str, tests: dict | None = None, name: str = "w") -> Path:
+    w = basis / name
+    (w / "paket" / "m").mkdir(parents=True)
+    (w / "tests").mkdir()
+    (w / "paket" / "__init__.py").write_text("")
+    (w / "paket" / "m" / "__init__.py").write_text("")
+    (w / "paket" / "m" / "a.py").write_text(quelle)
+    for rel, text in (tests or {}).items():
+        (w / rel).write_text(text)
+    return w
+
+
+def _ref(last: str) -> str:
+    return "import sys\nsys.path.insert(0, '/werk')\n\n\ndef last_m():\n" + "".join("    " + z + "\n" for z in last.splitlines())
+
+
+def _organ(tmp_path, monkeypatch, quelle, neu, last, tests=None, deckende=None):
+    """verhaltensvergleich.pruefen in der echten Kammer; `deckende`: Kennungen deckender Tests (am Kandidaten mit
+    Aufzeichner, deckende_aufrufe) — sonst keine."""
+    monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+    w = _werk(tmp_path, quelle, tests)
+    code = {"paket/m/a.py": neu}
+    d = {"tests": [], "aufrufe": []} if deckende is None else \
+        (lambda abw: vv.deckende_aufrufe(w, code, tests or {}, set(deckende)))
+    return vv.pruefen(w, code, _ref(last), ["m"], d)
+
+
+def _organ_sicher(*a, **k):
+    """Wie _organ; ein Messgerätausfall ist ein Befund der Probe (am alten Stand: Zeitlimit der Kammer)."""
+    try:
+        return _organ(*a, **k), None
+    except vv.SondeAusgefallen as e:
+        return {}, f"SondeAusgefallen: {str(e)[:300]}"
+
+
+def _zeitlimit_kappen(monkeypatch, s: int):
+    """Kammer-Zeitlimit höchstens s Sekunden — am alten Stand hängt die Sonde sonst 240 s je Kammerlauf."""
+    orig = kammer.ausfuehren
+
+    def gekappt(werk, befehl, zeitlimit_s=None, dateien=None):
+        return orig(werk, befehl, min(zeitlimit_s or s, s), dateien)
+    monkeypatch.setattr(kammer, "ausfuehren", gekappt)
+
+
+# ================================================================ T Entscheidung 1: typtreue Verfälschung, R6-4
+ZEILEN = {"x5": '    assert isinstance(normieren("a\\tb c"), str)\n',
+          "x5b": '    assert normieren("a\\tb c") == normieren("a\\tb c")\n',
+          "x3": '    assert normieren(normieren("a\\tb c")) == normieren("a\\tb c")\n',
+          "x3k": ""}
+
+
+@pytest.mark.parametrize("fall", ["x5", "x5b", "x3", "x3k"])
+def test_t1_typpruefung_tautologie_idempotenz_halten_tab_nicht_fest(tmp_path, monkeypatch, fall):
+    """Review 05 Nr. 1: der Kandidat K2 lässt Text mit Tab unverändert (Rückschritt). x5 (`isinstance(…, str)`) und x5b
+    (Tautologie) „hielten“ an 0c2f058 `tab` fest — das Verfälschungsobjekt war kein str und gleich nichts; überlebt.
+    Typtreu verfälscht (str → anderer str) und mit Weiterrechnen am Original bestehen beide Zeilen: der Rückschritt bleibt
+    ungedeckt, abgelehnt. x3 (Idempotenz) bleibt abgelehnt, x3k (ohne Zusatzzeile) ist die Kontrolle."""
+    tests = _norm_tests(X_BASIS)
+    tests["tests/test_werk_normieren_x.py"] = ("from probewerk.werk.kern import normieren\n\n\ndef test_normieren_x():\n"
+                                               + ZEILEN[fall] + '    assert normieren("a b") == "a_b"\n')
+    u, v = R3._pruefen(tmp_path, monkeypatch, R3._diff(QUELLE, QUELLE.replace(ALT_NORMIEREN, K2)), nische="sicher",
+                       werk_extra=tests)
+    assert u["status"] == "abgelehnt" and u["grund"].startswith("Verhaltensvergleich:"), u["grund"]
+    fest = (v.get("deckung_zaehlung") or {}).get("festhaltend") or {}
+    assert not any(t for k, t in fest.items() if k.endswith("|tab")), fest
+    assert any("tab" in s.split(" | ")[1].split("+") for s in v.get("ungedeckt_aufschluesselung") or {}), v
+
+
+def test_t1_richtige_behebung_mit_tab_test_haelt_fest_und_ueberlebt(tmp_path, monkeypatch):
+    """Positive Kontrolle: die richtige Behebung („ “ → „_“, Tab wie Leerzeichen) mit einem Soll-Test je Formvariante —
+    der Tab-Test sichert den Wert zu und hält `tab` fest; der Kandidat überlebt."""
+    neu = QUELLE.replace(ALT_NORMIEREN, RICHTIG)
+    u, v = R3._pruefen(tmp_path, monkeypatch, R3._diff(QUELLE, neu), nische="sicher", werk_extra=_norm_tests(SOLL_ALLE))
+    assert u["status"] == "ueberlebt", u["grund"]
+    fest = (v.get("deckung_zaehlung") or {}).get("festhaltend") or {}
+    assert any(t.endswith("test_normieren_tab") for t in fest.get("probewerk.werk.kern:normieren|rueckgabe|tab") or []), fest
+
+
+R64_ALT = ("def zahl(x: int) -> int:\n    return x\n\n\ndef liste(x: int) -> list:\n    return [x]\n\n\n"
+           "def wahr(x: int) -> bool:\n    return False\n\n\ndef text(x: int) -> str:\n    return ''\n\n\n"
+           "def kind(x: int) -> str:\n    return 'b'\n\n\ndef nummer(s: str) -> int:\n    return {'a': 1, 'b': 2}[s]\n")
+R64_NEU = ("def zahl(x: int) -> int:\n    return x + 2\n\n\ndef liste(x: int) -> list:\n    return [x + 2, x + 1, x]\n\n\n"
+           "def wahr(x: int) -> bool:\n    return x > 0\n\n\ndef text(x: int) -> str:\n    return 'a_b'\n\n\n"
+           "def kind(x: int) -> str:\n    return 'a'\n\n\ndef nummer(s: str) -> int:\n    return {'a': 1, 'b': 2}[s]\n")
+R64_TESTS = {"tests/test_r64.py": (
+    "from paket.m.a import zahl, liste, wahr, text, kind, nummer\n\n\n"
+    "def test_zahl():\n    assert zahl(1) == 3\n\n\n"
+    "def test_liste():\n    assert liste(1) == [3, 2, 1]\n\n\n"
+    "def test_wahrheitswert():\n    assert wahr(1)\n\n\n"
+    "def test_text():\n    assert text(1) == 'a_b'\n\n\n"
+    "def test_werk_ausnahme():\n    assert nummer(kind(1)) == 1\n")}
+R64_FAELLE = {"zahl": "zahl", "liste": "liste", "wahrheitswert": "wahr", "text": "text", "werk_ausnahme": "kind"}
+
+
+@pytest.fixture(scope="module")
+def r64(tmp_path_factory):
+    """Aufzeichner der deckenden Tests am Kandidaten (echte Kammer); je Verfälschungsprobe ein Kammerlauf."""
+    alt = kammer.IMAGE
+    kammer.IMAGE = "biotop-kammer:1"
+    try:
+        w = _werk(tmp_path_factory.mktemp("r64"), R64_ALT, R64_TESTS)
+        yield vv.deckende_aufrufe(w, {"paket/m/a.py": R64_NEU}, R64_TESTS, {f"test_r64.py::test_{n}" for n in R64_FAELLE})
+    finally:
+        kammer.IMAGE = alt
+
+
+@pytest.mark.parametrize("fall,haelt", [("zahl", True), ("liste", True), ("wahrheitswert", True), ("text", True),
+                                        ("werk_ausnahme", False)])
+def test_t1_r6_4_festhalten_am_ausnahmetyp_in_der_kammer(r64, fall, haelt):
+    """R6-4 (Review 05, spez/test_spez_r6_4.py): `assert f(1) == 3` hielt an 0c2f058 nichts fest — pytest streicht
+    „AssertionError:“ aus Meldungen ohne Anführungszeichen, die Regel las den Text. Jetzt am Ausnahmetyp (Hookwrapper
+    `pytest_runtest_makereport`) und an der Absturzstelle in der Testdatei. Wahrheitswert: typtreu verfälscht wird
+    True zu False. Gegenproben: Text mit Anführungszeichen hält (schon an 0c2f058); eine Ausnahme im Werk (der
+    verfälschte Wert trifft `nummer`) hält nicht."""
+    fest = r64["haelt"](f"paket.m.a:{R64_FAELLE[fall]}", "rueckgabe", "")
+    assert (f"test_r64.py::test_{fall}" in fest) is haelt, (fall, list(fest))
+
+
+NV_ALT = "def finde(x: int):\n    return x if x > 0 else 0\n"
+NV_LAST = "from paket.m.a import finde\nfinde(5)"
+
+
+@pytest.mark.parametrize("fall", ["none", "text"])
+def test_t1_nicht_verfaelschbar_ist_unentschieden_nie_deckung(tmp_path, monkeypatch, fall):
+    """Nicht verfälschbar (hier None): der deckende Test `finde(-1) is None` besteht auch unter der Verfälschung, weil es
+    keinen typtreuen anderen Wert gibt — die Probe ist unentschieden, die Abweichungen sind eine gezählte Enthaltung
+    (`verfaelschung_unvollstaendig`), weder gedeckt noch Ablehnung. An 0c2f058 fiel der Test am Verfälschungsobjekt ohne
+    „AssertionError:“-Präfix: 'fehler', ungedeckt, abgelehnt. Gegenprobe (text): verfälschbarer Wert 'leer', der Test
+    sichert ihn zu und deckt — tragfähig (schon an 0c2f058)."""
+    if fall == "none":
+        neu, test = "def finde(x: int):\n    return x if x > 0 else None\n", "    assert finde(-1) is None\n"
+    else:
+        neu, test = "def finde(x: int):\n    return x if x > 0 else 'leer'\n", "    assert finde(-1) == 'leer'\n"
+    tests = {"tests/test_finde.py": "from paket.m.a import finde\n\n\ndef test_finde_leer():\n" + test}
+    r = _organ(tmp_path, monkeypatch, NV_ALT, neu, NV_LAST, tests=tests, deckende=["test_finde.py::test_finde_leer"])
+    if fall == "none":
+        assert r.get("enthaltung") is True and r["grund_art"] == "verfaelschung_unvollstaendig", \
+            (r.get("grund_art"), r.get("grund"), r.get("deckung_zaehlung"))
+        assert r["tragfaehig"] is False and r["geurteilt"] is False, r
+    else:
+        assert r["geurteilt"] is True and r["tragfaehig"] is True and r["anzahl_abweichungen"] > 0, r
+
+
+def test_t1_haengender_test_unter_verfaelschung_ist_fehler(tmp_path, monkeypatch):
+    """Ein Test, der unter der Verfälschung hängt (Schleife bis zum Sollwert), ist 'fehler' und hält nichts fest — per
+    Frist je Test, ohne Messgerätausfall. An 0c2f058: Kammer-Zeitlimit, Deckungsaufzeichner ausgefallen."""
+    monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+    monkeypatch.setattr(vv, "TEST_FRIST_S", 5, raising=False)
+    _zeitlimit_kappen(monkeypatch, 75)
+    tests = {"tests/test_haengt.py": "from paket.m.a import zahl\n\n\ndef test_haengt():\n    while zahl(1) != 3:\n        pass\n"}
+    w = _werk(tmp_path, R64_ALT, tests)
+    d = vv.deckende_aufrufe(w, {"paket/m/a.py": R64_NEU}, tests, {"test_haengt.py::test_haengt"})
+    t0 = time.monotonic()
+    try:
+        fest, fehler = d["haelt"]("paket.m.a:zahl", "rueckgabe", ""), None
+    except vv.SondeAusgefallen as e:
+        fest, fehler = None, str(e)[:300]
+    assert fehler is None and list(fest) == [], (fehler, fest)
+    assert time.monotonic() - t0 < 60, time.monotonic() - t0
+
+
+class _Punkt(NamedTuple):
+    x: int
+    y: int
+
+
+@dataclasses.dataclass(frozen=True)
+class _Posten:
+    name: str
+    menge: int
+
+
+def test_t1_typtreue_verfaelschung_je_typ():
+    """g(v): derselbe Typ, anderer Inhalt, deterministisch; None, leere Behälter und Fremdes: nicht verfälschbar."""
+    vh = _vh()
+    g = getattr(vh, "_typtreu", None)
+    assert g is not None, "kern/py/verhalten.py::_typtreu fehlt (typtreue Verfälschung)"
+    faelle = [True, False, 7, 1.5, float("nan"), float("inf"), 1e300, 2j, "abc", "a", b"ab", bytearray(b"ab"),
+              [1, "a"], (1, 2), _Punkt(1, 2), {"a": 1, "b": "x"}, {1, 2}, frozenset({3}), decimal.Decimal("1.5"),
+              fractions.Fraction(1, 3), datetime.date(2026, 1, 1), datetime.datetime(2026, 1, 1, 12),
+              pathlib.PurePosixPath("a/b.txt"), _Posten("x", 2), [None, 3]]
+    for v in faelle:
+        ok, w = g(v)
+        gleich = (w == v) if not (isinstance(v, float) and v != v) else (w != w)
+        assert ok and type(w) is type(v) and not gleich, (v, ok, w)
+        assert g(v) == (ok, w) or isinstance(v, (float,)) and v != v, ("nicht deterministisch", v)
+    assert g("abc") == (True, "abb") and g("")[1] == "x" and g(7)[1] == 8 and g(True)[1] is False
+    for v in [None, [], {}, set(), (), object(), [None]]:
+        assert g(v)[0] is False, v
+
+
+# ================================================================ U Entscheidung 2: undurchsichtige Objekte
+SIOA = "import io\n\n\ndef schreibe(puffer: io.StringIO, n: int) -> None:\n    puffer.write('{}' * n)\n"
+LAST_SIOA = "import io\nfrom paket.m.a import schreibe\np = io.StringIO()\nschreibe(p, 3)\nv = p.getvalue()"
+DEC = "from decimal import Decimal\n\n\nclass Betrag(Decimal):\n    pass\n\n\ndef netto(x: int) -> Betrag:\n    return Betrag({})\n"
+
+
+@pytest.mark.parametrize("fall", ["p24b", "p25"])
+def test_u2_zustand_aus_c_typen_wird_gesehen(tmp_path, monkeypatch, fall):
+    """Review 05 Nr. 2: p24b (Funktion schreibt anderen Text in ein übergebenes io.StringIO) und p25 (Decimal-Unterklasse
+    10 statt 15) — an 0c2f058 je 0 Abweichungen, tragfähig. Jetzt: C-Zustand über getvalue()/tell() bzw.
+    __reduce_ex__(4) — Abweichung, abgelehnt."""
+    if fall == "p24b":
+        r = _organ(tmp_path, monkeypatch, SIOA.format("x"), SIOA.format("y"), LAST_SIOA)
+        assert r["geurteilt"] is True and r["tragfaehig"] is False and any(">args" in k for k in r["abweichungen"]), r
+    else:
+        r = _organ(tmp_path, monkeypatch, DEC.format("x * 2"), DEC.format("x * 3"), "from paket.m.a import netto\nnetto(5)")
+        assert r["geurteilt"] is True and r["tragfaehig"] is False and any(k.startswith("paket.m.a:netto") for k in r["abweichungen"]), r
+
+
+@pytest.mark.parametrize("fall", ["stringio", "decimal"])
+def test_u2_gegenprobe_gleicher_c_zustand_bleibt_tragfaehig(tmp_path, monkeypatch, fall):
+    """Gegenprobe gegen Fehlalarm: dieselbe Wirkung anders geschrieben — geurteilt, tragfähig, keine Enthaltung."""
+    if fall == "stringio":
+        neu = "import io\n\n\ndef schreibe(puffer: io.StringIO, n: int) -> None:\n    s = 'x' * n\n    puffer.write(s)\n"
+        r = _organ(tmp_path, monkeypatch, SIOA.format("x"), neu, LAST_SIOA)
+    else:
+        r = _organ(tmp_path, monkeypatch, DEC.format("x * 2"), DEC.format("2 * x"), "from paket.m.a import netto\nnetto(5)")
+    assert r["geurteilt"] is True and r["tragfaehig"] is True and r["anzahl_abweichungen"] == 0, r
+    assert not r.get("unvollstaendig") and not r.get("enthaltung"), (r.get("unvollstaendig"), r.get("grund"))
+
+
+class _Feld:
+    """Daten-Deskriptor mit Zustand außerhalb der Instanz (lokal_b: deskriptor_extern)."""
+    def __init__(self):
+        self.werte = weakref.WeakKeyDictionary()
+
+    def __get__(self, obj, typ=None):
+        return self if obj is None else self.werte.get(obj, 0)
+
+    def __set__(self, obj, v):
+        self.werte[obj] = v
+
+
+class _KontoD:
+    stand = _Feld()
+
+    def __init__(self, s):
+        self.stand = s
+
+
+def _konto_closure(s):
+    zustand = {"s": s}
+
+    class K:
+        @property
+        def stand(self):
+            return zustand["s"]
+    return K()
+
+
+class _Betrag(decimal.Decimal):
+    pass
+
+
+class _Tag(datetime.date):
+    pass
+
+
+class _Puffer(collections.deque):
+    pass
+
+
+class _Text(io.StringIO):
+    pass
+
+
+class _Zahlen(array.array):
+    pass
+
+
+class _Ziel:
+    def __init__(self, a):
+        self.a = a
+
+
+def _f(x, y):
+    return x + y
+
+
+_ZIELE = [_Ziel(1), _Ziel(2)]      # am Leben halten (weakref)
+BLIND = {
+    "deskriptor_extern": lambda: (_KontoD(3), _KontoD(6)),
+    "property_closure": lambda: (_konto_closure(3), _konto_closure(6)),
+    "decimal_unterklasse": lambda: (_Betrag("1.5"), _Betrag("3.0")),
+    "date_unterklasse": lambda: (_Tag(2026, 1, 1), _Tag(2026, 1, 2)),
+    "deque_unterklasse": lambda: (_Puffer([1, 2]), _Puffer([1, 3])),
+    "stringio_unterklasse": lambda: (_Text("a"), _Text("b")),
+    "array_unterklasse": lambda: (_Zahlen("i", [1, 2]), _Zahlen("i", [1, 3])),
+    "memoryview": lambda: (memoryview(b"ab"), memoryview(b"ac")),
+    "defaultdict_fabrik": lambda: (collections.defaultdict(int), collections.defaultdict(list)),
+    "weakref_ziel": lambda: (weakref.ref(_ZIELE[0]), weakref.ref(_ZIELE[1])),
+    "partial_argumente": lambda: (functools.partial(_f, 1), functools.partial(_f, 2)),
+}
+
+
+@pytest.mark.parametrize("art", sorted(BLIND))
+def test_u2_blinde_art_gesehen_oder_gezaehlt(art):
+    """Review 05 Nr. 2, lokal_b.out.txt:2-12: 11 Arten mit verschiedenem Zustand, gleicher kanonischer Form und ohne
+    Meldung (blind) — jetzt je Art gesehen (verschiedene Form) oder gezählte Enthaltung (Meldung in `fehlend`).
+    weakref: die Ziele unterscheiden sich im Inhalt (die Sonde vergleicht Inhalt, nicht Identität)."""
+    vh = _vh()
+    alt, neu = BLIND[art]()
+    fa, fn = [], []
+    ta, tn = vh.text_von(alt, fa), vh.text_von(neu, fn)
+    assert ta != tn or fa or fn, (art, ta[:300])
+
+
+@dataclasses.dataclass
+class _Artikel:
+    nummer: str
+    preis: decimal.Decimal
+    menge: int
+    lager: dict
+    posten: list
+
+
+class _MitSperre:
+    def __init__(self, n):
+        self.n = n
+        self.sperre = threading.Lock()
+        self.zaehler = collections.Counter("abca")
+
+
+KONTROLLEN = {
+    "dataclass": lambda n: _Artikel("A-1", decimal.Decimal("1.50") * n, n, {"regal": n}, [n, 2]),
+    "dict": lambda n: {"a": n, "b": [n]},
+    "list": lambda n: [n, "x", (n, 2)],
+    "decimal": lambda n: decimal.Decimal(n) / 4,
+    "sperre_zaehler": lambda n: _MitSperre(n),
+}
+
+
+@pytest.mark.parametrize("art", sorted(KONTROLLEN))
+def test_u2_kontrolle_gewoehnliche_werte_gesehen_ohne_enthaltung(art):
+    """Kontrollen: gewöhnliche Werte (lagerhaus-artige Dataclass, dict, list, Decimal, Objekt mit Lock und Counter) —
+    gleicher Inhalt gleiche Form, anderer Inhalt andere Form, keine Enthaltung."""
+    vh = _vh()
+    f1, f2, f3 = [], [], []
+    t1, t2, t3 = vh.text_von(KONTROLLEN[art](1), f1), vh.text_von(KONTROLLEN[art](1), f2), vh.text_von(KONTROLLEN[art](2), f3)
+    assert t1 == t2 and t1 != t3 and not (f1 or f2 or f3), (art, f1, f3, t1[:300])
+
+
+class _Kaputt:
+    def __init__(self):
+        self.a = 1
+
+    @property
+    def wert(self):
+        raise ValueError("kaputt")
+
+
+def test_u2_eigenschaft_wird_gelesen_und_ihr_fehler_ist_ein_wert():
+    vh = _vh()
+    fehl = []
+    t = vh.text_von(_Kaputt(), fehl)
+    assert "__fehler:ValueError" in t and not fehl, (t, fehl)
+
+
+def test_u2_funktionen_und_klassen_als_wert_mit_modul_und_name():
+    """Statt '__fn' für alle: modul:qualname — `int` und `list` als default_factory unterscheiden sich."""
+    vh = _vh()
+    assert vh.text_von(int) != vh.text_von(list) and "builtins:len" in vh.text_von(len), (vh.text_von(int), vh.text_von(len))
+
+
+class _MitGenerator:
+    def __init__(self):
+        self.quelle = (x for x in [1, 2])
+
+
+def test_u2_gegenprobe_nicht_darstellbarer_zustand_ist_gezaehlte_enthaltung():
+    """Ein Generator im Zustand ist nicht darstellbar (weder bekannte Darstellung noch __reduce_ex__) — gezählt."""
+    vh = _vh()
+    fehl = []
+    vh.text_von(_MitGenerator(), fehl)
+    assert fehl, fehl
+
+
+# ================================================================ B Entscheidung 3: Enthaltung je Funktion, Zeitgrenze
+ZL = ("_n = [0]\n\n\ndef naechste() -> int:\n    _n[0] += 1\n    return _n[0]{}\n\n\n"
+      "def doppel(x: int) -> int:\n    return 2 * x\n")
+LAST_ZL = "from paket.m.a import naechste, doppel\na = naechste()\nb = naechste()\nassert b == a + 1\ndoppel(3)"
+
+
+def test_b3_a3x_geaenderte_funktion_im_sondenausfall_stellt_zurueck(tmp_path, monkeypatch):
+    """Review 05 Nr. 3 (a3x): der Kandidat ändert genau `naechste`, die Funktion mit Sondenausfall — an 0c2f058
+    geurteilt, tragfähig („1 von 2 beobachtet“). Jetzt: eine betroffene Funktion enthält sich → der Vergleich enthält
+    sich (aegis stellt zurück), der Grund nennt die Funktion."""
+    r = _organ(tmp_path, monkeypatch, ZL.format(""), ZL.format(" - 1"), LAST_ZL)
+    assert r.get("enthaltung") is True and r["grund_art"] == "betroffene_funktion_enthaelt_sich", (r.get("grund_art"), r.get("grund"))
+    assert "paket.m.a:naechste" in r["grund"] and r["tragfaehig"] is False, r["grund"]
+
+
+ZER = ("class Zerleger:\n    def __init__(self, text: str):\n        self._teile = iter(text.split())\n\n"
+       "    def weiter(self) -> str:\n        return next(self._teile, '')\n\n\n"
+       "def zerleger(text: str) -> 'Zerleger':\n    return Zerleger(text)\n\n\ndef doppel(x: int) -> int:\n    return {}\n")
+GROSS = "def zahlen(n: int):\n    for i in range(n):\n        yield i\n\n\ndef doppel(x: int) -> int:\n    return {}\n"
+
+
+@pytest.mark.parametrize("fall", ["f1", "f2"])
+def test_b3_f1_f2_unveraenderte_schwer_erfassbare_funktion_urteil_am_rest(tmp_path, monkeypatch, fall):
+    """Review 05 Nr. 6 (f1 Iterator-Attribut, f2 Generator mit 1.500 Elementen), verhaltensgleicher Kandidat (2*x → x+x
+    in doppel): an 0c2f058 Enthaltung des ganzen Vergleichs. Jetzt: nur unveränderte Funktionen schwer erfassbar —
+    geurteilt am Rest, tragfähig (f2: `zahlen` als gezählte Enthaltung)."""
+    if fall == "f1":
+        r = _organ(tmp_path, monkeypatch, ZER.format("2 * x"), ZER.format("x + x"),
+                   "from paket.m.a import zerleger, doppel\nz = zerleger('a b')\nz.weiter()\ndoppel(3)")
+    else:
+        r = _organ(tmp_path, monkeypatch, GROSS.format("2 * x"), GROSS.format("x + x"),
+                   "from paket.m.a import zahlen, doppel\nsum(zahlen(1500))\ndoppel(3)")
+    assert r["geurteilt"] is True and r["tragfaehig"] is True and r["anzahl_abweichungen"] == 0, (r.get("grund_art"), r.get("grund"))
+    if fall == "f2":
+        assert (r.get("enthaltungen") or {}).get("paket.m.a:zahlen", "").startswith("unvollständig"), r.get("enthaltungen")
+
+
+PUFFER = ('\n\nimport io  # noqa: E402\n\n\ndef puffer(text: str):\n'
+          '    """Text als Datei-Objekt (vom Kandidaten nicht verändert)."""\n    return io.StringIO(text)\n')
+
+
+def test_b3_r6_1_unveraenderte_stringio_funktion_stellt_nicht_zurueck(tmp_path, monkeypatch):
+    """R6-1 (spez/test_spez_r6_laufweg.py) durch aegis.pruefen: die richtige Behebung von normieren mit einem Soll-Test je
+    Formvariante; im Modul eine UNVERÄNDERTE Funktion puffer(), die ein io.StringIO liefert. An 0c2f058 zurückgestellt
+    (ganzer Vergleich enthielt sich). Jetzt: überlebt, puffer als gezählte Enthaltung."""
+    q = QUELLE + PUFFER
+    monkeypatch.setattr(R3, "QUELLE", q)
+    u, v = R3._pruefen(tmp_path, monkeypatch, R3._diff(q, q.replace(ALT_NORMIEREN, RICHTIG)), nische="sicher",
+                       werk_extra=_norm_tests(SOLL_ALLE))
+    assert u["status"] == "ueberlebt", u["grund"]
+    assert "probewerk.werk.kern:puffer" in (v.get("enthaltungen") or {}), v.get("enthaltungen")
+
+
+SIO = "import io\n\n\ndef bericht(n: int) -> io.StringIO:\n    p = io.StringIO()\n    p.write('{}' * n)\n    return p\n"
+SIO_UMGESCHRIEBEN = "import io\n\n\ndef bericht(n: int) -> io.StringIO:\n    p = io.StringIO()\n    s = 'x' * n\n    p.write(s)\n    return p\n"
+
+
+def test_b3_p24_geaenderte_stringio_rueckgabe_mit_sichtbarer_abweichung_lehnt_ab(tmp_path, monkeypatch):
+    """p24 (Review 05): geänderte Funktion liefert ein StringIO mit anderem Text. An 0c2f058 Enthaltung (Inhalt nicht
+    erfasst). Jetzt ist der Inhalt erfasst (getvalue, Entscheidung 2) — die Abweichung ist sichtbar und ungedeckt:
+    abgelehnt („Eine ungedeckte Abweichung lehnt immer ab“), nie tragfähig."""
+    r = _organ(tmp_path, monkeypatch, SIO.format("x"), SIO.format("y"), "from paket.m.a import bericht\nbericht(3)")
+    assert r["geurteilt"] is True and r["tragfaehig"] is False, (r.get("grund_art"), r.get("grund"))
+    assert any(k.startswith("paket.m.a:bericht") for k in r["abweichungen"]), r["abweichungen"]
+
+
+def test_b3_p24z_geaenderte_stringio_funktion_ohne_sichtbare_abweichung_stellt_zurueck(tmp_path, monkeypatch):
+    """p24 ohne sichtbare Abweichung: der Kandidat schreibt `bericht` um (gleicher Text). Das zurückgegebene StringIO
+    bleibt ein Iterator-Objekt (Elemente nicht erfasst) — die geänderte Funktion enthält sich: zurückgestellt, mit Grund
+    und Funktion (an 0c2f058 enthielt sich der ganze Vergleich als 'unvollstaendig_erfasst')."""
+    r = _organ(tmp_path, monkeypatch, SIO.format("x"), SIO_UMGESCHRIEBEN, "from paket.m.a import bericht\nbericht(3)")
+    assert r.get("enthaltung") is True and r["grund_art"] == "betroffene_funktion_enthaelt_sich", (r.get("grund_art"), r.get("grund"))
+    assert "paket.m.a:bericht" in r["grund"], r["grund"]
+
+
+HELFER = ('\n\ndef _gross(t):\n    return t\n\n\nclass Leser:\n    def __init__(self, text: str):\n'
+          '        self._quelle = (_gross(t) for t in text.split())\n\n    def __iter__(self):\n        return self\n\n'
+          '    def __next__(self):\n        return next(self._quelle)\n\n\ndef leser(text: str) -> "Leser":\n'
+          '    return Leser(text)\n')
+
+
+@pytest.mark.parametrize("aenderung,status", [("helfer", "zurueckgestellt"), ("quadrat", "ueberlebt")])
+def test_b3_privater_helfer_geaendert_aufruferin_unvollstaendig(tmp_path, monkeypatch, aenderung, status):
+    """Durch aegis.pruefen: der Kandidat ändert nur den privaten Helfer `_gross`; `leser` (unverändert, liefert ein
+    Iterator-Objekt mit Generator — unvollständig erfasst) nennt die Klasse, deren __init__ den Helfer nennt: betroffen
+    (transitiv) → zurückgestellt, der Grund nennt die betroffene Funktion. Gegenfall (selbst eine Probe für R6-1, an
+    0c2f058 rot): der Kandidat ändert `quadrat` verhaltensgleich — `leser` ist unbetroffen, gezählte Enthaltung,
+    geurteilt am Rest: überlebt (an 0c2f058 in beiden Fällen zurückgestellt: „unvollständig erfasst“ ohne betroffene
+    Funktion)."""
+    q = QUELLE + HELFER
+    monkeypatch.setattr(R3, "QUELLE", q)
+    if aenderung == "helfer":
+        neu = q.replace("def _gross(t):\n    return t\n", "def _gross(t):\n    return t.upper()\n")
+    else:
+        neu = q.replace("    return x * x\n", "    return x ** 2\n")
+    assert neu != q
+    u, v = R3._pruefen(tmp_path, monkeypatch, R3._diff(q, neu))
+    assert u["status"] == status, u["grund"]
+    if status == "zurueckgestellt":
+        assert "betroffen" in u["grund"] and "probewerk.werk.kern:leser" in u["grund"], u["grund"]
+    else:
+        assert "probewerk.werk.kern:leser" in (v.get("enthaltungen") or {}), v.get("enthaltungen")
+
+
+QU = ("import queue\n\nQ = queue.Queue()\n\n\ndef hole(n: int) -> int:\n    return {}\n\n\n"
+      "def doppel(x: int) -> int:\n    return {}\n")
+
+
+@pytest.mark.parametrize("fall", ["d1", "d1b"])
+def test_b3_d1_haengender_aufruf_trifft_nur_die_funktion(tmp_path, monkeypatch, fall):
+    """Review 05 Nr. 5 (d1): die Sonde ruft `hole` mehrfach, der zweite Aufruf blockiert an der leeren Queue — an 0c2f058
+    Kammer-Zeitlimit, Messgerätausfall für den ganzen Kandidaten. Jetzt: Frist je beobachtetem Aufruf, `hole` enthält
+    sich („Zeitgrenze“). d1: Kandidat ändert doppel verhaltensgleich → geurteilt am Rest, tragfähig. d1b: Kandidat
+    schreibt `hole` um (betroffen) → der Vergleich enthält sich (zurückgestellt), der Grund nennt `hole`."""
+    _zeitlimit_kappen(monkeypatch, 75)
+    last = "from paket.m.a import Q, hole, doppel\nQ.put(1)\nhole(0)\ndoppel(3)"
+    alt = QU.format("Q.get() + n", "2 * x")
+    neu = QU.format("Q.get() + n", "x + x") if fall == "d1" else QU.format("n + Q.get()", "2 * x")
+    t0 = time.monotonic()
+    r, fehler = _organ_sicher(tmp_path, monkeypatch, alt, neu, last)
+    assert fehler is None, fehler
+    assert time.monotonic() - t0 < 150, time.monotonic() - t0
+    if fall == "d1":
+        assert r["geurteilt"] is True and r["tragfaehig"] is True, (r.get("grund_art"), r.get("grund"))
+        assert "Zeitgrenze" in (r.get("enthaltungen") or {}).get("paket.m.a:hole", ""), r.get("enthaltungen")
+    else:
+        assert r.get("enthaltung") is True and r["grund_art"] == "betroffene_funktion_enthaelt_sich", (r.get("grund_art"), r.get("grund"))
+        assert "paket.m.a:hole" in r["grund"] and "Zeitgrenze" in r["grund"], r["grund"]
+
+
+def test_b3_haengende_bereichslast_wird_wie_ein_abbruch_eingegrenzt(tmp_path, monkeypatch):
+    """Eine Last, die unter der Sonde hängt (die Sonde hat beide Queue-Elemente verbraucht, die Last wartet selbst):
+    Frist je Bereichslast (hier gekürzt) → Abbruch → Eingrenzung in Kindprozessen (je Kind eine Frist) → `hole` enthält
+    sich (Sondenausfall), geurteilt am Rest. An 0c2f058: Kammer-Zeitlimit, Messgerätausfall."""
+    monkeypatch.setattr(vv, "FRIST_LAST_S", 8, raising=False)
+    _zeitlimit_kappen(monkeypatch, 75)
+    last = "from paket.m.a import Q, hole, doppel\nQ.put(1)\nQ.put(2)\nhole(0)\nQ.get()\ndoppel(3)"
+    r, fehler = _organ_sicher(tmp_path, monkeypatch, QU.format("Q.get() + n", "2 * x"), QU.format("Q.get() + n", "x + x"), last)
+    assert fehler is None, fehler
+    assert r["geurteilt"] is True and r["tragfaehig"] is True, (r.get("grund_art"), r.get("grund"))
+    assert (r.get("enthaltungen") or {}).get("paket.m.a:hole", "").startswith("Sondenausfall"), r.get("enthaltungen")
+
+
+def _haengt_unerreichbar():
+    import signal
+    import time as _t
+    signal.signal(signal.SIGALRM, signal.SIG_IGN)
+    signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGALRM})
+    _t.sleep(300)
+    return "nie"
+
+
+def test_b3_kind_der_eingrenzung_mit_frist_der_elternseite():
+    """Ergänzung (a) zu Entscheidung 3: ein Kind, das die eigene Frist nicht durchsetzen kann (SIGALRM blockiert, wie ein
+    in C-Code verklemmtes Kind), wird von der Elternseite nach der Frist beendet (SIGKILL, waitpid) — Ergebnis
+    `__kindfehler`, nie ein Werkverhalten. An 0c2f058 hat `_im_kind` keine Frist (TypeError beim Aufruf mit Frist)."""
+    vh = _vh()
+    t0 = time.monotonic()
+    try:
+        r = vh._im_kind(_haengt_unerreichbar, 2)
+    except TypeError as e:
+        r = {"__typfehler": str(e)}
+    assert isinstance(r, dict) and "__kindfehler" in r, r
+    assert time.monotonic() - t0 < 30, time.monotonic() - t0
+
+
+def test_b3_eingrenzung_mit_verklemmten_kindern_ist_gescheitert_nie_werkverhalten():
+    """Hängen die Kinder der Eingrenzung (Lastlauf mit und ohne Sonde), ist das Ergebnis „Eingrenzung gescheitert“
+    (`__vorlagenfehler`) — der Wirt zählt dann alle Funktionen der Last als Enthaltung, nie als Verhalten des Werks."""
+    vh = _vh()
+    assert hasattr(vh, "FRIST_LAST"), "kern/py/verhalten.py: keine Frist je Bereichslast"
+    vh.FRIST_LAST[0] = 2
+    t0 = time.monotonic()
+    befund = vh._eingrenzen_in_vorlage({"last_x": _haengt_unerreichbar}, "last_x")
+    assert "__vorlagenfehler" in befund and "ohne_sonde" not in befund, befund
+    assert time.monotonic() - t0 < 60, time.monotonic() - t0
+
+
+def _ts_werk(tmp_path):
+    w = tmp_path / "ts"
+    (w / "src" / "m").mkdir(parents=True)
+    (w / "src" / "n").mkdir(parents=True)
+    (w / "package.json").write_text('{"type":"module"}')
+    (w / "src" / "m" / "a.ts").write_text("export function f(x: number): number {\n  return x;\n}\n")
+    (w / "src" / "n" / "b.ts").write_text("export function g(x: number): number {\n  return x;\n}\n")
+    return w
+
+
+@pytest.mark.parametrize("gerufen,enthaltung", [(["m/a:f"], True), (["n/b:g"], False)])
+def test_b3_ts_lastabbruch_trifft_betroffene_oder_unveraenderte_funktion(tmp_path, monkeypatch, gerufen, enthaltung):
+    """Ergänzung (b) zu Entscheidung 3, TypeScript am Organ mit gestellter Sonde (keine TS-Kammerprobe, die ist vor T5):
+    die Bereichslast bricht an der Vorgeneration ab. Ruft sie eine Funktion eines vom Kandidaten geänderten Moduls →
+    zurückgestellt (an 0c2f058 „0 von 2 beobachtet“, tragfähig — aegis nahm an). Ruft sie nur Funktionen unveränderter
+    Module → geurteilt am Rest (Gegenprobe)."""
+    w = _ts_werk(tmp_path)
+    seite = {"gueltig": True, "beobachtungen": {"korpus:last_m": "Fehler:TypeError", "m/a:f~rand#0": "1"},
+             "inhalt": {"m/a:f": 1}, "eingewickelt": {"m/a": ["f"], "n/b": ["g"]}, "muster": {"m/a:f~rand#0": []},
+             "last_aufrufe": {"last_m": list(gerufen)}}
+    monkeypatch.setattr(vv, "beobachten", lambda *a, **k: dict(seite))
+    r = vv.pruefen(w, {"src/m/a.ts": "export function f(x: number): number {\n  return x + 0;\n}\n"}, "last", ["m"], {})
+    if enthaltung:
+        assert r.get("enthaltung") is True and r["grund_art"] == "betroffene_funktion_enthaelt_sich", (r.get("grund_art"), r.get("grund"))
+        assert "m/a:f" in r["grund"] and r["tragfaehig"] is False, r["grund"]
+    else:
+        assert r["geurteilt"] is True and r["tragfaehig"] is True and not r.get("enthaltung"), (r.get("grund_art"), r.get("grund"))
+        assert (r.get("enthaltungen") or {}).get("n/b:g", "").startswith("Sondenausfall"), r.get("enthaltungen")
+
+
+BETROFFEN_ALT = ('TABELLE = {"a": 1}\n\n\ndef _helfer(x):\n    return x\n\n\ndef mitte(x):\n    return _helfer(x) + 1\n\n\n'
+                 'def oben(x):\n    return mitte(x) * 2\n\n\ndef allein(x):\n    return x\n\n\n'
+                 'class Konto:\n    rabatt = 0\n\n    def __init__(self, s):\n        self.s = s\n\n'
+                 '    def buchen(self, b):\n        return self.s + b\n\n\ndef konto(s):\n    return Konto(s)\n')
+
+
+@pytest.mark.parametrize("fall,alt,neu,soll", [
+    ("helfer_transitiv", "    return x\n\n\ndef mitte", "    return -x\n\n\ndef mitte",
+     {"paket.m.a:_helfer", "paket.m.a:mitte", "paket.m.a:oben"}),
+    ("modulebene", 'TABELLE = {"a": 1}', 'TABELLE = {"a": 2}', "alle"),
+    ("klassenkoerper", "    rabatt = 0\n", "    rabatt = 1\n",
+     {"paket.m.a:Konto.__init__", "paket.m.a:Konto.buchen", "paket.m.a:konto"}),
+    ("methode", "        return self.s + b\n", "        return self.s - b\n", {"paket.m.a:Konto.buchen", "paket.m.a:konto"}),
+    ("kommentar", "def allein(x):\n", "def allein(x):  # nur ein Kommentar\n", set()),
+    ("neu_und_entfernt", "def allein(x):\n    return x\n", "def einsam(x):\n    return x\n",
+     {"paket.m.a:allein", "paket.m.a:einsam"}),
+])
+def test_b3_betroffene_funktionen_aus_dem_syntaxbaum(tmp_path, fall, alt, neu, soll):
+    """Betroffene Funktionen je geändertem Modul: eigener Knoten verschieden (ohne Positionen), neu oder entfernt;
+    Modulebene geändert → alle; Klassenkörper außer Methoden → alle Methoden; transitiv jede Funktion, die den Namen
+    einer betroffenen Funktion (bei Methoden auch den Klassennamen) nennt."""
+    assert hasattr(vv, "betroffene_funktionen"), "verhaltensvergleich.betroffene_funktionen fehlt"
+    w = _werk(tmp_path, BETROFFEN_ALT)
+    assert BETROFFEN_ALT.count(alt) == 1
+    b = vv.betroffene_funktionen(w, {"paket/m/a.py": BETROFFEN_ALT.replace(alt, neu)}, ["paket.m.a"], python=True)
+    if soll == "alle":
+        assert b["module_ganz"] == ["paket.m.a"], b
+    else:
+        assert set(b["funktionen"]) == soll and b["module_ganz"] == [], b
+
+
+# ================================================================ X Entscheidung 7: Ausnahmen nach Typ und Inhalt
+EXC = "def pruefe(x: int) -> int:\n    if x < 0:\n        raise ValueError('{} ungültig')\n    return x\n"
+LAST_EXC = "from paket.m.a import pruefe\ntry:\n    pruefe(-1)\nexcept ValueError:\n    pass\npruefe(2)"
+
+
+@pytest.mark.parametrize("meldung,tragfaehig", [("Ort", False), ("PLZ", True)])
+def test_x7_p26_geworfene_ausnahme_nach_typ_und_inhalt(tmp_path, monkeypatch, meldung, tragfaehig):
+    """Review 05 Nr. 4 (p26): ValueError('PLZ ungültig') gegen ValueError('Ort ungültig') — an 0c2f058 0 Abweichungen,
+    tragfähig (nur 'Fehler:ValueError'). Jetzt Typ und Inhalt: Abweichung. Gegenprobe: gleiche Meldung, anders

@@ -1,0 +1,310 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 77 (Teile 4–165 dieses Stands) · enthält R79 bis R80
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R79 · Teil A: Prüfsummen zitierter Dateien, Skills (Regeln Philipps), laeufe.freigabe je Zweig
+Beginn: 2026-09-25 16:29:53 CEST (UTC+0200)
+Ende:   2026-09-25 16:29:54 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/entscheidungen/a7_sammeln.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/entscheidungen/a7_sammeln.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil A (nur lesend) — Prüfsummen, Skills, Datenbank für FK18/FK19.
+(Nach dem Hinweis von Hermes zu SPERRE-01 enthält dieses Skript keine Auswertung von Wortlaut-Dateien mehr;
+ die laufen über read_file/search_files.)
+1. SHA-256/Größe/Änderungszeit zitierter Dateien (Gedächtnis im Prüfkanal, T3-Freigaberegel, T3-Verfassung, MEMORY.md,
+   USER.md, Skills, Arbeitsdateien der Runde 6).
+2. Skills: description-Zeile und Zeilen mit „Philipp“, „owner“, „user's“, „standing rule“ (gekürzt).
+3. Datenbanken (nur lesend): laeufe.freigabe/status/richtung je Lauf ab 20 (STAMM immutable=1 nur bei leerer WAL; T3/VB1
+   mode=ro); Protokollarten mass.* / verfassung.* / freigabe.* gezählt.
+Prüfkanal-Schlüssel maskiert."""
+import hashlib
+import re
+import sqlite3
+import time
+from pathlib import Path
+
+if Path('/tmp/biotop-kammer-exklusiv').exists():
+    raise SystemExit('ABBRUCH: /tmp/biotop-kammer-exklusiv besteht — keine Datenbankabfragen.')
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+L = Path(f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe')
+m = lambda s: str(s).replace(str(L), '{LAEUFE}').replace(K, '<schlüssel>')
+
+print('== 1. SHA-256 zitierter Dateien')
+DATEIEN = [L / 'gedaechtnis/REGELN-01.md', L / 'gedaechtnis/STAND-01.md', L / 'gedaechtnis/UNTERBAU-01.md',
+           L / 'biotop-t3-typescript/abschluss-01/MEMORY-Freigaberegel.md',
+           L / 'biotop-t3-typescript/verfassung-02/VERFASSUNG-T3.md', L / 'biotop-t3-typescript/verfassung-02/BESTAETIGUNG.md',
+           L / 'biotop-t3-typescript/MASTERPROMPT-v7.md', L / 'biotop-vor-t4-05/MASTERPROMPT-V8-TOR4.txt',
+           L / 'biotop-wiedereinstieg-2026-09-20-01/INFINITE-EVOLUTION-BIOTOP-Masterprompt-v6-01.md',
+           Path('/root/.hermes/memories/MEMORY.md'), Path('/root/.hermes/memories/USER.md'),
+           Path('/root/biotop-vor-t4-06/VERDICHTUNG-OPENROUTER.md'), Path('/root/biotop-vor-t4-06/UEBERGABE.md'),
+           Path('/root/biotop-vor-t4-06/EINORDNUNG-U1-U4.md')]
+SK = Path('/root/.hermes/skills/software-development')
+SKILLS = [SK / n / 'SKILL.md' for n in ('biotop-phase-bauen', 'audit-channel-delivery', 'measurement-harness-discipline',
+                                         'delegated-build-orchestration')]
+for p in DATEIEN + SKILLS:
+    if p.exists():
+        b = p.read_bytes()
+        print(f'{m(p)} | {len(b)} Bytes | {time.strftime("%Y-%m-%d %H:%M:%S %Z", time.localtime(p.stat().st_mtime))} | '
+              f'{hashlib.sha256(b).hexdigest()}')
+    else:
+        print(f'{m(p)} | NICHT GEFUNDEN')
+
+print('\n== 2. Skills: Beschreibung und Regeln Philipps')
+for p in SKILLS:
+    if not p.exists():
+        continue
+    t = p.read_text(errors='replace').splitlines()
+    print(f'-- {p}: {len(t)} Zeilen')
+    for i, z in enumerate(t, 1):
+        if z.startswith('description:') or re.search(r"Philipp|owner|user's|standing rule", z):
+            print(f'   {i}: {z.strip()[:300]}')
+
+print('\n== 3. Datenbanken: laeufe.freigabe, Protokollarten')
+for name, pfad, stamm in (('STAMM', '/root/biotop/daten/biotop.db', True),
+                          ('VB1', '/root/phase-4-vorbedingung-1/privat/biotop.db', False),
+                          ('T3', '/root/biotop-t3/t3.db', False)):
+    wal = Path(pfad + '-wal')
+    if stamm and wal.exists() and wal.stat().st_size > 0:
+        print(f'{name}: NICHT GEÖFFNET (WAL {wal.stat().st_size} Bytes)')
+        continue
+    c = sqlite3.connect(f'file:{pfad}?mode=ro' + ('&immutable=1' if stamm else ''), uri=True)
+    print(f'-- {name}')
+    for r in c.execute("SELECT l.id, w.name, l.status, substr(COALESCE(l.freigabe,'(leer)'),1,160), "
+                       "substr(COALESCE(l.richtung,''),1,60) FROM laeufe l LEFT JOIN werke w ON w.id=l.werk_id "
+                       "WHERE l.id >= 20 ORDER BY l.id"):
+        print('  ', ' | '.join(str(x) for x in r))
+    for r in c.execute("SELECT art, count(*) FROM protokoll WHERE art LIKE 'mass%' OR art LIKE 'verfassung%' "
+                       "OR art LIKE 'freigabe%' GROUP BY art ORDER BY art"):
+        print('   Protokoll', r)
+    c.close()
+--- Ende /root/sicherung/biotop-lage-01/entwurf/entscheidungen/a7_sammeln.py ---
+Ausgabe (vollständig, stdout und stderr):
+== 1. SHA-256 zitierter Dateien
+{LAEUFE}/gedaechtnis/REGELN-01.md | 4504 Bytes | 2026-09-20 05:17:33 CEST | 7de0078ce031bf2d34da73352a8be8cdf7a51cc3f017f750acc4acde9dba27b6
+{LAEUFE}/gedaechtnis/STAND-01.md | 4386 Bytes | 2026-09-20 05:17:33 CEST | 6facfcc2de75857f45d5151d115e60bad35ae8d909a45c596072d5dc911e504f
+{LAEUFE}/gedaechtnis/UNTERBAU-01.md | 4965 Bytes | 2026-09-20 05:17:33 CEST | 841daa1b260b5ca4a7319c29d1478d43e09fc4c4fceae27a8ad502560b21ddf5
+{LAEUFE}/biotop-t3-typescript/abschluss-01/MEMORY-Freigaberegel.md | 1956 Bytes | 2026-09-21 18:53:33 CEST | 2fc3b66b3b29757a4d23f44ab45ac57f98daf615a407d58d41ced6ce0b456856
+{LAEUFE}/biotop-t3-typescript/verfassung-02/VERFASSUNG-T3.md | 4418 Bytes | 2026-09-21 03:42:22 CEST | 5ece12d93dc760d6bfb834d7d1cd53e29065bd54d673e2381a23d50234f78a28
+{LAEUFE}/biotop-t3-typescript/verfassung-02/BESTAETIGUNG.md | 1878 Bytes | 2026-09-21 03:42:22 CEST | ba786254cccd23f67cc358f7993e40208a8cb57fcf09b2a9abd6bd25b64a547b
+{LAEUFE}/biotop-t3-typescript/MASTERPROMPT-v7.md | 85729 Bytes | 2026-09-21 02:24:28 CEST | a3b3ac0c17371306b027591110f528018f62d5c2feb4ad82dc21823f14bd76ed
+{LAEUFE}/biotop-vor-t4-05/MASTERPROMPT-V8-TOR4.txt | 8912 Bytes | 2026-09-24 23:45:54 CEST | 888ab89a27871f31f099aee733f57f42af0789975b92c6272fa2979c0732067e
+{LAEUFE}/biotop-wiedereinstieg-2026-09-20-01/INFINITE-EVOLUTION-BIOTOP-Masterprompt-v6-01.md | 78969 Bytes | 2026-09-20 05:01:44 CEST | effefeec0fe2ea0621d4fdca0f27bdd3dae981fd289f1e0b5d56da5aca81aefd
+/root/.hermes/memories/MEMORY.md | 2224 Bytes | 2026-09-23 21:46:55 CEST | dddff83375bad37fd6cdf71b8d238d1de02a679bc8cb0f28a96bb02ef2ba2d67
+/root/.hermes/memories/USER.md | 1289 Bytes | 2026-09-20 21:15:41 CEST | fcff371c28e7f06406d20bf337f2e76b039a181125e9e00c019d1db9a05731aa
+/root/biotop-vor-t4-06/VERDICHTUNG-OPENROUTER.md | 5842 Bytes | 2026-09-25 01:16:08 CEST | 3225b6a721750199f1a7b63238b3051098a70cc55a6298386df3e1e3efb93e25
+/root/biotop-vor-t4-06/UEBERGABE.md | 24382 Bytes | 2026-09-25 12:52:04 CEST | 09e213d6d916c7610d910c4d0b5906df264d7ac87cca642e73942ebbf287d047
+/root/biotop-vor-t4-06/EINORDNUNG-U1-U4.md | 2983 Bytes | 2026-09-25 00:43:44 CEST | 6a4e92a5983b91331380fca0630dcfd7b4113fd25cba2219409b3837d25b09c0
+/root/.hermes/skills/software-development/biotop-phase-bauen/SKILL.md | 14307 Bytes | 2026-09-25 12:52:04 CEST | f1defae43b6759ef244d48c037f9c540ec2c8872071848de12940f439e531176
+/root/.hermes/skills/software-development/audit-channel-delivery/SKILL.md | 18104 Bytes | 2026-09-25 10:15:59 CEST | 99c3d1617d28becc197e00caa3af99577517426f0257d16bd5b028dd616b19b0
+/root/.hermes/skills/software-development/measurement-harness-discipline/SKILL.md | 89573 Bytes | 2026-09-25 10:15:59 CEST | f6211e3fbfaa2b640a00a26937af3085d335d6407685286f7334cc999f58802e
+/root/.hermes/skills/software-development/delegated-build-orchestration/SKILL.md | 6867 Bytes | 2026-09-25 10:15:59 CEST | e953ba5772d61038b0ca103f195a5b3591e83148b8a2c4dba2430391903463e0
+
+== 2. Skills: Beschreibung und Regeln Philipps
+-- /root/.hermes/skills/software-development/biotop-phase-bauen/SKILL.md: 72 Zeilen
+   3: description: Use when building a Biotop phase; Tor lines, Prüfkanal.
+   53: - Formatsperre bei einem Bauenden („command parser limit or malformed executable payload“): Bauende halten an; der Auftraggeber führt das gespeicherte Skript unverändert aus, wenn es eine reine Lese-/Testhandlung ist (Regel Philipp 23.09.), und legt die Ausgabe unter `sperre/`.
+-- /root/.hermes/skills/software-development/audit-channel-delivery/SKILL.md: 68 Zeilen
+   3: description: "Use when delivering work to the audit channel (Prüfkanal)."
+   13: - Check first that the previous order was delivered: its folder is in the channel, its report carries no `‹` placeholder, its review is incorporated. If not, finish it before any new work — fill the placeholders by script from the evidence files, move the reviewer's probes into the old folder, write
+   20: - Long commands as script files from the start; anything longer than a few minutes as a background job with notify, chained so sandbox runs never overlap (`while pgrep -f <other-job>; do sleep 15; done`). When several builders share the tree, the sandbox lock, file ownership and verification rules o
+   29: 4. **Report** (`BERICHT.md`, or `ABSCHLUSS-nn.md` for numbered deliveries), skeleton below. Draft it early with explicit `‹NAME›` placeholders for results still running; fill them by script from the evidence files only after every job that feeds them has finished (a source re-run after filling means
+   30: 5. **One review pass** — the user's standing rule: one review, no fix-agent cascade, no audit of audits; implementing subagents do not count as review. Before dispatching, check that no review of this order is still running (`delegate_task` list; `pgrep -af <review folder>`) and give every review it
+   36: When two review passes exist anyway, the owner chooses one; the other stays in the delivery folder as `REVIEW-verworfen-<n>.md`, findings only it contains go on the list as unconfirmed (`U-n`, each later classified against the start rule: a silent pass is built in the current round with its counterc
+   37: Measure every finding against the records before adopting it. Incorporate as a table with an `Umgang` column. Code findings that would need new, unreviewed code after the single pass become red specification tests (failing at the delivered commit) for the next order instead of late fixes, collected 
+   39: 7. **End message** (Telegram): first sentence the verdict — "nicht abgenommen" when it is not; then the report URL and the `DATEIEN.txt` URL, each as a whole line; then the folder checksum; then the answers to what the user explicitly asked, own decisions, open items for the owner. Number the open i
+   46: - Check every own deviation from the order's wording against the order's other decisions and the previous review's findings before building it. A risk you can already name in your own design is resolved inside the mandate or not built; parking it as an open question for the owner ships the defect (m
+   50: - A prepared script that was blocked is kept unchanged as `bau/<name>_gesperrt.py` and published as evidence of the block; a format block's saved script is copied bytewise into `sperre/` beside the verbatim message. After the owner's release, run separate steps and let the report say which steps ran
+   52: - A block on a command that lacks the blocked capability (the lifecycle filter on a read-and-copy command, or on a file-editing script whose only link is a quoted block message) is written up once as a neutral false-alarm report in the delivery folder: the command pattern with placeholders instead o
+   54: ## Report skeleton (German, the user's format)
+   67: ## Offen für Philipp   (nummeriert, je eine entscheidbare Frage mit Optionen und gemessener Folge)
+-- /root/.hermes/skills/software-development/measurement-harness-discipline/SKILL.md: 157 Zeilen
+   3: description: Use when a measured number gates a decision.
+   24: - **Honor an explicit scope reduction without erasing findings or lowering thresholds.** Stop out-of-scope workers, quarantine their partial or late deliveries, and retain each finding with its evidence, unresolved status, and named destination. Keep the old broad review failed; a later scoped pass 
+   29: - **Size a measuring load by a criterion fixed before measuring, in a calibration phase of its own — never by the verdict the gate then produces.** "Enlarge it until the area stops locking" steers the load by the result the calibration exists to report — the same figure as tuning a sealed population
+   37: - **Close an instrument's blind spot as a class: check every capture for completeness against an independent enumeration, and let a gap abstain.** Closing one object kind at a time leaves its siblings open — measured: after slot support landed, a slot in a base class, a mangled slot name, a standard
+   51: - **When the owner does authorise the commit, land each accepted state as its own commit before the work built on it.** An approved state and the next campaign's changes squashed into one commit lose the boundary the approval was given for, and no later subject can check out the state that was signe
+   58: - **Continuing is the default, halting the exception — halt only at three hard lines.** Owner's rule (Philipp, 23.09.2026): „Weiterarbeiten ist der Normalfall, Anhalten die Ausnahme.“ Decide everything inside the mandate (master prompt, constitution, budget) yourself — gate limits and constitutions 
+   75: - **Under a "measure, change nothing" mandate, prove it with before/after state rather than asserting it.** Snapshot checksum and mtime of every file the work could touch plus the counter of whatever it could consume, repeat at the end, and publish both. Inspect connection helpers and probe setup be
+   125: - **Compare timing paired in one session, never against a historical minimum.** A limit of the form "best value of all accepted states × calibrated tolerance" pins the reference at an order statistic that falls with every acceptance, while the tolerance came from a handful of repeat measurements — s
+-- /root/.hermes/skills/software-development/delegated-build-orchestration/SKILL.md: 46 Zeilen
+   3: description: "Use when splitting a build across parallel subagents."
+   14: - Every order lists "your files (only these)" and "do not touch" with the owner of each foreign file. A file two builders must change is split by function-name prefix, named in both orders, and edited only by anchored replacement re-read right before writing.
+   16: 2. **Write every order as a file** (`BAU-S<n>-<thema>.md` in the work folder) and dispatch with a one-line goal naming it; the context repeats tree, interpreter, temp folder, what is forbidden and the block rule. Sections: environment; working method (step 3); your files; background (owner decisions
+   38: - Corrections for running builders go by `delegate_task` steer, self-contained, with the reason: file splits, new owner decisions, the lock, a new rule.
+
+== 3. Datenbanken: laeufe.freigabe, Protokollarten
+-- STAMM
+   20 | lagerhaus-p3-20 | gesaettigt | (leer) | {"_verweise_eigenes_werk": ["A437", "A436", "A427", "A426", 
+   21 | lagerhaus-p3-20 | verworfen | (leer) | 
+   22 | lagerhaus-p3-22 | gesaettigt | (leer) | {"_verweise_eigenes_werk": ["A15", "A454"], "_verweise_werku
+   23 | logmuehle-23 | gesaettigt | (leer) | {"_verweise_eigenes_werk": ["A311", "A331"], "_verweise_werk
+   24 | lagerhaus-zeile8-24 | bereit | (leer) | {"_verweise_eigenes_werk": ["A33"], "_verweise_werkuebergrei
+   25 | lagerhaus-c-25 | bereit | (leer) | {"_verweise_eigenes_werk": ["A33", "A651"], "_verweise_werku
+   Protokoll ('freigabe.frei', 48)
+   Protokoll ('mass.eingefroren', 23)
+   Protokoll ('mass.verworfen', 1)
+   Protokoll ('verfassung.eingelegt', 18)
+-- VB1
+   20 | lagerhaus-p3-20 | gesaettigt | (leer) | {"_verweise_eigenes_werk": ["A437", "A436", "A427", "A426", 
+   21 | lagerhaus-p3-20 | verworfen | (leer) | 
+   22 | lagerhaus-p3-22 | gesaettigt | (leer) | {"_verweise_eigenes_werk": ["A15", "A454"], "_verweise_werku
+   23 | logmuehle-23 | gesaettigt | (leer) | {"_verweise_eigenes_werk": ["A311", "A331"], "_verweise_werk
+   24 | lagerhaus-zeile8-24 | bereit | (leer) | {"_verweise_eigenes_werk": ["A33"], "_verweise_werkuebergrei
+   25 | lagerhaus-c-25 | bereit | (leer) | {"_verweise_eigenes_werk": ["A33", "A651"], "_verweise_werku
+   26 | lagerhaus-vorbedingung1-26 | gesaettigt | (leer) | {"_verweise_eigenes_werk": ["A175", "A141", "A249", "A6"], "
+   Protokoll ('freigabe.frei', 50)
+   Protokoll ('mass.eingefroren', 24)
+   Protokoll ('mass.verworfen', 1)
+   Protokoll ('verfassung.eingelegt', 19)
+-- T3
+   20 | lagerhaus-p3-20 | gesaettigt | (leer) | {"_verweise_eigenes_werk": ["A437", "A436", "A427", "A426", 
+   21 | lagerhaus-p3-20 | verworfen | (leer) | 
+   22 | lagerhaus-p3-22 | gesaettigt | (leer) | {"_verweise_eigenes_werk": ["A15", "A454"], "_verweise_werku
+   23 | logmuehle-23 | gesaettigt | (leer) | {"_verweise_eigenes_werk": ["A311", "A331"], "_verweise_werk
+   24 | lagerhaus-zeile8-24 | bereit | (leer) | {"_verweise_eigenes_werk": ["A33"], "_verweise_werkuebergrei
+   25 | lagerhaus-c-25 | bereit | (leer) | {"_verweise_eigenes_werk": ["A33", "A651"], "_verweise_werku
+   26 | versandwerk-t3-02 | kartiert | (leer) | 
+   27 | versandwerk-t3-02 | kartiert | (leer) | 
+   28 | versandwerk-t3-02 | kartiert | (leer) | 
+   29 | versandwerk-t3-02 | kartiert | (leer) | 
+   30 | versandwerk-t3-02 | kartiert | (leer) | 
+   31 | versandwerk-t3-02 | laeuft | (leer) | 
+   32 | versandwerk-t3-02 | laeuft | (leer) | 
+   33 | versandwerk-t3-02 | kartiert | (leer) | 
+   34 | versandwerk-t3-02 | kartiert | (leer) | 
+   35 | versandwerk-t3-02 | kartiert | (leer) | 
+   36 | versandwerk-t3-02 | laeuft | (leer) | 
+   37 | versandwerk-t3-02 | gesaettigt | (leer) | 
+   38 | versandwerk-t3-02 | bereit | (leer) | 
+   Protokoll ('freigabe.frei', 66)
+   Protokoll ('mass.eingefroren', 28)
+   Protokoll ('mass.verworfen', 1)
+   Protokoll ('verfassung.eingelegt', 31)
+=== Ende R79 ===
+
+
+R80 · Teil D: Prüfweise je Bauteil — Testdateien je Modul, Register, Oberfläche, Routen am Commit 0c2f058 (FK32)
+Beginn: 2026-09-25 16:32:58 CEST (UTC+0200)
+Ende:   2026-09-25 16:32:59 CEST (UTC+0200)
+Dauer:  1.5 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/aufbau/d10_pruefweise.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/aufbau/d10_pruefweise.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil D (nur lesend): Prüfweise je Bauteil — FK32.
+
+Am Commit 0c2f058 (git show): Für jedes Modul unter biotop/ die Testdateien unter tests/, die es importieren oder per
+Modulname ansprechen (Muster: „organe import …name…“, „organe.name“, „kern import …name…“, „kern.name“, „biotop import
+…name…“, „biotop.name“). Dazu: Zahl der Einträge in register.VERLANGT, in oberflaeche.ELEMENTE und in dienst.ROUTEN.
+"""
+import re
+import subprocess
+
+REPO, C = '/root/biotop', '0c2f058'
+
+
+def git(*a) -> str:
+    return subprocess.run(['git', '-C', REPO, *a], check=True, stdout=subprocess.PIPE).stdout.decode('utf-8', 'replace')
+
+
+dateien = git('ls-tree', '-r', '--name-only', C).splitlines()
+tests = {p: git('show', f'{C}:{p}') for p in dateien if p.startswith('tests/') and p.endswith('.py')}
+module = [p for p in dateien if p.startswith('biotop/') and p.endswith('.py') and not p.endswith('__init__.py')]
+module.append('biotop/anbieter/__init__.py')
+print('== 1. Modul → Testdateien, die es importieren oder ansprechen (Anzahl; Namen)')
+for m in sorted(module):
+    teile = m[:-3].split('/')
+    name = teile[-1] if teile[-1] != '__init__' else teile[-2]
+    paket = teile[-2] if teile[-1] != '__init__' else teile[-3]
+    muster = re.compile(
+        rf'(from\s+biotop(\.{paket})?\s+import\s+[^\n]*\b{name}\b|\bbiotop\.({paket}\.)?{name}\b|\b{paket}\.{name}\b'
+        rf'|import\s+biotop\.({paket}\.)?{name}\b|from\s+\.\.?{paket}?\s+import\s+[^\n]*\b{name}\b)')
+    treffer = sorted(p.split('/')[-1] for p, t in tests.items() if muster.search(t))
+    print(f'{m}: {len(treffer)} — {", ".join(treffer)}')
+
+print('\n== 2. Einträge in register.VERLANGT (Zeilen mit Tupel-Anfang innerhalb VERLANGT)')
+reg = git('show', f'{C}:biotop/kern/register.py')
+blk = reg.split('VERLANGT', 1)[1] if 'VERLANGT' in reg else ''
+blk = blk[:blk.find('\n]') + 2] if '\n]' in blk else blk
+eintraege = re.findall(r'^\s+\("([^"]+)",\s*"([^"]+)",\s*"([^"]+)"', blk, re.M)
+print(len(eintraege), 'Einträge')
+for e in eintraege:
+    print('  ', ' ← '.join(e[:2]), '@', e[2])
+
+print('\n== 3. Einträge in oberflaeche.ELEMENTE und dienst.ROUTEN')
+ob = git('show', f'{C}:biotop/oberflaeche.py')
+blk = ob.split('ELEMENTE = {', 1)[1].split('\n}', 1)[0]
+print('ELEMENTE:', len(re.findall(r'^\s+"[^"]+":\s*\(', blk, re.M)))
+di = git('show', f'{C}:biotop/dienst.py')
+blk = di.split('ROUTEN = [', 1)[1].split('\n]', 1)[0]
+print('ROUTEN:', len(re.findall(r'^\s+\("(GET|POST)"', blk, re.M)))
+--- Ende /root/sicherung/biotop-lage-01/entwurf/aufbau/d10_pruefweise.py ---
+Ausgabe (vollständig, stdout und stderr):
+== 1. Modul → Testdateien, die es importieren oder ansprechen (Anzahl; Namen)
+biotop/__main__.py: 2 — test_verdrahtung.py, test_vorspann_cli.py
+biotop/anbieter/__init__.py: 5 — test_t3_anbieter_wiederholung.py, test_t3_budgetgrenze.py, test_t3_verbundausfall.py, test_verdrahtung.py, test_vor_t4.py
+biotop/dienst.py: 0 — 
+biotop/kern/anmeldung.py: 0 — 
+biotop/kern/befundklassen.py: 0 — 
+biotop/kern/datenbank.py: 31 — conftest.py, test_ansage_aufnahme.py, test_artvorlage.py, test_eichproben.py, test_nachweis_verbraucher.py, test_review_vertrag.py, test_t3_anbieter_wiederholung.py, test_t3_auftragsgrenze.py, test_t3_ausfall_automatisch.py, test_t3_ausfall_klaerung.py, test_t3_ausfall_schwarm.py, test_t3_befundklasse.py, test_t3_behauptungen_protokoll.py, test_t3_bindung.py, test_t3_eichpfad.py, test_t3_gedaechtnis.py, test_t3_integration_dispatch.py, test_t3_kaputter_modellcode.py, test_t3_kernsperren.py, test_t3_neutralzaehler.py, test_t3_testoperationen.py, test_t3_verbundausfall.py, test_t3_zaehlkontext.py, test_verdrahtung.py, test_vor_t4.py, test_vor_t4_02.py, test_vor_t4_03.py, test_vor_t4_04.py, test_vor_t4_05.py, test_vorspann.py, test_vorspann_cli.py
+biotop/kern/diffwerk.py: 0 — 
+biotop/kern/gegenzeugen.py: 2 — test_vor_t4_03.py, test_vor_t4_04.py
+biotop/kern/kasse.py: 6 — test_t3_anbieter_wiederholung.py, test_t3_auftragsgrenze.py, test_t3_ausfall_automatisch.py, test_t3_ausfall_klaerung.py, test_verdrahtung.py, test_vor_t4.py
+biotop/kern/messgeraet.py: 14 — test_eichproben.py, test_kernmass_pareto.py, test_messnachweise.py, test_nachweis_verbraucher.py, test_rauschmessung.py, test_review_vertrag.py, test_t3_integration_dispatch.py, test_t3_kaputter_modellcode.py, test_t3_masseichung.py, test_vor_t4.py, test_vor_t4_02.py, test_vor_t4_03.py, test_vor_t4_04.py, test_vor_t4_05.py
+biotop/kern/protokoll.py: 14 — test_ansage_aufnahme.py, test_t3_anbieter_wiederholung.py, test_t3_auftragsgrenze.py, test_t3_ausfall_automatisch.py, test_t3_ausfall_klaerung.py, test_t3_ausfall_schwarm.py, test_t3_behauptungen_protokoll.py, test_t3_bindung.py, test_t3_kernsperren.py, test_t3_neutralzaehler.py, test_t3_verbundausfall.py, test_t3_vorfreeze_vertrag.py, test_t3_zaehlkontext.py, test_vor_t4.py
+biotop/kern/py/verhalten.py: 0 — 
+biotop/kern/referenzlast/lagerhaus.py: 0 — 
+biotop/kern/referenzlast/logmuehle.py: 0 — 
+biotop/kern/register.py: 1 — test_verdrahtung.py
+biotop/kern/sprachprofil.py: 2 — test_t3_python_annahmen.py, test_vor_t4.py
+biotop/kern/typescript.py: 16 — test_t3_aequivalenz.py, test_t3_angriff_unbrauchbar.py, test_t3_befundklasse.py, test_t3_eichpfad.py, test_t3_fundpruefung.py, test_t3_generation0.py, test_t3_integration_dispatch.py, test_t3_kaputter_modellcode.py, test_t3_neutralzaehler.py, test_t3_normpraedikat.py, test_t3_referenzwarmup.py, test_t3_statik_luecken.py, test_t3_testoperationen.py, test_t3_zweigklasse.py, test_typescript_adapter.py, test_vor_t4.py
+biotop/lauf.py: 10 — test_nachweis_verbraucher.py, test_t3_ausfall_schwarm.py, test_t3_verhaltensvergleich.py, test_t3_zaehlkontext.py, test_verdrahtung.py, test_vor_t4.py, test_vor_t4_04.py, test_vor_t4_05.py, test_vorspann.py, test_vorspann_cli.py
+biotop/nachspiel.py: 1 — test_verdrahtung.py
+biotop/oberflaeche.py: 0 — 
+biotop/organe/aegis.py: 22 — test_ansage_aufnahme.py, test_doppelungsschluessel.py, test_eichproben.py, test_junit_zeugen.py, test_review_vertrag.py, test_t3_angriff_unbrauchbar.py, test_t3_befundklasse.py, test_t3_behauptungen_protokoll.py, test_t3_integration_dispatch.py, test_t3_kaputter_modellcode.py, test_t3_modellvorlagen.py, test_t3_neutralzaehler.py, test_t3_testoperationen.py, test_t3_wirkungskreis.py, test_t3_zaehlkontext.py, test_t3_zweigklasse.py, test_verdrahtung.py, test_vor_t4.py, test_vor_t4_02.py, test_vor_t4_03.py, test_vor_t4_04.py, test_vor_t4_05.py
+biotop/organe/aufnahme.py: 3 — test_t3_integration_dispatch.py, test_t3_sprachwege.py, test_verdrahtung.py
+biotop/organe/eichgegenstand.py: 2 — test_review_vertrag.py, test_vorspann.py
+biotop/organe/eichproben.py: 7 — test_eichproben.py, test_review_vertrag.py, test_t3_eichpfad.py, test_t3_gedaechtnis.py, test_t3_normpraedikat.py, test_vor_t4.py, test_vorspann.py
+biotop/organe/eichproben_ts.py: 0 — 
+biotop/organe/eichung.py: 6 — test_rauschmessung.py, test_t3_rausch_nachmessung.py, test_vor_t4.py, test_vor_t4_04.py, test_vor_t4_05.py, test_vorspann.py
+biotop/organe/entropie.py: 0 — 
+biotop/organe/fundpruefung.py: 4 — test_nachweis_verbraucher.py, test_t3_fundpruefung.py, test_t3_kaputter_modellcode.py, test_vorspann.py
+biotop/organe/gedaechtnis.py: 9 — test_artvorlage.py, test_t3_aenderungsziel.py, test_t3_gedaechtnis.py, test_t3_kaputter_modellcode.py, test_t3_neutralzaehler.py, test_t3_verbundausfall.py, test_t3_zaehlkontext.py, test_verdrahtung.py, test_vor_t4.py
+biotop/organe/generation0.py: 10 — test_t3_aequivalenz.py, test_t3_generation0.py, test_t3_integration_dispatch.py, test_t3_kaputter_modellcode.py, test_t3_mutantentyp.py, test_t3_neutralzaehler.py, test_t3_zaehlkontext.py, test_t3_zweigklasse.py, test_vor_t4.py, test_vorspann.py
+biotop/organe/genesis.py: 6 — test_t3_ausfall_schwarm.py, test_t3_modellvorlagen.py, test_t3_sprachwege.py, test_t3_verbundausfall.py, test_verdrahtung.py, test_vor_t4.py
+biotop/organe/jury.py: 1 — test_verdrahtung.py
+biotop/organe/kammer.py: 22 — conftest.py, test_eichproben.py, test_junit_zeugen.py, test_messnachweise.py, test_nachweis_verbraucher.py, test_review_vertrag.py, test_t3_angriff_unbrauchbar.py, test_t3_befundklasse.py, test_t3_eichpfad.py, test_t3_gedaechtnis.py, test_t3_mutantentyp.py, test_t3_referenzwarmup.py, test_t3_statik_luecken.py, test_t3_transport.py, test_typescript_adapter.py, test_verdrahtung.py, test_vor_t4.py, test_vor_t4_02.py, test_vor_t4_03.py, test_vor_t4_04.py, test_vor_t4_05.py, test_vorspann_cli.py
+biotop/organe/landkarte.py: 4 — test_t3_integration_dispatch.py, test_t3_sprachwege.py, test_t3_verbundausfall.py, test_t3_wirkungskreis.py
+biotop/organe/lazarus.py: 1 — test_verdrahtung.py
+biotop/organe/masseichung.py: 2 — test_t3_masseichung.py, test_vor_t4.py
+biotop/organe/mentor.py: 1 — test_t3_verbundausfall.py
+biotop/organe/neutralzaehler.py: 3 — test_t3_neutralzaehler.py, test_t3_zaehlkontext.py, test_vor_t4.py
+biotop/organe/nischen.py: 2 — test_t3_verbundausfall.py, test_vor_t4.py
+biotop/organe/verfassung.py: 7 — test_eichproben.py, test_review_vertrag.py, test_t3_befundklasse.py, test_t3_eichpfad.py, test_t3_kernsperren.py, test_t3_testoperationen.py, test_vorspann.py
+biotop/organe/verhaltensvergleich.py: 6 — test_t3_verhaltensvergleich.py, test_vor_t4.py, test_vor_t4_02.py, test_vor_t4_03.py, test_vor_t4_04.py, test_vor_t4_05.py
+biotop/organe/vertraege.py: 7 — test_eichproben.py, test_review_vertrag.py, test_t3_ausfall_schwarm.py, test_t3_eichpfad.py, test_t3_sprachwege.py, test_vor_t4.py, test_vorspann.py
+biotop/organe/vorspann.py: 9 — test_nachweis_verbraucher.py, test_review_vertrag.py, test_t3_bindung.py, test_t3_kernsperren.py, test_t3_vorfreeze_vertrag.py, test_verdrahtung.py, test_vor_t4_04.py, test_vor_t4_05.py, test_vorspann.py
+biotop/tor4.py: 0 — 
+
+== 2. Einträge in register.VERLANGT (Zeilen mit Tupel-Anfang innerhalb VERLANGT)
+10 Einträge
+   aegis.pruefen ← biotop.lauf:_generation_koerper @ generation
+   masseichung.anwenden ← biotop.organe.aegis:pruefen @ generation
+   verhaltensvergleich.pruefen ← biotop.organe.aegis:pruefen @ generation
+   messgeraet.laufzeit_gepaart ← biotop.organe.aegis:pruefen @ generation
+   eichung.rauschmessung ← biotop.organe.vorspann:_ausfuehren @ vorspann
+   eichung.laufzeit_einmal ← biotop.organe.vorspann:_ausfuehren @ vorspann
+   masseichung.eichen ← biotop.organe.vorspann:_ausfuehren @ vorspann
+   eichproben.proben ← biotop.organe.vorspann:_ausfuehren @ vorspann
+   tor4.ausfuehren ← biotop.__main__:main @ tor4
+   gegenzeugen.torzeile_schwaechen ← biotop.tor4:ausfuehren @ tor4
+
+== 3. Einträge in oberflaeche.ELEMENTE und dienst.ROUTEN
+ELEMENTE: 18
+ROUTEN: 19
+=== Ende R80 ===

@@ -1,0 +1,68 @@
+# Nachgang Vorbedingung 1 — N2 (Aufrechnung Lauf 24) und N3 (Filtergüte)
+# Keine neuen Modellaufrufe: alle Zahlen aus Protokoll und Datenbank.
+
+## N2 — Lauf 24 vollständig aufgerechnet
+
+  Ansagen gesamt:            27
+  davon Angriff ausgeführt:  11
+  davon abgewiesen (Wiederholung): 10
+  davon KEIN ANGRIFF:        6
+  Summe: 11 + 10 + 6 = 27 → geht auf
+
+  Die im Prüfbericht vermissten 6 Ansagen (F2): Ansagen ohne Behauptung, vom Ankläger mit KEIN ANGRIFF
+  beantwortet. Sie wurden in meiner Meldung unter „KEIN ANGRIFF" geführt, in der Rechnung 27 − 10 = 17
+  aber nicht abgezogen. Protokollnummern: #14627, #14657, #14874, #14896, #15071, #15083
+
+### Je ausgeführtem Angriff: was kam dabei heraus?
+  In Lauf 24 erzeugte Immuntests: 2 — aegis_k2500_preise, aegis_k2526_lager
+
+  Ankläger-Urteile mit Angriff: 9
+    Tests am Kandidaten bestätigt: 1
+    als Norm eingestuft (0 Punkte, nicht ins Werk): 1
+    als Doppelung verworfen: 0
+    Angriffe ohne jede Bestätigung (Test fiel nicht oder war fehlerhaft): 7
+
+  ERKLÄRUNG zu F2 ("11 Angriffe → 2 Tests"): Ein ausgeführter Angriff erzeugt nur dann einen Immuntest,
+  wenn sein Test am Kandidaten FÄLLT und die Norm-Regel (3.7) ihn als Fund anerkennt. Die übrigen Angriffe
+  lieferten Tests, die am Kandidaten bestanden (kein Fehler gefunden) oder als Norm eingestuft wurden.
+  Das ist der gewollte Ablauf, aber es stand nicht im Bericht — der Befund ist berechtigt.
+
+## N3 — Filtergüte, Bezugsgröße 27 Ansagen
+  Maßstab (Chat-Claude, vor der Messung gesetzt): Fehlalarm 0 von 10, Durchgerutscht 0.
+
+### Fehlalarm: abgewiesene Ansage, deren Behauptung NICHT im Vorrat stand
+  geprüft: 10 abgewiesene Ansagen
+    #14557 formeln/auswerten|Eq:: stand im Vorrat (frühere Ansage im Lauf) → zu Recht abgewiesen
+    #14606 lager/reservierung_einloesen|raises:NichtGenugBestand: stand im Vorrat (Übernahme) → zu Recht abgewiesen
+    #14799 lager/reservierung_einloesen|raises:NichtGenugBestand: stand im Vorrat (Übernahme) → zu Recht abgewiesen
+    #14945 lager/reservierung_einloesen|raises:NichtGenugBestand: stand im Vorrat (Übernahme) → zu Recht abgewiesen
+    #14975 lager/reservierung_einloesen|raises:NichtGenugBestand: stand im Vorrat (Übernahme) → zu Recht abgewiesen
+    #14979 lager/reservierung_einloesen|raises:NichtGenugBestand: stand im Vorrat (Übernahme) → zu Recht abgewiesen
+    #14991 lager/reservierung_einloesen|raises:ValueError: stand im Vorrat (frühere Ansage im Lauf) → zu Recht abgewiesen
+    #15104 formeln/auswerten|Eq:: stand im Vorrat (frühere Ansage im Lauf) → zu Recht abgewiesen
+    #15150 lager/reservierung_einloesen|raises:NichtGenugBestand: stand im Vorrat (Übernahme) → zu Recht abgewiesen
+    #15203 preise/stueckpreis|GtE:zahl: stand im Vorrat (Übernahme) → zu Recht abgewiesen
+  ERGEBNIS Fehlalarm: 0 von 10 (Maßstab 0 von 10 → ERFÜLLT)
+
+### Durchgerutscht: ausgeführter Angriff, dessen Test eine vorhandene Behauptung wiederholt
+  WICHTIG (Grundsatz 5): Geprüft wird gegen den Vorrat ZUM ZEITPUNKT DER ANSAGE — nicht gegen den
+  Endstand. Der erzeugte Test trägt seinen eigenen Schlüssel im Ursprung; wer den Endstand nimmt,
+  findet jeden Test als 'schon vorhanden' und misst sich selbst. Erste Fassung dieser Prüfung tat das
+  und meldete fälschlich 2 Durchrutscher.
+  geprüft: 2 erzeugte Tests gegen den Vorrat zum Ansagezeitpunkt
+    aegis_k2500_preise: Behauptung preis_fuer|GtE:zahl — zum Ansagezeitpunkt neu im Bereich preise, kein Durchrutscher
+    aegis_k2526_lager: Behauptung gesamtmenge|Eq:zahl — zum Ansagezeitpunkt neu im Bereich lager, kein Durchrutscher
+  ERGEBNIS Durchgerutscht: 0 (Maßstab 0 → ERFÜLLT)
+
+### Zusatzbefund: Hält sich der Ankläger an die angesagte Behauptung?
+    aegis_k2500_preise: geschrieben `preis_fuer|GtE:zahl`, im Bereich angesagt waren ['stueckpreis|raises:ValueError', 'umrechnen|raises:ValueError', 'rabatt_anwenden|GtE:zahl', 'aufnehmen|raises:ValueError'] → ABWEICHUNG
+  ERGEBNIS: 1 von 2 erzeugten Tests weichen von der Ansage ab.
+  BEFUND über das Bauteil: Die Sperre prüft die ANGESAGTE Behauptung; schreibt der Ankläger danach
+  einen Test über etwas anderes, greift sie nicht. Ansage und Ausführung werden nicht gegeneinander
+  geprüft. Eine Behebung ist eine Messgerätänderung und damit ein neuer Lauf (Satz 2) — sie gehört
+  nach Abschnitt 6 der Prüfung NICHT in diesen Nachgang und steht als offener Punkt für Fassung 7.
+
+### Roter und grüner Eichfall (aus dem echten Lauf, nicht gestellt)
+  GRÜN  #14533 formeln/auswerten|Eq:: neue Behauptung bei 1 bereits vorhandenen → Angriff AUSGEFÜHRT (Filter lässt Neues durch)
+  ROT   #14557 formeln/auswerten|Eq:: Wiederholung bei 2 vorhandenen → Angriff GESPERRT (Filter hält Wiederholung)
+  Beide Fälle aus demselben Lauf, ohne gestellte Ansage. Beide vorhanden.

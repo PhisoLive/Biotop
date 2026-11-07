@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="3" time="0.194" timestamp="2026-09-20T15:44:18.018319+02:00" hostname="ubuntu"><testcase classname="tests.test_vorspann" name="test_generation_ohne_vorspann_startet_nicht" time="0.021" /><testcase classname="tests.test_vorspann" name="test_vorstufen_ohne_vorspann_starten_nicht[mass]" time="0.017"><failure message="Failed: Messung ohne gültigen Vorspann begonnen">db_lauf = &lt;sqlite3.Connection object at 0x7085b2a80130&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x7085b2a9b7a0&gt;
+phase = 'mass'
+
+    @pytest.mark.parametrize("phase", ["mass", "gen0"])
+    def test_vorstufen_ohne_vorspann_starten_nicht(db_lauf, monkeypatch, phase):
+        def unerlaubt(*args, **kwargs):
+            pytest.fail("Messung ohne gültigen Vorspann begonnen")
+        monkeypatch.setattr(L, "_referenzlast", lambda *a: "# Referenzlast")
+        monkeypatch.setattr(L.messgeraet, "messen", unerlaubt)
+        monkeypatch.setattr(G0, "erzeugen", unerlaubt)
+        with pytest.raises(L.LaufFehler, match="Vorspann"):
+            if phase == "mass":
+&gt;               L.mass_einfrieren(db_lauf, 1, "Eigen-Test")
+
+tests/test_vorspann.py:25: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/lauf.py:90: in mass_einfrieren
+    mess = messgeraet.messen(Path(werk["pfad"]), bereiche, paket, ref)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (PosixPath('/root/reparatur-01/teil-eichung/tmp/pytest-of-root/pytest-10/test_vorstufen_ohne_vorspann_s0'), ['alpha'], 'paket', '# Referenzlast')
+kwargs = {}
+
+    def unerlaubt(*args, **kwargs):
+&gt;       pytest.fail("Messung ohne gültigen Vorspann begonnen")
+E       Failed: Messung ohne gültigen Vorspann begonnen
+
+tests/test_vorspann.py:19: Failed</failure></testcase><testcase classname="tests.test_vorspann" name="test_vorstufen_ohne_vorspann_starten_nicht[gen0]" time="0.016"><failure message="Failed: Messung ohne gültigen Vorspann begonnen">db_lauf = &lt;sqlite3.Connection object at 0x7085b2a80e50&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x7085b2a9b920&gt;
+phase = 'gen0'
+
+    @pytest.mark.parametrize("phase", ["mass", "gen0"])
+    def test_vorstufen_ohne_vorspann_starten_nicht(db_lauf, monkeypatch, phase):
+        def unerlaubt(*args, **kwargs):
+            pytest.fail("Messung ohne gültigen Vorspann begonnen")
+        monkeypatch.setattr(L, "_referenzlast", lambda *a: "# Referenzlast")
+        monkeypatch.setattr(L.messgeraet, "messen", unerlaubt)
+        monkeypatch.setattr(G0, "erzeugen", unerlaubt)
+        with pytest.raises(L.LaufFehler, match="Vorspann"):
+            if phase == "mass":
+                L.mass_einfrieren(db_lauf, 1, "Eigen-Test")
+            else:
+&gt;               L.generation0(db_lauf, 1, None, 0.8)
+
+tests/test_vorspann.py:27: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/lauf.py:579: in generation0
+    mutanten = G0.erzeugen(pfad, paket, bereiche)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (PosixPath('/root/reparatur-01/teil-eichung/tmp/pytest-of-root/pytest-10/test_vorstufen_ohne_vorspann_s1'), 'paket', ['alpha'])
+kwargs = {}
+
+    def unerlaubt(*args, **kwargs):
+&gt;       pytest.fail("Messung ohne gültigen Vorspann begonnen")
+E       Failed: Messung ohne gültigen Vorspann begonnen
+
+tests/test_vorspann.py:19: Failed</failure></testcase></testsuite></testsuites>

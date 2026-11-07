@@ -1,0 +1,200 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 52 (Teile 4–165 dieses Stands) · enthält R44 bis R44
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R44 · Teil F: Übersicht Meldungen Hermes→Philipp und Aufträge Hermes→Subagent (lesend, geschwärzte Lesedateien)
+Beginn: 2026-09-25 16:14:46 CEST (UTC+0200)
+Ende:   2026-09-25 16:14:46 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/chronik/f_uebersicht.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/chronik/f_uebersicht.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil F (nur lesend): Übersicht der Meldungen Hermes→Philipp und der Aufträge Hermes→Subagent
+aus den geschwärzten Lesedateien (arbeit/lesen/). Je Nachricht: Kopfzeile (Zeit CEST · Absender · id · Sitzung) und
+der Anfang des Textes auf einer Zeile. Ab 21.09. länger (lückenlose Chronik), davor kürzer.
+Liest nur; schreibt nichts."""
+import re
+from pathlib import Path
+
+L = Path('/root/sicherung/biotop-lage-01/arbeit/lesen')
+
+
+def bloecke(p: Path):
+    t = p.read_text(errors='replace')
+    teile = re.split(r'(?m)^(## 2026-\d\d-\d\d \d\d:\d\d:\d\d · [^\n]*)\n', t)
+    # teile: [vorspann, kopf1, text1, kopf2, text2, ...]
+    for i in range(1, len(teile) - 1, 2):
+        yield teile[i][3:], teile[i + 1]
+
+
+for name, kurz, lang in (('hermes-an-philipp.md', 110, 330), ('auftraege-an-subagenten.md', 90, 200)):
+    print(f'===== {name}')
+    n = 0
+    for kopf, text in bloecke(L / name):
+        n += 1
+        flach = ' '.join(text.split())
+        grenze = lang if kopf >= '2026-09-21' else kurz
+        # Zusammenfassungsblöcke der Verdichtung (Historical Task Snapshot) nur kennzeichnen
+        if flach.startswith('[CONTEXT COMPACTION') or 'Historical Task Snapshot' in flach[:400]:
+            flach = '[Verdichtungs-Zusammenfassung, ausgelassen]'
+        print(f'{kopf} | {flach[:grenze]}')
+    print(f'-- {n} Blöcke')
+--- Ende /root/sicherung/biotop-lage-01/entwurf/chronik/f_uebersicht.py ---
+Ausgabe (vollständig, stdout und stderr):
+===== hermes-an-philipp.md
+2026-09-18 21:08:09 · Hermes · id 631 · 20260918_205818_3767d1c9 | Your request was not processed. Send it again if you still want me to carry it out.
+2026-09-18 22:43:51 · Hermes · id 634 · 20260918_223638_04e4469a | Your request was not processed. Send it again if you still want me to carry it out.
+2026-09-18 22:59:08 · Hermes · id 640 · 20260918_223638_04e4469a | Hi! What can I help you with?
+2026-09-18 23:11:22 · Hermes · id 656 · 20260918_225920_3e614670 | Your request was not processed. Send it again if you still want me to carry it out.
+2026-09-18 23:14:03 · Hermes · id 658 · 20260918_225920_3e614670 | Sitzung wiederhergestellt. Der Gateway war kurz unten; es ist nichts verloren gegangen, aber auch noch nichts 
+2026-09-19 00:23:32 · Hermes · id 830 · 20260918_225920_3e614670 | **Phase 1 „Das Skelett" abgeschlossen. Abschlussordner liegt im Prüfkanal.** **Abholadresse:** `https://milieu
+2026-09-19 02:17:29 · Hermes · id 996 · 20260918_225920_3e614670 | **Nachlauf abgeschlossen. Abschlussordner liegt im Prüfkanal.** **Abholadresse:** `https://milieulux-reinigung
+2026-09-19 05:37:13 · Hermes · id 1244 · 20260918_225920_3e614670 | **Phase 2 „Der Schwarm" abgeschlossen. Abschlussordner liegt im Prüfkanal.** **Abholadresse:** `https://milieu
+2026-09-19 12:42:22 · Hermes · id 1392 · 20260918_225920_3e614670 | **Phase 2 „Der Schwarm" abgeschlossen. Abschlussordner liegt im Prüfkanal.** **Abholadresse:** `https://milieu
+2026-09-19 14:02:20 · Hermes · id 1695 · 20260918_225920_3e614670 | **Zwischenstand Phase 3 — Bau abgeschlossen, Läufe noch nicht gestartet, Abschlussordner noch nicht versiegelt
+2026-09-19 15:10:40 · Hermes · id 1739 · 20260918_225920_3e614670 | **Anhaltepunkt — ich brauche deine Entscheidung, bevor ich weiterlaufe.** **Erledigt (deine vier Bedingungen):
+2026-09-19 15:10:52 · Hermes · id 1741 · 20260918_225920_3e614670 | Das war der erste Läufer (vor dem Protokoll-Fix), den ich vorhin beendet habe — erwartet. Der zweite Läufer (`
+2026-09-19 15:55:51 · Hermes · id 1749 · 20260918_225920_3e614670 | **Beide Läufe sind fertig — gesättigt, unter dem alten Ankläger-Ablauf.** Stand (aus der DB): **Lauf 17, logmu
+2026-09-19 16:44:37 · Hermes · id 1893 · 20260918_225920_3e614670 | **Zwischenstand Phase 3 — Bau abgeschlossen, Läufe noch nicht gestartet, Abschlussordner noch nicht versiegelt
+2026-09-19 16:44:37 · Hermes · id 1937 · 20260918_225920_3e614670 | **Anhaltepunkt — ich brauche deine Entscheidung, bevor ich weiterlaufe.** **Erledigt (deine vier Bedingungen):
+2026-09-19 16:44:37 · Hermes · id 1939 · 20260918_225920_3e614670 | Das war der erste Läufer (vor dem Protokoll-Fix), den ich vorhin beendet habe — erwartet. Der zweite Läufer (`
+2026-09-19 16:44:37 · Hermes · id 1947 · 20260918_225920_3e614670 | **Beide Läufe sind fertig — gesättigt, unter dem alten Ankläger-Ablauf.** Stand (aus der DB): **Lauf 17, logmu
+2026-09-19 17:30:07 · Hermes · id 2078 · 20260918_225920_3e614670 | Zwischenstand, alles gemessen: **Prozessprüfung beim Wiedereinstieg:** keine Biotop-Prozesse, keine Container 
+2026-09-19 17:30:25 · Hermes · id 2082 · 20260918_225920_3e614670 | Das war der Lauf-18-Läufer, den ich beim Verwerfen nach Satz 2 selbst beendet habe — erwartet, exit 143 = mein
+2026-09-19 17:55:56 · Hermes · id 2134 · 20260918_225920_3e614670 | **K1165 ist behoben — Satz 7 erfüllt, in der Kammer bestätigt.** Lauf 20, Gen 1 angenommen: `preise.tests_fehl
+2026-09-19 18:37:34 · Hermes · id 2224 · 20260918_225920_3e614670 | Phase 3 abgeschlossen. Abschlussordner liegt im Prüfkanal, von außen abrufbar (HTTP 200 geprüft). **Abholadres
+2026-09-19 18:37:51 · Hermes · id 2228 · 20260918_225920_3e614670 | Das war der Lauf-20-Läufer, der sich nach der Sättigungsmeldung selbst beendet hat — seine Ergebnisse stecken 
+2026-09-19 19:26:48 · Hermes · id 2230 · 20260918_225920_3e614670 | **Phase 3 „Gedächtnis, Mentor, Oberfläche" abgeschlossen.** Abschlussordner liegt im Prüfkanal, von außen abru
+2026-09-19 19:36:52 · Hermes · id 2233 · 20260918_225920_3e614670 | **Teil 1 von 2 — Phase 3, Tor-3-Zeilen im Einzelnen** Abholadresse, vollständig und unverlinkt, in eigener Zei
+2026-09-19 20:16:38 · Hermes · id 2251 · 20260918_225920_3e614670 | Beide Regeln greifen nachweislich: 13,0 ms gegen Bestwert 10,0 reißt bei fester 15-%-Toleranz, bei gemessenen 
+2026-09-19 20:31:20 · Hermes · id 2267 · 20260918_225920_3e614670 | Rauschregeln eingebaut und in sechs Fällen selbstgeprüft (`ausgaben/01-rauschregeln-selbstpruefung.txt`), bevo
+2026-09-19 20:38:24 · Hermes · id 2291 · 20260918_225920_3e614670 | „Generation minus eins", Teil 1 steht und ist an echten Kammerläufen geprüft (`ausgaben/02-…`, `03-…`). **Fall
+2026-09-19 21:23:11 · Hermes · id 2311 · 20260918_225920_3e614670 | Beide Festlegungen sind im Code, nicht nur im Bericht. **Streuungsregel als Kernfunktion** (`messgeraet.streuu
+2026-09-19 21:32:20 · Hermes · id 2323 · 20260918_225920_3e614670 | Ergänzung eingebaut, Commit `679e99d`. Bei Deutung „Maschine" trägt die Meldung jetzt den Vorbehalt im Klartex
+2026-09-19 21:38:59 · Hermes · id 2355 · 20260918_225920_3e614670 | Beide Festlegungen sind gebaut und geprüft (`ausgaben/05-eichgegenstand-und-kosten.txt`), noch bevor der Vorsp
+2026-09-19 21:48:57 · Hermes · id 2379 · 20260918_225920_3e614670 | Präzisierung eingebaut und belegt (`ausgaben/06-eichgegenstand-verfassung-vor-groesse.txt`). **Rangfolge jetzt
+2026-09-19 21:52:03 · Hermes · id 2397 · 20260918_225920_3e614670 | Einschränkung eingebaut und in drei Fällen belegt (`ausgaben/07-tragender-pfad-nur-uebungswerk.txt`): - **Übun
+2026-09-19 21:55:24 · Hermes · id 2423 · 20260918_225920_3e614670 | Sperre steht an allen drei Eintrittsstellen — in `projekt_merken`, `art_merken`, `geschmack_merken` selbst, ni
+2026-09-19 21:59:07 · Hermes · id 2451 · 20260918_225920_3e614670 | Härtung eingebaut und belegt (`ausgaben/09-probenmerkmal-statt-name.txt`). **Das Feld:** `kandidaten.ist_probe
+2026-09-19 22:13:45 · Hermes · id 2495 · 20260918_225920_3e614670 | **Punkt 1 von 8 erledigt: die vier Eichproben am versiegelten Gegenstand** (`organe/eichproben.py`, Beleg `aus
+2026-09-19 22:19:55 · Hermes · id 2515 · 20260918_225920_3e614670 | **Punkt 2 erledigt: Fund-Neubewertung als Organ** (`organe/fundpruefung.py`, Beleg `ausgaben/11-fundpruefung-o
+2026-09-19 22:35:19 · Hermes · id 2543 · 20260918_225920_3e614670 | **Punkt 3 erledigt: Gate-Ausnahme für Abbrüche** (Beleg `ausgaben/12-abbruch-nie-gesperrt.txt`). Beim Bauen ze
+2026-09-19 22:38:16 · Hermes · id 2563 · 20260918_225920_3e614670 | **Punkt 4a erledigt: Doppelungsschlüssel ist die Behauptung** (`aegis.behauptung`, Beleg `ausgaben/13-doppelun
+2026-09-19 23:27:54 · Hermes · id 2603 · 20260918_225920_3e614670 | **Punkt 4 erledigt, mit einem Teilerfolg und einer offenen Frage.** **Die vier Tor-2-Probenzeilen, nachgemesse
+2026-09-19 23:34:39 · Hermes · id 2663 · 20260918_225920_3e614670 | **Punkt 5 erledigt — die Artgedächtnis-Zeile ist erfüllt, zum ersten Mal** (`ausgaben/23-artgedaechtnis-muster
+2026-09-19 23:42:31 · Hermes · id 2687 · 20260918_225920_3e614670 | **Punkt 6 erledigt: Archivierung nach der neuen Zeile** (`ausgaben/24-archivierung-neue-zeile.txt`). **Warum P
+2026-09-20 00:00:28 · Hermes · id 2717 · 20260918_225920_3e614670 | **Nachlauf zu Phase 3 abgeschlossen.** Alle neun Punkte abgearbeitet, Ordner versiegelt und von außen abrufbar
+2026-09-20 00:55:53 · Hermes · id 2797 · 20260918_225920_3e614670 | **Phase 4, Vorbedingung 1 — zur Hälfte erfüllt. Ich brauche eine Entscheidung von dir.** Abholadresse, vollstä
+2026-09-20 01:31:11 · Hermes · id 2841 · 20260918_225920_3e614670 | **Phase 4, Vorbedingung 1 abgeschlossen.** Beide Bauteile gebaut, beide Messungen liegen vor. Abholadresse, vo
+2026-09-20 01:31:26 · Hermes · id 2843 · 20260918_225920_3e614670 | Alle drei Prozesse sind die bereits ausgewerteten Läufe (23 Fortsetzung, 22 Generation 5, 24) — ihre Ergebniss
+2026-09-20 01:55:40 · Hermes · id 2901 · 20260918_225920_3e614670 | **Nachgang N1 bis N6 erledigt — 0 Modellaufrufe.** Die Prüfung hatte in allen sieben Befunden recht. Nachgangs
+2026-09-20 02:06:42 · Hermes · id 2934 · 20260918_225920_3e614670 | **N7, N8, N9 erledigt — 0 Modellaufrufe.** Nachgangsbericht (beide Nachgänge): https://milieulux-reinigung-mue
+2026-09-20 02:29:49 · Hermes · id 2962 · 20260918_225920_3e614670 | **Vorbedingung 1 ist nicht erfüllt — und zwar in der Sache, nicht nur in der Ablieferung. Ich beantrage keine 
+2026-09-20 02:30:33 · Hermes · id 2966 · 20260918_225920_3e614670 | Upload geprüft — der Server liefert den aktuellen Stand, auch mit Cache-Buster und `no-cache`-Header: **57 Zei
+2026-09-20 02:51:07 · Hermes · id 3004 · 20260918_225920_3e614670 | **V12, V9 und Aufnahmesperre C gebaut — 0 Modellaufrufe. Ich beantrage weiterhin keine Abnahme.** Nummerierte 
+2026-09-20 03:54:43 · Hermes · id 3052 · 20260918_225920_3e614670 | **Lauf 25 abgeschlossen. Alle vier Tor-Punkte erfüllt — der Pfadnachweis steht.** https://milieulux-reinigung-
+2026-09-20 03:55:05 · Hermes · id 3054 · 20260918_225920_3e614670 | Lauf 25 ist bereits gelaufen und abgeliefert — das ist der Kurzprompt zum selben Auftrag. Zusammenfassung des 
+2026-09-20 03:55:17 · Hermes · id 3056 · 20260918_225920_3e614670 | Das ist der Läufer von Lauf 25 — seine vier Generationen sind bereits ausgewertet und abgeliefert. Keine Änder
+2026-09-20 04:06:59 · Hermes · id 3101 · 20260918_225920_3e614670 | **N12, N13, N14 erledigt — 0 Modellaufrufe, Kassenstand Lauf 25 vor und nach unverändert 183 Aufrufe / 0,3899 
+2026-09-20 05:04:57 · Hermes · id 3158 · 20260920_045023_5299d50d | Operation interrupted: waiting for model response (0.0s elapsed).
+2026-09-20 05:18:37 · Hermes · id 3215 · 20260920_045023_5299d50d | **W1 erledigt, W2 berichtigt, W4 teilweise offen.** Beide Ordner sind abgeliefert; **40 von 40 Dateien** wurde
+2026-09-20 05:39:43 · Hermes · id 3222 · 20260920_052507_2f047335 | Operation interrupted.
+2026-09-20 05:42:49 · Hermes · id 3248 · 20260920_052507_2f047335 | Operation interrupted: waiting for model response (2.6s elapsed).
+2026-09-20 05:57:03 · Hermes · id 3338 · 20260920_052507_2f047335 | Nichts geändert. Alle vier Ausgaben liegen wörtlich in `/root/w7/`. ## 1. `hermes auth list` (`01-auth-list.tx
+2026-09-20 06:10:44 · Hermes · id 3428 · 20260920_052507_2f047335 | Umgestellt. Zwei von drei Punkten sind am Erzeugnis belegt, der dritte braucht deine `/new`. ## Die Schlüssels
+2026-09-20 06:46:54 · Hermes · id 3515 · 20260920_063003_896e94ff | [Verdichtungs-Zusammenfassung, ausgelassen]
+2026-09-20 06:56:47 · Hermes · id 3815 · 20260920_063003_896e94ff | Die Umfangsmessung und die Tabelle für 23 von 23 Läufen sind erstellt. Der Kostenabgleich zeigt: **7,37 € stim
+2026-09-20 07:33:22 · Hermes · id 4217 · 20260920_063003_896e94ff | Die Umfangsmessung und die Tabelle für 23 von 23 Läufen sind erstellt. Der Kostenabgleich zeigt: **7,37 € stim
+2026-09-20 07:52:50 · Hermes · id 4316 · 20260920_063003_896e94ff | **Gesamtstand abgeliefert.** Die fünf Auftragsteile liegen vor, einschließlich der Tabelle für **23 von 23 Läu
+2026-09-20 15:39:41 · Hermes · id 4557 · 20260920_063003_896e94ff | **Gesamtstand abgeliefert.** Die fünf Auftragsteile liegen vor, einschließlich der Tabelle für **23 von 23 Läu
+2026-09-20 15:56:23 · Hermes · id 5006 · 20260920_063003_896e94ff | Die Reparatur läuft weiter; noch keine Messfreigabe. Der belegte Zwischenstand liegt hier: https://milieulux-r
+2026-09-20 16:23:41 · Hermes · id 5299 · 20260920_063003_896e94ff | **Reihenfolge umgesetzt und durch Ausführung geprüft:** Kernmaß und Pareto je Test laufen zuerst. Die vier ech
+2026-09-20 16:29:12 · Hermes · id 5364 · 20260920_063003_896e94ff | **Reihenfolge umgesetzt und durch Ausführung geprüft:** Kernmaß und Pareto je Test laufen zuerst. Die vier ech
+2026-09-20 16:52:55 · Hermes · id 5637 · 20260920_063003_896e94ff | **Die vier echten Probenpaare sind jetzt im integrierten Stand belegt:** 4/4 Positivprädikate wahr, 4/4 Gegenp
+2026-09-20 16:53:57 · Hermes · id 5643 · 20260920_063003_896e94ff | Die verspätete Sammelmeldung betrifft die bereits integrierten und nachgeprüften Teilpakete. **Zwischenstand 0
+2026-09-20 17:11:25 · Hermes · id 5669 · 20260920_063003_896e94ff | Die verspätete Sammelmeldung betrifft die bereits integrierten und nachgeprüften Teilpakete. **Zwischenstand 0
+2026-09-20 17:21:42 · Hermes · id 5942 · 20260920_063003_896e94ff | **Vertragsgegenprobe und Pflichtvorspann sind wieder offen. Keine Abnahme, keine Messfreigabe.** Die bestätigt
+2026-09-20 17:41:49 · Hermes · id 6174 · 20260920_063003_896e94ff | **Die Eingrenzung ist umgesetzt.** Keinen der vier Phase-4-Punkte ziehe ich derzeit wieder in den Kernauftrag.
+2026-09-20 18:03:58 · Hermes · id 6297 · 20260920_063003_896e94ff | **Die Elternprüfung des eingegrenzten Kerns besteht:** - **4 von 4 Positivproben wahr, 4 von 4 Gegenprädikaten
+2026-09-20 18:13:47 · Hermes · id 6323 · 20260920_063003_896e94ff | **Die Eingrenzung ist umgesetzt.** Keinen der vier Phase-4-Punkte ziehe ich derzeit wieder in den Kernauftrag.
+2026-09-20 18:13:47 · Hermes · id 6360 · 20260920_063003_896e94ff | **Die Elternprüfung des eingegrenzten Kerns besteht:** - **4 von 4 Positivproben wahr, 4 von 4 Gegenprädikaten
+2026-09-20 18:19:47 · Hermes · id 6452 · 20260920_063003_896e94ff | **Kernreview fehlgeschlagen; kein Abschluss.** Der Skip-Fehler ist jetzt auch im Elterncode reproduziert: Ein 
+2026-09-20 18:31:25 · Hermes · id 6674 · 20260920_063003_896e94ff | **Satz und Rangfolgeersetzung sind als verbindliche F7-Festlegung archiviert.** Im Messgerät steht tatsächlich
+2026-09-20 18:39:07 · Hermes · id 6923 · 20260920_063003_896e94ff | **Die Kernbegrenzung ist an alle laufenden Arbeiter weitergegeben.** Außenreparaturen sind zum Stopp und zur g
+2026-09-20 18:57:06 · Hermes · id 7211 · 20260920_063003_896e94ff | **Die Kernbegrenzung ist an alle laufenden Arbeiter weitergegeben.** Außenreparaturen sind zum Stopp und zur g
+2026-09-20 19:09:26 · Hermes · id 7349 · 20260920_063003_896e94ff | Der geprüfte Zwischenstand ist im Ordner gesichert; die Rückläufe der übrigen Teile der zweiten Runde stehen n
+2026-09-20 19:37:35 · Hermes · id 7433 · 20260920_063003_896e94ff | **Die Kernbegrenzung ist an alle laufenden Arbeiter weitergegeben.** Außenreparaturen sind zum Stopp und zur g
+2026-09-20 19:37:35 · Hermes · id 7516 · 20260920_063003_896e94ff | Der geprüfte Zwischenstand ist im Ordner gesichert; die Rückläufe der übrigen Teile der zweiten Runde stehen n
+2026-09-20 19:55:07 · Hermes · id 7708 · 20260920_063003_896e94ff | Die Produktänderungen sind gestoppt; es läuft nur noch die unabhängige, lesende Schlussnachprüfung.
+2026-09-20 20:04:23 · Hermes · id 7731 · 20260920_063003_896e94ff | **Eskalation: Der Kern ist nach der zweiten und letzten Runde nicht abgenommen. Keine dritte automatische Rund
+2026-09-20 20:18:26 · Hermes · id 7757 · 20260920_063003_896e94ff | **Eskalation: Der Kern ist nach der zweiten und letzten Runde nicht abgenommen. Keine dritte automatische Rund
+2026-09-20 20:54:38 · Hermes · id 7902 · 20260920_063003_896e94ff | Die technischen Torzeilen sind erfüllt; der einzige Schlussreview läuft. Zwischenbericht, Belege und Kasse lie
+2026-09-20 20:56:30 · Hermes · id 7912 · 20260920_063003_896e94ff | **Der enge Folgeauftrag KERN-01 bis KERN-03 ist abgeschlossen.** - **305 von 305 Tests grün**, keine Fehler od
+2026-09-20 21:21:27 · Hermes · id 7946 · 20260920_063003_896e94ff | **Der enge Folgeauftrag KERN-01 bis KERN-03 ist abgeschlossen.** - **305 von 305 Tests grün**, keine Fehler od
+2026-09-20 21:51:25 · Hermes · id 8092 · 20260920_063003_896e94ff | **Zwischenstand — der natürliche Messlauf ist noch aktiv.** - Vorspann: **4 von 4 positive und 4 von 4 Gegenpr
+2026-09-20 21:56:56 · Hermes · id 8109 · 20260920_063003_896e94ff | **Der Messlauf läuft weiter — inzwischen in Generation 3.** DB-Abfrage: **19:56:26 UTC**. - **Lauf 26:** `laeu
+2026-09-20 22:09:45 · Hermes · id 8141 · 20260920_063003_896e94ff | **Der Messlauf läuft weiter — inzwischen in Generation 3.** DB-Abfrage: **19:56:26 UTC**. - **Lauf 26:** `laeu
+2026-09-20 22:46:13 · Hermes · id 8298 · 20260920_063003_896e94ff | **Der Messlauf läuft weiter — inzwischen in Generation 3.** DB-Abfrage: **19:56:26 UTC**. - **Lauf 26:** `laeu
+2026-09-20 22:47:13 · Hermes · id 8441 · 20260920_063003_896e94ff | Der einzige Review überschritt sein Zeitlimit und wurde gestoppt; daraus wird keine Freigabe abgeleitet. Auswe
+2026-09-20 22:51:00 · Hermes · id 8458 · 20260920_063003_896e94ff | **Versiegelt — Vorbedingung 1 ist nicht uneingeschränkt abgenommen.** - **Lauf 26:** natürlich gesättigt nach 
+2026-09-20 22:51:34 · Hermes · id 8460 · 20260920_063003_896e94ff | Die Nachlaufmeldung bestätigt den Abbruch des einzigen Reviews; sie enthält kein fachliches Ergebnisurteil. **
+2026-09-20 23:13:07 · Hermes · id 8582 · 20260920_063003_896e94ff | K2689 ist ausgeführt; die Quote bleibt bei **1 von 11 = 9,09 %**. Der vollständige Review läuft mit dem **vora
+2026-09-20 23:40:55 · Hermes · id 8748 · 20260920_063003_896e94ff | **Enger Nachtrag erfüllt und versiegelt — zur Abnahme vorgelegt.** - **Review vollständig bestanden:** **8 von
+2026-09-21 00:11:01 · Hermes · id 8759 · 20260920_063003_896e94ff | Die Übergabe enthält jetzt **„Vorbedingung 1 abgenommen; Tor 2 Zeile 8 erfüllt“**, den Verweis auf **abschluss-02** und den nächsten Schritt in einer frischen Sitzung. Die versiegelten Abschlüsse bleiben unverändert. **5 von 5 Übergabedateien sind über HTTPS bytegleich geprüft.** Übergabe: https://milieulux-reinigung-muenchen.de
+2026-09-21 00:29:36 · Hermes · id 8798 · 20260920_063003_896e94ff | Die Übergabe enthält jetzt **„Vorbedingung 1 abgenommen; Tor 2 Zeile 8 erfüllt“**, den Verweis auf **abschluss-02** und den nächsten Schritt in einer frischen Sitzung. Die versiegelten Abschlüsse bleiben unverändert. **5 von 5 Übergabedateien sind über HTTPS bytegleich geprüft.** Übergabe: https://milieulux-reinigung-muenchen.de
+2026-09-21 01:14:52 · Hermes · id 9012 · 20260920_063003_896e94ff | **Eingerichtet, aber nicht vollständig abgeschlossen:** Der Gateway-Neustart fehlt, und Opus 5 hat die Großprobe abgelehnt. ### Konfiguriert und geprüft - Neues Preset **`astra-opus-max`** mit `[GESCHWÄRZT: Wert aus /root/.hermes/auth.json, Fundort state.db Nachricht 9012]:gpt-6-astra-900k` und `anthropic:claude-opus-5`. - `max`
+2026-09-21 01:15:24 · Hermes · id 9016 · 20260920_063003_896e94ff | Die nachgelieferten Abschlussmeldungen sind bereits berücksichtigt. Sie ändern den Stand nicht: Gateway-Neustart weiterhin offen, Opus-Großprobe weiterhin abgelehnt.
+2026-09-21 01:54:14 · Hermes · id 9071 · 20260920_063003_896e94ff | **Stand bestätigt — technisch ist das aber noch keine frische Sitzung.** Übergaben und Masterprompt Fassung 6 sind vollständig gelesen; **8 von 8 gebundenen HTTPS-Quellen** stimmen bytegleich mit den lokalen Belegen überein. Messstand: **21.09.2026, 01:37 MESZ**. ### Biotop-Bestand - **129 eigene Dateien, 14.501 physische Zeilen
+2026-09-21 02:00:49 · Hermes · id 9103 · 20260921_015554_e79a4a0f | Der Zwischenbericht, die Übergabe aus `uebergabe-abnahme-01` und der Masterprompt Fassung 6 sind vollständig gelesen: **Der dokumentierte Stand trägt**, ohne erneute Bestandsaufnahme; die neue Sitzung `20260921_015554_e79a4a0f` mit `astra-opus-max (moa)` ist durch Sitzungsdaten belegt, nicht durch einen ausgeführten `/status`-Be
+2026-09-21 03:15:37 · Hermes · id 9547 · 20260921_015554_e79a4a0f | Werk- und Adapterbau laufen weiter; die Verfassung liegt Chat-Claude vollständig im Prüfkanal vor, und der evolutionäre Lauf bleibt bis zu seiner Bestätigung gesperrt.
+2026-09-21 03:30:21 · Hermes · id 9678 · 20260921_015554_e79a4a0f | Die vier Regressionsfehler sind geklärt und gezielt erneut ausgeführt: **4 von 4 bestanden**, ohne Produktsperren abzuschwächen; der vollständige Integrationsnachweis bleibt offen, ebenso Chat-Claudes Verfassungsbestätigung.
+2026-09-21 03:34:30 · Hermes · id 9694 · 20260921_015554_e79a4a0f | **Vollständiger Verfassungsentwurf:** https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-t3-typescript/verfassung-entwurf-01/VERFASSUNG-T3-ENTWURF.md **Dateiliste:** https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-t3-typescript/verfassung-entw
+2026-09-21 04:13:12 · Hermes · id 9883 · 20260921_015554_e79a4a0f | Die vier Regressionsfehler sind geklärt und gezielt erneut ausgeführt: **4 von 4 bestanden**, ohne Produktsperren abzuschwächen; der vollständige Integrationsnachweis bleibt offen, ebenso Chat-Claudes Verfassungsbestätigung.
+2026-09-21 04:13:12 · Hermes · id 9885 · 20260921_015554_e79a4a0f | **Vollständiger Verfassungsentwurf:** https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-t3-typescript/verfassung-entwurf-01/VERFASSUNG-T3-ENTWURF.md **Dateiliste:** https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-t3-typescript/verfassung-entw
+2026-09-21 05:11:01 · Hermes · id 10251 · 20260921_015554_e79a4a0f | Your request was not processed. Send it again if you still want me to carry it out.
+2026-09-21 05:16:14 · Hermes · id 10253 · 20260921_015554_e79a4a0f | Your request was not processed. Send it again if you still want me to carry it out.
+2026-09-21 05:25:32 · Hermes · id 10255 · 20260921_015554_e79a4a0f | Your request was not processed. Send it again if you still want me to carry it out.
+2026-09-21 05:38:45 · Hermes · id 10257 · 20260921_015554_e79a4a0f | Your request was not processed. Send it again if you still want me to carry it out.
+2026-09-21 05:42:59 · Hermes · id 10402 · 20260921_015554_e79a4a0f | Your request was not processed. Send it again if you still want me to carry it out.
+2026-09-21 05:42:59 · Hermes · id 10404 · 20260921_015554_e79a4a0f | Your request was not processed. Send it again if you still want me to carry it out.
+2026-09-21 05:42:59 · Hermes · id 10406 · 20260921_015554_e79a4a0f | Your request was not processed. Send it again if you still want me to carry it out.
+2026-09-21 05:42:59 · Hermes · id 10408 · 20260921_015554_e79a4a0f | Your request was not processed. Send it again if you still want me to carry it out.
+2026-09-21 05:44:50 · Hermes · id 10435 · 20260921_015554_e79a4a0f | Lauf 26 läuft: Werk aufgenommen (werk_id 23, 2 467 TS-Zeilen, 182/182 Tests grün, Kernmaß −28), Verfassung-02 unverändert eingelegt, Kartierung im Hintergrund. Kasse bisher 0,00014 € von 10 €. Ich melde mich, sobald Kartierung und Vorspann durch sind.
+2026-09-21 05:46:47 · Hermes · id 10442 · 20260921_015554_e79a4a0f | Kartierung fertig: 5 Bereiche, 24 Dateien, 143 Funktionen, 143 Verträge, 76 Straßen — 31 Modellaufrufe für 0,0071 €. Vorspann (Rauschmessung + vier Eichproben mit Gegenproben) läuft jetzt im Hintergrund; das ist der längste Einzelschritt.
+2026-09-21 05:48:49 · Hermes · id 10460 · 20260921_015554_e79a4a0f | **Lauf 26 ist gescheitert — mein Fehler, sauber gemeldet.** Was passiert ist: Der Vorspann bricht mit „Verträge fehlen" ab. Ich hatte `biotop vertraege` nicht eingelegt, bevor ich den Vorspann startete. Der Kern verlangt die vier expliziten Bereichsverträge in der DB (`vertraege_explizit` für werk_id 23: 0 Einträge) und weigert 
+2026-09-21 06:03:07 · Hermes · id 10485 · 20260921_015554_e79a4a0f | **Lauf 27 gescheitert — Ursache gemessen, Schwelle bleibt.** Der Vorspann sperrt `bericht` und `planung`: Eigenrauschen 44 % bzw. 42 % über den mittleren 3 von 5 Werten, Toleranz 1,54 / 1,52 über der Meldeschwelle 1,5. Rohwerte: bericht 0,61–1,52 ms, planung 1,36–2,51 ms. Bei solchen Mikrolaufzeiten ist Timer-Jitter größer als d
+2026-09-21 06:07:12 · Hermes · id 10493 · 20260921_015554_e79a4a0f | **Rauschvorprobe bestanden, Schwelle 1,5 unverändert.** Toleranzen nach der Referenzlast-Korrektur (5 Messungen, 5 Kammerläufe, 127 s): - bericht 1,263 — vorher 1,539 (gesperrt) - planung 1,163 — vorher 1,524 (gesperrt) - eingang 1,231, tarife 1,191, zahlen 1,367 — alle vorher schon frei - **0 von 5 Bereichen gesperrt** Grund de
+2026-09-21 06:21:25 · Hermes · id 10513 · 20260921_015554_e79a4a0f | **Lauf 28 gescheitert — und der Fehlschlag hat die eigentliche Ursache offengelegt.** Die Vorprobe war grün (0 Sperren), Lauf 28 sperrte `bericht` (1,837) und `zahlen` (1,87) — also andere Bereiche als Lauf 27 (`bericht`, `planung`). Eine Messung, die bei jedem Durchlauf andere Bereiche sperrt, misst nicht das Werk, sondern sich
+2026-09-21 06:26:33 · Hermes · id 10525 · 20260921_015554_e79a4a0f | Die drei Vorproben laufen noch (zwei fertig, dritte in Arbeit). Ich lasse sie laufen, aber sie zählen erst, wenn der Messweg identisch belegt ist — dazu die Antworten: ## 1. Messweg: identisch in der Kette, aber Lauf 27 lief auf alter Last **Belegt (`BELEG-MESSWEG.txt`):** - Referenzlast: `_referenzlast()` des Laufs und die Vorp
+2026-09-21 06:28:30 · Hermes · id 10534 · 20260921_015554_e79a4a0f | Die drei Vorproben sind grün — 0 Sperren, Toleranzen 1,15–1,422, alle unter der unveränderten Schwelle 1,5: | Durchlauf | bericht | eingang | planung | tarife | zahlen | |---|---|---|---|---|---| | 1 | 1,262 | 1,165 | 1,150 | 1,259 | 1,168 | | 2 | 1,291 | 1,219 | 1,206 | 1,150 | 1,150 | | 3 | 1,179 | 1,422 | 1,180 | 1,150 | 1,20
+2026-09-21 06:37:01 · Hermes · id 10540 · 20260921_015554_e79a4a0f | **Kernpfad-Nachweis bestanden** — diesmal auf dem Weg, den Lauf 29 tatsächlich geht (`eichung.rauschmessung`, nicht `messgeraet.messen` direkt): | Durchlauf | bericht | eingang | planung | tarife | zahlen | gesperrt | |---|---|---|---|---|---|---| | 1 | 1,150 | 1,202 | 1,191 | 1,150 | 1,184 | keine | | 2 | 1,263 | 1,273 | 1,336 
+2026-09-21 06:48:45 · Hermes · id 10549 · 20260921_015554_e79a4a0f | **Vorspann Lauf 29 bestanden** (DB `/root/biotop-t3/t3.db`). - Qualität: **4 von 4 positiven Proben** getroffen, **4 von 4 Gegenproben** prüfbar negativ — genau das, was Lauf 27 und 28 verfehlt haben - Rauschmessung: 0 Sperren, `lauf_startet: true` - Nachweis-SHA256 `fb182da6fbe442b5e4266692b30fc040035eaa987cdc578a30ca1c35081ca0
+2026-09-21 06:57:45 · Hermes · id 10579 · 20260921_015554_e79a4a0f | Generation 0 läuft seit 9 Minuten mit 100 Mutanten. Ich arbeite ab jetzt ohne Zwischenmeldungen durch. Der Zwischenbericht mit den vier angeforderten Belegen liegt bereit, falls Budget, Kernfehler oder Sitzungsende dazwischenkommen. Die Kurzfassung der vier Punkte, weil sie Ihre Entscheidungen berühren: **85 Kammerläufe:** Ihre 
+2026-09-21 07:30:23 · Hermes · id 10652 · 20260921_015554_e79a4a0f | Kernfehler-Ausnahme — deshalb diese Meldung. Zwei Befunde, beide sind Instrumentfehler, nicht Werkbefunde: **1. Der Verbundausfall aus Auflage 3 ist eingetreten — echt, nicht gestellt.** qwen/qwen3.8-flash lieferte HTTP 429, klassifiziert als `ausfallart: infrastruktur`, `beitraege: 0`. Die Regel griff korrekt. Sie hinterließ ab
+2026-09-21 07:34:52 · Hermes · id 10660 · 20260921_015554_e79a4a0f | Kernfehler-Ausnahme, kurz: Lauf 29 ist gestorben, weil meine Kasse-Reparatur die Instrumentbindung gebrochen hat — der Vorspann-Nachweis versiegelt `kasse.py`, und ich habe die Datei nach dem Vorspann geändert. Die Sperre „Messgerät verändert, keine Nacheichung" hat exakt so gegriffen, wie sie soll. Vor dem Neustart: volle Regre
+2026-09-21 08:28:24 · Hermes · id 10668 · 20260921_015554_e79a4a0f | I've stopped. The test run was blocked, so I won't retry it or work around it. Where things stand right now: **Lauf 30 is red at gen0** — same cause as Lauf 29: qwen/qwen3.8-flash returned HTTP 429 ("temporarily rate-limited upstream, please retry shortly"), the adapter counted it immediately as a Verbundausfall, and the unresol
+2026-09-21 12:16:00 · Hermes · id 10719 · 20260921_015554_e79a4a0f | Angehalten. Der Testlauf wurde blockiert; ich wiederhole ihn nicht und umgehe ihn nicht. **Erledigt (Punkte 1 und 2):** Einchecken — der abgenommene Stand war trennbar. `QUELLSTAND.tar.gz` ist gegen `VERPACKUNGSKONTROLLE.json` verifiziert: SHA-256 `70db0aac…` bytegleich, 140 Mitglieder, Inhalt gegen `ausgang/` in 104 von 104 gem
+2026-09-21 13:11:15 · Hermes · id 10765 · 20260921_015554_e79a4a0f | Zur Blockmeldung und den Dateizahlen, dann arbeite ich ohne Zwischenmeldungen durch. **Der Block** kam von der Befehlsfreigabe: `BLOCKED: Command timed out without user response. The user has NOT consented to this action.` — ausgelöst durch das `PYTHONPATH=`-Präfix, das der Sicherheitsscanner als Interpreter-Hijack markiert und 
+2026-09-21 13:52:57 · Hermes · id 10780 · 20260921_015554_e79a4a0f | Regel ist in meinen Notizen festgehalten. Beide Gegenproben laufen bzw. liegen vor: **Netzsperre — gemessen, nicht behauptet.** Derselbe Aufruf über `anbieter.urllib.request.urlopen` an die echte Anbieter-URL: **ohne** Sperre HTTP 401 vom Server (die Verbindung kam zustande, also hätte echter Netzverkehr stattgefunden), **mit** 
+2026-09-21 13:53:51 · Hermes · id 10784 · 20260921_015554_e79a4a0f | Startsperre belegt: ohne Budgetvariablen rc=1 mit `AuftragsgrenzeFehlt`, mit Grenze rc=0 — derselbe Befehl, nur die Umgebung unterschiedlich. Damit sind beide Gegenproben für die Endmeldung gesichert. Lauf 31 arbeitet an gen0. Ich melde mich mit der Endmeldung.
+2026-09-21 15:09:27 · Hermes · id 10796 · 20260921_015554_e79a4a0f | Kette bis Maß vollständig, Generation 0 erreicht ihr Ziel: **93 von 100** Mutanten gefangen (83 bereits durch den Bestand, 10 durch neue Tests), 0 als äquivalent ausgesortiert. Maß eingefroren, gebunden an Vorspann `bb67c0f2…`. Die Evolutionsschleife läuft jetzt bis Sättigung, Budgetgrenze 9,30 € oder lautem Abbruch. Verbrauch b
+2026-09-21 15:19:45 · Hermes · id 10829 · 20260921_015554_e79a4a0f | Kernfehler-Ausnahme: Lauf 31 starb in Generation 1 an einem echten Kernfehler, nicht am Werk. `gedaechtnis.wiederholung` prüft vor Aegis, ob ein Kandidat einen gescheiterten Weg wiederholt. Ist der Diff nicht anwendbar, warf der Code für TypeScript `RuntimeError` — und riss die ganze Generation mit. Die Absicht war richtig (für 
+2026-09-21 16:04:18 · Hermes · id 10902 · 20260921_015554_e79a4a0f | Lauf 32 läuft (Vorspann bestanden, gen0 in Arbeit); die Wächter sind grün. Ich arbeite ohne weitere Zwischenmeldung bis zur Endmeldung. Vorab die zwei angeforderten Punkte, damit sie belegt sind: **Netzsperre-Probe verschärft.** Die alte Fassung prüfte nur den Ausnahmetyp — den liefert der Adapter aber auch bei einem echten HTTP
+2026-09-21 17:00:04 · Hermes · id 10913 · 20260921_015554_e79a4a0f | **Lauf 32 läuft — keine Endmeldung.** Kette bis Maß vollständig: Vorspann `73de1046…` bestanden, gen0 mit denselben 100 Mutanten durch, Maß eingefroren, Lazarus-Archiv `lauf32-gen0.tar.gz`. Evolution Runde 1 arbeitet seit ~15 Minuten an Generation 1, 6 Kandidaten erzeugt. Verbrauch **0,3027 € von 10 €**. Die Belege für den Absch
+2026-09-21 18:23:25 · Hermes · id 10945 · 20260921_015554_e79a4a0f | Kernfehler-Ausnahme — und ein wichtiger Fortschritt davor. **Lauf 32 hat evolviert:** Generation 1 und 2 wurden **angenommen** — erste echte Verbesserungen am TypeScript-Werk. Gen 1: tote Funktion in `bericht` beseitigt, Testfehler und Sicherheitspunkte in `planung` gesenkt. Gen 2: drei Testfehler in `tarife` behoben, Sicherheit
+2026-09-21 18:46:07 · Hermes · id 11008 · 20260921_015554_e79a4a0f | **Übernahmeordner liegt, Klassensuche hat drei weitere Stellen gefunden.** Prüfkanal: `https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-t3-typescript/uebernahme-01/` — 48 von 48 Dateien HTTPS-bytegleich, Ordnerprüfsumme `9c1c764ed311ca08ad9861a0b5354b279210ade6fba8fdf1dc275e80653d8d97`
+2026-09-21 18:46:24 · Hermes · id 11012 · 20260921_015554_e79a4a0f | Das ist die erwartete Rückmeldung meines eigenen SIGTERM auf Lauf 33 — kein neuer Befund. Lauf 34 läuft auf dem eingefrorenen Kern `c214d1d`, aktuell bei der Kartierung, Verbrauch 1,22 € von 10 €. Nächste Meldung ist die Endmeldung.
+2026-09-21 18:52:42 · Hermes · id 11032 · 20260921_015554_e79a4a0f | Die Abholadresse als ganze Zeile: https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-t3-typescript/uebernahme-01/DATEIEN.txt **Der Einwand trifft, und die Messung fällt schlechter aus als die Reparatur.** Ich habe gezählt, was sich aus der Datenbank belegen lässt (Läufe 31, 32, 34): - **
+2026-09-21 19:15:40 · Hermes · id 11114 · 20260921_015554_e79a4a0f | Die vier angeforderten Adressen als ganze Zeilen: https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-t3-typescript/uebernahme-01/skills/measurement-harness-discipline/SKILL.md https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-t3-typescript/ueber
+2026-09-21 19:15:57 · Hermes · id 11118 · 20260921_015554_e79a4a0f | Das ist die erwartete Rückmeldung meines eigenen SIGTERM auf Lauf 34 — kein neuer Befund. Lauf 35 läuft auf Kern `d6e6f8c`, gerade beim Einlegen, Verbrauch unverändert 1,22 € von 10 €. Die Zählertabelle entsteht erst bei der ersten Generation. Nächste Meldung ist die Endmeldung.
+2026-09-21 20:08:30 · Hermes · id 11134 · 20260921_015554_e79a4a0f | Die Kette ist vollständig belegt. Zwei Befunde, aber ich stoppe hier: der zweite ist eine Entscheidung über Ihre Regel, nicht über einen Fehler. **Lauf 35 rot — die Wiederholung hat gegriffen, der Lauf starb trotzdem woanders.** Belegt an der Protokollkette (`BELEG-AUSFALLKETTE.txt`, Einträge 17529–17535): - qwen HTTP 429 → **Wi
+2026-09-21 20:26:10 · Hermes · id 11163 · 20260921_015554_e79a4a0f | Kernänderung umgesetzt, Lauf 36 läuft. Beide Festlegungen sind eingearbeitet: **Frage 1 — automatische Klärung.** `kasse.vorpruefung` klärt einen offenen Ausfall jetzt selbst, statt dauerhaft zu sperren: voller Höchstfall gegen das Budget, harte Grenze unverändert, genau einer je Vorprüfung, jede Klärung mit `automatisch=True` p
+2026-09-22 00:21:20 · Hermes · id 11207 · 20260921_015554_e79a4a0f | Kernfehler-Ausnahme — Lauf 36 lief deutlich weiter als alle vorherigen, bevor er an derselben Klasse in neuer Bauart starb. **Was die Kernänderungen gebracht haben, gemessen:** - **Generation 1 und 3 angenommen**, Generation 2 sauber abgelehnt (0 von 10 Kandidaten überlebten den Ankläger — eine echte Messung, kein Absturz) - **7
+2026-09-22 06:32:13 · Hermes · id 11222 · 20260921_015554_e79a4a0f | **Lauf 37 ist gesättigt durchgelaufen — der Auftrag hat sein Ziel erreicht.** Sechs Generationen angenommen, Sättigung nach der Regel aus Abschnitt 8 (Verbesserung 0,00 % über fünf Generationen, Schwelle 0,5 %), **Kernmaß −28 → −14**, Testbestand 182 → 445. Der Abschlussbericht liegt geschrieben; ein Reviewdurchgang prüft gerade
+2026-09-22 06:57:19 · Hermes · id 11300 · 20260921_015554_e79a4a0f | **T3 abgeschlossen.** Lauf 37 ist nach der Sättigungsregel aus Abschnitt 8 beendet — sechs angenommene Generationen, Verbesserung 0,00 % über fünf Generationen bei Schwelle 0,5 %. **Kernmaß −28 → −14**, Testbestand 182 → 445 (alle bestanden), Sicherheitspunkte 27 → 14, tote Funktionen 0. Am Werk: 7 Quelldateien geändert, 97 neu.
+2026-09-22 14:59:19 · Hermes · id 11348 · 20260921_015554_e79a4a0f | Die fünf Torzeilen sind gemessen — das Ergebnis ist unbequem: **Drei gerissen, eine nicht belegt, zwei gehalten.** 1. **Halluzinationsprobe gerissen.** `zahlen` war sauber — die versiegelten Kriterien nennen dort keine Schwäche. Alle acht Punkte kamen von `security/detect-object-injection`, und die drei Generationen ersetzten `a
+2026-09-22 15:18:58 · Hermes · id 11483 · 20260921_015554_e79a4a0f | Ich halte an. Der Doppelungsanteil ist nicht das, wofür ich ihn gehalten habe, und weiterzusuchen hieße raten. **Zwei der drei Kernänderungen sind fertig, die dritte steht auf einer Prämisse, die die Messung nicht stützt.** **Befund zur Frage, die das Ergebnis bestimmt — `tarife` und `planung` sind nicht derselbe Fall wie `zahle
+2026-09-22 15:25:05 · Hermes · id 11504 · 20260921_015554_e79a4a0f | **Der Review hat meine zentrale Schlussfolgerung gekippt — zu Recht.** Ich hatte gemeldet, alle `zahlen`-Änderungen seien folgenlose Umformungen. Das stimmt für Gen 1 und 2. **Gen 6 ist etwas anderes:** Kandidat K2934 baute einen WeakMap-Sortiercache ein, der an der Array-Referenz hängt und nur die Länge prüft. Am echten Werk in

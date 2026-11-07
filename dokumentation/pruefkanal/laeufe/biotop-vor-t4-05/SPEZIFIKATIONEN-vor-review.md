@@ -1,0 +1,14 @@
+# Spezifikationen für den nächsten Auftrag (aus der Behebungsrunde 5 vor T4)
+
+Stand: Kern-Commit `0c2f058`. Nach der Regel „ein Review, keine Fix-Kaskade“ ist nach dem Commit kein Code mehr gebaut.
+Jede Zeile ist eine rote Spezifikation an `0c2f058` mit grüner Gegenprobe. Die Tests liegen unter `spez/`, der Beleg in
+`spez/SPEZ-R6-*.txt`.
+
+| Nr | Spezifikation | Beleg an `0c2f058` | Gegenprobe | Quelle |
+|---|---|---|---|---|
+| R6-1 | **Enthaltung je Beobachtung, nicht je Vergleich.** Bei unvollständiger Erfassung enthält sich nur die betroffene Beobachtung bzw. Funktion; der übrige Vergleich urteilt. Die Enthaltung des ganzen Vergleichs widerspricht Entscheidung 3 und schafft denselben Totalausfall wie Review 04 Nr. 4. **Vor T4.** | `spez/test_spez_r6_unit.py::test_r6_1_nur_die_betroffene_beobachtung_enthaelt_sich` rot (`unvollstaendig_erfasst`, obwohl nur die unveränderte Funktion `g` schwer erfassbar ist); Laufweg `spez/test_spez_r6_laufweg.py`: rot: mit einer unveränderten `StringIO`-Funktion zurückgestellt, ohne sie überlebt (`spez/SPEZ-R6-LAUFWEG.txt`) | ohne schwer erfassbares Objekt: geurteilt, 2 von 2; echte ungedeckte Abweichung: abgelehnt (beide grün) | Philipp, 24.09. |
+| R6-2 | **Das Tor-4-Skript berechnet jede aus der Datenbank berechenbare Zeile**: Generation minus eins, Generation 0, Kein Rückschritt, Halluzinationsprobe, Verhaltensvergleich, Doppelungsanteil, Immunisierung, Neutralzähler, Verbundausfall, Sättigung oder Budgetabbruch. Die meisten Berichtsfehler in T3 waren Torzeilen von Hand. **Vor T4.** | `spez/test_spez_r6_unit.py::test_r6_2_…` rot: 10 von 10 Zeilen „nicht berechnet“ | — (Liste der berechenbaren Zeilen im Test) | Philipp, 24.09. |
+| R6-3 | **Maß der Stufe-2-Last nach Stichprobendauer, nicht nach Sperrzahl** (Auftragsfehler „bis eingang nicht mehr sperrt“). Eine Regel für die Wiederholungen je Bereich, gemessen an der Dauer, gilt für jedes Werk (T4: Python). | `proben/STUFE2-EINGANG-DAUER.txt`: eingang 35,1 ms (W 60) / 170,5 ms (W 240) / 317,1 ms (W 480); zahlen 18,9 ms ohne Sperre | — | Philipp, 24.09. (Offen Nr. 5) |
+| R6-4 | **Festhalten erkennt Zusicherungen ohne Anführungszeichen.** Eine fallende Zusicherung im Test hält fest, auch wenn pytest die Meldung ohne „AssertionError:“ liefert (umgeschriebenes `assert` ohne `'` in der Darstellung). Die Regel prüft Art und Ort am Ausnahmetyp und an der Absturzstelle, nicht am Meldungstext. **Vor T4** (Offen Nr. 1). | `spez/test_spez_r6_4.py` rot in 3 von 3 (Zahl, Liste, Wahrheitswert); T4-Diagnose: 5 von 8 geänderten Funktionen ohne festhaltenden Test | Text-Zusicherung hält fest, Werk-Ausnahme hält nicht (2 von 2 grün) | eigener Befund nach dem Commit |
+| R6-5 | **Kappe der Verfälschungsläufe am echten T4-Werk messen**, nach R6-4 (Offen Nr. 4). | `proben/T4-GROESSE.txt`: Bedarf 35, Werk 126 Zeilen, Urteil wegen R6-4 nicht verwertbar | — | Entscheidung 4 |
+‹REVIEW_SPEZ›

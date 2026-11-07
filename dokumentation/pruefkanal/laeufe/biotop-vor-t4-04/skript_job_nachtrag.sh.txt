@@ -1,0 +1,40 @@
+#!/bin/bash
+# Nachtrag der Behebungsrunde 4 vor T4 (nach dem Commit-Job): r4_nachtrag.py ist schon angewandt (kette_nachtrag, gestoppt
+# nach dem Befund an den Nachspielen), dazu r4_fix_nachspiel.py. Teillauf 5 → nur wenn grün: Nachtrag-Commit auf
+# 1d9a5aa → volle Regression am Nachtrag samt Verdrahtung → Nachspiele D1–D3 (neu, am Nachtrag-Commit; die Nachspiele
+# an 1d9a5aa brachen alle ab). Nacheinander, kein Modellaufruf.
+set -u
+A=/root/biotop-vor-t4-04
+PY=/root/biotop-t3/venv/bin/python
+cd /root/biotop
+echo "=== start $(date -Is) HEAD=$(git rev-parse --short HEAD)"
+git status --short
+export BIOTOP_KAMMER_IMAGE=biotop-kammer:ts1 BIOTOP_AUFTRAG_LAUF_AB=26 BIOTOP_AUFTRAG_BUDGET_EUR=10
+$PY -m pytest tests/test_vor_t4_04.py tests/test_t3_verhaltensvergleich.py tests/test_t3_python_annahmen.py -q -p no:cacheprovider \
+  --tb=short -rfE > $A/bau/TEILLAUF-5.txt 2>&1
+r=$?
+echo "teillauf5 rc=$r $(tail -1 $A/bau/TEILLAUF-5.txt)"
+if [ $r -ne 0 ]; then echo "Teillauf 5 rot — kein Nachtrag-Commit"; exit 3; fi
+git add -A biotop tests
+git status --short
+git commit -q -F $A/COMMIT-NACHRICHT-2.txt
+echo "commit-rc=$?"
+git log --oneline -3
+git show --stat HEAD | tail -12 > $A/COMMIT-2-STAT.txt
+git show HEAD > $A/KERN-COMMIT-2.patch.txt
+export T3_VERDRAHTUNG_BELEG=$A/VERDRAHTUNG-BELEG-REGRESSION-2.json
+echo "regression-2 start $(date -Is) HEAD=$(git rev-parse --short HEAD) fremde_container=$(docker ps -q | wc -l)"
+$PY -m pytest tests/ -q -m "not integration" -p no:cacheprovider -rfEs --durations=8 \
+  --junitxml=$A/REGRESSION-2.junit.xml > $A/REGRESSION-2.txt 2>&1
+echo "regression-2 pytest-rc=$? $(tail -1 $A/REGRESSION-2.txt)"
+git status --short -- biotop tests; echo "(Ende Status nach Regression)"
+for d in 1 2 3; do
+  mkdir -p $A/nachspiel/n$d
+  echo "nachspiel n$d start $(date -Is) HEAD=$(git rev-parse --short HEAD) fremde_container=$(docker ps -q | wc -l)"
+  if [ $d -eq 1 ]; then FAELLE="s2_k2904 s2_k3091 k2868"; else FAELLE="s2_k2904 s2_k3091"; fi
+  NACHSPIEL_AUS=$A/nachspiel/n$d BIOTOP_KAMMER_IMAGE=biotop-kammer:ts1 $PY $A/nachspiel/nachspiel_vor_t4_04.py $FAELLE \
+    > $A/nachspiel/NACHSPIEL-N$d.txt 2>&1
+  echo "nachspiel n$d rc=$?"
+done
+git status --short -- biotop tests; echo "(Ende Status)"
+echo "ende $(date -Is)"

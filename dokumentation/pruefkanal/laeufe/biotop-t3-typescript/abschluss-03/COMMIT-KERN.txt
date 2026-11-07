@@ -1,0 +1,77 @@
+=== Signatur-/Importzeilen im Diff (Pitfall-Prüfung) ===
+9:+import {verhalten} from './verhalten.mjs';
+29:-from .organe import aegis, aufnahme, entropie, gedaechtnis, genesis, jury, kammer, landkarte, lazarus, mentor, nischen, verfassung, vertraege, vorspann
+30:+from .organe import aegis, aufnahme, entropie, gedaechtnis, genesis, jury, kammer, landkarte, lazarus, masseichung, mentor, nischen, verfassung, vertraege, vorspann
+60:+def annahme_tausch(mass: dict, nachweis: dict) -> dict:
+107:-from . import kammer, landkarte, neutralzaehler, verfassung, vertraege
+108:+from . import kammer, landkarte, masseichung, neutralzaehler, verfassung, verhaltensvergleich, vertraege
+167:+import re
+177:+def _punkte(befund: dict) -> int:
+182:+def sauberer_bereich(verf: dict | None) -> str | None:
+213:+def anwenden(messung: dict, eichung: dict | None) -> dict:
+278:+import ast
+279:+import re
+280:+from pathlib import Path
+281:+from typing import Callable
+299:-def sondencode(funktionen: list[str], modul: str) -> str:
+301:+def geaenderte_module(code: dict[str, str]) -> list[str]:
+307:+def funktion_von(beobachtung: str) -> str | None:
+313:+def deckung(abweichungen: list[str], deckende_tests: dict[str, str]) -> dict[str, list[str]]:
+328:+def _einzeltest(datei: str, code: str, name: str, ts_cache: dict) -> str | None:
+353:+def deckende_tests(werk: Path, testbestand: dict[str, str], behoben: set[str]) -> dict[str, str]:
+385:+def beobachten(werk: Path, dateien: dict[str, str], referenzlast: str, module: list[str],
+398:+def pruefen(werk: Path, code: dict[str, str], referenzlast: str | None, bereiche: list[str],
+488:+def kurz(e: dict) -> dict:
+502:-from . import eichgegenstand, eichproben, eichung, fundpruefung, landkarte, verfassung, vertraege, kammer
+503:+from . import eichgegenstand, eichproben, eichung, fundpruefung, landkarte, masseichung, verfassung, vertraege, kammer
+528:+def test_anwenden_rechnet_stillgelegte_regeln_aus_und_laesst_sie_sichtbar():
+547:+def test_gegenprobe_anwenden_ohne_stilllegung_laesst_die_messung_gleich():
+554:+def test_sauberer_bereich_aus_der_verfassung():
+563:+def test_zwei_verschiedene_saubere_bereiche_sind_ein_widerspruch():
+582:-def test_sonde_ruft_jede_funktion_einzeln_in_folge_und_mit_alias():
+592:-def test_sonde_nennt_jede_beobachtung_eindeutig():
+598:+def test_geaenderte_module_sind_die_quellmodule_des_kandidaten():
+604:+def test_funktion_wird_aus_der_beobachtung_gelesen():
+610:+def test_deckung_verlangt_aufruf_der_abweichenden_funktion():
+619:+def test_gegenprobe_deckung_ohne_passenden_test_bleibt_leer():
+626:+def ts_werk(tmp_path):
+637:+def test_python_werk_enthaelt_sich_gezaehlt(tmp_path):
+645:+def test_ohne_quellaenderung_nichts_zu_vergleichen(ts_werk):
+651:+def test_ohne_referenzlast_ist_gleichheit_unbelegt(ts_werk):
+657:+def test_unausfuehrbare_sonde_ist_kein_beleg_fuer_gleichheit(ts_werk, monkeypatch):
+666:+def test_abweichung_mit_deckendem_test_ist_tragfaehig(ts_werk, monkeypatch):
+676:+def test_abweichung_ohne_deckenden_test_ist_ablehnung(ts_werk, monkeypatch):
+=== Status vor dem Commit ===
+ M biotop/kern/ts/main.mjs
+ M biotop/lauf.py
+ M biotop/organe/aegis.py
+ M biotop/organe/masseichung.py
+ M biotop/organe/verhaltensvergleich.py
+ M biotop/organe/vorspann.py
+ M tests/test_t3_masseichung.py
+ M tests/test_t3_verhaltensvergleich.py
+?? biotop/kern/ts/verhalten-runner.mjs
+?? biotop/kern/ts/verhalten.mjs
+?? biotop/nachspiel.py
+?? tests/drahtwerk.py
+?? tests/test_verdrahtung.py
+=== gestaged ===
+ biotop/kern/ts/main.mjs              |   2 +
+ biotop/kern/ts/verhalten-runner.mjs  | 149 ++++++++++++++++++++
+ biotop/kern/ts/verhalten.mjs         |  53 +++++++
+ biotop/lauf.py                       |  32 ++++-
+ biotop/nachspiel.py                  | 266 +++++++++++++++++++++++++++++++++++
+ biotop/organe/aegis.py               |  30 +++-
+ biotop/organe/masseichung.py         |  57 +++++++-
+ biotop/organe/verhaltensvergleich.py | 222 ++++++++++++++++++++++++-----
+ biotop/organe/vorspann.py            |   8 +-
+ tests/drahtwerk.py                   | 137 ++++++++++++++++++
+ tests/test_t3_masseichung.py         |  42 ++++++
+ tests/test_t3_verhaltensvergleich.py | 103 +++++++++++---
+ tests/test_verdrahtung.py            | 256 +++++++++++++++++++++++++++++++++
+ 13 files changed, 1294 insertions(+), 63 deletions(-)
+commit-rc=0
+f821707 T3: Abwehr im Annahmepfad — Maßeichung und Verhaltensvergleich eingehängt, Verdrahtungsnachweis
+1cf2eb1 T3: Abwehr gegen "schneller, aber falsch" + Tor 2 Zeile 8 messbar machen
+8c7dcdc T3: Kaputter Modellcode ist Befund, kein Laufabbruch — zweite Bauart der Klasse
+patch: 1597 Zeilen, sha256 f61889b61cc87c56

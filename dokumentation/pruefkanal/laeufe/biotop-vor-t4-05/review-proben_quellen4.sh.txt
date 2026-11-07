@@ -1,0 +1,11 @@
+#!/bin/bash
+# Nur lesend: Randfall-Korpus-Werte, kurz()-Schlüssel, Urteilsprotokoll, Main-Schutz, TS-Verfälschung
+export TMPDIR=/tmp/review-vor-t4-05
+cd /root/biotop
+V=/tmp/review-vor-t4-05/verhalten_head.py
+echo "== Randwerte (Zahlen) im Korpus"; grep -n -E "^RAND|^_RAND|RANDWERT|def _rand|def randwerte|randwerte\(|\b(100|1000|10000|10 \*\* ?[0-9]|2 \*\* ?[0-9]+)\b" $V | head -30
+echo "== __main__-Schutz"; grep -n "__name__" $V | head
+echo "== kurz() Schlüssel (Anfang)"; git show HEAD:biotop/organe/verhaltensvergleich.py | awk '/^def kurz/,/return \{k: e\[k\]/' | head -12
+echo "== aegis: verhalten ins Urteil"; git show HEAD:biotop/organe/aegis.py | grep -n -E "urteil\[\"verhalten\"\]|verhaltensvergleich.kurz|\"verhalten\":" | head
+echo "== TS Verfälschung"; grep -rn -E "VERFAELSCHT\]|verfaelscht|Verfaelscht" biotop/kern/ts/*.mjs | grep -v "^biotop/kern/ts/kanon.mjs:4:" | head -12
+echo "== Python Verfälschung (wo Verfaelscht() eingesetzt)"; grep -n -E "Verfaelscht\(\)" $V | head

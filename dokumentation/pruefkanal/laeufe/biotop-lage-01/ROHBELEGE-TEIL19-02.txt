@@ -1,0 +1,338 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 19 (Teile 4–165 dieses Stands) · enthält R26 bis R28
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R26 · I3 Abschlussordner im Prüfkanal (biotop-* und gedaechtnis): Dateien, Zeiten, Einstiegsdateien
+Beginn: 2026-09-25 15:43:43 CEST (UTC+0200)
+Ende:   2026-09-25 15:43:44 CEST (UTC+0200)
+Dauer:  1.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/i3_ordner.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/i3_ordner.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): I3 Abschlussordner im Prüfkanal — jeder Ordner laeufe/biotop-* und laeufe/gedaechtnis:
+Dateien gesamt (rekursiv), Unterordner, älteste/jüngste Datei (mtime), Dateien auf oberster Ebene mit Größe, Einstieg
+(BERICHT*.md, START*.md, ZWISCHENBERICHT*.md, ABSCHLUSS*.md, NACHGANG*.md in oberster Ebene und in Unterordnern der
+ersten Ebene). Schreibt arbeit/inventar/i3.json."""
+import datetime as dt
+import json
+from pathlib import Path
+
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+L = Path(f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe')
+AUS = Path('/root/sicherung/biotop-lage-01/arbeit/inventar')
+AUS.mkdir(parents=True, exist_ok=True)
+
+
+def z(t):
+    return dt.datetime.fromtimestamp(t).strftime('%Y-%m-%d %H:%M:%S')
+
+
+erg = []
+for o in sorted(L.iterdir()):
+    if not o.is_dir() or not (o.name.startswith('biotop') or o.name == 'gedaechtnis'):
+        continue
+    dateien = [p for p in o.rglob('*') if p.is_file()]
+    ordner = sorted({p.parent.relative_to(o).as_posix() for p in dateien if p.parent != o})
+    zeiten = [p.stat().st_mtime for p in dateien] or [o.stat().st_mtime]
+    oben = sorted((p.name, p.stat().st_size) for p in o.iterdir() if p.is_file())
+    einstieg = []
+    for p in sorted(o.glob('*.md')) + sorted(o.glob('*/*.md')):
+        if any(p.name.startswith(x) for x in ('BERICHT', 'START', 'ZWISCHENBERICHT', 'ABSCHLUSS', 'NACHGANG', 'UEBERGABE')):
+            einstieg.append(p.relative_to(o).as_posix())
+    erste_ebene = sorted(p.name for p in o.iterdir() if p.is_dir())
+    e = {'ordner': o.name, 'dateien': len(dateien), 'unterordner': len(ordner), 'erste_ebene': erste_ebene,
+         'aelteste': z(min(zeiten)), 'juengste': z(max(zeiten)), 'oben': oben, 'einstieg': einstieg}
+    erg.append(e)
+    print(f"{o.name}: {len(dateien)} Dateien, {len(ordner)} Unterordner, {e['aelteste']} – {e['juengste']}")
+    print(f"   erste Ebene: {erste_ebene[:30]}{' …' if len(erste_ebene) > 30 else ''}")
+    print(f"   oben: {[n for n, _ in oben][:25]}{' …' if len(oben) > 25 else ''}")
+    print(f"   Einstieg: {einstieg[:12]}{' …' if len(einstieg) > 12 else ''}")
+(AUS / 'i3.json').write_text(json.dumps(erg, ensure_ascii=False, indent=1))
+print(f'\nOrdner gezählt: {len(erg)} (biotop-* und gedaechtnis)')
+--- Ende /root/sicherung/biotop-lage-01/arbeit/i3_ordner.py ---
+Ausgabe (vollständig, stdout und stderr):
+biotop-gesamtstand: 86 Dateien, 7 Unterordner, 2026-09-20 06:42:57 – 2026-09-20 07:52:04
+   erste Ebene: ['ausgaben', 'biotop', 'pruefungen', 'quellen', 'werk']
+   oben: ['ABRUF-01.json', 'ABWEICHUNGEN-01.md', 'BERICHT.md', 'DATEIEN.txt', 'GRUNDSAETZE-2a-01.md', 'KASSE.md', 'LAEUFE-01.md', 'MASTERPROMPT-ABGLEICH-01.md', 'MASTERPROMPT-ZEILEN-01.csv', 'OFFENE-PUNKTE-01.md', 'ORGANBETRIEB-01.md', 'PRUEFSUMME-ORDNER.txt', 'PRUEFSUMMEN.sha256', 'UMFANG-01.md', 'ZWISCHENBERICHT.md']
+   Einstieg: ['BERICHT.md', 'ZWISCHENBERICHT.md']
+biotop-lage-01: 4 Dateien, 0 Unterordner, 2026-09-25 15:09:49 – 2026-09-25 15:09:50
+   erste Ebene: []
+   oben: ['ROHBELEGE-TEIL1-01.txt', 'ROHBELEGE-TEIL2-01.txt', 'ROHBELEGE-TEIL3-01.txt', 'START-01.md']
+   Einstieg: ['START-01.md']
+biotop-phase-1: 49 Dateien, 3 Unterordner, 2026-09-18 23:18:12 – 2026-09-19 00:22:27
+   erste Ebene: ['ausgaben', 'biotop', 'werk']
+   oben: ['BERICHT.md', 'DATEIEN.txt', 'KASSE.md', 'PRUEFSUMME-ORDNER.txt']
+   Einstieg: ['BERICHT.md']
+biotop-phase-1-nachlauf: 135 Dateien, 3 Unterordner, 2026-09-19 00:38:33 – 2026-09-19 02:16:45
+   erste Ebene: ['ausgaben', 'biotop', 'werk']
+   oben: ['BERICHT.md', 'DATEIEN.txt', 'KASSE.md', 'PRUEFSUMME-ORDNER.txt']
+   Einstieg: ['BERICHT.md']
+biotop-phase-2: 124 Dateien, 4 Unterordner, 2026-09-19 02:28:00 – 2026-09-19 05:36:28
+   erste Ebene: ['ausgaben', 'biotop', 'werk']
+   oben: ['BERICHT.md', 'DATEIEN.txt', 'KASSE.md', 'PRUEFSUMME-ORDNER.txt']
+   Einstieg: ['BERICHT.md']
+biotop-phase-3: 200 Dateien, 5 Unterordner, 2026-09-19 13:01:37 – 2026-09-19 18:31:36
+   erste Ebene: ['ausgaben', 'biotop', 'werk']
+   oben: ['BERICHT.md', 'DATEIEN.txt', 'KASSE.md', 'PRUEFSUMME-ORDNER.txt']
+   Einstieg: ['BERICHT.md']
+biotop-phase-3-nachlauf: 54 Dateien, 3 Unterordner, 2026-09-19 20:30:54 – 2026-09-19 23:59:59
+   erste Ebene: ['ausgaben', 'biotop', 'werk']
+   oben: ['BERICHT.md', 'DATEIEN.txt', 'KASSE.md', 'PRUEFSUMME-ORDNER.txt']
+   Einstieg: ['BERICHT.md']
+biotop-phase-4-einstieg-20260921-01: 16 Dateien, 0 Unterordner, 2026-09-21 01:51:39 – 2026-09-21 01:51:39
+   erste Ebene: []
+   oben: ['BESTAND-AKTUELL.json', 'BETRIEB-AKTUELL.json', 'DATEIEN.txt', 'KASSE-AKTUELL.json', 'KASSE.md', 'LAUF26-BUCHUNGEN.json', 'LESEGRENZE.json', 'MANIFEST.sha256', 'MESSAUSGABE.json', 'MOA-BEITRAGSEINGANG.json', 'PRUEFSUMME-ORDNER.txt', 'QUELLEN-UND-ABNAHME.json', 'TRAEGER-AKTUELL.json', 'ZWISCHENBERICHT.md', 'bericht_und_lieferung.py', 'stand_lesen.py']
+   Einstieg: ['ZWISCHENBERICHT.md']
+biotop-phase-4-vorbedingung-1: 146 Dateien, 7 Unterordner, 2026-09-20 00:20:53 – 2026-09-21 00:10:31
+   erste Ebene: ['ausgaben', 'biotop', 'nach-reparatur-02', 'werk']
+   oben: ['BERICHT.md', 'DATEIEN-03.txt', 'DATEIEN-04.txt', 'DATEIEN-05.txt', 'DATEIEN-06.txt', 'DATEIEN.txt', 'KASSE-05.md', 'KASSE-06.md', 'KASSE.md', 'NACHGANG-03.md', 'NACHGANG-04.md', 'NACHGANG-05.md', 'NACHGANG-06.md', 'NACHGANG.md', 'PRUEFSUMME-ORDNER-03.txt', 'PRUEFSUMME-ORDNER-04.txt', 'PRUEFSUMME-ORDNER-05.txt', 'PRUEFSUMME-ORDNER-06.txt', 'PRUEFSUMME-ORDNER.txt']
+   Einstieg: ['BERICHT.md', 'NACHGANG-03.md', 'NACHGANG-04.md', 'NACHGANG-05.md', 'NACHGANG-06.md', 'NACHGANG.md', 'nach-reparatur-02/ZWISCHENBERICHT.md']
+biotop-reparatur-01: 9489 Dateien, 1792 Unterordner, 2026-09-20 15:31:24 – 2026-09-20 20:01:21
+   erste Ebene: ['auftragseingrenzung-01', 'auftragseingrenzung-02', 'auftragspraezisierung-02', 'ausgaben', 'biotop', 'eskalation-runde-02', 'pruefbestand', 'quellen', 'reviews', 'zwischenstand-03', 'zwischenstand-04', 'zwischenstand-05', 'zwischenstand-06', 'zwischenstand-07', 'zwischenstand-08', 'zwischenstand-09', 'zwischenstand-10', 'zwischenstand-11']
+   oben: ['AUFTRAG-01.md', 'DATEIEN-02.txt', 'DATEIEN.txt', 'KASSE-01.md', 'KASSE-02.md', 'MANIFEST-02.sha256', 'PRUEFSUMME-02.txt', 'ZWISCHENBERICHT-02.md', 'ZWISCHENBERICHT.md']
+   Einstieg: ['ZWISCHENBERICHT-02.md', 'ZWISCHENBERICHT.md', 'auftragseingrenzung-01/ZWISCHENBERICHT.md', 'auftragseingrenzung-02/ZWISCHENBERICHT.md', 'auftragspraezisierung-02/ZWISCHENBERICHT.md', 'eskalation-runde-02/ZWISCHENBERICHT.md', 'zwischenstand-03/ZWISCHENBERICHT.md', 'zwischenstand-04/ZWISCHENBERICHT.md', 'zwischenstand-05/ZWISCHENBERICHT.md', 'zwischenstand-06/ZWISCHENBERICHT.md', 'zwischenstand-07/ZWISCHENBERICHT.md', 'zwischenstand-08/ZWISCHENBERICHT.md'] …
+biotop-reparatur-02: 21 Dateien, 0 Unterordner, 2026-09-20 20:55:17 – 2026-09-20 20:55:18
+   erste Ebene: []
+   oben: ['ABNAHME.json', 'AENDERUNGEN.diff', 'AUFTRAG.md', 'AUSSEN-19-OFFEN.md', 'CLI.json', 'CLI.txt', 'DATEIEN.txt', 'DIREKTBELEGE.json', 'EICHPAARE.json', 'KAMMERN.json.gz', 'KASSE.json', 'KASSE.md', 'MANIFEST.sha256', 'PHASE4-OFFEN.md', 'PRUEFSUMME-ORDNER.txt', 'QUELLARCHIV-INHALT.json', 'QUELLSTAND.tar.gz', 'REVIEW.json', 'SUITE.txt', 'SUITE.xml', 'ZWISCHENBERICHT.md']
+   Einstieg: ['ZWISCHENBERICHT.md']
+biotop-t3-typescript: 231 Dateien, 20 Unterordner, 2026-09-21 02:24:28 – 2026-09-23 15:47:24
+   erste Ebene: ['abschluss-01', 'abschluss-02', 'abschluss-03', 'ausgaben', 'biotop', 'uebernahme-01', 'verfassung-02', 'verfassung-entwurf-01', 'werk', 'zwischenbericht-20260923-152432-r9']
+   oben: ['BERICHT.md', 'DATEIEN.txt', 'KASSE.md', 'MASTERPROMPT-v7.md', 'MESSGERAETFEHLER.md', 'ZWISCHENBERICHT.md']
+   Einstieg: ['BERICHT.md', 'ZWISCHENBERICHT.md', 'abschluss-01/ABSCHLUSSBERICHT.md', 'abschluss-03/ABSCHLUSS-03.md', 'abschluss-03/UEBERGABE.md', 'uebernahme-01/ZWISCHENBERICHT.md', 'verfassung-02/ZWISCHENBERICHT.md', 'verfassung-entwurf-01/ZWISCHENBERICHT.md', 'zwischenbericht-20260923-152432-r9/UEBERGABE-1-UEBERGABE.md', 'zwischenbericht-20260923-152432-r9/ZWISCHENBERICHT.md']
+biotop-vor-t4: 98 Dateien, 1 Unterordner, 2026-09-23 22:00:02 – 2026-09-23 22:27:41
+   erste Ebene: ['zwischenbericht-20260923-220002-r110']
+   oben: ['BERICHT.md', 'COMMIT-STAT.txt', 'COMMIT2-NACHRICHT.txt', 'COMMIT2-STAT.txt', 'DATEIEN.txt', 'JOB-COMMIT-REGRESSION.txt', 'JOB-COMMIT2-REGRESSION.txt', 'JOB-SCHWARM.txt', 'JOB-VERDRAHTUNG.txt', 'KASSE.md', 'KERN-COMMIT.patch.txt', 'KERN-COMMIT2-NACHRICHT.txt', 'KERN-COMMIT2.patch.txt', 'MANIFEST.sha256', 'NACHLESE.json', 'NACHLESE.txt', 'NACHSPIEL-BELEGE.json', 'NACHSPIEL-K2868-DURCHGANG2.txt', 'NACHSPIEL-PROBE.txt', 'NACHSPIEL-VOR-T4.txt', 'NACHSPIEL2-AM-COMMIT.txt', 'NACHSPIEL2-BELEGE.json', 'NACHSPIEL3-S2.txt', 'NACHSPIEL3-s2_k2904.json', 'NACHSPIEL3-s2_k3091.json'] …
+   Einstieg: ['BERICHT.md', 'UEBERGABE.md', 'zwischenbericht-20260923-220002-r110/UEBERGABE-1-UEBERGABE.md', 'zwischenbericht-20260923-220002-r110/ZWISCHENBERICHT.md']
+biotop-vor-t4-02: 79 Dateien, 4 Unterordner, 2026-09-23 22:54:16 – 2026-09-24 02:10:06
+   erste Ebene: ['zwischenbericht-20260923-225416-r13-verdichtung', 'zwischenbericht-20260924-004847-r104-kontext80', 'zwischenbericht-20260924-010853-r2-verdichtung', 'zwischenbericht-20260924-020708-r1-verdichtung']
+   oben: ['BERICHT.md', 'COMMIT-NACHRICHT.txt', 'COMMIT-STAT.txt', 'DATEIEN.txt', 'DIAGNOSE-PY-SONDE.json', 'DIAGNOSE-PY-SONDE.txt', 'ERSTLAUF-ALLE-arbeitsbaum.txt', 'JOB-COMMIT-REGRESSION.txt', 'KASSE.md', 'KERN-COMMIT.patch.txt', 'MANIFEST.sha256', 'NACHSPIEL-BELEGE.json', 'NACHSPIEL-D1.txt', 'NACHSPIEL-D2.txt', 'NACHSPIEL-D3.txt', 'NACHSPIEL-VORAB-k2868.json', 'PRUEFSUMME-ORDNER.txt', 'PYTHON-LAUFZEIT-TEILAUSFALL.json', 'PYTHON-LAUFZEIT-TEILAUSFALL.txt', 'REGRESSION.junit.xml.txt', 'REGRESSION.txt', 'REVIEW-AUFTRAG.md', 'REVIEW-SONDENPROBE-2.json', 'REVIEW-SONDENPROBE-2.txt', 'REVIEW-SONDENPROBE.json'] …
+   Einstieg: ['BERICHT.md', 'UEBERGABE.md', 'zwischenbericht-20260923-225416-r13-verdichtung/UEBERGABE-1-UEBERGABE.md', 'zwischenbericht-20260923-225416-r13-verdichtung/ZWISCHENBERICHT.md', 'zwischenbericht-20260924-004847-r104-kontext80/UEBERGABE-1-UEBERGABE.md', 'zwischenbericht-20260924-004847-r104-kontext80/ZWISCHENBERICHT.md', 'zwischenbericht-20260924-010853-r2-verdichtung/UEBERGABE-1-UEBERGABE.md', 'zwischenbericht-20260924-010853-r2-verdichtung/ZWISCHENBERICHT.md', 'zwischenbericht-20260924-020708-r1-verdichtung/UEBERGABE-1-UEBERGABE.md', 'zwischenbericht-20260924-020708-r1-verdichtung/ZWISCHENBERICHT.md']
+biotop-vor-t4-03: 100 Dateien, 3 Unterordner, 2026-09-24 05:11:05 – 2026-09-24 11:56:57
+   erste Ebene: ['zwischenbericht-20260924-051104-r113', 'zwischenbericht-20260924-051906-r141', 'zwischenbericht-20260924-115656-r2-verdichtung']
+   oben: ['BERICHT.md', 'COMMIT-2-STAT.txt', 'COMMIT-NACHRICHT-2.txt', 'COMMIT-NACHRICHT.txt', 'COMMIT-STAT.txt', 'DATEIEN.txt', 'DIAGNOSE-PROBEWERK-arbeitsbaum.txt', 'GEGENZEUGEN-DOPPELT-am-commit.txt', 'GEGENZEUGEN-DOPPELT-arbeitsbaum.txt', 'GEGENZEUGEN-DOPPELT.json', 'JOB-COMMIT-REGRESSION.txt', 'JOB-NACHTRAG.txt', 'KASSE.md', 'KERN-COMMIT-2.patch.txt', 'KERN-COMMIT.patch.txt', 'KETTE.txt', 'MANIFEST.sha256', 'NACHHER-HEAD.json', 'NACHHER-HEAD.txt', 'NACHSPIEL-BELEGE.json', 'NACHSPIEL-D1.txt', 'NACHSPIEL-D2.txt', 'NACHSPIEL-D3.txt', 'PRUEFSUMME-ORDNER.txt', 'REGRESSION-2.junit.xml.txt'] …
+   Einstieg: ['BERICHT.md', 'UEBERGABE.md', 'zwischenbericht-20260924-051104-r113/UEBERGABE-1-UEBERGABE.md', 'zwischenbericht-20260924-051104-r113/ZWISCHENBERICHT.md', 'zwischenbericht-20260924-051906-r141/UEBERGABE-1-UEBERGABE.md', 'zwischenbericht-20260924-051906-r141/ZWISCHENBERICHT.md', 'zwischenbericht-20260924-115656-r2-verdichtung/UEBERGABE-1-UEBERGABE.md', 'zwischenbericht-20260924-115656-r2-verdichtung/ZWISCHENBERICHT.md']
+biotop-vor-t4-04: 123 Dateien, 4 Unterordner, 2026-09-24 14:17:38 – 2026-09-24 17:19:53
+   erste Ebene: ['zwischenbericht-20260924-141737-r103-kontext80', 'zwischenbericht-20260924-145749-r1-verdichtung', 'zwischenbericht-20260924-151154-r22-kontext80', 'zwischenbericht-20260924-160210-r0-kontext80-verdichtung']
+   oben: ['AUSWERTUNG-NACHTRAG.txt', 'BERICHT.md', 'COMMIT-2-STAT.txt', 'COMMIT-NACHRICHT-2.txt', 'COMMIT-NACHRICHT.txt', 'COMMIT-STAT.txt', 'DATEIEN.txt', 'EINZELHEITEN-NACHSPIELE.txt', 'FEHLALARM-SICHERHEITSFILTER.md', 'FORMATSPERRE-1.txt', 'JOB-COMMIT-REGRESSION.txt', 'JOB-NACHTRAG.txt', 'KASSE.md', 'KERN-COMMIT-2.patch.txt', 'KERN-COMMIT.patch.txt', 'KETTE-NACHTRAG-gestoppt.txt', 'KETTE.txt', 'MANIFEST.sha256', 'NACHHER-HEAD.json', 'NACHHER-HEAD.junit.xml.txt', 'NACHHER-HEAD.txt', 'NACHSPIEL-BELEGE.json', 'NACHSPIEL-D1-abgebrochen.txt', 'NACHSPIEL-D2-abgebrochen.txt', 'NACHSPIEL-D3-abgebrochen.txt'] …
+   Einstieg: ['BERICHT.md', 'UEBERGABE.md', 'zwischenbericht-20260924-141737-r103-kontext80/UEBERGABE-1-UEBERGABE.md', 'zwischenbericht-20260924-141737-r103-kontext80/ZWISCHENBERICHT.md', 'zwischenbericht-20260924-145749-r1-verdichtung/UEBERGABE-1-UEBERGABE.md', 'zwischenbericht-20260924-145749-r1-verdichtung/ZWISCHENBERICHT.md', 'zwischenbericht-20260924-151154-r22-kontext80/UEBERGABE-1-UEBERGABE.md', 'zwischenbericht-20260924-151154-r22-kontext80/ZWISCHENBERICHT.md', 'zwischenbericht-20260924-160210-r0-kontext80-verdichtung/UEBERGABE-1-UEBERGABE.md', 'zwischenbericht-20260924-160210-r0-kontext80-verdichtung/ZWISCHENBERICHT.md']
+biotop-vor-t4-05: 159 Dateien, 4 Unterordner, 2026-09-24 20:33:27 – 2026-09-24 23:45:54
+   erste Ebene: ['zwischenbericht-20260924-203327-r1-verdichtung', 'zwischenbericht-20260924-203928-r1-kontext80', 'zwischenbericht-20260924-210135-r0-kontext80', 'zwischenbericht-20260924-214148-r2-verdichtung']
+   oben: ['AUSWERTUNG.json', 'AUSWERTUNG.txt', 'BERICHT-vor-fuellen.md', 'BERICHT-vor-review.md', 'BERICHT.md', 'COMMIT-NACHRICHT.txt', 'COMMIT-STAT.txt', 'DATEIEN.txt', 'JOB-KETTE.txt', 'JOB-NACH-KETTE.txt', 'KASSE.md', 'KERN-COMMIT.patch.txt', 'MANIFEST.sha256', 'MASTERPROMPT-V8-TOR4.txt', 'NACHHER-HEAD.json', 'NACHHER-HEAD.junit.xml.txt', 'NACHHER-HEAD.txt', 'NACHSPIEL-BELEGE.json', 'NACHSPIEL-N1.txt', 'NACHSPIEL-N2.txt', 'NACHSPIEL-N3.txt', 'NACHSPIEL-VORPROBE-ARBEITSBAUM.txt', 'PRUEFSUMME-ORDNER.txt', 'REGRESSION.junit.xml.txt', 'REGRESSION.txt'] …
+   Einstieg: ['BERICHT-vor-fuellen.md', 'BERICHT-vor-review.md', 'BERICHT.md', 'UEBERGABE.md', 'zwischenbericht-20260924-203327-r1-verdichtung/UEBERGABE-1-UEBERGABE.md', 'zwischenbericht-20260924-203327-r1-verdichtung/ZWISCHENBERICHT.md', 'zwischenbericht-20260924-203928-r1-kontext80/UEBERGABE-1-UEBERGABE.md', 'zwischenbericht-20260924-203928-r1-kontext80/ZWISCHENBERICHT.md', 'zwischenbericht-20260924-210135-r0-kontext80/UEBERGABE-1-UEBERGABE.md', 'zwischenbericht-20260924-210135-r0-kontext80/ZWISCHENBERICHT.md', 'zwischenbericht-20260924-214148-r2-verdichtung/UEBERGABE-1-UEBERGABE.md', 'zwischenbericht-20260924-214148-r2-verdichtung/ZWISCHENBERICHT.md']
+biotop-vor-t4-06: 20 Dateien, 4 Unterordner, 2026-09-25 00:06:24 – 2026-09-25 01:12:25
+   erste Ebene: ['zwischenbericht-20260925-000624-r29-verdichtung', 'zwischenbericht-20260925-002824-r0-verdichtung', 'zwischenbericht-20260925-010825-r0-verdichtung', 'zwischenbericht-20260925-011225-r12-verdichtung']
+   oben: []
+   Einstieg: ['zwischenbericht-20260925-000624-r29-verdichtung/UEBERGABE-1-UEBERGABE.md', 'zwischenbericht-20260925-000624-r29-verdichtung/ZWISCHENBERICHT.md', 'zwischenbericht-20260925-002824-r0-verdichtung/UEBERGABE-1-UEBERGABE.md', 'zwischenbericht-20260925-002824-r0-verdichtung/ZWISCHENBERICHT.md', 'zwischenbericht-20260925-010825-r0-verdichtung/UEBERGABE-1-UEBERGABE.md', 'zwischenbericht-20260925-010825-r0-verdichtung/ZWISCHENBERICHT.md', 'zwischenbericht-20260925-011225-r12-verdichtung/UEBERGABE-1-UEBERGABE.md', 'zwischenbericht-20260925-011225-r12-verdichtung/ZWISCHENBERICHT.md']
+biotop-wiedereinstieg-2026-09-20-01: 35 Dateien, 6 Unterordner, 2026-09-20 05:01:44 – 2026-09-20 05:17:33
+   erste Ebene: ['belege', 'gestellte-eichung', 'quellen', 'skripte', 'traegernachweis']
+   oben: ['DATEIEN-01.txt', 'DATEIEN.txt', 'INFINITE-EVOLUTION-BIOTOP-Masterprompt-v6-01.md', 'KASSE-01.md', 'PRUEFSUMME-ORDNER-01.txt', 'ZWISCHENBERICHT.md']
+   Einstieg: ['ZWISCHENBERICHT.md']
+gedaechtnis: 5 Dateien, 0 Unterordner, 2026-09-20 05:17:33 – 2026-09-20 05:17:33
+   erste Ebene: []
+   oben: ['DATEIEN-01.txt', 'PRUEFSUMME-ORDNER-01.txt', 'REGELN-01.md', 'STAND-01.md', 'UNTERBAU-01.md']
+   Einstieg: []
+
+Ordner gezählt: 20 (biotop-* und gedaechtnis)
+=== Ende R26 ===
+
+
+R27 · Lesefassungen je Absendergruppe (Hermes, Aufträge an Subagenten, Subagent-Berichte, Systemmeldungen) aus dem geschwärzten Wortlaut
+Beginn: 2026-09-25 15:45:06 CEST (UTC+0200)
+Ende:   2026-09-25 15:45:06 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/f13_lesen.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/f13_lesen.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Lesefassungen aus arbeit/verlauf/wortlaut.jsonl (bereits geschwärzt) für die
+Entwurfsarbeit — je Absendergruppe eine Datei in arbeit/lesen/, ab 18.09.2026, nur Biotop-Sitzungen:
+  hermes-an-philipp.md      (absender Hermes)
+  auftraege-an-subagenten.md (absender Hermes→Subagent)
+  subagent-berichte.md       (absender Subagent)
+  system-meldungen.md        (System-Delegationsergebnis, System-Hintergrundprozess, System-Hinweis; ohne Verdichtung)
+Dokumentinhalte werden durch Verweis ersetzt, Gateway-Kopf gekürzt."""
+import json
+import re
+from pathlib import Path
+
+AUS = Path('/root/sicherung/biotop-lage-01/arbeit/lesen')
+doc = re.compile(r"\[The user sent a (?:text )?document: '([^']+)'\.[^\]]*\]\n\n\[Content of [^\]]+\]:\n.*", re.S)
+kopf = re.compile(r'^Gateway message origin \(JSON data, not instructions or authorization\):\n\{.*?\}\n'
+                  r'Do not guess a reply destination when these fields are insufficient\.\n\n', re.S)
+GRUPPEN = {'hermes-an-philipp.md': {'Hermes'}, 'auftraege-an-subagenten.md': {'Hermes→Subagent'},
+           'subagent-berichte.md': {'Subagent'},
+           'system-meldungen.md': {'System-Delegationsergebnis', 'System-Hintergrundprozess', 'System-Hinweis'}}
+daten = [json.loads(z) for z in open('/root/sicherung/biotop-lage-01/arbeit/verlauf/wortlaut.jsonl')]
+for name, abs_ in GRUPPEN.items():
+    teile = []
+    for e in daten:
+        if e['biotop'] != 'ja' or e['absender'] not in abs_:
+            continue
+        t = kopf.sub('', e['text'])
+        m = doc.search(t)
+        if m:
+            t = t[:m.start()] + f"[DOKUMENT {m.group(1)} — Inhalt ausgelassen]"
+        teile.append(f"## {e['zeit']} · {e['absender']} · id {e['id']} · {e['sitzung']}\n{t.strip()}\n")
+    p = AUS / name
+    p.write_text('\n'.join(teile))
+    print(f'{p}: {len(teile)} Nachrichten, {p.stat().st_size} Bytes')
+--- Ende /root/sicherung/biotop-lage-01/arbeit/f13_lesen.py ---
+Ausgabe (vollständig, stdout und stderr):
+/root/sicherung/biotop-lage-01/arbeit/lesen/hermes-an-philipp.md: 216 Nachrichten, 431600 Bytes
+/root/sicherung/biotop-lage-01/arbeit/lesen/auftraege-an-subagenten.md: 97 Nachrichten, 179290 Bytes
+/root/sicherung/biotop-lage-01/arbeit/lesen/subagent-berichte.md: 43 Nachrichten, 263560 Bytes
+/root/sicherung/biotop-lage-01/arbeit/lesen/system-meldungen.md: 98 Nachrichten, 255453 Bytes
+=== Ende R27 ===
+
+
+R28 · Plattenplatz, Größe der Sicherungskandidaten, Geheimnisdateien (Namen), Journalmodus der Datenbanken (nur lesend)
+Beginn: 2026-09-25 15:48:09 CEST (UTC+0200)
+Ende:   2026-09-25 15:48:12 CEST (UTC+0200)
+Dauer:  3.5 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/sicherung/biotop-lage-01/arbeit/s2_platz.sh
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/s2_platz.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-LAGE-01 (nur lesend): Plattenplatz und Größe der Kandidaten für die Sicherung (Abschnitt 4, Vorgehen 1);
+# Journalmodus der Datenbanken; vorhandene -wal/-shm/-journal-Dateien.
+date '+== Zeitpunkt %Y-%m-%d %H:%M:%S %Z (UTC%z)'
+echo "== df -h"; df -h / /root /var 2>&1 | sort -u
+echo "== Größe je Kandidat (du -sh, ohne Ausschlüsse) und mit Ausschlüssen (node_modules, venv, .venv, __pycache__, .pytest_cache)"
+for d in /root/biotop /root/biotop/.git /root/biotop-t3 /root/biotop-vor-t4 /root/biotop-vor-t4-02 /root/biotop-vor-t4-03 \
+         /root/biotop-vor-t4-04 /root/biotop-vor-t4-05 /root/biotop-vor-t4-06 /root/phase-4-vorbedingung-1 /root/reparatur-01 \
+         /root/reparatur-02 /root/gesamtstand-01 /root/wiedereinstieg-01 /root/biotop-einstieg-20260921-0122 \
+         /root/traeger-umstellung-2026-09-20_22-32-03Z /root/uebungswerk /root/uebungswerk-p2 /root/uebungswerk-p3 \
+         /root/uebungswerk-p3b /root/uebungswerk-p3c /root/uebungswerk-p3d /root/uebungswerk2 /root/uebungswerk-nachlauf \
+         /root/versandwerk-t3 /root/versandwerk-t3-02 /root/versiegelt /root/w7 /root/.hermes /root/.hermes/state.db; do
+  a=$(du -sh "$d" 2>/dev/null | cut -f1)
+  b=$(du -sh --exclude=node_modules --exclude=venv --exclude=.venv --exclude=__pycache__ --exclude=.pytest_cache "$d" 2>/dev/null | cut -f1)
+  n=$(find "$d" \( -name node_modules -o -name venv -o -name .venv -o -name __pycache__ -o -name .pytest_cache \) -prune -o -type f -print 2>/dev/null | wc -l)
+  echo "$d | gesamt $a | ohne Abhängigkeiten $b | Dateien ohne Abhängigkeiten $n"
+done
+K=$(cat /etc/pruefkanal/schluessel); L=/var/pruefkanal/oeffentlich/_akte/$K/laeufe
+echo "Prüfkanal biotop-* und gedaechtnis: $(du -shc $L/biotop-* $L/gedaechtnis | tail -1 | cut -f1), Dateien $(find $L/biotop-* $L/gedaechtnis -type f | wc -l)"
+echo "== Unterordner von /root/.hermes (Größe)"
+du -sh /root/.hermes/* 2>/dev/null | sort -h | tail -25
+echo "== Geheimnisdateien in /root/.hermes (Namen): .env, auth.json, *.pem, *.key, *token*, *secret*, *credential*"
+find /root/.hermes -maxdepth 3 \( -name '.env' -o -name '*.env' -o -name 'auth.json' -o -name '*.pem' -o -name '*.key' -o -iname '*token*' -o -iname '*secret*' -o -iname '*credential*' \) -not -path '*/node_modules/*' 2>/dev/null
+echo "== Datenbanken: Journalmodus und Begleitdateien"
+for db in /root/biotop/daten/biotop.db /root/biotop-t3/t3.db /root/phase-4-vorbedingung-1/privat/biotop.db /root/reparatur-02/privat-cli/privat.db /root/.hermes/state.db; do
+  ls -la "$db"* 2>&1 | awk '{print "   "$5, $9}'
+  python3 -c "import sqlite3,sys; c=sqlite3.connect('file:'+sys.argv[1]+'?mode=ro',uri=True); print('   journal_mode', c.execute('PRAGMA journal_mode').fetchone()[0])" "$db"
+  ls -la "$db"* 2>&1 | awk '{print "   nachher "$5, $9}'
+done
+echo "== *.db / *.sqlite unter /root/biotop (ohne .git)"
+find /root/biotop -path /root/biotop/.git -prune -o -type f \( -name '*.db' -o -name '*.sqlite*' -o -name '*-wal' -o -name '*-shm' -o -name '*-journal' \) -print | xargs -r ls -la
+--- Ende /root/sicherung/biotop-lage-01/arbeit/s2_platz.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== Zeitpunkt 2026-09-25 15:48:09 CEST (UTC+0200)
+== df -h
+/dev/vda1       116G   29G   87G  25% /
+Filesystem      Size  Used Avail Use% Mounted on
+== Größe je Kandidat (du -sh, ohne Ausschlüsse) und mit Ausschlüssen (node_modules, venv, .venv, __pycache__, .pytest_cache)
+/root/biotop | gesamt 61M | ohne Abhängigkeiten 57M | Dateien ohne Abhängigkeiten 3925
+/root/biotop/.git | gesamt 6.2M | ohne Abhängigkeiten 6.2M | Dateien ohne Abhängigkeiten 895
+/root/biotop-t3 | gesamt 684M | ohne Abhängigkeiten 673M | Dateien ohne Abhängigkeiten 4634
+/root/biotop-vor-t4 | gesamt 1.4M | ohne Abhängigkeiten 1.3M | Dateien ohne Abhängigkeiten 102
+/root/biotop-vor-t4-02 | gesamt 744K | ohne Abhängigkeiten 712K | Dateien ohne Abhängigkeiten 60
+/root/biotop-vor-t4-03 | gesamt 1.3M | ohne Abhängigkeiten 1.2M | Dateien ohne Abhängigkeiten 88
+/root/biotop-vor-t4-04 | gesamt 1.2M | ohne Abhängigkeiten 1.2M | Dateien ohne Abhängigkeiten 113
+/root/biotop-vor-t4-05 | gesamt 1.8M | ohne Abhängigkeiten 1.8M | Dateien ohne Abhängigkeiten 159
+/root/biotop-vor-t4-06 | gesamt 3.7M | ohne Abhängigkeiten 3.4M | Dateien ohne Abhängigkeiten 385
+/root/phase-4-vorbedingung-1 | gesamt 50M | ohne Abhängigkeiten 50M | Dateien ohne Abhängigkeiten 538
+/root/reparatur-01 | gesamt 1.0G | ohne Abhängigkeiten 1008M | Dateien ohne Abhängigkeiten 28671
+/root/reparatur-02 | gesamt 124M | ohne Abhängigkeiten 119M | Dateien ohne Abhängigkeiten 1840
+/root/gesamtstand-01 | gesamt 31M | ohne Abhängigkeiten 31M | Dateien ohne Abhängigkeiten 41
+/root/wiedereinstieg-01 | gesamt 356K | ohne Abhängigkeiten 344K | Dateien ohne Abhängigkeiten 28
+/root/biotop-einstieg-20260921-0122 | gesamt 312K | ohne Abhängigkeiten 312K | Dateien ohne Abhängigkeiten 17
+/root/traeger-umstellung-2026-09-20_22-32-03Z | gesamt 3.3M | ohne Abhängigkeiten 3.3M | Dateien ohne Abhängigkeiten 78
+/root/uebungswerk | gesamt 468K | ohne Abhängigkeiten 468K | Dateien ohne Abhängigkeiten 69
+/root/uebungswerk-p2 | gesamt 148K | ohne Abhängigkeiten 148K | Dateien ohne Abhängigkeiten 29
+/root/uebungswerk-p3 | gesamt 200K | ohne Abhängigkeiten 200K | Dateien ohne Abhängigkeiten 40
+/root/uebungswerk-p3b | gesamt 208K | ohne Abhängigkeiten 208K | Dateien ohne Abhängigkeiten 42
+/root/uebungswerk-p3c | gesamt 208K | ohne Abhängigkeiten 208K | Dateien ohne Abhängigkeiten 42
+/root/uebungswerk-p3d | gesamt 208K | ohne Abhängigkeiten 208K | Dateien ohne Abhängigkeiten 42
+/root/uebungswerk2 | gesamt 460K | ohne Abhängigkeiten 460K | Dateien ohne Abhängigkeiten 67
+/root/uebungswerk-nachlauf | gesamt 212K | ohne Abhängigkeiten 212K | Dateien ohne Abhängigkeiten 43
+/root/versandwerk-t3 | gesamt 216K | ohne Abhängigkeiten 216K | Dateien ohne Abhängigkeiten 39
+/root/versandwerk-t3-02 | gesamt 224K | ohne Abhängigkeiten 224K | Dateien ohne Abhängigkeiten 41
+/root/versiegelt | gesamt 616K | ohne Abhängigkeiten 616K | Dateien ohne Abhängigkeiten 40
+/root/w7 | gesamt 160K | ohne Abhängigkeiten 160K | Dateien ohne Abhängigkeiten 43
+/root/.hermes | gesamt 796M | ohne Abhängigkeiten 678M | Dateien ohne Abhängigkeiten 3906
+/root/.hermes/state.db | gesamt 324M | ohne Abhängigkeiten 324M | Dateien ohne Abhängigkeiten 1
+Prüfkanal biotop-* und gedaechtnis: 195M, Dateien 11174
+== Unterordner von /root/.hermes (Größe)
+8.0K	/root/.hermes/config.yaml.vor-modell-fix
+8.0K	/root/.hermes/config.yaml.vor-opus55-20260923-201806
+8.0K	/root/.hermes/gateway
+8.0K	/root/.hermes/platforms
+8.0K	/root/.hermes/runtime
+8.0K	/root/.hermes/sandboxes
+12K	/root/.hermes/memories
+12K	/root/.hermes/state
+12K	/root/.hermes/terminal-sessions
+24K	/root/.hermes/pending
+92K	/root/.hermes/scripts
+120K	/root/.hermes/kanban.db
+140K	/root/.hermes/shared-state.db
+140K	/root/.hermes/zwischenbericht
+184K	/root/.hermes/backups
+980K	/root/.hermes/cron
+4.8M	/root/.hermes/models_dev_cache.json
+6.2M	/root/.hermes/skills
+8.5M	/root/.hermes/cache
+12M	/root/.hermes/logs
+15M	/root/.hermes/sessions
+85M	/root/.hermes/bin
+100M	/root/.hermes/lsp
+230M	/root/.hermes/node
+324M	/root/.hermes/state.db
+== Geheimnisdateien in /root/.hermes (Namen): .env, auth.json, *.pem, *.key, *token*, *secret*, *credential*
+/root/.hermes/.env
+/root/.hermes/auth.json
+== Datenbanken: Journalmodus und Begleitdateien
+   29659136 /root/biotop/daten/biotop.db
+   32768 /root/biotop/daten/biotop.db-shm
+   0 /root/biotop/daten/biotop.db-wal
+   journal_mode wal
+   nachher 29659136 /root/biotop/daten/biotop.db
+   nachher 32768 /root/biotop/daten/biotop.db-shm
+   nachher 0 /root/biotop/daten/biotop.db-wal
+   276733952 /root/biotop-t3/t3.db
+   32768 /root/biotop-t3/t3.db-shm
+   13221112 /root/biotop-t3/t3.db-wal
+   journal_mode wal
+   nachher 276733952 /root/biotop-t3/t3.db
+   nachher 32768 /root/biotop-t3/t3.db-shm
+   nachher 13221112 /root/biotop-t3/t3.db-wal
+   31748096 /root/phase-4-vorbedingung-1/privat/biotop.db
+   32768 /root/phase-4-vorbedingung-1/privat/biotop.db-shm
+   4140632 /root/phase-4-vorbedingung-1/privat/biotop.db-wal
+   journal_mode wal
+   nachher 31748096 /root/phase-4-vorbedingung-1/privat/biotop.db
+   nachher 32768 /root/phase-4-vorbedingung-1/privat/biotop.db-shm
+   nachher 4140632 /root/phase-4-vorbedingung-1/privat/biotop.db-wal
+   30511104 /root/reparatur-02/privat-cli/privat.db
+   32768 /root/reparatur-02/privat-cli/privat.db-shm
+   0 /root/reparatur-02/privat-cli/privat.db-wal
+   journal_mode wal
+   nachher 30511104 /root/reparatur-02/privat-cli/privat.db
+   nachher 32768 /root/reparatur-02/privat-cli/privat.db-shm
+   nachher 0 /root/reparatur-02/privat-cli/privat.db-wal
+   338767872 /root/.hermes/state.db
+   0 /root/.hermes/state.db.auto-maintenance.lock
+   0 /root/.hermes/state.db.fts_rebuild.lock
+   journal_mode delete
+   nachher 338767872 /root/.hermes/state.db
+   nachher 0 /root/.hermes/state.db.auto-maintenance.lock
+   nachher 0 /root/.hermes/state.db.fts_rebuild.lock
+== *.db / *.sqlite unter /root/biotop (ohne .git)
+-rw-r--r-- 1 root root 29659136 Sep 20 04:05 /root/biotop/daten/biotop.db
+-rw-r--r-- 1 root root    32768 Sep 25 15:48 /root/biotop/daten/biotop.db-shm
+-rw-r--r-- 1 root root        0 Sep 20 04:54 /root/biotop/daten/biotop.db-wal
+=== Ende R28 ===

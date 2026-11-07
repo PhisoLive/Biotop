@@ -1,0 +1,253 @@
+EB49 · Schritt 4: REGELN-02 und STAND-03 aus Vorlagen bauen (Wortlaut per Skript eingesetzt)
+Beginn: 2026-09-26 01:52:52 CEST (UTC+0200)
+Ende:   2026-09-26 01:52:52 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/biotop-einlagerung/arbeit/d_bauen.py /root/biotop-einlagerung/vorlagen/REGELN-02.md paket/dokumentation/gedaechtnis/REGELN-02.md && python3 /root/biotop-einlagerung/arbeit/d_bauen.py /root/biotop-einlagerung/vorlagen/STAND-03.md paket/dokumentation/gedaechtnis/STAND-03.md
+--- Inhalt von /root/biotop-einlagerung/arbeit/d_bauen.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-EINLAGERUNG-01 · Dokumente aus Vorlagen bauen (WIEDEREINSTIEG, REGELN-02, STAND-03, INHALT, BERICHT, START …).
+
+Aufruf: d_bauen.py <vorlage.md> <ziel> [--teile N] [--grenze BYTES]
+Vorlage: Markdown mit Platzhaltern, die dieses Skript aus Dateien füllt — damit jede übernommene Stelle wörtlich aus
+ihrer Quelle kommt und nicht abgeschrieben wird:
+  {{K}}                         → https://milieulux-reinigung-muenchen.de/_akte/<schlüssel>/laeufe
+  {{ZITAT <datei> <von>-<bis>}} → Zeilen <von>–<bis> der Datei, jede Zeile mit „> “ (Zitat, Wortlaut)
+  {{ROH <datei> <von>-<bis>}}   → Zeilen <von>–<bis> der Datei unverändert
+  {{SHA <datei>}} {{BYTES <datei>}} → SHA-256 bzw. Bytes der Datei
+  {{WOERTLICH "<text>" <datei>}} → prüft, dass <text> (Leerraum zusammengefasst) in <datei> steht, und setzt <text> ein;
+                                   fehlt er, bricht das Skript ab (kein stilles Abschreiben)
+  {{EB <n> <muster>}}           → erste Zeile aus rohbelege/EB<n>.txt (Ausgabeteil), die <muster> (regulärer Ausdruck)
+                                   enthält; fehlt sie, Abbruch
+Relative Dateipfade gelten ab /root/biotop-einlagerung. Bei --teile wird an Zeilen „<!-- TEIL -->“ geteilt; Ziel muss dann
+„…TEIL{n}…“ enthalten. Jede Zieldatei wird exklusiv angelegt (nie überschrieben); Grenze je Datei Vorgabe 40.000 Bytes.
+Nach dem Bauen: kein „{{“ und kein „‹“ darf übrig sein.
+"""
+import hashlib
+import re
+import sys
+from pathlib import Path
+
+E = Path('/root/biotop-einlagerung')
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+BASIS = f'https://milieulux-reinigung-muenchen.de/_akte/{K}/laeufe'
+
+
+def pfad(x: str) -> Path:
+    p = Path(x)
+    return p if p.is_absolute() else E / p
+
+
+def zeilen(datei: str, bereich: str) -> list:
+    von, bis = (int(v) for v in bereich.split('-'))
+    z = pfad(datei).read_text(encoding='utf-8').splitlines()
+    if bis > len(z):
+        raise SystemExit(f'ABBRUCH: {datei} hat nur {len(z)} Zeilen, verlangt {bereich}')
+    return z[von - 1:bis]
+
+
+def ersetze(m: re.Match) -> str:
+    art, rest = m.group(1), m.group(2).strip()
+    if art == 'K':
+        return BASIS
+    if art == 'FASSUNG':
+        if '--fassung' not in sys.argv:
+            raise SystemExit('ABBRUCH: {{FASSUNG}} ohne --fassung')
+        return sys.argv[sys.argv.index('--fassung') + 1]
+    if art in ('ZITAT', 'ROH'):
+        datei, bereich = rest.rsplit(' ', 1)
+        z = zeilen(datei, bereich)
+        return '\n'.join(('> ' + x) if x.strip() else '>' for x in z) if art == 'ZITAT' else '\n'.join(z)
+    if art == 'DATEI':
+        return pfad(rest).read_text(encoding='utf-8').rstrip('\n')
+    if art == 'SHA':
+        return hashlib.sha256(pfad(rest).read_bytes()).hexdigest()
+    if art == 'BYTES':
+        return str(pfad(rest).stat().st_size)
+    if art == 'WOERTLICH':
+        mm = re.fullmatch(r'"(.*)"\s+(\S+)', rest, re.S)
+        if not mm:
+            raise SystemExit(f'ABBRUCH: WOERTLICH falsch aufgerufen: {rest[:80]}')
+        text, datei = mm.group(1), mm.group(2)
+        norm = lambda s: re.sub(r'\s+', ' ', s)
+        quelle = norm(pfad(datei).read_text(encoding='utf-8'))
+        if norm(text) not in quelle:
+            raise SystemExit(f'ABBRUCH: Wortlaut nicht in {datei}: „{text[:120]}…“')
+        return text
+    if art == 'EB':
+        n, muster = rest.split(' ', 1)
+        t = (E / 'rohbelege' / f'EB{int(n):04d}.txt').read_text(encoding='utf-8')
+        t = t.split('Ausgabe (vollständig, stdout und stderr):', 1)[-1]
+        for z in t.splitlines():
+            if re.search(muster, z):
+                return z.strip()
+        raise SystemExit(f'ABBRUCH: in EB{n} keine Zeile mit {muster!r}')
+    raise SystemExit(f'ABBRUCH: unbekannter Platzhalter {art}')
+
+
+def main() -> None:
+    vorlage, ziel = Path(sys.argv[1]), sys.argv[2]
+    grenze = 40_000
+    if '--grenze' in sys.argv:
+        grenze = int(sys.argv[sys.argv.index('--grenze') + 1])
+    text = vorlage.read_text(encoding='utf-8')
+    for i, a in enumerate(sys.argv):
+        if a == '--setze':
+            k, v = sys.argv[i + 1].split('=', 1)
+            text = text.replace(f'%%{k}%%', v)
+    if '%%' in text:
+        raise SystemExit(f'ABBRUCH: ungesetzter %%-Wert bei: {text[text.find("%%") - 40:text.find("%%") + 40]!r}')
+    muster = re.compile(r'\{\{(K|FASSUNG|ZITAT|ROH|SHA|BYTES|WOERTLICH|EB|DATEI)\s*(.*?)\}\}', re.S)
+    for _ in range(3):  # eingebundene Dateien dürfen selbst Platzhalter tragen
+        text = muster.sub(ersetze, text)
+    rest = [x for x in ('{{', '‹') if x in text]
+    if rest:
+        i = text.find(rest[0])
+        raise SystemExit(f'ABBRUCH: Platzhalter übrig ({rest}) bei: {text[max(0, i - 80):i + 80]!r}')
+    teile = text.split('<!-- TEIL -->\n') if '--teile' in sys.argv else [text]
+    if '--teile' in sys.argv and int(sys.argv[sys.argv.index('--teile') + 1]) != len(teile):
+        raise SystemExit(f'ABBRUCH: {len(teile)} Teile statt {sys.argv[sys.argv.index("--teile") + 1]}')
+    ziele = []
+    for i, t in enumerate(teile, 1):
+        z = pfad(ziel.replace('{n}', str(i)))
+        b = t.encode('utf-8')
+        if len(b) > grenze:
+            raise SystemExit(f'ABBRUCH: {z.name} hätte {len(b)} Bytes > {grenze}')
+        z.parent.mkdir(parents=True, exist_ok=True)
+        with open(z, 'xb') as f:
+            f.write(b)
+        ziele.append(z)
+        print(f'{z} · {len(b)} B · SHA-256 {hashlib.sha256(b).hexdigest()}')
+    print(f'Dateien: {len(ziele)} · Vorlage {vorlage} · SHA-256 der Vorlage {hashlib.sha256(vorlage.read_bytes()).hexdigest()}')
+
+
+if __name__ == '__main__':
+    main()
+--- Ende /root/biotop-einlagerung/arbeit/d_bauen.py ---
+--- Inhalt von /root/biotop-einlagerung/arbeit/d_bauen.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-EINLAGERUNG-01 · Dokumente aus Vorlagen bauen (WIEDEREINSTIEG, REGELN-02, STAND-03, INHALT, BERICHT, START …).
+
+Aufruf: d_bauen.py <vorlage.md> <ziel> [--teile N] [--grenze BYTES]
+Vorlage: Markdown mit Platzhaltern, die dieses Skript aus Dateien füllt — damit jede übernommene Stelle wörtlich aus
+ihrer Quelle kommt und nicht abgeschrieben wird:
+  {{K}}                         → https://milieulux-reinigung-muenchen.de/_akte/<schlüssel>/laeufe
+  {{ZITAT <datei> <von>-<bis>}} → Zeilen <von>–<bis> der Datei, jede Zeile mit „> “ (Zitat, Wortlaut)
+  {{ROH <datei> <von>-<bis>}}   → Zeilen <von>–<bis> der Datei unverändert
+  {{SHA <datei>}} {{BYTES <datei>}} → SHA-256 bzw. Bytes der Datei
+  {{WOERTLICH "<text>" <datei>}} → prüft, dass <text> (Leerraum zusammengefasst) in <datei> steht, und setzt <text> ein;
+                                   fehlt er, bricht das Skript ab (kein stilles Abschreiben)
+  {{EB <n> <muster>}}           → erste Zeile aus rohbelege/EB<n>.txt (Ausgabeteil), die <muster> (regulärer Ausdruck)
+                                   enthält; fehlt sie, Abbruch
+Relative Dateipfade gelten ab /root/biotop-einlagerung. Bei --teile wird an Zeilen „<!-- TEIL -->“ geteilt; Ziel muss dann
+„…TEIL{n}…“ enthalten. Jede Zieldatei wird exklusiv angelegt (nie überschrieben); Grenze je Datei Vorgabe 40.000 Bytes.
+Nach dem Bauen: kein „{{“ und kein „‹“ darf übrig sein.
+"""
+import hashlib
+import re
+import sys
+from pathlib import Path
+
+E = Path('/root/biotop-einlagerung')
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+BASIS = f'https://milieulux-reinigung-muenchen.de/_akte/{K}/laeufe'
+
+
+def pfad(x: str) -> Path:
+    p = Path(x)
+    return p if p.is_absolute() else E / p
+
+
+def zeilen(datei: str, bereich: str) -> list:
+    von, bis = (int(v) for v in bereich.split('-'))
+    z = pfad(datei).read_text(encoding='utf-8').splitlines()
+    if bis > len(z):
+        raise SystemExit(f'ABBRUCH: {datei} hat nur {len(z)} Zeilen, verlangt {bereich}')
+    return z[von - 1:bis]
+
+
+def ersetze(m: re.Match) -> str:
+    art, rest = m.group(1), m.group(2).strip()
+    if art == 'K':
+        return BASIS
+    if art == 'FASSUNG':
+        if '--fassung' not in sys.argv:
+            raise SystemExit('ABBRUCH: {{FASSUNG}} ohne --fassung')
+        return sys.argv[sys.argv.index('--fassung') + 1]
+    if art in ('ZITAT', 'ROH'):
+        datei, bereich = rest.rsplit(' ', 1)
+        z = zeilen(datei, bereich)
+        return '\n'.join(('> ' + x) if x.strip() else '>' for x in z) if art == 'ZITAT' else '\n'.join(z)
+    if art == 'DATEI':
+        return pfad(rest).read_text(encoding='utf-8').rstrip('\n')
+    if art == 'SHA':
+        return hashlib.sha256(pfad(rest).read_bytes()).hexdigest()
+    if art == 'BYTES':
+        return str(pfad(rest).stat().st_size)
+    if art == 'WOERTLICH':
+        mm = re.fullmatch(r'"(.*)"\s+(\S+)', rest, re.S)
+        if not mm:
+            raise SystemExit(f'ABBRUCH: WOERTLICH falsch aufgerufen: {rest[:80]}')
+        text, datei = mm.group(1), mm.group(2)
+        norm = lambda s: re.sub(r'\s+', ' ', s)
+        quelle = norm(pfad(datei).read_text(encoding='utf-8'))
+        if norm(text) not in quelle:
+            raise SystemExit(f'ABBRUCH: Wortlaut nicht in {datei}: „{text[:120]}…“')
+        return text
+    if art == 'EB':
+        n, muster = rest.split(' ', 1)
+        t = (E / 'rohbelege' / f'EB{int(n):04d}.txt').read_text(encoding='utf-8')
+        t = t.split('Ausgabe (vollständig, stdout und stderr):', 1)[-1]
+        for z in t.splitlines():
+            if re.search(muster, z):
+                return z.strip()
+        raise SystemExit(f'ABBRUCH: in EB{n} keine Zeile mit {muster!r}')
+    raise SystemExit(f'ABBRUCH: unbekannter Platzhalter {art}')
+
+
+def main() -> None:
+    vorlage, ziel = Path(sys.argv[1]), sys.argv[2]
+    grenze = 40_000
+    if '--grenze' in sys.argv:
+        grenze = int(sys.argv[sys.argv.index('--grenze') + 1])
+    text = vorlage.read_text(encoding='utf-8')
+    for i, a in enumerate(sys.argv):
+        if a == '--setze':
+            k, v = sys.argv[i + 1].split('=', 1)
+            text = text.replace(f'%%{k}%%', v)
+    if '%%' in text:
+        raise SystemExit(f'ABBRUCH: ungesetzter %%-Wert bei: {text[text.find("%%") - 40:text.find("%%") + 40]!r}')
+    muster = re.compile(r'\{\{(K|FASSUNG|ZITAT|ROH|SHA|BYTES|WOERTLICH|EB|DATEI)\s*(.*?)\}\}', re.S)
+    for _ in range(3):  # eingebundene Dateien dürfen selbst Platzhalter tragen
+        text = muster.sub(ersetze, text)
+    rest = [x for x in ('{{', '‹') if x in text]
+    if rest:
+        i = text.find(rest[0])
+        raise SystemExit(f'ABBRUCH: Platzhalter übrig ({rest}) bei: {text[max(0, i - 80):i + 80]!r}')
+    teile = text.split('<!-- TEIL -->\n') if '--teile' in sys.argv else [text]
+    if '--teile' in sys.argv and int(sys.argv[sys.argv.index('--teile') + 1]) != len(teile):
+        raise SystemExit(f'ABBRUCH: {len(teile)} Teile statt {sys.argv[sys.argv.index("--teile") + 1]}')
+    ziele = []
+    for i, t in enumerate(teile, 1):
+        z = pfad(ziel.replace('{n}', str(i)))
+        b = t.encode('utf-8')
+        if len(b) > grenze:
+            raise SystemExit(f'ABBRUCH: {z.name} hätte {len(b)} Bytes > {grenze}')
+        z.parent.mkdir(parents=True, exist_ok=True)
+        with open(z, 'xb') as f:
+            f.write(b)
+        ziele.append(z)
+        print(f'{z} · {len(b)} B · SHA-256 {hashlib.sha256(b).hexdigest()}')
+    print(f'Dateien: {len(ziele)} · Vorlage {vorlage} · SHA-256 der Vorlage {hashlib.sha256(vorlage.read_bytes()).hexdigest()}')
+
+
+if __name__ == '__main__':
+    main()
+--- Ende /root/biotop-einlagerung/arbeit/d_bauen.py ---
+Ausgabe (vollständig, stdout und stderr):
+/root/biotop-einlagerung/paket/dokumentation/gedaechtnis/REGELN-02.md · 13192 B · SHA-256 e31b60add2b235a2809441dfa8ff83605dcfc226a63479de8fd4ee8c525e56ea
+Dateien: 1 · Vorlage /root/biotop-einlagerung/vorlagen/REGELN-02.md · SHA-256 der Vorlage 16dd82636fe36f018ec4120571f000ce6702d44b58ee4045c94427e047ff1f72
+/root/biotop-einlagerung/paket/dokumentation/gedaechtnis/STAND-03.md · 2346 B · SHA-256 90367586683c6035b134e558e01616802c354d35496cdb4d4f9707e8466c29b6
+Dateien: 1 · Vorlage /root/biotop-einlagerung/vorlagen/STAND-03.md · SHA-256 der Vorlage 47c48d7325b7bdf7c326749142fa041d2125730c1ba06837146843730cb4d404
+=== Ende EB49 ===

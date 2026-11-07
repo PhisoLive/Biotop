@@ -1,0 +1,113 @@
+{
+  "status": "BESTAETIGT-OFFEN, keine dritte automatische Runde",
+  "befunde": [
+    {
+      "id": "KERN-01",
+      "schwere": "blockierend",
+      "titel": "Aktuelle Vier-Paar-Abnahme und Pflichtvorspann scheitern im integrierten Bestand",
+      "befund": "In beiden aktuellen Batterien 62 und 63 ist nur die positive Normprobe ausgeführt, prüfbar und bestanden. Nebenwirkung, Regression und Vertrag sind positiv jeweils ausgeführt=true, pruefbar=false, bestanden=false. Alle vier Gegenproben sind prüfbar und haben das geforderte falsche Bestehensprädikat. Das ersetzt die drei fehlenden Positivnachweise nicht.",
+      "ursache_belegt": "Die positive Vertragsprobe ruft die absichtlich nicht vorhandene lagerhaus.lager.eichprobe_zusicherung auf. Genau dieser Eingriff bricht auch die bestellte Referenzlast bericht mit AttributeError ab. messgeraet.messen verwirft daraufhin die Messung wegen laufzeit_ms=null; Aegis erreicht kein Kernmaß-/Vertragsurteil. Bei Nebenwirkung und Regression fehlen vier Call-Berichte; deren konkrete vorhergehende Ausnahme ist aus dem gekürzten Rohstderr nicht sicher bestimmbar.",
+      "stellen": [
+        "repo/biotop/organe/eichproben.py:376-420,454-475,488-493",
+        "repo/biotop/kern/messgeraet.py:118-122,203-215,273-280",
+        "repo/biotop/organe/aegis.py:706-719",
+        "repo/biotop/organe/vorspann.py:66-78,165-181",
+        "repo/tests/test_eichproben.py:266-267",
+        "repo/tests/test_review_vertrag.py:269-275"
+      ],
+      "belege": [
+        "elternbelege/62-gesamtsuite-zweite-runde.xml: testcase tests.test_eichproben::test_vier_paare_am_kopierten_pruefwerk und tests.test_review_vertrag::test_benannter_vertrag_am_kopierten_pruefwerk",
+        "elternbelege/62-gesamtsuite-zweite-runde-eichpaare.json: /proben/{nebenwirkung,regression,vertrag}",
+        "elternbelege/63-vorspann-zweite-runde.json: /nachweis/status=gescheitert; /gen0_nachweis_verwendbar=false; /nachweis/ergebnis (JSON-Zeichenkette), eichproben.proben",
+        "elternbelege/63-vorspann-zweite-runde.stderr.txt:1",
+        "BELEGABGLEICH.json: batterien"
+      ],
+      "einordnung": "Bestätigter Integrations-/Abnahmefehler, kein Beweis einer fälschlichen Freigabe. Die F7-Verweigerung unbrauchbarer Messungen ist hier richtig; sie darf nicht als bestandene Eichung oder als spezifischer Pareto-/Vertragsnachweis umgedeutet werden. Keine Schwellenabsenkung empfohlen."
+    },
+    {
+      "id": "KERN-02",
+      "schwere": "hoch",
+      "titel": "Pareto je Test verliert die Klassenidentität und kann eine neue Regression freigeben",
+      "befund": "Der Messparser speichert nur basename(file)::name. TestA.test_wert und TestB.test_wert derselben Datei werden zum gleichen Fehlerschlüssel. Wird der erste Fehler behoben, der zweite Test neu beschädigt und ein weiterer alter Fehler behoben, sinkt die Fehlersumme; der Set-Vergleich findet keine neue Test-ID. Der originale Entscheider gibt dann ok=true trotz neuer Einzeltestregression.",
+      "stellen": [
+        "repo/biotop/kern/messgeraet.py:123-134",
+        "repo/biotop/kern/messgeraet.py:359-367",
+        "repo/biotop/kern/messgeraet.py:523-561",
+        "repo/tests/test_messnachweise.py:325-331"
+      ],
+      "belege": [
+        "UNIT-GRENZE.json: basis_xml, kandidat_xml, tatsaechliches_urteil, kontrolle_mit_eindeutigen_ids",
+        "PRUEFUNG.py: synthetische Parser-/Entscheider-Unit"
+      ],
+      "nachweisgrenze": "Rein synthetische XML-Parser-/Entscheiderkontrolle aus dem unveränderten AST der eingefrorenen Quelle; keine reale Werk-, pytest- oder Kammerausführung. Ergebnis: Kernmaß -2 → -1, pareto_schlechter=[], ok=true. Kontrollroute mit eindeutigen Klassen-IDs bei gleichen Messzahlen: Regression TestB::test_wert, ok=false."
+    },
+    {
+      "id": "KERN-03",
+      "schwere": "hoch",
+      "titel": "Fundprüfung erklärt einen testinternen Fehler ohne Ortsnachweis zum Werkabsturz",
+      "befund": "_ausfuehren setzt absturz_im_werk allein anhand von Error/Exception im Failure-Text und der Abwesenheit von AssertionError. Ein ausschließlich in tests/test_neubewertung_probe.py entstandener NameError wird dadurch zu absturz_im_werk=true. bewerten kann damit einen bisherigen offen_norm-Fund ohne Vertragsbezug als offen aufwerten. Das widerspricht der eigenen Regel, dass Fallen allein keinen echten Werkfehler beweist.",
+      "stellen": [
+        "repo/biotop/organe/fundpruefung.py:75-77",
+        "repo/biotop/organe/fundpruefung.py:95-111",
+        "repo/biotop/organe/vorspann.py:157-159"
+      ],
+      "belege": [
+        "UNIT-GRENZE.json: fund_fehlattribution",
+        "PRUEFUNG.py: synthetische Fund-Verbraucher-Unit"
+      ],
+      "nachweisgrenze": "Rein synthetischer Verbrauchercheck mit ausdrücklich gestelltem JUnit-I/O und originalem _ausfuehren-AST; kein echter Kammerlauf und kein DB-Statuswrite. Der falsche Absturzindikator ist ausgeführt belegt, die Statusfolge ist aus bewerten statisch abgeleitet. Keine Behauptung, dass ein realer Elternfund bereits so umgestuft wurde."
+    }
+  ],
+  "nicht_verifiziert": [
+    {
+      "id": "OFFEN-01",
+      "blockiert_freigabe": true,
+      "befund": "Die konkrete Ursache der vier fehlenden Test-Call-Berichte in den positiven Nebenwirkungs-/Regressionsmessungen bleibt offen. Lesbar sind 96 Call-Berichte und 100 Teardown-Berichte; vier benannte Berichtstests fehlen bei Call. Die Kammer speichert nur die letzten 20000 Zeichen von stderr, die ursprüngliche Ausnahme steht nicht mehr vollständig im vorliegenden Transport. Kein Schluss auf bestimmte Setup-, Produkt- oder Infrastrukturursache.",
+      "stellen": [
+        "repo/biotop/organe/kammer.py:82",
+        "repo/biotop/kern/messgeraet.py:94-122"
+      ],
+      "belege": [
+        "BELEGABGLEICH.json: batterien.*.paare[].unbrauchbare_messungen",
+        "elternbelege/62-gesamtsuite-zweite-runde-eichpaare.json: /proben/nebenwirkung/kammer/1 und /proben/regression/kammer/6",
+        "elternbelege/63-vorspann-zweite-runde.json: nachweis.ergebnis (JSON), gleiche Kammerpositionen"
+      ]
+    },
+    {
+      "id": "OFFEN-02",
+      "blockiert_freigabe": true,
+      "befund": "Eine erfolgreiche reale aktuelle Generation-minus-eins mit anschließend verwendbarem Gen0-Eingang ist nicht belegt: 63 endet rc=1, nachweis_sha256=null und gen0_nachweis_verwendbar=false. Die erfolgreichen Gate-/CLI-Unit-Tests ersetzen Messung und Proben kontrolliert. Der Gen0-Eingangscheck ist vorhanden und die Sperre wirkt; eine erfolgreiche aktuelle Gesamtfreigabe wird nicht behauptet. Gen0-interner Mutantenbau bleibt außerhalb.",
+      "stellen": [
+        "repo/biotop/lauf.py:604-625",
+        "repo/biotop/organe/vorspann.py:214-245",
+        "repo/tests/test_vorspann.py:13-56",
+        "repo/tests/test_vorspann_cli.py:15-22"
+      ],
+      "belege": [
+        "elternbelege/63-vorspann-zweite-runde.json",
+        "elternbelege/63-vorspann-zweite-runde.stderr.txt:1"
+      ]
+    }
+  ],
+  "elternpruefung": {
+    "befehl": [
+      "python3",
+      "-B",
+      "/root/reparatur-01/schlussreview-eltern/PRUEFUNG.py"
+    ],
+    "rc": 0,
+    "grenze": "Nur vorhandene Rohdaten nachgezählt und originaler AST mit explizit synthetischem XML/I-O ausgeführt; keine neuen pytest-/Werk-/Kammer-/DB-/Modellläufe. Kein Produktfix.",
+    "pruefer_manifest": "0398ba175bcc6d3f89a3088885b9120675770ae49c6de3a1f8e0530403240f6b",
+    "pruefer_manifest_eintraege": 8,
+    "quelle_anzahl": 129,
+    "quellhashes_groessen_mtime_unveraendert": true,
+    "produktdateihashes_unveraendert": true,
+    "eigenes_unit_ergebnis_identisch_mit_review": true,
+    "eigener_belegabgleich_identisch_mit_review": true,
+    "pareto_falsch_freigegeben": true,
+    "kontrolle_mit_eindeutigen_ids_freigegeben": false,
+    "testeigener_nameerror_falsch_werkabsturz": true,
+    "eigene_dockerkammern": 0,
+    "eigene_biotop_modellaufrufe": 0
+  }
+}

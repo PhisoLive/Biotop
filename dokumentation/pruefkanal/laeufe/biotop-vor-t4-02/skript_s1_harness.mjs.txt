@@ -1,0 +1,171 @@
+// S1-Klärung K2868: Vorgeneration (lauf37-gen2) gegen Kandidat (K2868) an tarife/ausdruck — in der netzlosen Kammer.
+// Liest /werk/alt/src/... und /werk/neu/src/..., überträgt mit dem TypeScript der Kammer nach JS, ruft beide Seiten
+// mit denselben Eingaben. Ausgabe: eine JSON-Zeile auf stdout. Korpus und Regel stehen in s1_klaerung.py (vorab fest).
+import fs from 'node:fs';
+import path from 'node:path';
+import ts from '/opt/biotop-ts/node_modules/typescript/lib/typescript.js';
+
+function uebertragen(stand) {
+  const aus = '/tmp/s1/' + stand;
+  for (const rel of ['tarife/ausdruck.ts', 'tarife/modell.ts', 'zahlen/pruefen.ts']) {
+    const q = `/werk/${stand}/src/${rel}`;
+    if (!fs.existsSync(q)) continue;
+    const js = ts.transpileModule(fs.readFileSync(q, 'utf8'),
+      {compilerOptions: {module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022}}).outputText;
+    const z = path.join(aus, rel.replace(/\.ts$/, '.js'));
+    fs.mkdirSync(path.dirname(z), {recursive: true});
+    fs.writeFileSync(z, js);
+  }
+  fs.writeFileSync(path.join(aus, 'package.json'), '{"type":"module"}');
+  return 'file://' + path.join(aus, 'tarife/ausdruck.js');
+}
+const alt = (await import(uebertragen('alt'))).ausdruck;
+const neu = (await import(uebertragen('neu'))).ausdruck;
+// Saubere Autorenreferenz (versiegelte Normalversion, nur gelesen): entscheidet bei Schreibweisen, die der Vertrag
+// nicht ausdrücklich regelt, welche Seite dem beabsichtigten Vertrag folgt (Grundsatz 1: Richtung nur per Vertrag).
+const norm = (await import(uebertragen('norm'))).ausdruck;
+
+// ---- Vertrag (tests/vertraege/VERTRAEGE.md Z. 22) als unabhängiger Maßstab für Ausdrücke AUS DER GRAMMATIK:
+// Rangfolge * / vor + -, links assoziativ; Division durch null abgewiesen; Ergebnis endlich und ≥ 0.
+function vertrag(tokens, k) {
+  let i = 0;
+  const faktor = () => {
+    const t = tokens[i++];
+    if (t === '(') { const v = summe(); i++; return v; }
+    if (t === 'gewicht') return k.gewicht;
+    if (t === 'grund') return k.grund;
+    return Number(t);
+  };
+  const produkt = () => {
+    let v = faktor();
+    while (tokens[i] === '*' || tokens[i] === '/') {
+      const op = tokens[i++]; const r = faktor();
+      if (op === '/') { if (r === 0) throw new Error('Division durch null'); v = v / r; } else v = v * r;
+    }
+    return v;
+  };
+  const summe = () => {
+    let v = produkt();
+    while (tokens[i] === '+' || tokens[i] === '-') { const op = tokens[i++]; const r = produkt(); v = op === '+' ? v + r : v - r; }
+    return v;
+  };
+  try {
+    const v = summe();
+    if (!Number.isFinite(v) || v < 0) return {ok: false, e: 'abgewiesen'};
+    return {ok: true, v};
+  } catch { return {ok: false, e: 'abgewiesen'}; }
+}
+
+function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const rnd = mulberry32(20260923);
+const r = n => Math.floor(rnd() * n);
+function zahl() {
+  const g = r(4) === 0 ? '0' : String(1 + r(9999));
+  if (r(3) !== 0) return g;
+  const k = 1 + r(3);
+  return g + '.' + String(r(10 ** k)).padStart(k, '0');
+}
+function erzeugen(tiefe) {
+  const w = r(10);
+  if (tiefe <= 0 || w < 4) { const a = r(4); return [a === 0 ? 'gewicht' : a === 1 ? 'grund' : zahl()]; }
+  if (w < 6) return ['(', ...erzeugen(tiefe - 1), ')'];
+  return [...erzeugen(tiefe - 1), '+-*/'[r(4)], ...erzeugen(tiefe - 1)];
+}
+function schreiben(tokens) {
+  let s = '';
+  for (const t of tokens) s += (s && r(2) ? ' '.repeat(1 + r(2)) : '') + t;
+  return (r(8) === 0 ? ' ' : '') + s + (r(8) === 0 ? ' ' : '');
+}
+const KONTEXTE = [{gewicht: 0, grund: 0}, {gewicht: 1, grund: 2}, {gewicht: 30, grund: 250}, {gewicht: 0.5, grund: 1000},
+                  {gewicht: 12345.678, grund: 0.001}, {gewicht: 1000000, grund: 3}];
+
+function rufen(f, text, k) {
+  try { const v = f(text, k); return {ok: true, v}; }
+  catch (e) { return {ok: false, e: e?.constructor?.name ?? 'unbekannt', m: String(e?.message ?? e).slice(0, 90)}; }
+}
+const gleich = (a, b) => (a.ok && b.ok) ? Object.is(a.v, b.v) : (!a.ok && !b.ok) ? a.e === b.e : false;
+const vertragsgleich = (x, v) => x.ok === v.ok && (!x.ok || Object.is(x.v, v.v));
+const art = (a, b) => (a.ok && b.ok) ? 'wert' : (!a.ok && !b.ok) ? 'fehlerklasse' : (a.ok ? 'alt_zahl_neu_fehler' : 'alt_fehler_neu_zahl');
+
+// ---- K: Kern der Tarifsprache
+const K = {faelle: 0, ausdruecke: 0, abweichungen: 0, je_art: {}, alt_vertragswidrig: 0, neu_vertragswidrig: 0, neu_ungleich_norm: 0,
+           beispiele_neu_ungleich_norm: [], vertrag_zahl: 0, abw_bei_vertrag_zahl: 0, abw_neu_meldung: {},
+           beispiele_abweichung: [], beispiele_alt_vertragswidrig: [], beispiele_neu_vertragswidrig: [], laengen: [1e9, 0]};
+const vertragsbeispiele = [['12.5', {gewicht: 1, grund: 2}], ['grund + gewicht * 2', {gewicht: 30, grund: 250}],
+  ['(grund + gewicht) * 2', {gewicht: 30, grund: 250}], ['10 - 3 - 2', {gewicht: 0, grund: 0}], ['20 / 2 / 5', {gewicht: 0, grund: 0}],
+  ['0', {gewicht: 0, grund: 0}], ['1/0', {gewicht: 0, grund: 0}], ['1-2', {gewicht: 0, grund: 0}]];
+const tokenize = s => s.match(/gewicht|grund|\d+(?:\.\d+)?|[-+*/()]/g) ?? [];
+function kFall(text, k) {
+  const a = rufen(alt, text, k), n = rufen(neu, text, k), v = vertrag(tokenize(text), k), o = rufen(norm, text, k);
+  K.faelle++;
+  if (!gleich(n, o)) { K.neu_ungleich_norm++; if (K.beispiele_neu_ungleich_norm.length < 8) K.beispiele_neu_ungleich_norm.push({text, k, neu: n, norm: o}); }
+  if (!vertragsgleich(a, v)) { K.alt_vertragswidrig++; if (K.beispiele_alt_vertragswidrig.length < 8) K.beispiele_alt_vertragswidrig.push({text, k, alt: a, vertrag: v}); }
+  if (!vertragsgleich(n, v)) { K.neu_vertragswidrig++; if (K.beispiele_neu_vertragswidrig.length < 8) K.beispiele_neu_vertragswidrig.push({text, k, neu: n, vertrag: v}); }
+  if (v.ok) K.vertrag_zahl++;
+  if (!gleich(a, n)) {
+    K.abweichungen++; const x = art(a, n); K.je_art[x] = (K.je_art[x] ?? 0) + 1;
+    if (v.ok) K.abw_bei_vertrag_zahl++;
+    const mm = n.ok ? 'zahl' : (n.e + ': ' + n.m); K.abw_neu_meldung[mm] = (K.abw_neu_meldung[mm] ?? 0) + 1;
+    if (K.beispiele_abweichung.length < 12) K.beispiele_abweichung.push({text, k, alt: a, neu: n, vertrag: v});
+  }
+}
+for (const [t, k] of vertragsbeispiele) kFall(t, k);
+const gesehen = new Set();
+while (gesehen.size < 20000) {
+  const text = schreiben(erzeugen(4));
+  if (text.length > 160 || text.trim().length === 0 || gesehen.has(text)) continue;
+  gesehen.add(text);
+  K.laengen = [Math.min(K.laengen[0], text.length), Math.max(K.laengen[1], text.length)];
+  for (const k of KONTEXTE) kFall(text, k);
+}
+K.ausdruecke = gesehen.size + vertragsbeispiele.length;
+
+// ---- W (nachträglich, nach Sicht von R ergänzt; nicht Teil der vorab festgelegten Regel): dieselben Ausdrücke, jedes
+// Leerzeichen durch Tab bzw. Zeilenumbruch ersetzt (nur Ausdrücke mit mindestens einem Leerzeichen), Kontext {30, 250}.
+const W = {};
+for (const [name, ersatz] of [['tab', '\t'], ['lf', '\n']]) {
+  const w = {ausdruecke: 0, alt_zahl: 0, neu_zahl: 0, norm_zahl: 0, neu_weist_ab_alt_und_norm_zahl: 0, gleich_alt_neu: 0, beispiele: []};
+  for (const text of gesehen) {
+    if (!text.includes(' ')) continue;
+    const t2 = text.split(' ').join(ersatz), k = {gewicht: 30, grund: 250};
+    const a = rufen(alt, t2, k), n = rufen(neu, t2, k), o = rufen(norm, t2, k);
+    w.ausdruecke++; w.alt_zahl += a.ok; w.neu_zahl += n.ok; w.norm_zahl += o.ok; w.gleich_alt_neu += gleich(a, n);
+    if (!n.ok && a.ok && o.ok && Object.is(a.v, o.v)) { w.neu_weist_ab_alt_und_norm_zahl++; if (w.beispiele.length < 3) w.beispiele.push({text: JSON.stringify(t2), alt: a, neu: n, norm: o}); }
+  }
+  W[name] = w;
+}
+
+// ---- R: Schreibweisen außerhalb der Grammatik oder vom Vertrag nicht festgelegt (je Eingabe Kontext {1,2})
+const R_EINGABEN = [
+  ['führende Null', ['007', '08.5', '0.50', '00']], ['Dezimalform ohne Ziffer', ['.5', '5.', '1..2', '1.2.3']],
+  ['Exponent/Sonderzahl', ['1e3', '1E3', 'Infinity', 'NaN', '0x10']], ['Vorzeichen', ['-0', '+1', '--1', '- -1', '-(1-2)']],
+  ['Weißraum', ['1\t+ 2', '1\n+2', ' \u00a01', '1 +\r\n2']], ['fremde Bezeichner', ['a', 'Ä-1', 'x'.repeat(40), 'Gewicht', 'grund1', '$', '_']],
+  ['JS-Syntax', ['2**3', '7%3', '1<<2', '(1,2)', '1;2', '[1][0]', '"1"', 'Math.PI', 'grund.valueOf()', '()', '1 2']],
+  ['Grenze Länge', ['1'.repeat(160), '1'.repeat(161), ' '.repeat(159) + '1']],
+];
+const R = [];
+for (const [gruppe, liste] of R_EINGABEN) for (const text of liste) {
+  const k = {gewicht: 1, grund: 2};
+  const a = rufen(alt, text, k), n = rufen(neu, text, k), o = rufen(norm, text, k);
+  const ergebnisart = x => x.ok ? 'zahl ' + x.v : 'abgewiesen';     // Vertragssicht: Zahl oder Abweisung (Fehlerklasse frei)
+  R.push({gruppe, text: text.length > 50 ? text.slice(0, 12) + `…(${text.length} Zeichen)` : text, alt: a, neu: n, norm: o,
+          gleich: gleich(a, n), art: gleich(a, n) ? null : art(a, n),
+          neu_wie_norm: ergebnisart(n) === ergebnisart(o), alt_wie_norm: ergebnisart(a) === ergebnisart(o)});
+}
+
+// ---- O: die drei Eingaben des Organs (Randfall-Korpus ~rand#2/#4/#5) — wird der Text als Programm ausgewertet?
+const O = [];
+for (const [rand, text, name] of [['~rand#1', '', null], ['~rand#2', 'a', 'a'], ['~rand#3', ' ', null], ['~rand#4', 'Ä-1', 'Ä'],
+                                  ['~rand#5', 'x'.repeat(40), 'x'.repeat(40)]]) {
+  const zeile = {rand, text: text.length > 10 ? `'x'×${text.length}` : JSON.stringify(text)};
+  for (const [seite, f] of [['alt', alt], ['neu', neu], ['norm', norm]]) {
+    let zugriffe = 0;
+    if (name) Object.defineProperty(globalThis, name, {configurable: true, get() { zugriffe++; return 7; }});
+    const e = rufen(f, text, {gewicht: 1, grund: 2});
+    if (name) Reflect.deleteProperty(globalThis, name);
+    const ohne = rufen(f, text, {gewicht: 1, grund: 2});      // so wie die Sonde ruft: ohne Marker
+    zeile[seite] = {mit_marker: e, markerzugriffe: zugriffe, ohne_marker: ohne};
+  }
+  O.push(zeile);
+}
+process.stdout.write(JSON.stringify({K, R, O, W}));

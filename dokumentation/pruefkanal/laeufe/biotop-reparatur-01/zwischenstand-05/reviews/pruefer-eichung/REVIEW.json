@@ -1,0 +1,474 @@
+{
+  "passed": false,
+  "security_concerns": [],
+  "logic_errors": [
+    {
+      "id": "EICH-1",
+      "severity": "high",
+      "priority": "P1",
+      "title": "Rauschgesperrter Bereich lässt sich durch einen anders deklarierten Kandidaten verändern",
+      "file": "/root/reparatur-01/review-01/repo/biotop/kern/messgeraet.py",
+      "line": 432,
+      "end_line": 432,
+      "related_locations": [
+        {
+          "file": "/root/reparatur-01/review-01/repo/biotop/kern/messgeraet.py",
+          "line": 463,
+          "end_line": 465
+        },
+        {
+          "file": "/root/reparatur-01/review-01/repo/biotop/lauf.py",
+          "line": 325,
+          "end_line": 330
+        },
+        {
+          "file": "/root/reparatur-01/review-01/repo/biotop/organe/aegis.py",
+          "line": 518,
+          "end_line": 525
+        }
+      ],
+      "new_or_regressed": "Der Diff setzt Laufzeitgrenzen gesperrter Bereiche außer Kraft und ersetzt den Generalproben-Wirkungskreis durch die Vereinigung gespeicherter Kandidaten-Wirkungskreise. Diese stammen weiterhin nur aus dem deklarierten Bereich, nicht aus den tatsächlich geänderten Dateien.",
+      "explanation": "Ein Kandidat für alpha kann zusätzlich paket/beta ändern. Bei unabhängigen Bereichen bleibt sein Wirkungskreis [alpha]. Ist beta rauscherbedingt gesperrt, entfallen jetzt dessen Zeitgrenze und die Wirkungskreissperre zugleich. Der echte Aegis-/Generalprobenpfad legt den Kandidaten vor und schreibt beta. Das ist nicht bloß das zulässige Ignorieren unberührten Nachbarrauschens.",
+      "minimal_reproduction": {
+        "test": "test_blocked_area_must_include_actual_diff_targets",
+        "command": "PYTHONPATH=/root/reparatur-01/review-01/pruefer-eichung/guard:/root/reparatur-01/review-01/pruefer-eichung/arbeitskopie PYTHONDONTWRITEBYTECODE=1 TMPDIR=/root/reparatur-01/review-01/pruefer-eichung/tmp BIOTOP_DB=/root/reparatur-01/review-01/pruefer-eichung/tmp/repro-unused.db PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 /root/reparatur-01/venv/bin/python -m pytest -q -s -c /root/reparatur-01/review-01/pruefer-eichung/arbeitskopie/pytest.ini /root/reparatur-01/review-01/pruefer-eichung/test_review.py::test_blocked_area_must_include_actual_diff_targets",
+        "steps": [
+          "Frischen privaten Unit-Lauf durch Vorspann → gen0 → mass führen; beta im Vorspann sperren.",
+          "Kandidaten unter bereich=alpha einschleusen, dessen angewandter Diff alpha und beta ändert.",
+          "An der Messgrenze explizite Unit-Werte liefern: alpha.tote_funktionen 1→0, beta.laufzeit_ms 100→10000; übrige Maße unverändert.",
+          "L.generation mit echtem Aegis, Originalurteilen und Generalprobe ausführen; nur Modell-/Mess-/Snapshotgrenzen sind ersetzt."
+        ],
+        "expected": "abgelehnt, weil der wirkliche Diff den gesperrten Bereich beta erreicht; kein Schreiben nach beta.",
+        "actual": "status=vorgelegt; wirkungskreis=[alpha]; paket/beta/__init__.py wurde im privaten Werk auf return 2 geändert. Derselbe Messinput ohne neuen Rausch-Skip wird wegen beta.laufzeit_ms 10000 > 200 abgelehnt.",
+        "evidence_level": "Ausgeführter Unit-Durchlauf bis zur tatsächlichen Dateischreibstelle an synthetischem Werk. Zahlen sind kontrollierte Testeingaben, keine gemessenen Laufzeiten."
+      },
+      "evidence": [
+        {
+          "file": "/root/reparatur-01/review-01/pruefer-eichung/independent-review.stdout.txt",
+          "line": 13,
+          "note": "Vollständige unveränderte stdout-Datei; der Datei-Reader kann lange Einzelzeilen nur in der Darstellung kürzen."
+        }
+      ],
+      "suggested_fix": "Wirkungskreis aus allen angewandten Code-/Anpassungsdateien plus deren Abhängigkeiten ableiten und vor Einzelprüfung sowie Generalprobe mit den gesperrten Bereichen schneiden; nicht bloß der Bereichsdeklaration vertrauen."
+    },
+    {
+      "id": "EICH-2",
+      "severity": "high",
+      "priority": "P1",
+      "title": "Fehlgeschlagene Generation 0 erfüllt die neue Maß-Vorbedingung",
+      "file": "/root/reparatur-01/review-01/repo/biotop/organe/vorspann.py",
+      "line": 227,
+      "end_line": 229,
+      "related_locations": [
+        {
+          "file": "/root/reparatur-01/review-01/repo/biotop/lauf.py",
+          "line": 83,
+          "end_line": 83
+        },
+        {
+          "file": "/root/reparatur-01/review-01/repo/biotop/lauf.py",
+          "line": 108,
+          "end_line": 116
+        },
+        {
+          "file": "/root/reparatur-01/review-01/repo/biotop/lauf.py",
+          "line": 652,
+          "end_line": 660
+        },
+        {
+          "file": "/root/reparatur-01/review-01/repo/biotop/__main__.py",
+          "line": 110,
+          "end_line": 111
+        }
+      ],
+      "new_or_regressed": "Die neu eingeführte Stufensperre prüft nur, ob nach dem Vorspann irgendein generation0.ergebnis für die Lauf-ID existiert; den Ergebnisinhalt prüft sie nicht. Die bereits vorher vorhandene CLI-Erfolgsrückgabe wird nicht als separate Regression gezählt.",
+      "explanation": "generation0.ergebnis wird auch mit erreicht=false geschrieben. Damit bescheinigt die neue Sperre einen nicht bestandenen Mutantenfang als ausreichende Vorstufe, friert das Maß ein und setzt status=bereit. Der Abschluss eines fehlgeschlagenen Versuchs ist kein erfolgreicher Eignungsnachweis.",
+      "minimal_reproduction": {
+        "test": "test_failed_gen0_must_block_mass_and_cli",
+        "command": "PYTHONPATH=/root/reparatur-01/review-01/pruefer-eichung/guard:/root/reparatur-01/review-01/pruefer-eichung/arbeitskopie PYTHONDONTWRITEBYTECODE=1 TMPDIR=/root/reparatur-01/review-01/pruefer-eichung/tmp BIOTOP_DB=/root/reparatur-01/review-01/pruefer-eichung/tmp/repro-unused.db PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 /root/reparatur-01/venv/bin/python -m pytest -q -s -c /root/reparatur-01/review-01/pruefer-eichung/arbeitskopie/pytest.ini /root/reparatur-01/review-01/pruefer-eichung/test_review.py::test_failed_gen0_must_block_mass_and_cli",
+        "steps": [
+          "Privaten frischen Unit-Lauf mit kontrolliert grünem Vorspann anlegen.",
+          "Original-CLI gen0 aufrufen: ein nichtäquivalenter Mutant, gefangen=0, Testbau liefert keine neuen Tests.",
+          "Original-CLI mass 1 --bestaetigt-von Review-Unit aufrufen."
+        ],
+        "expected": "Maß-Gate lehnt erreicht=false ab, mass bleibt NULL, kein gebundener Generation-0-Schnappschuss.",
+        "actual": "Gen0 erfasst erreicht=false, ziel=1, gefangen_nachher=0. mass gibt dennoch rc=0, bindet mass_sha256 und setzt den Lauf auf bereit; stderr bleibt leer.",
+        "evidence_level": "Ausgeführte CLI-/DB-/Protokollmechanik im Unit-Prozess; Mutantenmessung, Modelltestbau und Snapshot sind explizite Doubles."
+      },
+      "evidence": [
+        {
+          "file": "/root/reparatur-01/review-01/pruefer-eichung/independent-review.stdout.txt",
+          "line": 9,
+          "note": "Vollständige unveränderte stdout-Datei; der Datei-Reader kann lange Einzelzeilen nur in der Darstellung kürzen."
+        }
+      ],
+      "suggested_fix": "Einen gültigen, erfolgreichen Gen0-Quellbeleg verlangen: erreicht is True und belastbare positive Bezugsgröße/Zielerfüllung. Neueren gescheiterten oder abgebrochenen Versuch nicht durch einen beliebigen älteren Ergebnisdatensatz überdecken."
+    },
+    {
+      "id": "EICH-3",
+      "severity": "high",
+      "priority": "P1",
+      "title": "Eichvertrag kann nach dem Vorspann ohne Invalidierung ausgetauscht werden",
+      "file": "/root/reparatur-01/review-01/repo/biotop/organe/vorspann.py",
+      "line": 241,
+      "end_line": 245,
+      "related_locations": [
+        {
+          "file": "/root/reparatur-01/review-01/repo/biotop/organe/vorspann.py",
+          "line": 54,
+          "end_line": 59
+        },
+        {
+          "file": "/root/reparatur-01/review-01/repo/biotop/organe/vorspann.py",
+          "line": 176,
+          "end_line": 180
+        },
+        {
+          "file": "/root/reparatur-01/review-01/repo/biotop/organe/vertraege.py",
+          "line": 38,
+          "end_line": 51
+        }
+      ],
+      "new_or_regressed": "Die neue Nachweisbindung überprüft den versiegelten Gegenstand am Ende der Batterie, aber nicht an den späteren Eingängen. _quellen enthält weder aktuelle Vertragsdateien noch die Eichgegenstandsidentität/-prüfsumme.",
+      "explanation": "Mit der regulären Verträge-Aufnahme lässt sich die tatsächlich geeichte Vertragsdatei zwischen Vorspann und Gen0 ersetzen. Quell-/Nachweis-Hashes und Protokollkette bleiben für das Gate gültig, weil es nur den historischen Nachweis und eine unvollständige aktuelle Quellenmenge vergleicht. Der gespeicherte Eichgegenstand trägt dann eine andere Prüfsumme als seine reale Datei.",
+      "minimal_reproduction": {
+        "test": "test_sealed_contract_replacement_after_vorspann_must_invalidate",
+        "command": "PYTHONPATH=/root/reparatur-01/review-01/pruefer-eichung/guard:/root/reparatur-01/review-01/pruefer-eichung/arbeitskopie PYTHONDONTWRITEBYTECODE=1 TMPDIR=/root/reparatur-01/review-01/pruefer-eichung/tmp BIOTOP_DB=/root/reparatur-01/review-01/pruefer-eichung/tmp/repro-unused.db PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 /root/reparatur-01/venv/bin/python -m pytest -q -s -c /root/reparatur-01/review-01/pruefer-eichung/arbeitskopie/pytest.ini /root/reparatur-01/review-01/pruefer-eichung/test_review.py::test_sealed_contract_replacement_after_vorspann_must_invalidate",
+        "steps": [
+          "V.ausfuehren an frischem privatem Unit-Lauf abschließen.",
+          "vertraege.einlegen für dasselbe Paar aufrufen und den Vertragsinhalt ändern; keine Nachweis-/Hashzeile manipulieren.",
+          "V.verlangen(gen0), L.generation0, L.mass_einfrieren und V.verlangen(generation) ausführen."
+        ],
+        "expected": "Mindestens vor Gen0/Freeze den geänderten Eichgegenstand erkennen, Nachweis invalidieren und neuen Lauf verlangen.",
+        "actual": "Alle genannten Eingänge akzeptieren. proof_status=bestanden, run_status=bereit, hash_chain_valid=true; gespeicherte Vertragssumme eef7c5d03a3d4fa3d872a2505f030e1329a684f1caace0516e208ca61ee0bf2d, tatsächliche Summe 013afbc9971d951c8a013af2bc8319420e2a7b98839a74d0ccffa997e9077824.",
+        "evidence_level": "Ausgeführte echte Vertragsdatei-/DB-/Hashkettenoperationen nur an Unit-Beständen; Eichung/Messung sind kontrollierte Doubles."
+      },
+      "evidence": [
+        {
+          "file": "/root/reparatur-01/review-01/pruefer-eichung/independent-review.stdout.txt",
+          "line": 11,
+          "note": "Vollständige unveränderte stdout-Datei; der Datei-Reader kann lange Einzelzeilen nur in der Darstellung kürzen."
+        }
+      ],
+      "suggested_fix": "Den versiegelten Gegenstand an den Vorstufeneingängen gegen aktuellen Datensatz und Datei prüfen. Legitime spätere Vertragsänderungen durch Verhandlung von nicht legitimierten Austauschoperationen unterscheiden; nicht pauschal jede normale Werkentwicklung verbieten."
+    },
+    {
+      "id": "EICH-4",
+      "severity": "high",
+      "priority": "P1",
+      "title": "Vertragsgegenprobe kann an ihrem eigenen kopierten Test scheitern und trotzdem als gültig falsch zählen",
+      "file": "/root/reparatur-01/review-01/repo/biotop/organe/eichproben.py",
+      "line": 349,
+      "end_line": 360,
+      "related_locations": [
+        {
+          "file": "/root/reparatur-01/review-01/repo/biotop/organe/eichproben.py",
+          "line": 239,
+          "end_line": 246
+        },
+        {
+          "file": "/root/reparatur-01/review-01/repo/biotop/organe/eichproben.py",
+          "line": 416,
+          "end_line": 418
+        },
+        {
+          "file": "/root/reparatur-01/review-01/repo/biotop/organe/eichproben.py",
+          "line": 431,
+          "end_line": 436
+        }
+      ],
+      "new_or_regressed": "Der neue AST-Testklon übernimmt nur Importknoten und die Testfunktion. Benötigte Modulkonstanten/Hilfsdefinitionen werden nicht übernommen und nicht als fehlende Voraussetzung erkannt. Die neue Kontrollwertung prüft nur Verbraucherzeugen, nicht die Ausführbarkeit des geklonten Vertragstests.",
+      "explanation": "Ein regulärer Verbraucher-Test assert bericht(EINGABE) == 3 mit EINGABE=2 auf Modulebene erfüllt die Auswahlbedingungen. Im geklonten Vertrag fehlt EINGABE. Positiv- und Gegenprobe fallen daher beide im Test mit NameError, bevor der Verbraucher im Vertrag aufgerufen wird. Der separate originale Verbrauchertest fällt positiv wegen fehlender Zusicherung und besteht nach Anpassung. Genau deshalb wird das all(...)-Prädikat True/False, obwohl derselbe benannte Vertrag in beiden Fällen defekt bleibt. Zwei gültige Messhüllen machen diesen Fixturefehler derzeit nicht unprüfbar.",
+      "minimal_reproduction": {
+        "test": "test_contract_countercase_is_not_allowed_to_fail_inside_cloned_test",
+        "command": "PYTHONPATH=/root/reparatur-01/review-01/pruefer-eichung/guard:/root/reparatur-01/review-01/pruefer-eichung/arbeitskopie PYTHONDONTWRITEBYTECODE=1 TMPDIR=/root/reparatur-01/review-01/pruefer-eichung/tmp BIOTOP_DB=/root/reparatur-01/review-01/pruefer-eichung/tmp/repro-unused.db PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 /root/reparatur-01/venv/bin/python -m pytest -q -s -c /root/reparatur-01/review-01/pruefer-eichung/arbeitskopie/pytest.ini /root/reparatur-01/review-01/pruefer-eichung/test_review.py::test_contract_countercase_is_not_allowed_to_fail_inside_cloned_test",
+        "steps": [
+          "Kleines eigenes Beispielwerk: bericht(zahl) liefert zahl+1; Testmodul importiert bericht, setzt EINGABE=2 und prüft bericht(EINGABE)==3.",
+          "_vertrag_vorbereiten jeweils mit gegenprobe=False/True aufrufen.",
+          "Generierten Vertrag und originalen Verbraucher über den originalen JUnit-Parser mit lokalem pytest an der ausschließlich selbst geschriebenen Fixture ausführen.",
+          "_bestanden(vertrag, ...) mit den realen Verbraucherzeugen und ausdrücklich gestellter Unit-Messeinbettung auswerten."
+        ],
+        "expected": "Angepasste Gegenprobe besteht den konkret benannten Vertrag; andernfalls pruefbar=false, keine gültige Negativkontrolle. Positivprobe muss den Vertragsbruch statt eines NameError des Tests belegen.",
+        "actual": "Beide generierten Vertragstests liefern NameError: name EINGABE is not defined, bestaetigt=false, Ort tests/vertraege/test_vertrag_abnehmer_lieferant.py. Originaler Verbraucher: positiv AttributeError im Werk, negativ bestanden. Original-Prädikat mit expliziter Unit-Messhülle: positiv=true, negativ=false.",
+        "evidence_level": "Tatsächlich ausgeführte lokale pytest-Zeugen am eigenen synthetischen Werk, kein Docker. Prädikat-Messeinbettung ist ein gekennzeichneter Unit-Input; keine behauptete Ausführung der vollständigen Eichbatterie."
+      },
+      "evidence": [
+        {
+          "file": "/root/reparatur-01/review-01/pruefer-eichung/independent-review.stdout.txt",
+          "line": 15,
+          "note": "Vollständige unveränderte stdout-Datei; der Datei-Reader kann lange Einzelzeilen nur in der Darstellung kürzen."
+        },
+        {
+          "file": "/root/reparatur-01/review-01/pruefer-eichung/contract-local-pytest-raw.json",
+          "line": 26,
+          "end_line": 73
+        },
+        {
+          "file": "/root/reparatur-01/review-01/pruefer-eichung/contract-junit-summary.json"
+        }
+      ],
+      "suggested_fix": "Abhängigkeiten des übernommenen Tests mitnehmen oder eine nicht eigenständig ausführbare Fixture ausdrücklich unprüfbar machen. Zusätzlich den benannten Vertragstest selbst paarweise ausführen und eine gültige Gegenprobe nur dann anerkennen, wenn dessen spezifischer Bruch tatsächlich verschwindet und kein Fixture-/Sammelfehler vorliegt."
+    }
+  ],
+  "suggestions": [
+    {
+      "id": "EICH-S1",
+      "title": "Qualitätsgrenze unabhängig von Erfolgsflags härten",
+      "file": "/root/reparatur-01/review-01/repo/biotop/organe/vorspann.py",
+      "line": 66,
+      "end_line": 78,
+      "explanation": "_qualitaet akzeptiert acht Bool-Hüllen ohne belege/mass/kammer und ohne Ausführungsrohbeleg; im Unit-Test erhält dieser Input positive=4, negative=4. Das allein beweist keinen zusätzlichen nativen End-to-End-Bypass und wird deshalb nicht als eigener Blocker gezählt. Die Grenze sollte Mindeststruktur und Mechanikbelege prüfen, statt lediglich den Produzentenflags zu vertrauen.",
+      "evidence": [
+        {
+          "file": "/root/reparatur-01/review-01/pruefer-eichung/independent-review.stdout.txt",
+          "line": 17,
+          "note": "Vollständige unveränderte stdout-Datei; der Datei-Reader kann lange Einzelzeilen nur in der Darstellung kürzen."
+        }
+      ],
+      "minimal_reproduction": "PYTHONPATH=/root/reparatur-01/review-01/pruefer-eichung/guard:/root/reparatur-01/review-01/pruefer-eichung/arbeitskopie PYTHONDONTWRITEBYTECODE=1 TMPDIR=/root/reparatur-01/review-01/pruefer-eichung/tmp BIOTOP_DB=/root/reparatur-01/review-01/pruefer-eichung/tmp/repro-unused.db PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 /root/reparatur-01/venv/bin/python -m pytest -q -s -c /root/reparatur-01/review-01/pruefer-eichung/arbeitskopie/pytest.ini /root/reparatur-01/review-01/pruefer-eichung/test_review.py::test_proof_quality_needs_mechanism_not_boolean_envelope"
+    },
+    {
+      "id": "EICH-S2",
+      "title": "Normkontrolle um echte kontrakt-/absturzgestützte Gegenklasse ergänzen",
+      "file": "/root/reparatur-01/review-01/repo/biotop/organe/eichproben.py",
+      "line": 284,
+      "end_line": 288,
+      "explanation": "Die vorhandene Gegenprobe entfernt Normtest und Angriff vollständig aus dem Anklagepfad. Das ist brauchbar gegen den früheren Null-/Leerobjekt-Grünpfad, prüft aber nicht, ob ein ausgeführter berechtigter Test aus der Normklasse herauskommt. Ergänzend einen tatsächlich übergebenen, gültigen Vertrag-/Absturzfall durch denselben Klassifikator schicken. Keine Behauptung, dass diese zusätzliche Gegenklasse hier ausgeführt wurde."
+    },
+    {
+      "id": "EICH-S3",
+      "title": "Rohbelege aller Vorspannstufen behalten",
+      "file": "/root/reparatur-01/review-01/repo/biotop/organe/vorspann.py",
+      "line": 151,
+      "end_line": 164,
+      "explanation": "Die Proben sammeln Kammerergebnisse, Rauschmessung/Fund-Neubewertung werden im neuen Pflichtpfad aber ohne solche Rohaufzeichnung aufgerufen. _messen_einmal gibt nur Bereichszeiten zurück; fundpruefung.bewerten verwirft ausgabe. Für die gesamte Pflichtvorspann-Abnahme fehlen dadurch im Nachweis der originale stdout/stderr/rc dieser Stufen. Vorgelagerte Hilfsfunktionen sind Bestandsbestand, deshalb hier Transparenz-/Härtungsempfehlung statt eigenständiger neuer Logikblocker.",
+      "related_locations": [
+        {
+          "file": "/root/reparatur-01/review-01/repo/biotop/organe/eichung.py",
+          "line": 111,
+          "end_line": 113
+        },
+        {
+          "file": "/root/reparatur-01/review-01/repo/biotop/organe/fundpruefung.py",
+          "line": 55,
+          "end_line": 77
+        }
+      ]
+    }
+  ],
+  "summary": "Nicht freigabefähig: vier neu eingeführte/regressierte Logikfehler mit ausgeführten isolierten Repros; keine Repositoryänderung.",
+  "scope": {
+    "diff": "/root/reparatur-01/review-01/AENDERUNGEN.diff",
+    "static_scan": "/root/reparatur-01/review-01/STATIK.json",
+    "source_context_only": "/root/reparatur-01/review-01/repo",
+    "output": "/root/reparatur-01/review-01/pruefer-eichung",
+    "implementation_performed": false,
+    "source_repository_modified": false,
+    "semantic_focus": "Vier Eichproben/Gegenproben, Pflichtvorspann, CLI, Stufenfolge, Satz-2-Bindung und tatsächliche Wirkung der Rauschbereichssperre."
+  },
+  "static_scan_disposition": [
+    {
+      "file": "/root/reparatur-01/review-01/repo/biotop/organe/kammer.py",
+      "line": 103,
+      "rule": "secret",
+      "false_positive": true,
+      "reason": "token ist der von ContextVar.set gelieferte Rücksetz-Token; finally ruft _ZAEHLUNGEN.reset(token) auf. Kein Zugangstoken, kein Geheimnisliteral."
+    }
+  ],
+  "positive_verified_properties": [
+    "Echter Gate-/Bindungs-Unitpfad erreicht nach Vorspann → erfolgreicher Gen0 → Freeze den Generationskörper und übergibt die kalibrierten Toleranzen.",
+    "Fehlender Vorspann, Maß vor Gen0, spätes Gen0, wiederholtes Maß, manipuliertes Instrument/Verfassung/Nachweis sowie ungültige Rauschstrukturen werden in den ausgeführten Unit-Fällen gesperrt.",
+    "Explizit nicht ausgeführte oder nicht prüfbare Gegenproben werden für alle vier Namen von _vollstaendig abgelehnt.",
+    "_privat isoliert DB- und Werkwrites in der zusätzlichen eigenen Unit-Prüfung; Originalfixture bleibt bytegleich."
+  ],
+  "four_probe_assessment": [
+    {
+      "name": "nebenwirkung",
+      "read_locations": [
+        {
+          "file": "/root/reparatur-01/review-01/repo/biotop/organe/eichproben.py",
+          "line": 217,
+          "end_line": 222
+        },
+        {
+          "file": "/root/reparatur-01/review-01/repo/biotop/organe/eichproben.py",
+          "line": 291,
+          "end_line": 310
+        }
+      ],
+      "positive": "Realer privater Ausgangsdefekt in A wird rückgängig gemacht und B geschädigt; Prädikat verlangt Gewinn in A und Verlust in B.",
+      "counter": "B-Schaden aus dem Diff entfernen, A-Reparatur behalten.",
+      "actual_docker_pair_executed_by_this_review": false
+    },
+    {
+      "name": "regression",
+      "read_locations": [
+        {
+          "file": "/root/reparatur-01/review-01/repo/biotop/organe/eichproben.py",
+          "line": 223,
+          "end_line": 235
+        },
+        {
+          "file": "/root/reparatur-01/review-01/repo/biotop/organe/eichproben.py",
+          "line": 313,
+          "end_line": 332
+        }
+      ],
+      "positive": "Vorher grüner konkreter B-Test wird als bestätigter Fehler nachgewiesen; drei triviale grüne Tests werden separat ausgeführt, ursprüngliche Regression-je-Test-Zeile ist Pflicht.",
+      "counter": "B unverändert, grüne Zugaben bleiben.",
+      "actual_docker_pair_executed_by_this_review": false
+    },
+    {
+      "name": "norm",
+      "read_locations": [
+        {
+          "file": "/root/reparatur-01/review-01/repo/biotop/organe/eichproben.py",
+          "line": 247,
+          "end_line": 288
+        }
+      ],
+      "positive": "Vorhandene importierbare Funktion; bestätigte Assertion vor Änderung, grüner Test danach, kein Verweis, konkreter offen_norm-Eintrag, expliziter Nullzuwachs und Ausschluss aus finalem Dateisatz.",
+      "counter": "Gleiche Verhaltensänderung und externe Zeugen, aber Test/Angriff fehlt im Anklagepfad; Einschränkung EICH-S2.",
+      "actual_docker_pair_executed_by_this_review": false
+    },
+    {
+      "name": "vertrag",
+      "read_locations": [
+        {
+          "file": "/root/reparatur-01/review-01/repo/biotop/organe/eichproben.py",
+          "line": 335,
+          "end_line": 374
+        }
+      ],
+      "positive": "Neue Zusicherung wird im vorhandenen Verbraucher benutzt, Nachbar bleibt unverändert.",
+      "counter": "Nachbar liefert die neue Zusicherung; Gegenprobe ist wegen EICH-4 nicht generell brauchbar.",
+      "actual_docker_pair_executed_by_this_review": false,
+      "additional_local_executed_countercase": "EICH-4"
+    }
+  ],
+  "execution_evidence": {
+    "runs": [
+      {
+        "name": "provided-unit",
+        "cmd": [
+          "/root/reparatur-01/venv/bin/python",
+          "-m",
+          "pytest",
+          "-vv",
+          "-s",
+          "tests/test_vorspann.py",
+          "tests/test_vorspann_cli.py",
+          "tests/test_kernmass_pareto.py",
+          "tests/test_rauschmessung.py",
+          "--basetemp=/root/reparatur-01/review-01/pruefer-eichung/tmp/provided-unit",
+          "--junitxml=/root/reparatur-01/review-01/pruefer-eichung/provided-unit.xml"
+        ],
+        "cwd": "/root/reparatur-01/review-01/pruefer-eichung/arbeitskopie",
+        "exit_code": 0,
+        "duration_s": 5.272787675028667,
+        "stdout": "/root/reparatur-01/review-01/pruefer-eichung/provided-unit.stdout.txt",
+        "stderr": "/root/reparatur-01/review-01/pruefer-eichung/provided-unit.stderr.txt",
+        "docker_runs": 0,
+        "paid_calls": 0,
+        "evidence": "UNIT. See test docstrings for explicit doubles."
+      },
+      {
+        "name": "independent-review",
+        "cmd": [
+          "/root/reparatur-01/venv/bin/python",
+          "-m",
+          "pytest",
+          "-vv",
+          "-s",
+          "-c",
+          "/root/reparatur-01/review-01/pruefer-eichung/arbeitskopie/pytest.ini",
+          "/root/reparatur-01/review-01/pruefer-eichung/test_review.py",
+          "--basetemp=/root/reparatur-01/review-01/pruefer-eichung/tmp/independent-review",
+          "--junitxml=/root/reparatur-01/review-01/pruefer-eichung/independent-review.xml"
+        ],
+        "cwd": "/root/reparatur-01/review-01/pruefer-eichung/arbeitskopie",
+        "exit_code": 1,
+        "duration_s": 3.361607354017906,
+        "stdout": "/root/reparatur-01/review-01/pruefer-eichung/independent-review.stdout.txt",
+        "stderr": "/root/reparatur-01/review-01/pruefer-eichung/independent-review.stderr.txt",
+        "docker_runs": 0,
+        "paid_calls": 0,
+        "evidence": "UNIT. See test docstrings for explicit doubles."
+      },
+      {
+        "name": "supplemental",
+        "cmd": [
+          "/root/reparatur-01/venv/bin/python",
+          "-m",
+          "pytest",
+          "-vv",
+          "-s",
+          "-c",
+          "/root/reparatur-01/review-01/pruefer-eichung/arbeitskopie/pytest.ini",
+          "/root/reparatur-01/review-01/pruefer-eichung/test_review.py",
+          "-k",
+          "private_db or nonexecution",
+          "--basetemp=/root/reparatur-01/review-01/pruefer-eichung/tmp/supplemental",
+          "--junitxml=/root/reparatur-01/review-01/pruefer-eichung/supplemental.xml"
+        ],
+        "cwd": "/root/reparatur-01/review-01/pruefer-eichung/arbeitskopie",
+        "exit_code": 0,
+        "duration_s": 0.5435031759552658,
+        "stdout": "/root/reparatur-01/review-01/pruefer-eichung/supplemental.stdout.txt",
+        "stderr": "/root/reparatur-01/review-01/pruefer-eichung/supplemental.stderr.txt",
+        "docker_runs": 0,
+        "paid_calls": 0,
+        "evidence": "UNIT isolation and nonexecution controls"
+      }
+    ],
+    "test_summary": [
+      {
+        "suite": "provided-unit",
+        "cases": 116,
+        "outcomes": {
+          "passed": 116
+        }
+      },
+      {
+        "suite": "independent-review",
+        "cases": 6,
+        "outcomes": {
+          "passed": 2,
+          "failure": 4
+        }
+      },
+      {
+        "suite": "supplemental",
+        "cases": 5,
+        "outcomes": {
+          "passed": 5
+        }
+      }
+    ],
+    "source_unchanged": true,
+    "source_inventory_before": "/root/reparatur-01/review-01/pruefer-eichung/repo-vorher.json",
+    "source_inventory_after": "/root/reparatur-01/review-01/pruefer-eichung/repo-nachher.json",
+    "docker_runs": 0,
+    "network_calls": 0,
+    "paid_model_calls": 0,
+    "note": "Grüne Unit-Anzahl wird nicht als bestandenes Vier-Paare-Kammerverfahren ausgegeben. Die sechs lokalen pytest-Wrapper in EICH-4 sind Unterprozesse innerhalb eines Repros, keine sechs zusätzlichen vollständigen Eichproben."
+  },
+  "loc": {
+    "source_file_count": 125,
+    "total_physical_lines": 13168,
+    "python_files": 107,
+    "python_code_lines_token_method": 10179,
+    "diff_files": 24,
+    "diff_added_lines": 2264,
+    "diff_deleted_lines": 215,
+    "diff_physical_lines": 2979,
+    "loc_definition": "Physical: splitlines including final non-newline. Python code: union of nonblank physical rows occupied by non-comment/non-layout tokens, excluding AST docstrings; multiline non-docstring literals count as code rows. No dependency/generated-artifact exclusions were necessary in this 125-file source snapshot."
+  },
+  "full_loc_and_output_accounting": "/root/reparatur-01/review-01/pruefer-eichung/BELEGE.json",
+  "limitations": [
+    "Keine Docker-Kammerläufe parallel zur Elternabnahme; die vollständigen vier Positiv-/Gegenpaare wurden hier deshalb nicht als echte Kammerabnahme ausgeführt und erhalten kein Abnahmegrün.",
+    "Keine produktive DB, keine produktiven Werke und kein Bestandsreplay. Alle Prüfskript-/DB-/Werk-/Berichtsschreiboperationen betreffen nur pruefer-eichung. Separat wurde eine allgemeine Methodenregel im Agent-Skill measurement-harness-discipline/references/self-check-battery.md ergänzt; kein Repositorycode wurde geändert.",
+    "EICH-1 bis EICH-3 sind Unit-Belege mit ausdrücklich ersetzten Mess-/Modell-/Infrastrukturgrenzen. EICH-4 führt eigene synthetische Tests lokal real aus, seine Prädikat-Messhülle bleibt Unit-Input.",
+    "Kein globaler Neuauftrag: nicht geänderte Grundprobleme werden nicht als neue Blocker gezählt."
+  ]
+}

@@ -1,0 +1,452 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 22 (Teile 4–165 dieses Stands) · enthält R31 bis R31
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R31 · Fakten: Gedächtnis REGELN/STAND im Wortlaut, Tor-Abschnitte der Berichte, Werke, Freigaben, Modelle, Kostengrenze im Code
+Beginn: 2026-09-25 15:55:06 CEST (UTC+0200)
+Ende:   2026-09-25 15:55:06 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/f16_fakten.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/f16_fakten.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Fakten für ENTSCHEIDUNGEN, TORE, AUFBAU, INVENTAR (I5).
+1. laeufe/gedaechtnis: REGELN-01.md und STAND-01.md im Wortlaut (UNTERBAU nur Überschriften).
+2. Tor-Abschnitte der Berichte (Zeilen zwischen einer Überschrift mit „Tor" und der nächsten Überschrift gleicher Ebene),
+   je höchstens 5000 Zeichen: phase-1-nachlauf, phase-2, phase-3, phase-3-nachlauf, vorbedingung-1 NACHGANG-06,
+   t3 abschluss-03, vor-t4-05 BERICHT (Tor-4-Skript).
+3. Werke (Tabelle werke) aus STAMM und T3; Freigaben: Spalten von generationen, Verteilung von freigabe-bezogenen Feldern.
+4. Modelle je Datenbankzweig (kasse.modell, Anzahl, Summe).
+5. Kostengrenze im Code: Fundstellen von BUDGET/budget in biotop/kern/kasse.py und biotop/__main__.py (Zeilennummern)."""
+import re
+import sqlite3
+import subprocess
+from pathlib import Path
+
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+L = Path(f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe')
+print('== 1. Gedächtnis')
+for n in ('REGELN-01.md', 'STAND-01.md'):
+    print(f'--- {n} (Wortlaut) ---')
+    print((L / 'gedaechtnis' / n).read_text())
+print('--- UNTERBAU-01.md (Überschriften) ---')
+for z in (L / 'gedaechtnis' / 'UNTERBAU-01.md').read_text().splitlines():
+    if z.startswith('#'):
+        print(z)
+
+
+def tor_abschnitte(p: Path, max_z=5000):
+    t = p.read_text(errors='replace')
+    zeilen = t.splitlines()
+    out, i = [], 0
+    while i < len(zeilen):
+        m = re.match(r'^(#+) .*(Tor|Torzeile|Zeile 8|Wertung)', zeilen[i])
+        if m:
+            ebene = len(m.group(1))
+            j = i + 1
+            while j < len(zeilen) and not re.match(rf'^#{{1,{ebene}}} ', zeilen[j]):
+                j += 1
+            out.append('\n'.join(zeilen[i:j]))
+            i = j
+        else:
+            i += 1
+    s = '\n'.join(out)
+    return s[:max_z] + (f'\n[… {len(s) - max_z} Zeichen gekürzt]' if len(s) > max_z else '')
+
+
+print('\n== 2. Tor-Abschnitte')
+for rel in ('biotop-phase-1-nachlauf/BERICHT.md', 'biotop-phase-2/BERICHT.md', 'biotop-phase-3/BERICHT.md',
+            'biotop-phase-3-nachlauf/BERICHT.md', 'biotop-phase-4-vorbedingung-1/NACHGANG-06.md',
+            'biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md', 'biotop-vor-t4-05/BERICHT.md'):
+    print(f'--- {rel} ---')
+    print(tor_abschnitte(L / rel))
+
+print('\n== 3. Werke und Freigaben')
+for name, db in (('STAMM', '/root/biotop/daten/biotop.db'), ('T3', '/root/biotop-t3/t3.db')):
+    c = sqlite3.connect(f'file:{db}?mode=ro', uri=True)
+    print(f'-- {name} werke:')
+    for r in c.execute('SELECT id, name, pfad, sprache, status, aufgenommen_am FROM werke ORDER BY id'):
+        print('  ', ' | '.join(str(x) for x in r))
+    gsp = [r[1] for r in c.execute('PRAGMA table_info(generationen)')]
+    print(f'-- {name} generationen Spalten:', gsp)
+    for sp in gsp:
+        if 'freig' in sp or sp in ('status', 'von', 'entscheidung'):
+            print(f'   {sp}:', c.execute(f'SELECT {sp}, count(*) FROM generationen GROUP BY {sp} ORDER BY 2 DESC LIMIT 8').fetchall())
+    print(f'-- {name} Modelle (kasse):')
+    for r in c.execute('SELECT modell, count(*), round(sum(kosten_eur),4), min(zeit), max(zeit) FROM kasse GROUP BY modell ORDER BY 2 DESC'):
+        print('  ', r)
+print('\n== 5. Kostengrenze im Code')
+print(subprocess.run(['grep', '-n', '-E', 'BUDGET|budget_eur|def .*budget|Budget', '/root/biotop/biotop/kern/kasse.py'],
+                     capture_output=True, text=True).stdout[:4000])
+--- Ende /root/sicherung/biotop-lage-01/arbeit/f16_fakten.py ---
+Ausgabe (vollständig, stdout und stderr):
+== 1. Gedächtnis
+--- REGELN-01.md (Wortlaut) ---
+# Regeln — Fassung 01 · 2026-09-20T03:17:33.347176+00:00
+Herkunft: Abschnitt 5 des Wiedereinstiegsbriefs, ergänzt um die vom Auftraggeber mitgeteilten Entscheidungen. Kein von Hermes erfundener Masterprompt v7.
+Nur HERMES-1 schreibt; HERMES-2/HERMES-3 lesen.
+
+Kurzfassung. Die vollständige Sammlung steht im Änderungsverzeichnis Fassung 7.
+
+**Belege**
+- Keine Zahl aus dem Gedächtnis. Jede Zahl aus einer Protokollabfrage, die Abfrage beigelegt.
+- Jede Zahl nennt ihre Menge im Satz daneben — was genau gezählt wurde, mit Nenner.
+- Die Herkunft steht dabei: laufender Lauf, gestellte Prüfung oder Rekonstruktion.
+- „Bestätigt durch Ausführung" nur mit beigefügter Ausgabe, sonst „gelesen, nicht ausgeführt".
+- Eine berichtigte Zahl braucht ihre eigenen Eichfälle.
+- Jede Aufstellung nennt, ob sie vollständig ist oder ein Auszug.
+
+**Maßstäbe**
+- Ein Maßstab wird vor der Messung gesetzt und danach nicht verhandelt. Eine Grenze wird nie verschoben, damit etwas durchgeht.
+- Laut scheitern, nie still. Eine Prüfung ohne Gegenstand meldet das, statt zu bestehen.
+- Eine Sperre ohne Sperrung meldet „nicht gemessen", nicht „bestanden".
+- Ein Sperrbauteil wird am Zustrom gemessen, nie am Rest.
+- Je Tor ein roter und ein grüner Eichfall.
+
+**Läufe und Kasse**
+- Jede Messgerätänderung erzwingt einen neuen Lauf. Während eines Laufs wird nichts am Messgerät geändert.
+- Abbrüche und abgewiesene Aufrufe erscheinen im Bericht **und** im Kassenblatt. Ein folgenloser Abbruch ist erlaubt, ein verschwiegener nicht.
+- `.err`-Dateien nach jedem Lauf durchsehen, den Befund nennen — auch wenn sie leer sind.
+- Der Gesamtstand wird gegen die Summe der Einzelläufe geprüft, jede Abweichung benannt.
+- Ein Aufruf trägt genau eine Lauf- und Abschnittszuordnung.
+
+**Ablieferung**
+- Keine Datei überschreiben. Nummerierte Namen, jede Adresse einmal.
+- Melden und Abliefern sind ein Vorgang: erst hochladen, dann Dateiliste und Prüfsumme neu schreiben, dann melden.
+- Jeder Bericht nennt Bericht, Dateiliste, Ordnerprüfsumme und Kassenblatt als ganze URL in eigener Zeile.
+- Abgeliefert wird **auch bei Abbruch**. Ein Abschlussordner ohne Ergebnis ist ein Ergebnis; eine Meldung ohne Ordner ist keines.
+
+**Rollen**
+- Hermes führt aus. Chat-Claude ist Auftraggeber, Prüfer und Korrektiv. **Philipp entscheidet und gibt ab Phase 4 allein frei.**
+
+## Ergänzungen nach dem Wiedereinstieg
+- **V17:** Eine Sitzung, ein Auftrag; erst Abschlussordner liefern, dann bewusst zurücksetzen. Neuer Auftrag in frischer Sitzung.
+- **V18, durch V19 präzisiert:** Dauerhaftes Wissen liegt im Gedächtnisordner und Abschlussordner, nicht im Sitzungskontext.
+- **V19:** `laeufe/gedaechtnis/` ist die einzige dauerhafte fachliche Gedächtnisablage. Kein Obsidian-Tresor. Nummerierte Dateien nie überschreiben. `STAND` nach jedem Auftrag, `REGELN` nach neuer Masterprompt-Fassung, `UNTERBAU` bei Maschinenänderung. Diese Initialfassung enthält die ausdrücklich übermittelten Ergänzungen, auch vor dem Ausschreiben von v7.
+- **V20:** Kassenabgrenzung gemäß Auftraggeber umgestellt; Zahlen ausschließlich im verlinkten Kassenblatt führen, keine zweite laufende Buchhaltung im Regelwerk.
+- **Fassung-7-Ergänzung 25 (Auftraggeber):** Der Auftraggeber prüft, ob eine verlangte Abfrage etwas kostet, bevor er sie in eine Liste mit „0 Modellaufrufe“ schreibt.
+- **Fassung-7-Ergänzung 26 (Auftraggeber):** Eine abgeleitete Zahl trägt nie mehr Genauigkeit als ihre Eingangswerte. Steht eine gemessene Zahl daneben, gilt die gemessene. Die konkrete Rundungsbegründung im Begleitbrief wurde von Hermes anhand der Rohdaten widerlegt; die Regel wird dadurch nicht aufgehoben.
+- **Trägernachweis:** einmalig freigegebener kurzer Modelltest, separat verbuchen, Ausgabe wörtlich mit Datum dokumentieren. Keine Wiederholung außer bei Trägerwechsel oder Abweichungsverdacht und passender Freigabe. Abweichung zuerst melden; keine eigenmächtige Modelländerung. Ein fehlgeschlagener Test ist kein Trägernachweis. Der CLI-Test beweist nicht das Modell einer anderen, laufenden Sitzung.
+- **Schutz des Unterbaus:** Nur Pfade, Konfigurationsschlüssel und Anmelde-Metadaten veröffentlichen. Keine Passwörter, API-Schlüssel, OAuth-/Sitzungstokens oder vollständigen Auth-Dateien in den Prüfkanal legen.
+
+Bericht mit offenen Punkten und Quellen:
+https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-wiedereinstieg-2026-09-20-01/ZWISCHENBERICHT.md
+
+--- STAND-01.md (Wortlaut) ---
+# Stand — Fassung 01 · 2026-09-20T03:17:33.347176+00:00
+Schreibrolle: HERMES-1 (Auftrag); HERMES-2 und HERMES-3 lesen nur.
+Dauerhafte Ablage nach V19: dieser Prüfkanal, kein zweiter Tresor.
+
+## Aktueller Auftrag und Nachtrag
+W1 erledigt: Fassung 6 unter folgender Adresse unverändert abgelegt:
+https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-wiedereinstieg-2026-09-20-01/INFINITE-EVOLUTION-BIOTOP-Masterprompt-v6-01.md
+
+W2: Vorabrechnung gefunden und Rohbuchungen nachgerechnet. Geführt wird nach V20 **rund 1,299 € von 3 €, frei rund 1,701 €**. Die Aussage „nur Rundung“ ist zurückgewiesen: der früher genannte Fortsetzungswert 0,1190 € passt nicht zur DB. Abgrenzung von Lauf 23 noch offen. Details, Quellen, Rechenabfrage und Kasse ausschließlich im zugehörigen Abschlussordner, keine zweite Buchführung hier.
+
+W4: Gedächtnisdateien geliefert; **Trägernachweis gescheitert** (HTTP 429, keine Modellantwort, Timeout). CLI-Voreinstellung und Telegram-Sitzungsmodell unterscheiden sich; keine Modelländerung vorgenommen. Kosten des Fehlversuchs unbekannt, separat geführt. Kein erneuter Modelltest freigegeben. Siehe [[UNTERBAU-01]].
+
+Bericht:
+https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-wiedereinstieg-2026-09-20-01/ZWISCHENBERICHT.md
+Dateiliste:
+https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-wiedereinstieg-2026-09-20-01/DATEIEN-01.txt
+Prüfsumme:
+https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-wiedereinstieg-2026-09-20-01/PRUEFSUMME-ORDNER-01.txt
+Kasse:
+https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-wiedereinstieg-2026-09-20-01/KASSE-01.md
+
+## Übernommener Biotop-Stand aus Abschnitt 3 des Wiedereinstiegsbriefs
+**Herkunft: vom Auftraggeber übernommener Abnahme-/Berichtsstand, hier nicht neu ausgeführt.** Der alte Kassenstand Lesart A unten ist HISTORISCH und durch den V20-Nachtrag oben ersetzt. Die Prozentangaben zu B haben im Brief keine vollständigen Nenner; sie werden nicht als neue Messung ausgegeben.
+
+- **Vorbedingung 1 ist abgenommen** (20.09.2026, sechs Prüfrunden, Läufe 22–25, 848 Aufrufe, 1,6970 € von 3 €).
+- **Bauteil A** (Ankläger sagt die Behauptung vorab an) spart Aufrufe und verhindert Zwangsbefunde — es verhindert **keine** Doppelungen. Es sperrt, was angesagt wird, nicht was geschrieben wird.
+- **Bauteil B** (Mindestanteil werkübergreifender Block) zeigt **Streuung statt Wirkung**: 75 % gegen 20 % bei gleichem Bestand. Belegt ist nur die Vorlagenänderung, 3 → 6 fremde Muster.
+- **Aufnahmesperre C** wurde deshalb neu gebaut, war im Plan nicht vorgesehen: deterministisch, im Kern, an beiden Aufnahmestellen (`aegis.py` Zeile 621 `fund`, Zeile 654 `norm`).
+- **Die Abnahme gilt eng.** C hat im natürlichen Betrieb **nie** eine Doppelung abgefangen. Alle Belege stammen aus gestellten Gegenständen, die durch den laufenden Kern gingen.
+- **Tor 2 Zeile 8 ist ungemessen** und steht für Tor 4 am echten Werk (135 Testfehlschläge liefern dort den Nenner).
+- **Abweichungsquote Ansage ↔ Ausführung: 0 Zeilen**, ungemessen.
+- **Ablieferungsweg:** Dateien werden **nie überschrieben**. Nummerierte Namen, jede Adresse einmal. Überschriebene Dateien kommen im Chat nur im alten Stand an.
+- **Kassenstand Vorbedingung 1:** 1,6970 € von 3 €, frei 1,3030 € (Lesart A, vorsichtig geführt).
+- **Nächste Schritte:** Fassung 7 schreiben, dann Vorbedingung 2 — die Verfassung des Handelssystems.
+
+## Tragweite und nächste Schritte
+Die Abnahme von Vorbedingung 1 stammt von Philipp/Chat-Claude laut Brief; Hermes erteilt keine neue Abnahme. C wurde nur an gestellten Gegenständen im laufenden Kern belegt, nicht durch eine natürliche Sperrung. Tor 2 Zeile 8 und Ansage-/Ausführungsabweichung bleiben ungemessen. Die im Brief genannten 135 Testfehlschläge sind eine übernommene Ausgangsangabe für Tor 4, kein in diesem Auftrag erhobener Nenner.
+
+Als Nächstes: Fassung 7 durch Chat-Claude; anschließend Vorbedingung 2 (Verfassung Handelssystem), nur mit Philipps Freigabe. Vor weiterem Betrieb die Trägerordnung klären. Eigene Domain für Prüfkanal als späterer offener Punkt. Sitzungsreset nach Ablieferung über `/new`, noch nicht als ausgeführt belegt.
+
+--- UNTERBAU-01.md (Überschriften) ---
+# Unterbau — Fassung 01 · 2026-09-20T03:17:33.347176+00:00
+## Fehlgeschlagener Nachweis am Erzeugnis
+## Drei getrennte Aussagen zur Modellwahl
+## Gemessene Pfade und Dienst
+## Anmeldungen: Metadaten, keine Zugangsdaten
+## Prüfkanal und Belege
+
+== 2. Tor-Abschnitte
+--- biotop-phase-1-nachlauf/BERICHT.md ---
+## 1. Tor 1 — Zeilen mit Ergebnis
+
+| Nr | Zeile | Ergebnis | Bezugsgröße | Ausgabe |
+|---|---|---|---|---|
+| 1 | Landkarte: alle Bereiche, alle Straßen | **bestanden** | 4 von 4 Bereiche; 13 von 13 Straßen (Hermes-Zählung aus Phase 1, Werk unverändert, Commit 058b33e) | `ausgaben/97-tor-zeilen-1-bis-4-lauf9.txt`, `92-landkarte.json` |
+| 2 | Schwächen ≥ 4 von 5 behoben; S1 nach „behoben heißt verschwunden" | **bestanden** | **4 von 5** (S1, S3, S4, S5). S1: bandit B307 3 → 0 Punkte, `eval(` 0 Treffer im Quelltext, Befundklassen-Immuntest (6 Umgehungen) im Werk und am Endwerk frisch ausgeführt 6 von 6 bestanden. S2 offen. Kernmaß F2 −5 → 0 (Höchstwert) | `97-…`, `01-befundklasse-B307-umgehungen-lauf2.txt`, `92-gen2.json` |
+| 3 | Kein Rückschritt | **bestanden** | 0 von 4 angenommenen Generationen (1, 2, 5, 6) mit gesunkenem Pareto-Maß oder gerissenem Grenzmaß; paarweise gemessen; je Test geprüft | `97-…` Abschnitt Zeile 3; `9N-genN.json` |
+| 4 | Halluzinationsprobe | **bestanden** | 0 von 12 Kandidaten im Bereich `bericht` angenommen; `git diff gen0..HEAD -- lagerhaus/bericht` leer | `97-…` Abschnitt Zeile 4 |
+| 5 | Lazarus | **gilt weiter** | `lazarus.py` Prüfsumme `fbc538b4…` vorher = nachher | `00-organ-pruefsummen-vorher.txt`, `50-organ-pruefsummen-nachher.txt` |
+| 6 | Kasse 0,10 € → Abbruch vor der nächsten Generation | **neu gemessen, bestanden** | `kasse.py` geändert (Preistabelle + claude-sonnet-4.5; Diff in `50-…`). Lauf 10: Abbruch vor Generation 2, Protokoll #2623, 0 Buchungen und 0 `modell.aufruf` danach; 0,0948 € von 0,10 € | `51-tor-kasse-neu.txt` |
+| 7 | Laut scheitern | **gilt weiter** | `aufnahme.py` `75b2e96d…` unverändert | `00-…`, `50-…` |
+| 8 | Kammer | **gilt weiter** | `kammer.py` `f3197bf1…` unverändert | `00-…`, `50-…` |
+| 9 | Anmeldung | **gilt weiter** | `anmeldung.py` `e3145bc0…`, `dienst.py` `7b6618a0…` unverändert | `00-…`, `50-…` |
+| Z | Verlaufskurve Lauf 2 mit F2 und Endtestbestand | **beigefügt** | siehe Abschnitt 3 | `40-kurve-lauf2-f2.txt`, `.json` |
+
+---
+
+--- biotop-phase-2/BERICHT.md ---
+## 1. Tor 2 — Zeilen mit Ergebnis
+
+| Nr | Zeile | Ergebnis | Bezugsgröße | Ausgabe |
+|---|---|---|---|---|
+| 1 | Nischen: 4 aktiv, je ≥ 2 Anbieter; Bandit-Gewichte nach 10 Generationen | **bestanden** | 4 von 4 Nischen, je 4 von 4 Herstellern genutzt (openai, google, deepseek, qwen); Gewichte nach 14 Generationen protokolliert; 235 `bandit.wahl`-Protokollzeilen | `60-tor2-nischen-bandit.txt` |
+| 2 | Generation 0: 20 Hermes-Mutanten, Biotop meldet ungefangene; danach ≥ 16 von 20 | **bestanden** | vorher 16 von 20 gefangen (blind: #4, #7, #13, #19); nach Gen 0: **17 von 20** (Lauf 13; Lauf 12: 18 von 20); #7 und #19 sind äquivalente Mutanten (semantisch nicht unterscheidbar, s. Abschnitt 5) | `45-generation0.json`, `20-generation0.txt` (Lauf 12, mit Tabelle je Mutant), `02-versiegelt-MUTANTEN-phase2-entsiegelt.json` (sha256 `eeb3de60…` vorher: `02-versiegelt-pruefsummen-vorher.txt`) |
+| 3 | S2 behoben nach versiegeltem Kriterium; Kernmaß unverändert oder gestiegen | **bestanden** | Kriterium (a) erfüllt: Journal führt inkrementelle Summen (`_summen`), `bestand()` summiert nicht mehr; (b) `last_lager` **139,5 → 5,2 ms (−96 %)**, Soll ≥ 50 %; frische Gegenmessung 3× je Stand: 134–135 ms vs. 4,9–5,3 ms; Kernmaß F2 0 → 0 | `61-tor2-s2.txt`, `02-versiegelt-SCHWAECHEN-entsiegelt.md` (Kriterium vor Lauf 12 festgelegt, sha256 `7ca81c3c…`) |
+| 4 | Nebenwirkungsprobe: A hebt, B senkt → 0 von 1; Bericht nennt B | **bestanden** | K1016 (lager: `inventur()` schneller, `artikel()` unsortiert): 0 von 1 angenommen; Grund: Vertrag `test_vertrag_bericht_lager::test_artikel_sortiert…` verletzt; Wirkungskreis [bericht, lager]; Pareto nennt `bericht.tests_fehlgeschlagen 0 → 5` | `50-nebenwirkungsprobe.txt` |
+| 5 | Regressionsprobe: frühere Behebung rückgängig + 3 grüne Tests → 0 von 1; Einzeltest genannt | **bestanden** | K1017 (S3 rückgängig + 3 bestehende Tests): 0 von 1 angenommen; 3 mitgebrachte Tests verworfen („besteht schon an der Vorgeneration"); Protokoll nennt Regression je Test: `test_lager_immun_aegis_k311_lager::…`, `test_vertrag_bericht_lager::test_eingeloeste_reservierung_zaehlt_nicht_weiter` | `51-regressionsprobe.txt` |
+| 6 | Norm-Probe: Test fällt an Vorgeneration, besteht am Kandidaten, ohne Absturz/Vertragsbezug → offen, 0 Punkte, nicht im Werk | **bestanden** | K1018: mitgebrachter Test als „Norm ohne Absturz/Vertragsbezug — 0 Punkte" verworfen; Zuwachs −1 (nicht +1); nicht ins Werk; Kandidat abgelehnt (bricht `test_beschreibung_kuerzt`). In Lauf 12 war dieselbe Probe **rot** (Test wäre ins Werk gekommen) → Messgerät korrigiert, Lauf 13 | `52-normprobe.txt`; Lauf 12: `lauf12-vorlauf/52-normprobe.txt` |
+| 7 | Vertragsprobe: ohne Anpassung des Nachbarn abgelehnt; mit Anpassung angenommen (je 1 Fall) | **bestanden** | ohne: K1019/K1020 abgelehnt am Vertrag `test_vertrag_preise_formeln::test_konsument_preise_uebergibt_waehrung`; mit Anpassung (rabatt.py übergibt `waehrung`): 0 Vertragstests verletzt, 0 Pareto-Verstöße, **Verhandlung bestanden** (K1157 + Anpassung K1158, Protokoll #7251). Das Paar hatte keinen Kernmaßgewinn und wurde deshalb nach 3.5 nicht ins Werk übernommen — die Zeile misst den Vertrag, nicht das Kernmaß (Lesart Hermes, s. Abschnitt 6) | `53-vertragsprobe.txt`, `54-verhandlungsprobe.txt` |
+| 8 | Immunisierung: n Fehler = n Tests im Werk; Doppelungsanteil < 20 %; 0 rote Tests nach angenommenen Generationen | **bestanden** | 6 bestätigte Fehler → 6 Immuntest-Dateien neu im Werk (16 gesamt inkl. 10 aus Phase 1; Liste in `62-…`); 237 Angriffstests, 6 Doppelungen = **2,5 %**; 1 Norm-Test offen; rote Tests nach angenommenen Generationen: **0 von 8** (jede aus Lazarus geholt, in der Kammer ausgeführt: 93 → 99 von 99 grün) | `62-tor2-immunisierung.txt` |
+| 9 | Verhandlung: ≥ 1 Generation mit gemeinsam bestandener Vertragsänderung protokolliert | **bestanden** (mit Einschränkung) | 1 bestanden (Gen 13, `verhandlung.bestanden` #7251) — **durch die von Hermes eingeschleuste Vertragsprobe**, nicht durch einen Schwarm-Kandidaten; 4 begonnen, 3 gescheitert (Schwarm-Kandidaten in Gen 2/6/9/10 brachen Verträge ohne tragfähige Anpassung des Nachbarn). Ehrliche Lesart: der Mechanismus funktioniert nachweislich; der Schwarm selbst hat in 14 Generationen keine Vertragsänderung durchgebracht | `63-tor2-verhandlung.txt`, `54-verhandlungsprobe.txt` |
+| 10 | Verlaufskurve des Hauptlaufs mit Endtestbestand | **beigefügt** | 8 angenommene Generationen aus Lazarus, Endtestbestand 21 Dateien (Gen 13), F2 je Generation + Laufzeiten | `64-tor2-kurve.txt`, `.json` |
+| 11 | Modellwahl am OpenRouter-Katalog belegt | **bestanden** | Katalog 19.09.2026 geprüft; neuere Modelle gleicher Hersteller zu gleichem/niedrigerem Preis gewählt (Tabelle Abschnitt 2); Rauchtest je Modell mit Diff-Aufgabe (Lauf 11, 0,0016 €) | `00-openrouter-katalog-schnellmodelle.txt`, `01-modellwahl-rauchtest.txt` |
+
+---
+
+--- biotop-phase-3/BERICHT.md ---
+## 2. Tor 3 — elf Zeilen
+
+### Zeile 1 — Nachprobe Zeile 7 aus Phase 2: **bestanden**
+Datei: `ausgaben/14-nachprobe-z7-ergebnis.txt`.
+Als echte Generation gelaufen (Lauf 16, Generationen 1–3), nicht als Skript-Simulation. Der Fehler war durch
+Ausführung belegt: `bericht.lagerwert` summierte Fremdwährung ungerechnet (100 USD → 100,00 statt 92,59 EUR).
+- Fall 1a (Vertragsdatei geändert, Vertrag nicht benannt) → abgelehnt; Fall 1b (ohne Nachbar-Anpassung) → abgelehnt
+  an der Regression. **2 von 2 korrekt abgelehnt.**
+- Fall 2: K1164 benennt den Vertrag und ändert ihn, der Schwarm des Nachbarn `preise` liefert K1165, das Paar besteht
+  (Protokoll #7500), Kernmaß −2 → 0, **Generation 3 angenommen und im Werk** (Lazarus-Tag `lauf16-gen3`,
+  103 von 103 Tests grün, `lagerwert` = 192,59). **1 von 1.**
+- Diese drei Generationen liefen unter dem damaligen Messgerätstand (Commit `ccb55d2`) und bleiben gültig; Lauf 16
+  wurde erst danach verworfen. Sie werden hier als eigener Lauf mit ihrem Messgerätstand ausgewiesen.
+
+### Zeile 2 — Projektgedächtnis: **teilweise belegt, mit offener Differenz**
+Datei: `ausgaben/60-tor3-projektgedaechtnis.txt` (gegen Lauf 13), `…-gegen-lauf13.txt` (gegen Lauf 16).
+Gefordert: ein zweiter Lauf am ersten Übungswerk wiederholt 0 der im ersten Lauf gescheiterten Wege.
+- Im Lauf: **9 Kandidaten** wurden in Lauf 20 vom Projektgedächtnis als Wiederholung erkannt und **ohne Kammerlauf
+  verworfen** (Protokollart `gedaechtnis.wiederholung`). Bezugsgröße: 172 Kandidaten des Laufs, davon 48 abgelehnt —
+  9 der 48 Ablehnungen kosteten keinen Kammerlauf.
+- Meine unabhängige Nachrechnung findet **2 von 187** gescheiterten Wegen aus Lauf 13, die trotzdem ausgeführt wurden
+  (K2032 Ähnlichkeit 1,00, K2035 Ähnlichkeit 0,81), und **1 von 44** aus Lauf 16 (K2056, Ähnlichkeit 0,58).
+- **Differenz offen und nicht wegerklärt:** Meine Nachrechnung leitet die berührten Funktionen aus den Hunk-Köpfen des
+  Diffs ab, das Biotop aus dem tatsächlich angewandten Diff. Die gröbere Ableitung findet mehr Treffer. Die Zeile
+  verlangt „0 Wiederholungen"; gemessen sind es je nach Ableitung 0 (Biotop-Sicht: alle erkannten wurden verworfen)
+  oder 2 von 187 (meine Sicht). **Ich werte die Zeile nicht als voll erfüllt.**
+
+### Zeile 3 — Artgedächtnis: **nicht erfüllt**
+Dateien: `ausgaben/81-mentor-lauf18.json`, `90-mentor-lauf19.json`, `100-mentor-lauf20.json`.
+Gefordert: Nach Läufen an beiden Übungswerken verweist der Mentor bei einem dritten Lauf ausdrücklich auf einen
+Eintrag des Artgedächtnisses (Eintrag benannt).
+- Gemessen, in drei aufeinanderfolgenden Läufen nach beiden Werken: **0 werkübergreifende Verweise** von
+  4 bzw. 4 bzw. 4 Richtungen. Verweise auf das **eigene** Werk (= Projektgedächtnis, nach Vorgabe Philipp getrennt
+  gezählt): 10 (Lauf 18), 4 (Lauf 19), 9 (Lauf 20). **Erfundene Kennungen: 0** in allen drei Läufen.
+- Das Artgedächtnis ist gefüllt und wird dem Mentor vorgelegt: 89 Einträge aus `logmuehle`, davon 5 angenommene;
+  der Block „ANDERE WERKE" enthält 25 Einträge, angenommene zuerst (das habe ich nach dem ersten Fehlschlag
+  umgestellt, weil zuvor nur Ablehnungen im Fenster standen — die Umstellung hat nichts geändert).
+- **Befund:** Das Modell zitiert konsequent die Einträge des eigenen Werks, weil sie konkreter passen. Die Zeile
+  misst eine Modelleigenschaft, nicht eine Mechanik. Für Fassung 5 vorgeschlagen: entweder den werkübergreifenden
+  Verweis erzwingen (Pflichtfeld mit Mindestanzahl) oder die Zeile auf „das Artgedächtnis wird nachweislich
+  vorgelegt und enthält Einträge anderer Werke" umstellen.
+
+### Zeile 4 — Mentor: **erfüllt**
+Dateien: `ausgaben/40-mentor-lauf16.json`, `81-`, `90-`, `100-`, Richtungen in `41-`, `82-`, `91-`, `101-`.
+Fünf Mentor-Aufrufe (Läufe 16, 17, 18, 19, 20), je **4 bis 5 Richtungen** — gefordert sind ≥ 3 je Werk.
+Pflichtfelder (Ertrag, Risiko, Aufwand in Generationen, berührte Bereiche) mechanisch geprüft: **in allen Richtungen
+aller fünf Aufrufe vollständig** (`pruefung.pflichtfelder_ok` je Richtung `true`). Schwerer Aufruf
+(`anthropic/claude-sonnet-5`): 24 Aufrufe, 0,74 € — das ist der größte Einzelposten der Phase.
+
+### Zeile 5 — Entropie / Sättigung: **erfüllt**
+Dateien: `ausgaben/63-entropie-lauf20.json`, `63-entropie-lauf17.json`.
+- `lagerhaus` (Lauf 20, Kernmaß 0 = Höchstwert): Sättigungsmeldung **nach Generation 5** (gefordert: spätestens
+  nach 6) — „Generationen 1–5, Verbesserung 0,00 % (Schwelle 0,5 %), Kernmaß 0 = Höchstwert, Doppelgänger-Anteil
+  12 %. Weiter nur mit anderer Richtung — zurück zum Mentor." Der Lauf hat sich daraufhin **selbst beendet**
+  (Status `gesaettigt`), der Läufer brach ab.
+- `logmuehle` (Lauf 17): Sättigung nach Generation 8, Fenster 4–8, Verbesserung 0,00 %, Doppelgänger 9 %.
+
+### Zeile 6 — Jury: **zur Hälfte belegt**
+Dateien: `ausgaben/61-tor3-jury.txt`, `95-tor3-jury-uneinig2.txt`, `96-tor3-jury-mechanik.txt`.
+- **Einstimmiger Fall mit drei Begründungen: belegt, 3 Fälle aus echten Läufen** (Lauf 17 Gen 2 `zaehlen`,
+  Lauf 17
+[… 4095 Zeichen gekürzt]
+--- biotop-phase-3-nachlauf/BERICHT.md ---
+## 2. Punkt 1 und 9 — die vier Eichproben, zugleich Nachmessung der Tor-2-Zeilen
+
+Beleg: `ausgaben/10-eichproben-vorspann.txt`, `15-vorspann-lauf22.txt`.
+
+Die Proben setzen am versiegelten Eichgegenstand an (`bericht→preise`, Vertrag
+`tests/vertraege/test_vertrag_bericht_preise.py`, Prüfsumme `10cb7f5d18560887`) und bauen ihre Eingriffe
+**mechanisch aus dem Syntaxbaum** — das war die Ursache, warum die Proben in Phase 2/3 nach jeder angenommenen
+Generation stillschweigend woanders hinzielten.
+
+| Probe | Ergebnis | Modellaufrufe | € | Kammerlauf | Dauer |
+|---|---|---|---|---|---|
+| nebenwirkung | abgelehnt, nennt `bericht` | 1 | 0,0015 | 1 | 8 s |
+| regression | gefallener Einzeltest benannt | 1 | 0,0016 | 1 | 10 s |
+| norm | 0 Punkte, nicht im Werk | 1 | 0,0009 | 1 | 8 s |
+| vertrag | `Vertrag verletzt (Schritt 2)` | 1 | 0,0017 | 1 | 6 s |
+| **Summe** | **4 von 4 bestanden** | **4** | **0,0057** | **4** | **31 s** |
+
+**Die vier Tor-2-Zeilen (Nebenwirkung, Regression, Norm, Vertrag) sind damit wieder belegt.** Sie galten nach
+Philipps Festlegung als ungeprüft, weil die alten Proben über Textanker zielten und ihre Prüfbedingungen zu
+lasch waren.
+
+**Eigener Fehler, vor der Meldung gefunden:** Im ersten Durchlauf standen vier „bestanden" — drei davon aus
+falschen Gründen (Namensschema für Testdateien verletzt, Vertragsprobe als „Diff ändert nichts" abgelehnt, zu
+lasche Prüfbedingungen). Alle drei behoben, danach bestehen die Proben aus den richtigen Gründen.
+
+**Kostenfrage vor Phase 4, beantwortet:** Der vollständige Vorspann kostet **9 Kammerläufe, 4 Modellaufrufe,
+0,0057 €, 44 s** (Rauschmessung 5 Kammerläufe, vier Proben je 1, Fundprüfung je Fund 1). Die **Zahl** der
+Kammerläufe hängt nicht an der Bereichszahl — alle Bereiche werden je Lauf zusammen gemessen; mit 17 Diensten
+wächst die **Dauer je Lauf**, nicht ihre Zahl. Eine lineare Hochrechnung auf 17 Dienste wäre eine erfundene
+Zahl; die Dauer ist am dortigen Werk zu messen.
+
+---
+
+## 5. Punkt 4 — Doppelungsschlüssel und Tor 2 Zeile 8
+
+Belege: `ausgaben/13-doppelungen-behauptung.txt`, `14-behauptungen-nachgetragen.txt`, `18-anklaeger-vielfalt.txt`.
+
+`aegis.behauptung(code, testname)` bildet den Schlüssel aus dem Syntaxbaum: **aufgerufene Werk-Funktion +
+Zusicherungsart** (`raises:<Ausnahme>` oder Vergleichsoperator plus Form der erwarteten Seite), **ohne** den
+Zahlenwert. Er steht im `ursprung` jedes Funds; 284 Alteinträge wurden nachgetragen.
+
+**Die sechs Tests der Phase-3-Falle** (`Katalog.wert` liefert Staffel- statt Grundpreis) fallen jetzt auf
+**eine** Behauptung `Staffel|Eq:zahl`. Fünf davon wären nie einzeln ins Immunsystem gekommen.
+
+**Tor 2 Zeile 8, neu gemessen — gerissen:**
+
+| Lauf | erzeugte Tests | Behauptungen | erkannt/verworfen | unbemerkt aufgenommen | größte Gruppe | Anteil |
+|---|---|---|---|---|---|---|
+| 13 (Phase 2) | 54 | 27 | 6 | 31 | 8 | **68,5 %** |
+| 20 (vor Umstellung) | 11 | 4 | 0 | 7 | 5 | **63,6 %** |
+| 22 (Anweisung aktiv) | 11 | 5 | **6** | **0** | **1** | **54,5 %** |
+
+**Bezugsgröße, ohne die die Zahlen irreführen (Vorgabe Philipp):** Die Prozentzahlen vor und nach dem
+Schlüsselwechsel zählen nicht dieselbe Menge. Vor dem Wechsel wanderten Wiederholungen **unbemerkt** ins
+Immunsystem; nach dem Wechsel werden sie **erkannt und verworfen**. „63,6 → 54,5" liest sich als kleine
+Verbesserung und verfehlt die Sache: In Lauf 22 wurden 6 von 11 abgefangen, und die größte Gruppe gleicher
+Behauptung fiel von 5 auf 1.
+
+Die 83,6 % aus meinem Phase-3-Bericht waren eine Heuristik; mit dem gebauten Schlüssel sind es **68,5 %**.
+Die Wertung „Zeile 8 gerissen" bleibt, die Zahl ist berichtigt. **Grenze bleibt bei 20 %.**
+
+**Ankläger-Anweisung (Fassung 6):** Dem Ankläger werden vor jedem Angriff seine bisherigen Behauptungen des
+Bereichs vorgelegt, mit dem Auftrag, eine andere zu finden — Text im ohnehin fälligen Aufruf, keine
+Zusatzkosten. Sie wirkt teilweise (größte Gruppe 5 → 1), hebt den Anteil aber nicht unter 20 %.
+**0 Aufrufe** antworteten mit „KEIN ANGRIFF", obwohl die Anweisung das ausdrücklich erlaubt — das Modell
+liefert lieber eine Wiederholung als nichts. Nach Philipps Festlegung ist das ein Befund über die Modelle,
+keine Einladung, die Grenze zu senken.
+
+---
+
+--- biotop-phase-4-vorbedingung-1/NACHGANG-06.md ---
+
+--- biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md ---
+### 4e. Doppelungsanteil: Torzeile nicht gemessen, drei Stufen unterschieden
+
+Nachgezählt in `NACHZAEHLUNG-ABSCHLUSS3.txt`.
+
+| Stufe | Lauf 37 | Lauf 38 | Rolle |
+|---|---|---|---|
+| Ansagefilter: Ansagen mit Behauptung, die gesperrt wurden | 20 von 57 = 35,1 % | 29 von 91 = 31,9 % | Diagnose |
+| Aufnahmesperre C: zur Aufnahme geprüfte Tests, als Doppelung gesperrt | 2 von 14 = 14,3 % | 5 von 17 = 29,4 % | Diagnose |
+| VB1-Methode: alle erzeugten Angriffstests nach geschriebener Behauptung | nicht rekonstruierbar | Behauptung nur bei 9 von 87 aufgezeichnet (nur Treffer), 0 Doppelungen unter den 9 | **Torzeile: nicht gemessen** |
+
+- Die 35,1 % in NACHTRAG-02 sind die Stufe des Ansagefilters, keine Torzeile. NACHTRAG-6 nannte stattdessen die Aufnahmesperre C
+  die Torzeile. Nach der festgelegten Definition (VB1: erzeugte Angriffstests nach geschriebener Behauptung) sind beide nur
+  Diagnosen.
+- Nach der Lesart von NACHTRAG-6 wäre Lauf 38 mit 29,4 % über 20 % gerissen.
+- **Korrektur:** `1cf2eb1` hieß „Tor 2 Zeile 8 messbar machen“. Messbar wurde nur die Treffer-Teilmenge (9 von 87).
+
+--- biotop-vor-t4-05/BERICHT.md ---
+## 5. Register und Tor-4-Skript (Entscheidung 5)
+
+**Register (`kern/register.py`).** Zehn Einträge, je Funktion mit Aufrufer und Laufphase:
+- Annahmepfad: `aegis.pruefen`, `masseichung.anwenden`, `verhaltensvergleich.pruefen`, `messgeraet.laufzeit_gepaart`;
+- Vorspann: `eichung.rauschmessung`, `eichung.laufzeit_einmal`, `masseichung.eichen`, `eichproben.proben`;
+- `tor4.ausfuehren` aus der Befehlszeile;
+- `gegenzeugen.torzeile_schwaechen` aus dem Tor-4-Skript.
+
+Der Verdrahtungstest zeichnet zusätzlich die Kernmodule des Registers auf (`gegenzeugen`, `tor4`, `messgeraet`). Er
+verlangt jede Kante `funktion ← aufrufer @ phase` im echten Lauf über die Befehlszeile; gerufen von anderswo oder in
+einer anderen Phase zählt nicht. Die Gegenproben des Werkzeugs laufen als Unit (`test_register_*`, 2 Tests):
+- fehlende Kante: gemeldet;
+- falsche Phase: gemeldet;
+- falscher Aufrufer: gemeldet;
+- richtige Kante: nicht gemeldet.
+
+**Tor-4-Skript (`biotop/tor4.py`, Befehl `biotop tor4 <lauf> --altlasten <liste.json>`).** Das Skript berechnet die
+Torzeile „Schwächen“ mit doppelter Prüfung je Altlast:
+- **(a) Schwäche weg:** Der Gegenzeuge der Altlast (ein Test aus der Liste) läuft in der Kammer am Endstand. Der Endstand
+  ist die letzte angenommene Generation, aus Lazarus mit Prüfsumme wiederhergestellt.
+- **(b) Normalvergleich für T4:** das Verhalten der Vorgeneration über den Verhaltensvergleich. Dazu dienen die
+  aufgezeichneten Urteile aller angenommenen Kandidaten, die den Bereich der Altlast berühren.
+  - Jede Abweichung zählt als verändert, außer sie ist durch einen unabhängigen Test aus der Altlastenliste gedeckt.
+  - Eine verhaltensändernde Altlast ohne solchen Test ist nicht beurteilbar, also nie behoben.
+- Das Ergebnis steht im Protokoll (`tor4.schwaechen`).
+- Die übrigen Zeilen von Tor 4 berechnet das Skript nicht; es nennt sie als „nicht berechnet“ und nie als erfüllt.
+- **Auf der Liste vor T4 (Philipp, 24.09.):** Das Tor-4-Skript berechnet jede Zeile, die aus der Datenbank berechenbar
+  ist; die meisten Berichtsfehler in T3 waren Torzeilen von Hand. Gefasst als rote Spezifikation R6-2
+  (`spez/test_spez_r6_unit.py`, rot an `0c2f058`). Neben „Schwächen“ sind nach meiner Einteilung 10 der übrigen 13
+  Zeilen aus der Datenbank berechenbar (je Zeile im nächsten Auftrag nachzuweisen):
+  - Generation minus eins, Generation 0, Kein Rückschritt, Halluzinationsprobe;
+  - Verhaltensvergleich, Doppelungsanteil, Immunisierung, Neutralzähler;
+  - Verbundausfall, Sättigung oder Budgetabbruch.
+  Nicht aus der Datenbank berechenbar sind Aufnahme (Werk und Altlastenliste prüfen), Verdrahtung (Regression),
+  Reviewdurchgang und Zwischenbericht.
+
+**Laufweg (Verdrahtungstest):**
+- Nach der Freigabe läuft `biotop tor4 1 --altlasten ALTLASTEN.json`. Das Drahtwerk trägt eine Altlast A1: toter Code in
+  `alpha`, den der Schwarm im Lauf entfernt.
+- Zugesichert: A1 ist weg und das Verhalten unverändert (beide Prüfungen gemessen), die Zeile meldet A1 als behoben, und
+  das Register hat 10 von 10 Kanten.
+- Grün in `TEILLAUF-3a` (6 von 6, 1719 s) und in der Regression (§9).
+
+
+== 3. Werke und Freigaben
+-- STAMM werke:
+   1 | lagerhaus | /root/biotop/daten/werke/lagerhaus | Python | aufgenommen | 2026-09-18T21:44:52.044+00:00
+   2 | lagerhaus-ohne-tests | /root/biotop/daten/werke/lagerhaus-ohne-tests | Python | messgeraet_fehlt | 2026-09-18T22:04:14.095+00:00
+   3 | lagerhaus-kasse | /root/biotop/daten/werke/lagerhaus-kasse | Python | aufgenommen | 2026-09-18T22:04:53.733+00:00
+   4 | lagerhaus-kasse2 | /root/biotop/daten/werke/lagerhaus-kasse2 | Python | aufgenommen | 2026-09-18T22:11:48.165+00:00
+   5 | lagerhaus-nachlauf | /root/biotop/daten/werke/lagerhaus-nachlauf | Python | aufgenommen | 2026-09-18T22:48:37.825+00:00
+   6 | lagerhaus-nachlauf2 | /root/biotop/daten/werke/lagerhaus-nachlauf2 | Python | aufgenommen | 2026-09-18T23:20:23.094+00:00
+   7 | lagerhaus-nachlauf8 | /root/biotop/daten/werke/lagerhaus-nachlauf8 | Python | aufgenommen | 2026-09-18T23:33:16.059+00:00
+   8 | lagerhaus-nachlauf9 | /root/biotop/daten/werke/lagerhaus-nachlauf9 | Python | aufgenommen | 2026-09-18T23:53:38.805+00:00
+   9 | lagerhaus-kasse3 | /root/biotop/daten/werke/lagerhaus-kasse3 | Python | aufgenommen | 2026-09-19T00:09:22.616+00:00
+   10 | lagerhaus-p2 | /root/biotop/daten/werke/lagerhaus-p2 | Python | aufgenommen | 2026-09-19T00:41:57.996+00:00
+   11 | lagerhaus-p2-13 | /root/biotop/daten/werke/lagerhaus-p2-13 | Python | aufgenommen | 2026-09-19T01:47:13.582+00:00
+   12 | lagerhaus-p3-14 | /root/biotop/daten/werke/lagerhaus-p3-14 | Python | aufgenommen | 2026-09-19T11:03:10.128+00:00
+   13 | lagerhaus-p3-15 | /root/biotop/daten/werke/lagerhaus-p3-15 | Python | aufgenommen | 2026-09-19T11:09:13.594+00:00
+   14 | lagerhaus-p3-16 | /root/biotop/daten/werke/lagerhaus-p3-16 | Python | aufgenommen | 2026-09-19T11:26:09.227+00:00
+   15 | logmuehle-17 | /root/biotop/daten/werke/logmuehle-17 | Python | aufgenommen | 2026-09-19T11:55:36.753+00:00
+   16 | lagerhaus-p3-18 | /root/biotop/daten/werke/lagerhaus-p3-18 | Python | aufgenommen | 2026-09-19T14:41:06.236+00:00
+   17 | lagerhaus-p3-19 | /root/biotop/daten/werke/lagerhaus-p3-19 | Python | aufgenommen | 2026-09-19T15:06:22.040+00:00
+   18 | lagerhaus-p3-20 | /root/biotop/daten/werke/lagerhaus-p3-20 | Python | aufgenommen | 2026-09-19T15:40:08.059+00:00
+   19 | lagerhaus-p3-22 | /root/biotop/daten/werke/lagerhaus-p3-22 | Python | aufgenommen | 2026-09-19T20:57:43.945+00:00
+   20 | logmuehle-23 | /root/biotop/daten/werke/logmuehle-23 | Python | aufgenommen | 2026-09-19T21:32:58.298+00:00
+   21 | lagerhaus-zeile8-24 | /root/biotop/daten/werke/lagerhaus-zeile8-24 | Python | aufgenommen | 2026-09-19T22:57:52.153+00:00
+   22 | lagerhaus-c-25 | /root/biotop/daten/werke/lagerhaus-c-25 | Python | aufgenommen | 2026-09-20T01:13:33.013+00:00
+-- STAMM generationen Spalten: ['id', 'lauf_id', 'nummer', 'status', 'masse', 'tag', 'pruefsumme', 'grund', 'erstellt_am', 'freigabe_am', 'freigabe_grund', 'kandidaten']
+   status: [('angenommen', 70), ('abgelehnt', 68), ('abgebrochen', 5), ('laeuft', 1)]
+   freigabe_am: [(None, 96), ('2026-09-20T01:35:50.115+00:00', 1), ('2026-09-19T23:06:07.220+00:00', 1), ('2026-09-19T22:39:48.050+00:00', 1), ('2026-09-19T22:25:04.773+00:00', 1), ('2026-09-19T15:52:28.218+00:00', 1), ('2026-09-19T15:23:54.352+00:00', 1), ('2026-09-19T14:54:01.916+00:00', 1)]
+   freigabe_grund: [(None, 96), ('Hermes (Kassenprobe): Kassenprobe', 4), ('Hermes unter Vollmacht Abschnitt 4 F2 (Übungswerk lagerhaus, regeln.uebungswerk=true): Generalprobe: gestiegen: preise.tote_funktionen: 2 → 0 | Pareto schlechter: [] | Grenzen: []', 2), ('Hermes unter Vollmacht Abschnitt 4 F2 (Übungswerk lagerhaus, regeln.uebungswerk=true): Generalprobe: gestiegen: lager.tests_fehlgeschlagen: 1 → 0; preise.tote_funktionen: 2 → 0 | Pareto schlechter: [] | Grenzen: []', 2), ('Hermes unter Vollmacht Abschnitt 4 F2 (Übungswerk lagerhaus, regeln.uebungswerk=true): Generalprobe: preise.tests_fehlgeschlagen 4 → 0, Pareto schlechter: [], Grenzen: [] (Typprüfung stueckpreis + Ankläger-Tests)', 1), ('Hermes unter Vollmacht Abschnitt 4 F2 (Übungswerk lagerhaus, regeln.uebungswerk=true): Generalprobe: gestiegen: preise.tests_fehlgeschlagen: 6 → 0 | Pareto schlechter: [] | Grenzen: []', 1), ('Hermes unter Vollmacht Abschnitt 4 F2 (Übungswerk lagerhaus, regeln.uebungswerk=true): Generalprobe: gestiegen: preise.tests_fehlgeschlagen: 1 → 0 | Pareto schlechter: [] | Grenzen: []', 1), ('Hermes unter Vollmacht Abschnitt 4 F2 (Übungswerk lagerhaus, regeln.uebungswerk=true): Generalprobe: gestiegen: lager.tests_fehlgeschlagen: 7 → 6 | Pareto schlechter: [] | Grenzen: []', 1)]
+-- STAMM Modelle (kasse):
+   ('google/gemini-3.5-flash-lite', 1271, 2.6482, '2026-09-19T00:28:47.959+00:00', '2026-09-20T01:42:33.292+00:00')
+   ('openai/gpt-5.6-luna', 701, 1.1305, '2026-09-19T00:28:47.291+00:00', '2026-09-20T01:43:33.219+00:00')

@@ -1,0 +1,47 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.1.1, pluggy-1.6.0 -- /root/reparatur-01/venv/bin/python
+cachedir: .pytest_cache
+rootdir: /root/reparatur-01/teil-eichung/repo
+collecting ... collected 15 items / 13 deselected / 2 selected
+
+tests/test_eichproben.py::test_vier_paare_ohne_freeze_und_ohne_spuren_im_original FAILED [ 50%]
+tests/test_eichproben.py::test_fehlender_gegenstand_ist_keine_bestandene_gegenprobe FAILED [100%]
+
+=================================== FAILURES ===================================
+___________ test_vier_paare_ohne_freeze_und_ohne_spuren_im_original ____________
+tests/test_eichproben.py:135: in test_vier_paare_ohne_freeze_und_ohne_spuren_im_original
+    e = eichproben.proben(con, 1, 1, werk, "beispiel", bereiche, [], basis, basis, None, {})
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/organe/eichproben.py:439: in proben
+    lauf_probe("nebenwirkung", A, d_a, f"Eichprobe Nebenwirkung: {t_a} (Bereich {A} fällt)", "keine",
+biotop/organe/eichproben.py:425: in lauf_probe
+    u = aegis.pruefen(con, lauf_id, werk_id, kid, pfad, paket, bereiche, bstrassen, basis, ausgang, ref, tausch)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/organe/aegis.py:582: in pruefen
+    angriff, angriff_modell, ansage_behauptung = _angriff(con, lauf_id, werk_id, paket, bereich, k["diff"], dateien, werk, urteil["befundklassen"])
+                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/organe/aegis.py:395: in _angriff
+    ansage, _ = _ansage(con, lauf_id, modell, bereich, paket, diff, quelle, schon)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/organe/aegis.py:359: in _ansage
+    a = aufrufen(con, lauf_id, *modell, ANSAGE_SYSTEM,
+biotop/anbieter/__init__.py:120: in aufrufen
+    schaetzung = kasse.vorpruefung(con, lauf_id, modell, geschaetzt, max_tokens, zweck)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/kern/kasse.py:116: in vorpruefung
+    raise BudgetErschoepft(
+E   biotop.kern.kasse.BudgetErschoepft: Budget 0.00 € erschöpft: ausgegeben 0.0000 € + Schätzung 0.0003 € für google/gemini-3.5-flash-lite (aegis.ansage.abnehmer). Aufruf nicht ausgeführt. Protokoll #4.
+__________ test_fehlender_gegenstand_ist_keine_bestandene_gegenprobe ___________
+tests/test_eichproben.py:160: in test_fehlender_gegenstand_ist_keine_bestandene_gegenprobe
+    assert list(con.iterdump()) == vor_db, "Selbst Versiegelungsnebenwirkungen müssen isoliert bleiben"
+E   AssertionError: Selbst Versiegelungsnebenwirkungen müssen isoliert bleiben
+E   assert ['BEGIN TRANS... TEXT);', ...] == ['BEGIN TRANS...TEGER);', ...]
+E     
+E     At index 2 diff: 'CREATE TABLE eichgegenstand (\n        id INTEGER PRIMARY KEY, werk_id INTEGER, von_bereich TEXT, nach_bereich TEXT, vertrag_pfad TEXT,\n        vertrag_pruefsumme TEXT, begruendung TEXT, versiegelt_am TEXT, abgeloest_am TEXT, abloesegrund TEXT);' != 'CREATE TABLE generationen (\n  id INTEGER PRIMARY KEY, lauf_id INTEGER, nummer INTEGER, status TEXT,\n  masse TEXT, tag TEXT, pruefsumme TEXT, grund TEXT, erstellt_am TEXT,\n  freigabe_am TEXT, freigabe_grund TEXT, kandidaten TEXT,\n  UNIQUE(lauf_id, nummer));'
+E     Left contains 2 more items, first extra item:...
+E     
+E     ...Full output truncated (92 lines hidden), use '-vv' to show
+=========================== short test summary info ============================
+FAILED tests/test_eichproben.py::test_vier_paare_ohne_freeze_und_ohne_spuren_im_original
+FAILED tests/test_eichproben.py::test_fehlender_gegenstand_ist_keine_bestandene_gegenprobe
+======================= 2 failed, 13 deselected in 3.14s =======================

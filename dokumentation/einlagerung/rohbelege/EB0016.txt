@@ -1,0 +1,147 @@
+EB16 · Schritt 2: Selbsttest s2_git.py an erfundenen Repositorys
+Beginn: 2026-09-25 23:57:43 CEST (UTC+0200)
+Ende:   2026-09-25 23:57:44 CEST (UTC+0200)
+Dauer:  1.0 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/biotop-einlagerung/arbeit/s2_selbsttest.sh
+--- Inhalt von /root/biotop-einlagerung/arbeit/s2_selbsttest.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-EINLAGERUNG-01 · Selbsttest von s2_git.py an einem erfundenen Repository (vor dem echten Lauf).
+# Fälle: (1) sauberer Durchlauf mit geändert/unverfolgt/Unterordner/ignoriert/vorgemerkt → Commit, Markierungen,
+# Status leer, Baum vorher = nachher, alter Zweig unverändert; (2) Geheimnis in einer unverfolgten Datei → Abbruch,
+# NICHTS geschrieben (keine Zweige, keine Markierungen, Index unverändert); (3) falsche Anzahl → Abbruch;
+# (4) Gegenprobe des Vergleichs schlägt an. Alles unter /root/biotop-einlagerung/tmp/selbsttest-git/.
+set -u
+S=/root/biotop-einlagerung/tmp/selbsttest-git
+P="python3 /root/biotop-einlagerung/arbeit/s2_git.py"
+[ -e $S ] && { echo "ABBRUCH: $S besteht"; exit 3; }
+mkdir -p $S/a $S/b
+for R in $S/a $S/b; do
+  git -C $R init -q -b main
+  git -C $R -c user.name=t -c user.email=t@t commit -q --allow-empty -m leer
+  printf 'eins\n' > $R/eins.txt; printf 'zwei\n' > $R/zwei.txt; printf '*.log\n' > $R/.gitignore
+  git -C $R add -A; git -C $R -c user.name=t -c user.email=t@t commit -q -m basis
+  printf 'eins geändert\n' > $R/eins.txt
+  printf 'neu\n' > $R/neu.txt
+  mkdir -p $R/ordner/unter; printf 'a\n' > $R/ordner/unter/a.txt; printf 'b\n' > $R/ordner/b.txt
+  printf 'ignoriert\n' > $R/x.log
+  printf 'vorgemerkt\n' > $R/vorgemerkt.txt; git -C $R add vorgemerkt.txt
+  ln -s eins.txt $R/verweis
+done
+printf 'sk-or-v1-%s\n' "$(python3 -c 'import secrets;print(secrets.token_hex(32))')" > $S/b/ordner/geheim.txt
+B=$(git -C $S/a rev-parse HEAD)
+echo "== Fall 1: sauber (erwartet 5 Status-Einträge: M eins, A vorgemerkt, ?? neu, ?? ordner/, ?? verweis)"
+$P liste $S/a selbsttest-a-vorher | head -3
+$P festschreiben $S/a $B einlagerung/test 5 /root/biotop-einlagerung/arbeit/commit-nachricht-weitere.txt --runde5; echo "rc=$?"
+$P liste $S/a selbsttest-a-nachher | head -3
+$P vergleich selbsttest-a-vorher selbsttest-a-nachher
+echo "-- Kontrolle: x.log nicht im Commit: $(git -C $S/a show --name-only --format= HEAD | grep -c 'x.log')"
+echo "-- Kontrolle: Verweis im Commit als Verweis (Modus 120000): $(git -C $S/a ls-tree HEAD verweis | cut -c1-6)"
+echo "== Fall 2: Geheimnis in ordner/geheim.txt → Abbruch ohne Schreiben"
+B2=$(git -C $S/b rev-parse HEAD); vor=$(sha256sum $S/b/.git/index | cut -c1-16); refs_vor=$(git -C $S/b for-each-ref | wc -l)
+$P festschreiben $S/b $B2 einlagerung/test 5 /root/biotop-einlagerung/arbeit/commit-nachricht-weitere.txt --runde5; echo "rc=$?"
+echo "-- Index vorher $vor nachher $(sha256sum $S/b/.git/index | cut -c1-16) · Referenzen vorher $refs_vor nachher $(git -C $S/b for-each-ref | wc -l) · Zweig $(git -C $S/b symbolic-ref HEAD)"
+echo "== Fall 3: falsche Anzahl (7 statt 5) → Abbruch ohne Schreiben"
+rm $S/b/ordner/geheim.txt
+$P festschreiben $S/b $B2 einlagerung/test 7 /root/biotop-einlagerung/arbeit/commit-nachricht-weitere.txt; echo "rc=$?"
+echo "-- Referenzen nachher $(git -C $S/b for-each-ref | wc -l) · Zweig $(git -C $S/b symbolic-ref HEAD)"
+--- Ende /root/biotop-einlagerung/arbeit/s2_selbsttest.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== Fall 1: sauber (erwartet 5 Status-Einträge: M eins, A vorgemerkt, ?? neu, ?? ordner/, ?? verweis)
+Prüfsummenliste selbsttest-a-vorher: /root/biotop-einlagerung/tmp/selbsttest-git/a ohne die oberste .git/ (verschachtelte .git-Ordner zählen mit)
+Zeitpunkt: 2026-09-25 23:57:43 CEST (UTC+0200)
+Dateien: 8 · Verweise: 1 · Sonderdateien: 0 · Einträge gesamt: 9 · Bytes der Dateien: 55
+Beginn 2026-09-25 23:57:43 CEST (UTC+0200) · Repository /root/biotop-einlagerung/tmp/selbsttest-git/a
+HEAD 4ac17dd3507ba5a01a067ec0d2330b0d067e4ae3 · Basis 4ac17dd3507ba5a01a067ec0d2330b0d067e4ae3 = 4ac17dd3507ba5a01a067ec0d2330b0d067e4ae3
+bestehender Zweig: refs/heads/main → 4ac17dd3507ba5a01a067ec0d2330b0d067e4ae3
+Haken außer *.sample: keine
+git status: 5 Einträge
+  ' M' eins.txt
+  'A ' vorgemerkt.txt
+  '??' neu.txt
+  '??' ordner/
+  '??' verweis
+Dateien zum Festschreiben: 6 (geändert/vorgemerkt gegen HEAD 2, unverfolgt 4)
+Geheimnissuche über 5 vorhandene Dateien (gelöschte: 1): Durchsucht: 5 Dateien · Treffer: 0 · rc 0
+Commit-Nachricht (/root/biotop-einlagerung/arbeit/commit-nachricht-weitere.txt, 251 B, SHA-256 dd9ed6cc9681475154aff8fc1e1771cf8503779b0aa749c12798dfce26cebbd8):
+Einlagerung (BIOTOP-EINLAGERUNG-01): nicht eingecheckter Stand dieses Arbeitsordners unverändert festgeschrieben, damit er mit der Geschichte erhalten bleibt. Kein neuer Inhalt, nicht geprüft, nicht abgenommen. Der bisherige Zweig ist unverändert.
+Markierung runde-5 → 4ac17dd3507ba5a01a067ec0d2330b0d067e4ae3
+ausgecheckt: refs/heads/einlagerung/test → 4ac17dd3507ba5a01a067ec0d2330b0d067e4ae3
+vorgemerkt: 6 Pfade · gleich den nicht eingecheckten Dateien: True
+Commit c1491c14b5b296aae79eaf63ea69a168842fad8a · Markierung eingelagert-20260925 → c1491c14b5b296aae79eaf63ea69a168842fad8a
+--- git show --stat --format=fuller HEAD
+commit c1491c14b5b296aae79eaf63ea69a168842fad8a
+Author:     Hermes (Biotop) <hermes@biotop.local>
+AuthorDate: Fri Sep 25 23:57:44 2026 +0200
+Commit:     Hermes (Biotop) <hermes@biotop.local>
+CommitDate: Fri Sep 25 23:57:44 2026 +0200
+
+    Einlagerung (BIOTOP-EINLAGERUNG-01): nicht eingecheckter Stand dieses Arbeitsordners unverändert festgeschrieben, damit er mit der Geschichte erhalten bleibt. Kein neuer Inhalt, nicht geprüft, nicht abgenommen. Der bisherige Zweig ist unverändert.
+
+ eins.txt           | 2 +-
+ neu.txt            | 1 +
+ ordner/b.txt       | 1 +
+ ordner/unter/a.txt | 1 +
+ verweis            | 1 +
+ vorgemerkt.txt     | 1 +
+ 6 files changed, 6 insertions(+), 1 deletion(-)
+--- git show --name-status --format= HEAD
+M	eins.txt
+A	neu.txt
+A	ordner/b.txt
+A	ordner/unter/a.txt
+A	verweis
+A	vorgemerkt.txt
+Einträge im Commit: 6
+git status nach dem Commit: 0 Einträge (sauber)
+bestehender Zweig refs/heads/main: vorher 4ac17dd3507ba5a01a067ec0d2330b0d067e4ae3 · nachher 4ac17dd3507ba5a01a067ec0d2330b0d067e4ae3 · unverändert: True
+--- Zweige und Markierungen
+refs/heads/einlagerung/test c1491c14b5b296aae79eaf63ea69a168842fad8a commit
+refs/heads/main 4ac17dd3507ba5a01a067ec0d2330b0d067e4ae3 commit
+refs/tags/eingelagert-20260925 c1491c14b5b296aae79eaf63ea69a168842fad8a commit
+refs/tags/runde-5 4ac17dd3507ba5a01a067ec0d2330b0d067e4ae3 commit
+Ende 2026-09-25 23:57:44 CEST (UTC+0200)
+rc=0
+Prüfsummenliste selbsttest-a-nachher: /root/biotop-einlagerung/tmp/selbsttest-git/a ohne die oberste .git/ (verschachtelte .git-Ordner zählen mit)
+Zeitpunkt: 2026-09-25 23:57:44 CEST (UTC+0200)
+Dateien: 8 · Verweise: 1 · Sonderdateien: 0 · Einträge gesamt: 9 · Bytes der Dateien: 55
+A = /root/biotop-einlagerung/pruefsummen/selbsttest-a-vorher.txt: 9 Einträge, SHA-256 der Liste 02f7fce910170b44d70a12b80831f57c399bccfbaccb811a0b87e7f9804be9dc
+B = /root/biotop-einlagerung/pruefsummen/selbsttest-a-nachher.txt: 9 Einträge, SHA-256 der Liste 02f7fce910170b44d70a12b80831f57c399bccfbaccb811a0b87e7f9804be9dc
+nur in A: 0 · nur in B: 0 · Inhalt verschieden: 0
+ERGEBNIS: Unterschied leer
+Gegenprobe (Kopie von A, SHA-256 von „ordner/unter/a.txt“ um ein Zeichen geändert): gemeldet 1 Abweichung(en) → angeschlagen: genau dieser Pfad
+-- Kontrolle: x.log nicht im Commit: 0
+-- Kontrolle: Verweis im Commit als Verweis (Modus 120000): 120000
+== Fall 2: Geheimnis in ordner/geheim.txt → Abbruch ohne Schreiben
+Beginn 2026-09-25 23:57:44 CEST (UTC+0200) · Repository /root/biotop-einlagerung/tmp/selbsttest-git/b
+HEAD 4ac17dd3507ba5a01a067ec0d2330b0d067e4ae3 · Basis 4ac17dd3507ba5a01a067ec0d2330b0d067e4ae3 = 4ac17dd3507ba5a01a067ec0d2330b0d067e4ae3
+bestehender Zweig: refs/heads/main → 4ac17dd3507ba5a01a067ec0d2330b0d067e4ae3
+Haken außer *.sample: keine
+git status: 5 Einträge
+  ' M' eins.txt
+  'A ' vorgemerkt.txt
+  '??' neu.txt
+  '??' ordner/
+  '??' verweis
+Dateien zum Festschreiben: 7 (geändert/vorgemerkt gegen HEAD 2, unverfolgt 5)
+Geheimnissuche über 6 vorhandene Dateien (gelöschte: 1): Durchsucht: 6 Dateien · Treffer: 1 · rc 1
+  TREFFER Muster OpenRouter-Schlüssel: ordner/geheim.txt:1: [GESCHWÄRZT, 73 Zeichen]
+ABBRUCH: Geheimnissuche nicht sauber — nichts geschrieben
+rc=1
+-- Index vorher 9c826d0c711de22d nachher 9c826d0c711de22d · Referenzen vorher 1 nachher 1 · Zweig refs/heads/main
+== Fall 3: falsche Anzahl (7 statt 5) → Abbruch ohne Schreiben
+Beginn 2026-09-25 23:57:44 CEST (UTC+0200) · Repository /root/biotop-einlagerung/tmp/selbsttest-git/b
+HEAD 4ac17dd3507ba5a01a067ec0d2330b0d067e4ae3 · Basis 4ac17dd3507ba5a01a067ec0d2330b0d067e4ae3 = 4ac17dd3507ba5a01a067ec0d2330b0d067e4ae3
+bestehender Zweig: refs/heads/main → 4ac17dd3507ba5a01a067ec0d2330b0d067e4ae3
+Haken außer *.sample: keine
+git status: 5 Einträge
+  ' M' eins.txt
+  'A ' vorgemerkt.txt
+  '??' neu.txt
+  '??' ordner/
+  '??' verweis
+ABBRUCH: 5 Einträge statt 7 — nichts geschrieben
+rc=1
+-- Referenzen nachher 1 · Zweig refs/heads/main
+=== Ende EB16 ===

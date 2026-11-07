@@ -1,0 +1,327 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 72 (Teile 4–165 dieses Stands) · enthält R68 bis R69
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R68 · Teil A: Suche Fristen/Zusagen, Delegation, T3-Verfassung Betriebszweck, Freigabe-Regel T3, Hermes-Meldungen 25.09. 00-01 Uhr
+Beginn: 2026-09-25 16:23:30 CEST (UTC+0200)
+Ende:   2026-09-25 16:23:31 CEST (UTC+0200)
+Dauer:  0.3 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/entscheidungen/a6_suche.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/entscheidungen/a6_suche.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil A (nur lesend) — FK17/FK19/FK21 Hilfssuche.
+1. hermes-an-philipp.md: Meldungen vom 25.09. zwischen 00:00 und 01:10 (Kopfzeilen + Stellen mit „(a)“/„(b)“ und „Sicherung“).
+2. FK21: Fristen/Zusagen — Zeilen mit Frist, spätestens, morgen, heute Abend, zusag, verspreche, „vor T4/T5/T6“,
+   „nach T3/T4“, „bis <Datum/Uhrzeit>“, „bis zum“, „Ende <Tag>“ in philipp-ab-2026-09-18.md und hermes-an-philipp.md,
+   je mit Zeitstempel der Nachricht; Zeile gekürzt auf 260 Zeichen.
+3. „delegier“, „überlass“, „entscheidet Chat-Claude“, „Chat-Claude entscheidet“ in Philipps Nachrichten, v7, v8, ABNAHME, WIEDEREINSTIEG.
+4. T3-Verfassung (Prüfkanal biotop-t3-typescript/verfassung-02/): Stellen mit Betriebszweck/uebungswerk/Übungswerk/Testwerk.
+5. T3-Ordner: Dateien mit „FREIGABE“ oder „Freigabe-Regel“ im Namen oder Inhalt (nur Namen + Trefferzeile).
+Prüfkanal-Schlüssel maskiert."""
+import re
+from pathlib import Path
+
+W = Path('/root/sicherung/biotop-lage-01')
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+L = Path(f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe')
+m = lambda s: str(s).replace(str(L), '{LAEUFE}').replace(K, '<schlüssel>')
+
+
+def nachrichten(p: Path):
+    kopf, zeilen = None, []
+    for z in p.read_text(errors='replace').splitlines():
+        if z.startswith('## 2026-'):
+            if kopf:
+                yield kopf, zeilen
+            kopf, zeilen = z[3:].strip(), []
+        else:
+            zeilen.append(z)
+    if kopf:
+        yield kopf, zeilen
+
+
+H = W / 'arbeit/lesen/hermes-an-philipp.md'
+P = W / 'arbeit/lesen/philipp-ab-2026-09-18.md'
+print('== 1. Hermes-Meldungen 25.09. 00:00–01:10')
+for k, zz in nachrichten(H):
+    if k.startswith('2026-09-25 00:') or k.startswith('2026-09-25 01:0') or k.startswith('2026-09-25 01:10'):
+        print('--', k, f'({sum(len(x) for x in zz)} Zeichen)')
+        for i, z in enumerate(zz):
+            if re.search(r'\((a|b|c)\)|^\s*(a|b|c)[\)\.]|Sicherung|sicher', z):
+                print('   ', z.strip()[:300])
+
+print('\n== 2. Fristen und Zusagen')
+rx = re.compile(r'\bFrist|spätestens|\bmorgen\b|heute (Abend|Nacht|noch)|\bzusag|\bZusage|verspreche|\bvor T[3-6]\b|\bnach T[3-6]\b|'
+                r'\bbis (zum|zur|morgen|heute|\d{1,2}[.:]\d{2}|\d{1,2}\.\d{1,2}\.|Ende|spätestens)|\bEnde (der|des) (Woche|Tages)|\bbis Montag|\bbis Freitag')
+for p in (P, H):
+    n = 0
+    print(f'-- {p.name}')
+    for k, zz in nachrichten(p):
+        for z in zz:
+            for t in re.finditer(rx, z):
+                n += 1
+                s = max(0, t.start() - 120)
+                print(f'   [{k[:19]}] …{z[s:t.end() + 140].strip()}…')
+                break
+    print(f'   Trefferzeilen: {n}')
+
+print('\n== 3. Delegation an Chat-Claude')
+rx3 = re.compile(r'delegier|überlass|entscheidet Chat-Claude|Chat-Claude entscheidet|Entscheidung an Chat-Claude')
+D = W / 'arbeit/dokumente'
+for p in [P] + sorted(D.glob('*Masterprompt-v7.md')) + sorted(D.glob('*Masterprompt-v8.md')) + sorted(D.glob('*ABNAHME*')) + sorted(D.glob('*WIEDEREINSTIEG*')):
+    for i, z in enumerate(p.read_text(errors='replace').splitlines(), 1):
+        if rx3.search(z):
+            t = rx3.search(z)
+            s = max(0, t.start() - 160)
+            print(f'   {p.name}:{i}: …{z[s:t.end() + 160].strip()}…')
+
+print('\n== 4. T3-Verfassung: Betriebszweck/Übungswerk')
+for q in sorted((L / 'biotop-t3-typescript').glob('verfassung-0*/*')):
+    if q.is_file() and q.suffix in ('.md', '.json', '.txt'):
+        for i, z in enumerate(q.read_text(errors='replace').splitlines(), 1):
+            if re.search(r'Betriebszweck|uebungswerk|Übungswerk|Testwerk|Freigabe|Vollmacht', z):
+                print(f'   {m(q)}:{i}: {z.strip()[:260]}')
+
+print('\n== 5. T3-Ordner: Freigabe-Regel')
+for q in sorted((L / 'biotop-t3-typescript').rglob('*')):
+    if not q.is_file() or q.suffix not in ('.md', '.txt') or q.stat().st_size > 1_000_000:
+        continue
+    if 'FREIGABE' in q.name.upper():
+        print(f'   Name: {m(q)} ({q.stat().st_size} Bytes)')
+    for i, z in enumerate(q.read_text(errors='replace').splitlines(), 1):
+        if re.search(r'Freigabe-Regel|Freigaberegel|nie durch Umformulieren', z):
+            print(f'   {m(q)}:{i}: {z.strip()[:260]}')
+--- Ende /root/sicherung/biotop-lage-01/entwurf/entscheidungen/a6_suche.py ---
+Ausgabe (vollständig, stdout und stderr):
+== 1. Hermes-Meldungen 25.09. 00:00–01:10
+-- 2026-09-25 00:24:43 · Hermes · id 17210 · 20260924_203120_e6c401 (2490 Zeichen)
+-- 2026-09-25 00:43:57 · Hermes · id 17312 · 20260924_203120_e6c401 (2708 Zeichen)
+    **Sperre** (Beleg `sperre/SPERRE-01-config-sichern.txt`). Befehl, wörtlich:
+    - **Einordnung:** Freigabeabfrage, ohne Antwort abgelaufen. Der Befehl lief nicht, es gibt keine Sicherung. Die Abfrage des OpenRouter-Kontos habe ich nicht gestartet.
+    - (a) Du gibst die Sicherung frei (empfohlen). Ich gehe dann in einzelnen Schritten vor:
+    1. Sicherung mit festem Namen `config.yaml.20260925-vor-openrouter-verdichtung`.
+    - (b) Du legst die Sicherung selbst an, und ich beginne bei Schritt 2.
+
+== 2. Fristen und Zusagen
+-- philipp-ab-2026-09-18.md
+   [2026-09-20 02:46:35] …er Ansage vertraut einem Sprachmodell auf sein Wort und kann über das, was am Ende im Werk landet, grundsätzlich nichts zusagen. Maßstab vorab und unverhandelbar: Durchgerutscht an C null, Fehlalarm höchstens 20 % der Sperrungen mit Einzelbeleg, je ein roter und ei…
+   [2026-09-21 06:52:59] …— der erste Beleg, dass das Messgerät außerhalb von Python trägt. Ab jetzt keine Zwischenmeldungen: Lauf 29 nach Tor 4 bis zum Abschluss durcharbeiten und nur mit der Endmeldung kommen; Ausnahme Budgetstopp, Kernfehler oder Sitzungsende, dann Zwischenbericht in den…
+   [2026-09-21 12:05:50] …und das Setzen der Variablen behebt nur diesen einen Fall. Danach volle Regression, Kern einfrieren, Lauf 31 nach Tor 4 bis zum Ende, ohne Zwischenmeldungen und auf Deutsch. Auf die Liste für danach, nicht jetzt: Die Rauschmessung verwirft ihre Einzelwerte, damit ble…
+   [2026-09-21 13:01:34] …rtsperre bei fehlenden oder auf null stehenden Budgetvariablen in einem Zug, volle Regression, Kern einfrieren, Lauf 31 bis zum Ende ohne Zwischenmeldungen. Für den Bericht: Warum haben die Commits 49 und 76 Dateien, wo vorher 11 geändert plus 29 neu und 20 geändert…
+   [2026-09-21 15:57:34] …üft, wie viele enthalten, und ob die Enthaltungen genau den unbrauchbaren Diffs entsprechen. Sonst ohne Zwischenmeldung bis zur Endmeldung.…
+   [2026-09-21 16:58:53] …tlaut und die Freigabe-Regel mit Ablageort — beide prägen künftige Arbeit und müssen nachlesbar sein. Auf die Liste für nach T3, nicht jetzt: Die Ausnahmeliste des Python-Wächters braucht eine Verfallsbedingung — jeder Eintrag an seine Aufrufstellen gebunden, ungülti…
+   [2026-09-21 18:27:40] …chte übernehmen kann — Stand von Lauf 33, Kernstand, Kasse, die angenommenen Generationen aus Lauf 32 und die Liste für nach T3. Dann die Klasse, nicht die Stelle: Lauf 31 und 32 starben an derselben Fehlerklasse an zwei Stellen. Geh jede Funktion mit Sprachweiche du…
+   [2026-09-21 20:15:07] …arkeitsführung — Anbieter nach wiederholten Ausfällen zeitweise aussetzen, Bewertung unangetastet — kommt auf die Liste nach T3. Nur diese eine Kernänderung, volle Regression, Kern einfrieren, Lauf 36 bis zum Ende, ohne Zwischenmeldungen.…
+   [2026-09-22 14:52:53] …ssentabelle starben nur 31, 32 und 36 daran, 27 und 28 am Rauschen, 29, 30 und 35 an Ausfällen ohne Klärungsweg. Skills vor T5: In defect-class-sweep.md den Zweigvergleich aufnehmen und klarstellen, dass eine Weiche selbst der Fehler sein kann — die Musterliste nur…
+   [2026-09-22 15:15:11] …nderung am Schwarm oder an seinen Aufgaben, die Wissen über S3 und S5 tragen könnte. Restbudget 4,52 €; reicht es nicht bis zur Sättigung, ist der Budgetabbruch ein zulässiges, dokumentiertes Ende. Ein Reviewdurchgang.…
+   [2026-09-23 15:03:47] …hrerer Messungen je Seite statt einer Einzelmessung, Schwelle unverändert; nicht mehr in T3, sondern als erste Änderung vor T4, mit der Gegenprobe, dass K2904 und K3091 als dieselbe Änderung danach gleich entschieden werden. In abschluss-03 zusätzlich: (1) ob die 49…
+   [2026-09-23 15:53:55] …tzt; neu sind die Grundsätze 10 bis 14, Tor 4 und die Vorbedingungen für T4 in Abschnitt 8. Auftrag: die Behebungsrunde vor T4 — die elf Vorbedingungen in der dort genannten Reihenfolge, einschließlich der vier Messfragen, die Chat-Claude entschieden hat (gepaarte L…
+   [2026-09-23 19:42:19] …Neue Sitzung nach automatischem Zurücksetzen durch Kontextüberlauf; die Behebungsrunde vor T4 ist fast fertig, aber weder abgeschlossen noch veröffentlicht. Zuerst, von Philipp festgelegt: Stell den Träger dauerhaft auf Claude Opus 5…
+   [2026-09-23 19:49:24] …Neue Sitzung nach automatischem Zurücksetzen durch Kontextüberlauf; die Behebungsrunde vor T4 ist fast fertig, aber weder abgeschlossen noch veröffentlicht. Philipp hat den Träger auf Claude Opus 5.5 gestellt — setz die Denkstufe max…
+   [2026-09-23 22:32:40] …e an K3044, der S1-Behebung aus Lauf 38, und korrigiere die Schwächenzählung von Lauf 38, falls nötig. (2) Python-Sonde vor T4, die Torzeile bleibt — Grundsatz 11 gilt für jede Sprache. (3) Kein Wirkungskreis, der selbst noch nicht verlässlich ist; stattdessen wird…
+   [2026-09-24 02:14:45] …Richtig nicht abgenommen, und die Lücken der Python-Sonde gehören zu den wichtigsten Befunden vor T4. Entscheidungen Chat-Claude: (1) Deckung je Muster (deine Option 1) — je Eingabe ist zu fein, ein richtiger Test deckt 2 von 28; je Funktio…
+   [2026-09-24 11:49:51] …robe im Nachspiel: K2904 und K3091 drei von drei gleich; T3s Ergebnisse bleiben unverändert. (2) Die vier hohen Befunde vor T4; jede Formvariante, die die Sonde erzeugt, ist ein eigenes Merkmal — Weißraum also je Zeichen. (3) Merkmale von Argumenten, die die Sonde n…
+   [2026-09-24 15:09:13] …Führe genau EINEN unabhängigen Reviewdurchgang für die 'Behebungsrunde 4 vor T4' des Biotop-Projekts durch und schreibe das Ergebnis nach /root/biotop-vor-t4-04/REVIEW.md. Der vollständige Prüfauftrag steht in /root/bio…
+   [2026-09-24 20:31:20] …Führe genau EINEN unabhängigen Reviewdurchgang für die 'Behebungsrunde 5 vor T4' des Biotop-Projekts durch und schreibe das Ergebnis nach /root/biotop-vor-t4-05/REVIEW.md. Der vollständige Prüfauftrag steht in /root/bio…
+   [2026-09-24 21:00:41] …usfall wie Review-Nr. 4 — ein einziges schwer erfassbares Objekt stellt jeden Kandidaten zurück; als rote Spezifikation vor T4: Enthalten muss sich nur die betroffene Beobachtung. (2) Für eingang an Stufe 2 die Stichprobendauer bei 60 und bei 240 Wiederholungen — me…
+   [2026-09-24 23:15:27] …ßlich Verhandlung. (7) Ausnahmen nach Typ und Inhalt vergleichen. (8) Kappe am echten T4-Werk messen; TypeScript-Proben vor T5. Regel für den Start von T4, vorab gesetzt: T4 beginnt, sobald das Review dieser Runde keinen stillen Durchlass mehr findet — jede bekannte…
+   [2026-09-25 14:44:22] …ssung 2 steht in der angehängten Datei BIOTOP-LAGE-01-Auftrag-v2.md und ersetzt Fassung 1 – lies sie ganz und führe sie bis zum Ende aus: nur sichern und offenlegen, Stand bis zum Stichzeitpunkt, am Biotop nichts ändern, nichts löschen, keine bezahlten Modellaufrufe.…
+   Trefferzeilen: 22
+-- hermes-an-philipp.md
+   [2026-09-19 19:26:48] …- **Entropie** — `lagerhaus` Lauf 20: Sättigung **nach Generation 5** (gefordert: spätestens 6), Fenster 1–5, Verbesserung 0,00 % bei Schwelle 0,5 %, Doppelgänger 12 %, Lauf beendet sich selbst und verweist zurück zum Mentor. `logmu…
+   [2026-09-19 19:36:52] …*4. Entropie — erfüllt.** `lagerhaus` (Lauf 20, Kernmaß 0 = Höchstwert): Sättigung **nach Generation 5**, gefordert war spätestens 6 — „Generationen 1–5, Verbesserung 0,00 % (Schwelle 0,5 %), Kernmaß 0 = Höchstwert, Doppelgänger-Anteil 12 %. Weiter nur mit anderer Richt…
+   [2026-09-21 07:30:23] …ngt der Testbestand bereits vorher.** Generation 0 läuft neu, mit scharfem Budget. Ab jetzt wieder ohne Zwischenmeldung bis zur Endmeldung.…
+   [2026-09-21 07:34:52] …ekannten, die eine private Werkkopie brauchen). Der Kern ist ab jetzt eingefroren; Lauf 30 läuft die vollständige Kette bis zum Maß durch und bricht bei der ersten roten Stufe ab.…
+   [2026-09-21 16:04:18] …Lauf 32 läuft (Vorspann bestanden, gen0 in Arbeit); die Wächter sind grün. Ich arbeite ohne weitere Zwischenmeldung bis zur Endmeldung.…
+   [2026-09-21 17:00:04] …**Zur Nachfrage bei `_beschleunigen`** — die gehört auf die Liste nach T3, aber die Antwort ist unangenehm genug, dass ich sie sofort gebe: Ich hatte geschrieben, die Funktion werde „von der Nebenwirkungsprobe geb…
+   [2026-09-21 20:26:10] …e, 0 als Bandit-Fehlversuch gebucht) steht damit absichtlich so; die getrennte Erreichbarkeitsführung ist auf der Liste nach T3 notiert.…
+   [2026-09-23 15:47:53] …m-Punkten angenommen, bei nur −11,2 % Laufzeit. Die S2-Vorgabe gilt damit als **nicht belastbar**, bis der Median-Umbau vor T4 kommt.…
+   [2026-09-23 22:28:40] …2. Soll vor T4 eine Python-Sonde für den Verhaltensvergleich gebaut werden, oder wird die Torzeile angepasst?…
+   [2026-09-24 02:10:34] …3. Sollen Methoden von Klassen vor T4 beobachtet werden, oder gelten sie als benannte Grenze mit Enthaltung?…
+   [2026-09-24 02:15:47] …3. Sollen Methoden von Klassen vor T4 beobachtet werden, oder gelten sie als benannte Grenze mit Enthaltung?…
+   [2026-09-24 05:10:02] …3. Sollen Methoden von Klassen vor T4 beobachtet werden, oder gelten sie als benannte Grenze mit Enthaltung?…
+   [2026-09-24 11:46:30] …2. Die vier hohen Befunde vor T4 beheben. Dazu die Frage: Soll Weißraum je Zeichen getrennt werden (Tab, Zeilenumbruch, CR, NBSP, doppeltes Leerzeichen)?…
+   [2026-09-24 21:08:23] …**1. Enthaltung des ganzen Vergleichs → rote Spezifikation R6-1 vor T4**…
+   [2026-09-24 21:08:23] …**3. Tor-4-Skript → R6-2 auf der Liste vor T4**…
+   [2026-09-24 21:51:18] …t **nicht abgenommen**. An `0c2f058` sind zwei Messfehler gemessen, die T4 gefährden. Beide sind als rote Spezifikation vor T4 gefasst und nicht nachträglich gebaut.…
+   [2026-09-24 21:51:18] …1. R6-4 vor T4 bauen? Empfohlen: ja, zusammen mit R6-1 und R6-2.…
+   [2026-09-24 21:51:18] …5. TypeScript-Proben für die Entscheidungen 2 und 3 erst vor T5 (T4 ist Python).…
+   [2026-09-24 22:04:07] …**Hängende Last:** Sie führt nach 240 s zum Messgerätausfall für den ganzen Kandidaten (d1); die Eingrenzung hat keine Frist.…
+   [2026-09-25 00:43:57] …** Das hängende Kind führt heute nach 240 s zu einem Messgerätausfall; der Kandidat wird zurückgestellt, also laut. Die Frist für die Eingrenzung, die die Elternseite durchsetzt, gehört zu Entscheidung 3. Ich habe S1 nachgesteuert, sie mitzubauen.…
+   [2026-09-25 00:43:57] …- **U-3:** Führt zu einer Enthaltung zu viel, nicht zu einem Durchlass. Gehört zu TypeScript, also vor T5.…
+   [2026-09-25 01:12:03] …19. WRITE & EXECUTE `/tmp/review-vor-t4-05/warte.sh` — Überwachung bis zum Beenden von `job_kette.sh` durchgeführt (Status: beendet) [tool: write_file, terminal]…
+   [2026-09-25 01:12:03] …** Das hängende Kind führt heute nach 240 s zu einem Messgerätausfall; der Kandidat wird zurückgestellt, also laut. Die Frist für die Eingrenzung, die die Elternseite durchsetzt, gehört zu Entscheidung 3. Ich habe S1 nachgesteuert, sie mitzubauen.…
+   [2026-09-25 01:12:03] …- **U-3:** Führt zu einer Enthaltung zu viel, nicht zu einem Durchlass. Gehört zu TypeScript, also vor T5.…
+   Trefferzeilen: 24
+
+== 3. Delegation an Chat-Claude
+   2026-09-21_021434_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v7.md:149: …indigkeit geht (Lauf 2 hat genau daran einen richtigen Kandidaten verworfen). Für Übungswerke schreibt Chat-Claude die Verfassung; Philipp hat die Entscheidung delegiert. Die Verfassung des Übungswerks `lagerhaus` steht in Anhang A.…
+   2026-09-21_021434_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v7.md:483: …Geschrieben von Chat-Claude (Philipp hat die Entscheidung delegiert). Gilt für Lauf 3 und alle weiteren Läufe am Übungswerk. Ändert nur Philipp.…
+   2026-09-23_155353_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v8.md:161: …indigkeit geht (Lauf 2 hat genau daran einen richtigen Kandidaten verworfen). Für Übungswerke schreibt Chat-Claude die Verfassung; Philipp hat die Entscheidung delegiert. Die Verfassung des Übungswerks `lagerhaus` steht in Anhang A.…
+   2026-09-23_155353_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v8.md:522: …Geschrieben von Chat-Claude (Philipp hat die Entscheidung delegiert). Gilt für Lauf 3 und alle weiteren Läufe am Übungswerk. Ändert nur Philipp.…
+
+== 4. T3-Verfassung: Betriebszweck/Übungswerk
+   {LAEUFE}/biotop-t3-typescript/verfassung-02/BESTAETIGUNG.md:5: > Verfassung bestätigt mit drei Auflagen, die vor dem Lauf einzuarbeiten und als verfassung-02 zu versiegeln sind — danach ist der evolutionäre Lauf freigegeben, ohne weitere Rückfrage. Der Entwurf ist an der entscheidenden Stelle besser als die Vorgänger: Sat
+   {LAEUFE}/biotop-t3-typescript/verfassung-02/VERFASSUNG-T3.md:5: 1. **Zweck:** `versandwerk` ist ein TypeScript-Übungswerk ohne Betriebszweck. Es prüft fiktive Sendungsdaten, berechnet Tarife, bündelt Sendungen und erstellt Berichte; es beauftragt keinen Versand, verarbeitet keine personenbezogenen Daten und verändert keine
+   {LAEUFE}/biotop-t3-typescript/verfassung-02/VERFASSUNG-T3.md:12: 8. **Betrieb:** Jeder Werk-/Testlauf bleibt in der netzlosen Kammer. Die Übungswerk-Vollmacht gilt für dokumentierte Generationenfreigaben und Mentorwahl; sie ersetzt keine Bestätigung dieser Verfassung. Ablehnung, Zeitüberschreitung oder leere Antwort eines V
+   {LAEUFE}/biotop-t3-typescript/verfassung-02/ZWISCHENBERICHT.md:6: - Auflage 3 → Satz 8: Modellablehnung, Zeitüberschreitung und leere Antwort sind Ausfälle, nie Beiträge; mindestens ein echter oder gekennzeichneter gestellter Ausfall an diesem Testwerk muss protokolliert nachgewiesen werden.
+   {LAEUFE}/biotop-t3-typescript/verfassung-02/ZWISCHENBERICHT.md:10: ## Freigabegrenze
+
+== 5. T3-Ordner: Freigabe-Regel
+   {LAEUFE}/biotop-t3-typescript/abschluss-01/ABSCHLUSSBERICHT.md:192: **Freigaberegel**, Ablage `/root/.hermes/memories/MEMORY.md` Zeile 7, wirkt in jeder
+   {LAEUFE}/biotop-t3-typescript/abschluss-01/ABSCHLUSSBERICHT.md:195: Entweder neu anfordern oder mit der wörtlichen Blockmeldung anhalten. Freigaberegeln setzt
+   {LAEUFE}/biotop-t3-typescript/abschluss-01/DATEIEN.txt:23: MEMORY-Freigaberegel.md
+   {LAEUFE}/biotop-t3-typescript/abschluss-01/DATEIEN.txt:30: skills/MEMORY-Freigaberegel.md
+   Name: {LAEUFE}/biotop-t3-typescript/abschluss-01/MEMORY-Freigaberegel.md (1956 Bytes)
+   {LAEUFE}/biotop-t3-typescript/abschluss-01/MEMORY-Freigaberegel.md:7: Freigaberegel (Philipp, verbindlich): Eine abgelehnte oder abgelaufene Befehlsfreigabe wird NIE umgangen — nicht durch Umformulieren, nicht durch einen anderen Befehl, nicht über einen anderen Weg. Entweder neu anfordern oder mit Meldung der wörtlichen Blockme
+   Name: {LAEUFE}/biotop-t3-typescript/abschluss-01/skills/MEMORY-Freigaberegel.md (1545 Bytes)
+   {LAEUFE}/biotop-t3-typescript/abschluss-01/skills/MEMORY-Freigaberegel.md:7: Freigaberegel (Philipp, verbindlich): Eine abgelehnte oder abgelaufene Befehlsfreigabe wird NIE umgangen — nicht durch Umformulieren, nicht durch einen anderen Befehl, nicht über einen anderen Weg. Entweder neu anfordern oder mit Meldung der wörtlichen Blockme
+   {LAEUFE}/biotop-t3-typescript/abschluss-03/SPERREN.md:13: Ausnahme, die ich selbst in meine Notizen geschrieben hatte. Das war nicht regelkonform (Freigaberegeln setzt nur Philipp) und ist
+   {LAEUFE}/biotop-t3-typescript/uebernahme-01/DATEIEN.txt:13: MEMORY-Freigaberegel.md
+   {LAEUFE}/biotop-t3-typescript/uebernahme-01/DATEIEN.txt:17: skills/MEMORY-Freigaberegel.md
+   Name: {LAEUFE}/biotop-t3-typescript/uebernahme-01/MEMORY-Freigaberegel.md (1545 Bytes)
+   {LAEUFE}/biotop-t3-typescript/uebernahme-01/MEMORY-Freigaberegel.md:7: Freigaberegel (Philipp, verbindlich): Eine abgelehnte oder abgelaufene Befehlsfreigabe wird NIE umgangen — nicht durch Umformulieren, nicht durch einen anderen Befehl, nicht über einen anderen Weg. Entweder neu anfordern oder mit Meldung der wörtlichen Blockme
+   {LAEUFE}/biotop-t3-typescript/uebernahme-01/ZWISCHENBERICHT.md:115: **Freigaberegel** (Ablage: `/root/.hermes/memories/MEMORY.md`, Zeile 7 — wirkt in jeder
+   {LAEUFE}/biotop-t3-typescript/uebernahme-01/ZWISCHENBERICHT.md:119: Freigaberegeln setzt ausschließlich Philipp. Anlass war ein eigener Fehler: Ich hatte
+   Name: {LAEUFE}/biotop-t3-typescript/uebernahme-01/skills/MEMORY-Freigaberegel.md (1545 Bytes)
+   {LAEUFE}/biotop-t3-typescript/uebernahme-01/skills/MEMORY-Freigaberegel.md:7: Freigaberegel (Philipp, verbindlich): Eine abgelehnte oder abgelaufene Befehlsfreigabe wird NIE umgangen — nicht durch Umformulieren, nicht durch einen anderen Befehl, nicht über einen anderen Weg. Entweder neu anfordern oder mit Meldung der wörtlichen Blockme
+=== Ende R68 ===
+
+
+R69 · Teil C: Ergänzung Review-Zählung, K3044, Lauf-38-Vorspann, Kandidat 2680 je Zweig
+Beginn: 2026-09-25 16:23:38 CEST (UTC+0200)
+Ende:   2026-09-25 16:23:39 CEST (UTC+0200)
+Dauer:  0.2 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/tore/c6_ergaenzung.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/tore/c6_ergaenzung.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil C (nur lesend): Ergänzungen für FK24/FK27.
+1. Befundzählung je Review der Behebungsrunden (Tabellenzeilen '| <Nr> | hoch|mittel|niedrig |') und je T3-Abschluss.
+2. Fundstellen 'K3044' und 'S1' + 'nicht sauber' in den Berichten vor-t4-02 … vor-t4-05 (je Zeile gekürzt).
+3. LAUF38-BERICHT-22-09.md: Zeilen mit Vorspann/Eichung/Gegenprobe/Probe.
+4. DB (T3 mode=ro; STAMM immutable nur bei wal 0; VB1 mode=ro): Kandidat 2680 (lauf_id, generation, nische, status,
+   ist_probe) je Zweig; vorspann_nachweise Lauf 38: oberste Schlüssel des Ergebnisses und je Schlüssel mit 'probe' oder
+   'gegen' eine kurze Zusammenfassung; eichung Lauf 38 (bereich, toleranz, spannweite, gesperrt)."""
+import json
+import os
+import re
+import sqlite3
+from pathlib import Path
+
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+L = Path(f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe')
+print('== 1. Befunde je Review')
+reviews = [L / 'biotop-t3-typescript/abschluss-03/REVIEW-03.md'] + [L / f'biotop-vor-t4{s}/REVIEW.md' for s in ('', '-02', '-03', '-04', '-05')] \
+    + [L / 'biotop-vor-t4-05/REVIEW-verworfen-erster-durchgang.md']
+for p in reviews:
+    if not p.exists():
+        print(f'   {p.relative_to(L)}: NICHT GEFUNDEN')
+        continue
+    zeilen = re.findall(r'^\|\s*(\d+[a-z]?)\s*\|\s*(hoch|mittel|niedrig)\s*\|', p.read_text(errors='replace'), re.M)
+    z = {}
+    for _, s in zeilen:
+        z[s] = z.get(s, 0) + 1
+    nrn = [n for n, _ in zeilen]
+    print(f'   {p.relative_to(L)}: {len(zeilen)} Befundzeilen {z} Nr {nrn[:1]}…{nrn[-1:]}')
+print('\n== 2. K3044 / S1 nicht sauber in vor-t4-Berichten')
+for s in ('', '-02', '-03', '-04', '-05'):
+    p = L / f'biotop-vor-t4{s}/BERICHT.md'
+    for i, z in enumerate(p.read_text(errors='replace').splitlines(), 1):
+        if 'K3044' in z or ('S1' in z and 'sauber' in z) or 'Schwächenzählung' in z or ('4 von 5' in z and 'Lauf 38' in z):
+            print(f'   vor-t4{s} {i}: {z.strip()[:330]}')
+print('\n== 3. LAUF38-BERICHT: Vorspann/Eichung')
+p = L / 'biotop-t3-typescript/abschluss-03/LAUF38-BERICHT-22-09.md'
+for i, z in enumerate(p.read_text(errors='replace').splitlines(), 1):
+    if re.search(r'Vorspann|Eichung|Gegenprobe|Proben|Rausch', z):
+        print(f'   {i}: {z.strip()[:300]}')
+print('\n== 4. Datenbank')
+for name, pfad, art in (('STAMM', '/root/biotop/daten/biotop.db', 'immutable'),
+                        ('VB1', '/root/phase-4-vorbedingung-1/privat/biotop.db', 'ro'),
+                        ('T3', '/root/biotop-t3/t3.db', 'ro')):
+    wal = os.path.getsize(pfad + '-wal') if os.path.exists(pfad + '-wal') else None
+    if art == 'immutable' and wal not in (None, 0):
+        print(f'   {name}: NICHT GEÖFFNET (wal {wal})')
+        continue
+    uri = f'file:{pfad}?mode=ro&immutable=1' if art == 'immutable' else f'file:{pfad}?mode=ro'
+    c = sqlite3.connect(uri, uri=True)
+    sql = 'SELECT id, lauf_id, generation, nische, status, ist_probe, erstellt_am FROM kandidaten WHERE id IN (2679, 2680, 2681)'
+    print(f'   {name} ({uri}) SQL: {sql}')
+    print('     ', c.execute(sql).fetchall())
+    print('      max(id) kandidaten:', c.execute('SELECT max(id), count(*) FROM kandidaten').fetchone())
+    if name == 'T3':
+        r = c.execute('SELECT status, ergebnis, protokoll_nr FROM vorspann_nachweise WHERE lauf_id=38').fetchone()
+        j = json.loads(r[1])
+        print('      vorspann 38 status', r[0], 'protokoll', r[2], 'Schlüssel:', sorted(j.keys()))
+        for k, v in j.items():
+            if re.search(r'probe|gegen|sperr|status|bestanden|masseich', k):
+                s = json.dumps(v, ensure_ascii=False)
+                print(f'      {k}: {s[:600]}{" …[" + str(len(s)) + "]" if len(s) > 600 else ""}')
+        sql = 'SELECT bereich, toleranz, spannweite, median, gesperrt, erstellt_am FROM eichung WHERE lauf_id=38'
+        print('      SQL:', sql)
+        for row in c.execute(sql):
+            print('       ', row)
+    c.close()
+--- Ende /root/sicherung/biotop-lage-01/entwurf/tore/c6_ergaenzung.py ---
+Ausgabe (vollständig, stdout und stderr):
+== 1. Befunde je Review
+   biotop-t3-typescript/abschluss-03/REVIEW-03.md: 21 Befundzeilen {'hoch': 3, 'mittel': 9, 'niedrig': 9} Nr ['1']…['21']
+   biotop-vor-t4/REVIEW.md: 15 Befundzeilen {'hoch': 2, 'mittel': 9, 'niedrig': 4} Nr ['1']…['15']
+   biotop-vor-t4-02/REVIEW.md: 22 Befundzeilen {'hoch': 6, 'mittel': 9, 'niedrig': 7} Nr ['1']…['22']
+   biotop-vor-t4-03/REVIEW.md: 18 Befundzeilen {'hoch': 4, 'mittel': 5, 'niedrig': 9} Nr ['1']…['18']
+   biotop-vor-t4-04/REVIEW.md: 18 Befundzeilen {'hoch': 2, 'mittel': 8, 'niedrig': 8} Nr ['1']…['18']
+   biotop-vor-t4-05/REVIEW.md: 11 Befundzeilen {'hoch': 3, 'mittel': 5, 'niedrig': 3} Nr ['1']…['11']
+   biotop-vor-t4-05/REVIEW-verworfen-erster-durchgang.md: 12 Befundzeilen {'hoch': 3, 'mittel': 6, 'niedrig': 3} Nr ['1']…['12']
+
+== 2. K3044 / S1 nicht sauber in vor-t4-Berichten
+   vor-t4 1: # Behebungsrunde vor T4: nicht abnahmereif — TS-Pfad gebaut; S1 an K2868 nicht sauber behoben, Verhaltensvergleich für Python fehlt, K2904/K3091 in 1 von 3 Durchgängen verschieden entschieden
+   vor-t4 9: 1. **S1 an K2868 ist nach Philipps Maßstab nicht sauber behoben.** Mit Leerzeichen als Trenner rechnet der neue Parser
+   vor-t4 73: - **Regel:** Gibt es dort eine Abweichung alt↔neu, ist S1 nicht sauber behoben.
+   vor-t4 88: Vertrag nennt Weißraum nicht. Die saubere Normalversion des Werkautors nimmt ihn an. Nach Philipps Kriterium ist S1 an
+   vor-t4 324: ihn an. Davon hängt ab, ob S1 in T3 (Lauf 37) als sauber behoben gilt.
+   vor-t4-02 32: - **S1 ist in keinem T3-Lauf sauber behoben** (Entscheidung 1).
+   vor-t4-02 33: - K3044, K2868 und beide Endstände weisen von 16.166 Ausdrücken mit Zeilenumbruch alle 12.206 ab, die die Normalversion
+   vor-t4-02 67: ## 1. S1 an K2868 und K3044 — Schwächenzählung korrigiert (Entscheidung 1)
+   vor-t4-02 72: - Regel, vor der Ausführung aus der Entscheidung abgeleitet: S1 ist an einem Stand sauber behoben nur, wenn
+   vor-t4-02 77: | Stand | Marker ausgeführt (O, 5 Eingaben) | K: Abweichung neu ↔ Normalversion (120.008 Fälle) | W Tab: abgewiesen von den 12.206 Ausdrücken (aus 16.166), die die Normalversion rechnet | W Zeilenumbruch: dito | S1 sauber |
+   vor-t4-02 79: | lauf38-gen0 + **K3044** (S1-Behebung Lauf 38) | 0 von 5 (Vorgeneration 3 von 5) | 0 | 0 | **12.206** | **nein** |
+   vor-t4-02 87: - K3044 nimmt Leerzeichen und Tab an (`if (c === ' ' || c === '\t')`), aber keinen Zeilenumbruch. Beispiel:
+   vor-t4-02 88: `"0\n\n*6099.8/\n\n(((gewicht\n\n))\n)"` ergibt an der Normalversion 0, an K3044 `SyntaxError: Unerwartetes Zeichen: \n`.
+   vor-t4-02 93: **Korrektur der Schwächenzählung** (bisher `abschluss-03` §4c: der versiegelte Gegenzeuge meldete S1 „weg“, weil er nur
+   vor-t4-02 98: | **Lauf 38** (Endstand gen16) | S1–S4 behoben, **4 von 5 = 80 %** | S2, S3, S4 behoben, **3 von 5 = 60 %** | **nicht erreicht** (bisher: genau erreicht) |
+   vor-t4-02 101: Der T3-Befund „Lauf 38: 4 von 5 = 80 %“ ist damit falsch. Mein Prüfstein der Vorrunde, „K2868 muss bestehen“ (Nachspiel
+   vor-t4-02 307: - Bestätigt sind das Urteil, die S1-Zuordnung, die Schwächenzählung, die Nachspiel- und Regressionszahlen und die
+   vor-t4-02 370: 1. **Regel „S1 sauber“** (§1): Marker 0-mal ausgeführt und jeder Ausdruck, den die Normalversion rechnet, gleich
+   vor-t4-02 423: 3. **T3-Stand im Masterprompt:** „Lauf 38: 4 von 5 = 80 %“ ist nach Entscheidung 1 zu korrigieren auf 3 von 5 = 60 %
+   vor-t4-02 426: 4. **K3044 akzeptiert Tab, K2868 nicht.** Beide weisen den Zeilenumbruch ab. Sollen Tab und Zeilenumbruch gleich
+   vor-t4-03 37: K3044, beide Endstände und K2868 nicht behoben (Schwäche weg, Verhalten verändert). S1 ist nicht neu versiegelt,
+   vor-t4-03 215: | K3044 | weg | 0 / **12.206 von 12.206** / 0 | nein | Messung Runde 2 |
+   vor-t4-04 173: | Endstand Lauf 38 | 4 von 5 (S1–S4) | **0 von 5** | S2, S3, S4 |
+
+== 3. LAUF38-BERICHT: Vorspann/Eichung
+   37: drei Gegenproben am echten Lauf 37 bestanden — und keine dieser Prüfungen stellte die
+
+== 4. Datenbank
+   STAMM (file:/root/biotop/daten/biotop.db?mode=ro&immutable=1) SQL: SELECT id, lauf_id, generation, nische, status, ist_probe, erstellt_am FROM kandidaten WHERE id IN (2679, 2680, 2681)
+      [(2679, 25, 4, 'wild', 'leer', 0, '2026-09-20T01:43:33.221+00:00')]
+      max(id) kandidaten: (2679, 2679)
+   VB1 (file:/root/phase-4-vorbedingung-1/privat/biotop.db?mode=ro) SQL: SELECT id, lauf_id, generation, nische, status, ist_probe, erstellt_am FROM kandidaten WHERE id IN (2679, 2680, 2681)
+      [(2679, 25, 4, 'wild', 'leer', 0, '2026-09-20T01:43:33.221+00:00'), (2680, 26, 1, 'sicher', 'leer', 0, '2026-09-20T19:36:40.981+00:00'), (2681, 26, 1, 'sicher', 'abgelehnt', 0, '2026-09-20T19:39:09.512+00:00')]
+      max(id) kandidaten: (2847, 2847)
+   T3 (file:/root/biotop-t3/t3.db?mode=ro) SQL: SELECT id, lauf_id, generation, nische, status, ist_probe, erstellt_am FROM kandidaten WHERE id IN (2679, 2680, 2681)
+      [(2679, 25, 4, 'wild', 'leer', 0, '2026-09-20T01:43:33.221+00:00'), (2680, 31, 1, 'sicher', 'erzeugt', 0, '2026-09-21T13:09:26.591+00:00'), (2681, 32, 1, 'sicher', 'ueberlebt', 0, '2026-09-21T14:54:24.339+00:00')]
+      max(id) kandidaten: (3342, 3342)
+      vorspann 38 status bestanden protokoll 22635 Schlüssel: ['basis', 'eichproben', 'erstellt_am', 'funde', 'gegenstand', 'generation', 'kosten', 'lauf_id', 'qualitaet', 'quellen', 'rauschen', 'regel', 'vertraege_vor_freeze', 'werk_id']
+      eichproben: {"bestanden": true, "gegenproben": {"nebenwirkung": {"ausgefuehrt": true, "befund": "planung.auslastung: privater Arraydefekt behoben; tarife.versicherung: unverändert", "belege": {"basis_eingriff": {"src/planung/analyse.ts": "import type { Kapazitaet, Plan, Auslastung, Planvergleich } from './modell.js';\nimport { kapazitaet, vollstaendig } from './pruefen.js';\nimport { ganz, nichtnegativ } from '../zahlen/pruefen.js';\nimport { addieren } from '../zahlen/geld.js';\nimport { summe } from '../zahlen/statistik.js';\n\nexport function auslastung(plan: Plan, limit: Kapazitaet): Auslastung[] {\n  …[4169353]
+      gegenstand: {"befund": null, "gegenstand": {"abgeloest_am": null, "abloesegrund": null, "begruendung": "liegt auf dem von der Verfassung als tragend benannten Pfad (ausdrückliche Angabe in den Regeln des Werks (tragender_pfad), Gewicht 100); unter den tragenden Paaren der umfangreichste Vertrag (16 Zeilen). Verfassung geht der Vertragsgröße vor, weil eine Eichung an einem Nebenpfad Messgerätfehler im Kern übersieht.", "id": 3, "nach_bereich": "tarife", "versiegelt_am": "2026-09-21T03:51:56.098+00:00", "vertrag_pfad": "tests/vertraege/test_vertrag_planung_tarife.test.ts", "vertrag_pruefsumme": "e8ead8983ad …[739]
+      SQL: SELECT bereich, toleranz, spannweite, median, gesperrt, erstellt_am FROM eichung WHERE lauf_id=38
+        ('bericht', 1.219, 0.119, 4.54, 0, '2026-09-22T13:46:29.422+00:00')
+        ('eingang', 1.15, 0.038, 2.41, 0, '2026-09-22T13:46:29.423+00:00')
+        ('planung', 1.216, 0.116, 9.73, 0, '2026-09-22T13:46:29.424+00:00')
+        ('tarife', 1.15, 0.036, 12.11, 0, '2026-09-22T13:46:29.424+00:00')
+        ('zahlen', 1.186, 0.086, 2.9, 0, '2026-09-22T13:46:29.425+00:00')
+=== Ende R69 ===

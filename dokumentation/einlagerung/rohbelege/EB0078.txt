@@ -1,0 +1,156 @@
+EB78 · Schritt 5: Abgleich mit der Fundstellenliste aus BIOTOP-LAGE-01 (AUFBAU FK38, INVENTAR I4/I5)
+Beginn: 2026-09-26 02:21:43 CEST (UTC+0200)
+Ende:   2026-09-26 02:21:44 CEST (UTC+0200)
+Dauer:  0.9 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/biotop-einlagerung/arbeit/s5_fundstellen.py
+--- Inhalt von /root/biotop-einlagerung/arbeit/s5_fundstellen.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-EINLAGERUNG-01 · Schritt 5: Abgleich mit der Fundstellenliste aus BIOTOP-LAGE-01 (Auftrag Schritt 5, Maßstab 4).
+
+Fundstellen (Auslegung Hermes): jede Pfadangabe in
+  (1) AUFBAU-TEIL3-01.md FK38 „Fundstellen“ (Z. 161–265),
+  (2) INVENTAR-TEIL2-01.md I4 „Fassungen und Auftragsdateien“ (Z. 13–127) und I5 „Werke“ (Z. 128–162),
+und zwar absolute Pfade (/root/…, /tmp/…, /usr/…, /etc/…) und Prüfkanal-Adressen (…/_akte/<schlüssel>/laeufe/…).
+Relative Pfade aus FK38 (z. B. `verfassungen/lagerhaus.md`, `tests/drahtwerk.py`) werden gegen /root/biotop gelesen.
+Muster mit Platzhaltern (`<ordner>`, `<Zeit>`, `*`, `{…}`), Kürzungen mit „…“ und Sammelangaben werden auf ihren festen
+Anfang zurückgeführt (Präfixprüfung) und so gekennzeichnet.
+Je Fundstelle: im Paket (Pfad im Manifest KOMPLETT, als Datei, Verweis oder Ordner mit Inhalt), bei Prüfkanal-Adressen
+die Kopie unter root/biotop-einlagerung/paket/dokumentation/pruefkanal/laeufe/…, bei /tmp-Pfaden die Kopie unter
+root/biotop-einlagerung/tmp-belege/…; sonst ausgelassen mit Grund aus den Paketprotokollen, oder NICHT GEFUNDEN (besteht
+auf dem Server nicht). Ausgabe: je Fundstelle eine Zeile, am Ende x von y. Die Liste geht exklusiv nach
+paket/FUNDSTELLEN-ABGLEICH.tsv."""
+import re
+import sys
+from pathlib import Path
+
+E = Path('/root/biotop-einlagerung')
+A = Path('/root/sicherung/biotop-lage-01/ausgabe')
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+QUELLEN = [(A / 'AUFBAU-TEIL3-01.md', 161, 265, 'AUFBAU FK38'), (A / 'INVENTAR-TEIL2-01.md', 13, 127, 'INVENTAR I4'),
+           (A / 'INVENTAR-TEIL2-01.md', 128, 162, 'INVENTAR I5')]
+MANI = E / 'paket' / 'MANIFEST-KOMPLETT.tsv'
+
+pfade = {}
+for datei, von, bis, name in QUELLEN:
+    z = datei.read_text(encoding='utf-8').splitlines()[von - 1:bis]
+    for i, zeile in enumerate(z, von):
+        for m in re.finditer(r'https://milieulux-reinigung-muenchen\.de/_akte/[0-9a-z]+/laeufe(/[^\s`|)\],;]*)?', zeile):
+            rel = (m.group(1) or '/').lstrip('/')
+            pfade.setdefault(('PK', rel.rstrip('.')), []).append(f'{name} Z. {i}')
+        for m in re.finditer(r'(?<![\w/.-])(/(?:root|tmp|usr|etc)/[^\s`|)\],;“”„]*)', zeile):
+            p = m.group(1).rstrip('.:')
+            pfade.setdefault(('ABS', p), []).append(f'{name} Z. {i}')
+        if name == 'AUFBAU FK38':
+            for m in re.finditer(r'`((?:verfassungen|tests|biotop|kammer|daten|pruefung)/[^`\s]+)`', zeile):
+                pfade.setdefault(('REL', m.group(1)), []).append(f'{name} Z. {i}')
+
+print(f'Fundstellen (verschiedene Pfadangaben): {len(pfade)} · je Art: '
+      + str({a: sum(1 for k in pfade if k[0] == a) for a in ('ABS', 'PK', 'REL')}))
+
+eintraege = {}
+for z in MANI.read_text(errors='surrogateescape').splitlines():
+    a, x, y, rel = z.split('\t')
+    eintraege['/' + rel.lstrip('./')] = a
+ordner_mit_inhalt = set()
+for p in eintraege:
+    q = p
+    while '/' in q.strip('/'):
+        q = q.rsplit('/', 1)[0]
+        ordner_mit_inhalt.add(q)
+prot = []
+for f in sorted((E / 'paket').glob('protokoll-*.txt')):
+    prot += f.read_text(errors='surrogateescape').splitlines()
+
+
+def fest(p: str) -> tuple:
+    """Fester Anfang eines Musters; zweites Feld: Kennzeichen, ob gekürzt/Muster."""
+    roh = p
+    for zeichen in ('<', '*', '{', '…', '$'):
+        if zeichen in p:
+            p = p.split(zeichen)[0]
+    p = p.rstrip('/-_') if p != roh else p.rstrip('/')
+    return p, p != roh.rstrip('/')
+
+
+def im_paket(p: str, muster: bool):
+    if p in eintraege:
+        return {'D': 'Ordner', 'F': 'Datei', 'L': 'Verweis', 'S': 'Sonderdatei'}[eintraege[p]]
+    if p in ordner_mit_inhalt:
+        return 'Ordner'
+    if muster:
+        treffer = [q for q in eintraege if q.startswith(p)]
+        if treffer:
+            return f'Muster: {len(treffer)} Einträge mit diesem Anfang'
+    return None
+
+
+def ausgelassen(p: str):
+    for z in prot:
+        if z.startswith('AUSGELASSEN') and (z.endswith(': ' + p) or (': ' + p + '/') in z or z.split(': ', 1)[-1].startswith(p + ' ')):
+            return z.split(': ', 1)[0].replace('AUSGELASSEN ', '')
+        if z.startswith('AUSGELASSEN') and p.startswith(z.rsplit(': ', 1)[-1] + '/'):
+            return z.split(': ', 1)[0].replace('AUSGELASSEN ', '') + ' (Elternordner)'
+    return None
+
+
+zeilen, im, aus, nicht, fehlt = [], 0, 0, 0, 0
+for (art, p), orte in sorted(pfade.items()):
+    if art == 'PK':
+        f, mu = fest(p)
+        ziel = '/root/biotop-einlagerung/paket/dokumentation/pruefkanal/laeufe' + ('/' + f if f else '')
+        name = f'Prüfkanal laeufe/{p}'
+        vorhanden = True
+    elif art == 'REL':
+        f, mu = fest(p)
+        ziel = '/root/biotop/' + f
+        name = f'/root/biotop/{p} (relativ in FK38)'
+        vorhanden = Path(ziel).exists()
+    else:
+        f, mu = fest(p)
+        ziel = f
+        name = p
+        if f.startswith('/tmp/'):
+            kopie = '/root/biotop-einlagerung/tmp-belege/' + f[len('/tmp/'):]
+            if im_paket(kopie.rstrip('/'), mu):
+                ziel = kopie.rstrip('/')
+        vorhanden = Path(f).exists() or Path(ziel).exists()
+    ergebnis = im_paket(ziel.rstrip('/'), mu)
+    if ergebnis:
+        stand, grund = 'IM PAKET', f'{ergebnis}: {ziel}'
+        im += 1
+    else:
+        g = ausgelassen(ziel.rstrip('/')) or ausgelassen(f.rstrip('/'))
+        if g:
+            stand, grund = 'AUSGELASSEN', g
+            aus += 1
+        elif not vorhanden:
+            stand, grund = 'NICHT GEFUNDEN', 'besteht auf dem Server nicht (weder Original noch Kopie)'
+            nicht += 1
+        else:
+            stand, grund = 'FEHLT', 'besteht, aber weder im Paket noch mit Grund ausgelassen'
+            fehlt += 1
+    zeilen.append((stand, name, grund, '; '.join(orte[:3]) + (' …' if len(orte) > 3 else ''), 'Muster/gekürzt' if mu else ''))
+
+y = len(zeilen)
+text = 'Stand\tFundstelle\tErgebnis bzw. Grund\tQuelle in BIOTOP-LAGE-01\tHinweis\n' + ''.join('\t'.join(z) + '\n' for z in zeilen)
+text = text.replace(K, '<SCHLÜSSEL>')
+ziel = E / 'paket' / 'FUNDSTELLEN-ABGLEICH.tsv'
+with open(ziel, 'x', encoding='utf-8') as fh:
+    fh.write(text)
+for z in zeilen:
+    if z[0] != 'IM PAKET':
+        print('  ' + ' · '.join(z).replace(K, '<SCHLÜSSEL>'))
+print(f'IM PAKET: {im} · AUSGELASSEN mit Grund: {aus} · NICHT GEFUNDEN (besteht nicht): {nicht} · FEHLT: {fehlt} · gesamt {y}')
+print(f'ERGEBNIS: {im + aus + nicht} von {y} Fundstellen im Paket, mit Grund ausgelassen oder nicht vorhanden · ohne Grund fehlend: {fehlt}')
+print(f'Liste: {ziel}')
+--- Ende /root/biotop-einlagerung/arbeit/s5_fundstellen.py ---
+Ausgabe (vollständig, stdout und stderr):
+Fundstellen (verschiedene Pfadangaben): 186 · je Art: {'ABS': 134, 'PK': 48, 'REL': 4}
+  AUSGELASSEN · /root/.hermes/cache/documents · (Zwischenspeicher (Auftrag Schritt 5 (Elternordner) · INVENTAR I4 Z. 15 · 
+  NICHT GEFUNDEN · /tmp/werk-ohne-tests-xf0aaqmv/w · besteht auf dem Server nicht (weder Original noch Kopie) · INVENTAR I5 Z. 136 · 
+IM PAKET: 184 · AUSGELASSEN mit Grund: 1 · NICHT GEFUNDEN (besteht nicht): 1 · FEHLT: 0 · gesamt 186
+ERGEBNIS: 186 von 186 Fundstellen im Paket, mit Grund ausgelassen oder nicht vorhanden · ohne Grund fehlend: 0
+Liste: /root/biotop-einlagerung/paket/FUNDSTELLEN-ABGLEICH.tsv
+=== Ende EB78 ===

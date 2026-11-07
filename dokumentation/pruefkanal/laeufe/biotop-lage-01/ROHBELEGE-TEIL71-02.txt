@@ -1,0 +1,472 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 71 (Teile 4–165 dieses Stands) · enthält R65 bis R67
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R65 · Teil D: Nachprüfungen (Schlüsselname, Ablageorte, Freigabe-Gate, Drahtwerk, Caddy 8642, Ordner, jüngste Runde-6-Dateien)
+Beginn: 2026-09-25 16:22:04 CEST (UTC+0200)
+Ende:   2026-09-25 16:22:04 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 2
+Befehl (wörtlich):
+bash /root/sicherung/biotop-lage-01/entwurf/aufbau/d7_nachpruefung.sh
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/aufbau/d7_nachpruefung.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-LAGE-01 Teil D (nur lesend): Nachprüfungen für FK32/FK34/FK36/FK37/FK38.
+# Nur git grep/git show am Commit 0c2f058, ls, grep in Caddyfile. Kein Import, kein Start, kein Schreiben im Baum.
+C=0c2f058
+G="git -C /root/biotop"
+date '+== Zeitpunkt %Y-%m-%d %H:%M:%S %Z (UTC%z)'
+echo "== 1. Schlüsselname der Anbieterschicht (nur Name, kein Wert)"
+$G grep -n -E "_schluessel\(" $C -- biotop/anbieter/__init__.py
+echo "== 2. Ablageorte im Code: WERKE, ARCHIV, DB_PFAD"
+$G grep -n -E "^(WERKE|ARCHIV|DB_PFAD|LAZARUS)[A-Z_]* *=" $C -- biotop
+echo "== 3. Speicher als Maß im Messgerät? (Treffer 'speicher' in messgeraet.py)"
+$G grep -n -i -E "speicher" $C -- biotop/kern/messgeraet.py || echo "(0 Treffer)"
+echo "== 4. Freigabe-Gate: lauf.freigabe und lauf.abbrechen (Zeilen)"
+$G show $C:biotop/lauf.py | grep -n -E "def freigabe|def abbrechen|uebungswerk|Vollmacht|Philipp|betriebszweck|LaufFehler\(" | head -40
+echo "== 5. Kopf tests/drahtwerk.py (erste 25 Zeilen)"
+$G show $C:tests/drahtwerk.py | head -25
+echo "== 6. Kopf tests/test_verdrahtung.py (erste 20 Zeilen)"
+$G show $C:tests/test_verdrahtung.py | head -20
+echo "== 7. stufe2 am Commit vorhanden?"
+$G ls-tree -r --name-only $C | grep -i stufe2 || echo "(keine Datei mit stufe2 im Namen am Commit)"
+echo "== 8. Oberfläche: Zahl der ELEMENTE-Zuordnungen und Routen im Dienst"
+$G show $C:biotop/oberflaeche.py | grep -c -E '^\s+\("' || true
+$G show $C:biotop/dienst.py | sed -n '8,40p'
+echo "== 9. Caddyfile: Treffer 8642 und reverse_proxy (nur lesen)"
+grep -n -E "8642|reverse_proxy" /etc/caddy/Caddyfile || echo "(keine Treffer)"
+echo "== 10. /root: Ordner mit biotop, uebungswerk, versiegelt, phase-4, reparatur, w7 im Namen (nur Namen)"
+ls -d --time-style='+%Y-%m-%d %H:%M' /root/*biotop* /root/uebungswerk* /root/versiegelt /root/phase-4* /root/reparatur-* /root/w7 2>&1
+echo "== 11. /root/biotop/daten/werke (Namen) und daten/lazarus (Anzahl Dateien)"
+ls /root/biotop/daten/werke | tr '\n' ' '; echo
+echo "lazarus-Dateien: $(ls /root/biotop/daten/lazarus | wc -l)"; ls /root/biotop/daten/lazarus | head -3
+echo "== 12. Runde 6: jüngste Dateien in /root/biotop-vor-t4-06/bau (Name, Größe, Zeit; 15 neueste)"
+ls -lt --time-style='+%Y-%m-%d %H:%M:%S' /root/biotop-vor-t4-06/bau | head -16
+echo "== 13. Kammer-Sperrdatei"
+ls -ld /tmp/biotop-kammer-exklusiv 2>&1
+--- Ende /root/sicherung/biotop-lage-01/entwurf/aufbau/d7_nachpruefung.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== Zeitpunkt 2026-09-25 16:22:04 CEST (UTC+0200)
+== 1. Schlüsselname der Anbieterschicht (nur Name, kein Wert)
+0c2f058:biotop/anbieter/__init__.py:75:def _schluessel(name: str) -> str:
+0c2f058:biotop/anbieter/__init__.py:101:        self.key = _schluessel("OPENROUTER_API_KEY")
+== 2. Ablageorte im Code: WERKE, ARCHIV, DB_PFAD
+0c2f058:biotop/kern/datenbank.py:16:DB_PFAD = Path(os.environ.get("BIOTOP_DB", "/root/biotop/daten/biotop.db"))
+0c2f058:biotop/organe/aufnahme.py:21:WERKE = Path("/root/biotop/daten/werke")
+0c2f058:biotop/organe/lazarus.py:24:ARCHIV = Path("/root/biotop/daten/lazarus")
+== 3. Speicher als Maß im Messgerät? (Treffer 'speicher' in messgeraet.py)
+0c2f058:biotop/kern/messgeraet.py:21:  bauzeit_ms, zyklen. Speicher: nicht gemessen (Liste für danach).
+0c2f058:biotop/kern/messgeraet.py:501:    (Vorgabe Laufzeit × 2, Speicher/Bauzeit/Zyklen +25 %). `tausch` z. B. {"laufzeit_faktor": 2,
+== 4. Freigabe-Gate: lauf.freigabe und lauf.abbrechen (Zeilen)
+3:Generalprobe → Pareto → Schnappschuss → Freigabe durch Philipp).
+20:class LaufFehler(RuntimeError):
+27:        raise LaufFehler(f"Lauf {lauf_id} unbekannt")
+62:        raise LaufFehler(meld)
+69:        raise LaufFehler(f"Messgerät fehlt — Lauf {lauf_id} gestoppt, 0 Generationen gestartet. {e}") from e
+95:        raise LaufFehler(f"Referenzlast für {werk['name']}/{paket} fehlt im Kern — ohne sie kein Grenzmaß Laufzeit (laut scheitern)")
+100:        raise LaufFehler(f"Ausgangsmessung ungültig: {mess['grund']}")
+103:        raise LaufFehler("Verfassung des Werks fehlt (3.3 F2) — vor dem Maß einlegen: biotop verfassung <lauf> <datei.md> <regeln.json>")
+130:            raise LaufFehler(str(e)) from e
+163:        raise LaufFehler(str(e)) from e
+197:        raise LaufFehler(f"Lauf {lauf_id} ist im Zustand {lauf['status']}, nicht bereit")
+200:        raise LaufFehler(f"Generation {offen['nummer']} wartet auf Freigabe durch Philipp")
+220:        raise LaufFehler("Vorspann: alle Bereiche gesperrt — kein Kandidat wird erzeugt")
+516:def abbrechen(con: sqlite3.Connection, lauf_id: int, grund: str, von: str, art: str = "satz2") -> dict:
+553:def freigabe(con: sqlite3.Connection, lauf_id: int, nummer: int, entscheidung: str, grund: str, von: str) -> dict:
+554:    """Philipp gibt frei oder lehnt ab. Ablehnung → Rückkehr zur Vorgeneration (Lazarus), Grund ins Gedächtnis."""
+557:        raise LaufFehler(f"Generation {nummer} ist nicht vorgelegt (Status: {g['status'] if g else 'fehlt'})")
+560:    uebungswerk = bool(((verf or {}).get("regeln") or {}).get("uebungswerk"))
+561:    if entscheidung == "frei" and not von.lower().startswith("philipp") and not uebungswerk:
+562:        raise LaufFehler("Freigabe eines Werks mit Betriebszweck nur durch Philipp (Abschnitt 4 F2) — Vollmacht gilt nur für Übungswerke")
+563:    vollmacht = "Vollmacht Abschnitt 4 F2 (Übungswerk ohne Betriebszweck, Verfassung regeln.uebungswerk=true)" if (uebungswerk and not von.lower().startswith("philipp")) else None
+588:                    (f"Philipp: {grund}", lauf_id, nummer))
+800:        raise LaufFehler(str(e)) from e
+821:                raise LaufFehler("Generation 0: " + rp["grund"] + "; Ergänzung zurückgenommen")
+832:            raise LaufFehler(str(e)) from e
+840:        raise LaufFehler(str(e)) from e
+== 5. Kopf tests/drahtwerk.py (erste 25 Zeilen)
+"""Drahtwerk: kleinstes TypeScript-Werk, an dem ein ganzer Lauf jedes Organ erreicht.
+
+Aufbau, mit Begründung je Teil (der Vorspann verlangt vier bestandene Eichproben und vier Gegenproben):
+- src/beta/wert.ts   halb(x) zuerst, plus(a,b) zuletzt: halb ist die numerische Einparameterfunktion der
+                     Normprobe; plus ist die letzte numerische Funktion, die die Nebenwirkungs- und die
+                     Regressionsprobe in B beschädigen.
+- src/alpha/liste.ts summen(werte: number[]) (Array-Rückgabe für den privaten Defekt der Nebenwirkungsprobe,
+                     rein, ohne beta) und gesamt(werte) über beta.plus (Verbraucher für die Regressionsprobe).
+                     Der Import aus beta macht alpha zum Vertragsverbraucher. `ungenutzt` ist toter Code, den
+                     zwei Schwarmkandidaten gleich gut entfernen — Gleichstand, also Jury.
+- tests/test_alpha.test.ts: summen([]) (Leereingang-Verbraucherzeuge der Vertragsprobe), zwei Tests, die der
+                     private Defekt bricht, ein Test auf gesamt, den der Eingriff in B bricht. Damit sinkt alpha
+                     in der Nebenwirkungsprobe von 2 auf 1 fallende Tests, während beta steigt.
+- tests/test_beta.test.ts prüft plus und halb genau.
+- Vorbedingung 7 (T4): `an(werte, i)` in beta greift mit variablem Index zu — die Regel
+  `security/detect-object-injection` schlägt damit im SAUBEREN Bereich an. Die Maßeichung legt sie still; der
+  Verdrahtungstest verlangt, dass die gespeicherte Messung der Generation die Regel stillgelegt trägt (Wirkung, nicht
+  nur Aufruf) und dass der Schwarm sie nicht als Befund vorgelegt bekommt (geeicht lesen). `an` steht zuletzt und hat
+  einen Feldparameter — die Eichproben wählen weiter halb (erste) und plus (letzte reine Zahlenfunktion).
+- `gesamt_leer_falsch()`: eine Variante, die neben dem toten Code auch gesamt([]) von 0 auf −1 ändert. Kein Test und
+  keine Referenzlast ruft gesamt([]) — nur der Randfall-Korpus des Verhaltensvergleichs sieht es. Der Lauf muss sie
+  mit „Verhaltensvergleich:“ ablehnen (Laufweg-Test einer ungedeckten Abweichung).
+- tests/vertraege/test_vertrag_alpha_beta.test.ts expliziter Grenzvertrag (zählt zu beta).
+- Referenzlast: last_alpha/last_beta mit Arbeit im Bereich einiger zehn Millisekunden (sonst sperrt die
+  Rauschmessung, wie in T3 gemessen), beobachten() als Verhaltensraster.
+== 6. Kopf tests/test_verdrahtung.py (erste 20 Zeilen)
+"""Verdrahtungsnachweis: Jedes Organ unter biotop/organe/ muss in einem echten Lauf aufgerufen werden.
+
+Anlass (T3, Lauf 38): `verhaltensvergleich` und `masseichung` waren gebaut, mit 18 grünen Tests belegt und gegen
+das Modul gegengeprüft — und von keinem Laufpfad aufgerufen. Die Regel „eine Zählstelle, die buchen kann, ist
+nicht ein Lauf, der bucht" stand schon in den Notizen; sie hat zweimal nicht gereicht. Deshalb ein Test statt einer
+Regel: Ein Organ, das existiert und nie gerufen wird, macht die Regression rot.
+
+Wie: Ein vollständiger Lauf über die Befehlszeile, wie ihn die Laufskripte fahren (lauf anlegen → einlegen →
+verfassung → vertraege → kartieren → vorspann → gen0 → mass → generation → freigabe), am kleinsten Prüfwerk
+(tests/drahtwerk.py). Vorher wird jede Funktion jedes Organmoduls mit einem Aufzeichner umhüllt; die Organliste
+kommt aus dem Verzeichnis, ein neues Organ ist also automatisch erfasst.
+
+Grenzen des Nachspiels, alle an der Grenze und nicht am Organ:
+- Kammer: echt (Docker, netzlos, Image biotop-kammer:ts1).
+- Anbieter: ersetzt durch eine gestellte Grenze, die feste Texte liefert (0 Token, 0 €). Netz ist gesperrt
+  (conftest). Zwei Schwarmantworten entfernen dieselbe tote Funktion — gleich gut, also entscheidet die Jury.
+- Ablageorte (Werke, Lazarus-Archiv, Referenzlast, Datenbank) liegen im Testverzeichnis: Ein Nachspiel darf
+  keinen echten Schnappschuss überschreiben (lauf1-gen0 gibt es in daten/lazarus schon).
+"""
+from __future__ import annotations
+== 7. stufe2 am Commit vorhanden?
+biotop/kern/referenzlast/versandwerk-t3-02.stufe2.mjs
+== 8. Oberfläche: Zahl der ELEMENTE-Zuordnungen und Routen im Dienst
+0
+  POST /anmelden                      {name, kennwort} → {token}
+  GET  /laeufe                        alle Läufe
+  GET  /laeufe/<id>                   Lauf mit Maß und Kasse
+  GET  /laeufe/<id>/generationen      Generationen mit Maßen
+  GET  /laeufe/<id>/kandidaten        Kandidaten
+  GET  /laeufe/<id>/kasse             Kassenstand
+  GET  /laeufe/<id>/lazarus           Schnappschüsse
+  GET  /werke                         Werke
+  GET  /werke/<id>/landkarte          Landkarte (Stufen 0–3, Straßen, Verträge)
+  GET  /protokoll                     Protokoll (letzte 200)
+"""
+
+from __future__ import annotations
+
+import json
+import re
+import sys
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+from .kern import anmeldung, kasse, protokoll
+from .kern.datenbank import lj, verbinden
+from . import lauf as L
+from . import oberflaeche
+from .organe import entropie, gedaechtnis, mentor, verfassung
+
+ROUTEN = [
+    ("GET", r"^/$"),  # Oberfläche (HTML); ohne Token wird nur die Anmeldemaske geliefert, alle Daten-Routen bleiben 401
+    ("POST", r"^/anmelden$"),
+    ("POST", r"^/laeufe/(\d+)/abbrechen$"),   # Pflicht, nie gesperrt (F5 Abschnitt 5)
+    ("POST", r"^/laeufe/(\d+)/freigabe$"),
+    ("POST", r"^/laeufe/(\d+)/richtung$"),
+    ("GET", r"^/laeufe/(\d+)/vorlage$"),
+    ("GET", r"^/laeufe/(\d+)/entropie$"),
+== 9. Caddyfile: Treffer 8642 und reverse_proxy (nur lesen)
+8:#   - reverse_proxy zeigt auf 127.0.0.1:3000 statt auf den Containernamen
+185:	reverse_proxy 127.0.0.1:3000 {
+== 10. /root: Ordner mit biotop, uebungswerk, versiegelt, phase-4, reparatur, w7 im Namen (nur Namen)
+/root/biotop
+/root/biotop-einstieg-20260921-0122
+/root/biotop-t3
+/root/biotop-vor-t4
+/root/biotop-vor-t4-02
+/root/biotop-vor-t4-03
+/root/biotop-vor-t4-04
+/root/biotop-vor-t4-05
+/root/biotop-vor-t4-06
+/root/phase-4-vorbedingung-1
+/root/reparatur-01
+/root/reparatur-02
+/root/uebungswerk
+/root/uebungswerk-nachlauf
+/root/uebungswerk-p2
+/root/uebungswerk-p3
+/root/uebungswerk-p3b
+/root/uebungswerk-p3c
+/root/uebungswerk-p3d
+/root/uebungswerk2
+/root/versiegelt
+/root/w7
+== 11. /root/biotop/daten/werke (Namen) und daten/lazarus (Anzahl Dateien)
+lagerhaus lagerhaus-c-25 lagerhaus-kasse lagerhaus-kasse2 lagerhaus-kasse3 lagerhaus-nachlauf lagerhaus-nachlauf2 lagerhaus-nachlauf8 lagerhaus-nachlauf9 lagerhaus-ohne-tests lagerhaus-p2 lagerhaus-p2-13 lagerhaus-p3-14 lagerhaus-p3-15 lagerhaus-p3-16 lagerhaus-p3-18 lagerhaus-p3-19 lagerhaus-p3-20 lagerhaus-p3-22 lagerhaus-zeile8-24 logmuehle-17 logmuehle-23 versandwerk-t3-02 
+lazarus-Dateien: 93
+lauf1-gen0.tar.gz
+lauf10-gen0.tar.gz
+lauf10-gen1.tar.gz
+== 12. Runde 6: jüngste Dateien in /root/biotop-vor-t4-06/bau (Name, Größe, Zeit; 15 neueste)
+total 2796
+-rw-r--r-- 1 root root  22240 2026-09-25 16:14:01 S1C-PLAN.md
+-rw-r--r-- 1 root root    757 2026-09-25 16:13:48 S1C-BAU-C.txt
+-rw-r--r-- 1 root root  48929 2026-09-25 16:13:44 r6_s1c_c.py
+-rw-r--r-- 1 root root   2532 2026-09-25 15:49:37 S1C-BAU-EF.txt
+-rw-r--r-- 1 root root   2253 2026-09-25 15:49:33 r6_s1c_ef_test.py
+-rw-r--r-- 1 root root  14304 2026-09-25 15:48:42 r6_s1c_ef.py
+-rw-r--r-- 1 root root   1928 2026-09-25 15:43:36 S1C-BAU-D.txt
+-rw-r--r-- 1 root root   2124 2026-09-25 15:43:32 r6_s1c_d_n1.py
+-rw-r--r-- 1 root root  10720 2026-09-25 15:42:33 r6_s1c_d.py
+-rw-r--r-- 1 root root   2043 2026-09-25 15:34:01 S1C-BAU-AB.txt
+-rw-r--r-- 1 root root   7145 2026-09-25 15:33:46 r6_s1c_ab.py
+-rw-r--r-- 1 root root   6714 2026-09-25 15:18:53 S1C-BAU-SPEZ.txt
+-rw-r--r-- 1 root root   5613 2026-09-25 15:18:49 r6_s1c_spez_n6.py
+-rw-r--r-- 1 root root   7871 2026-09-25 15:12:57 r6_s1c_spez_n5.py
+-rw-r--r-- 1 root root  20158 2026-09-25 14:49:05 S1-VORHER-EINORDNUNG.md
+== 13. Kammer-Sperrdatei
+ls: cannot access '/tmp/biotop-kammer-exklusiv': No such file or directory
+=== Ende R65 ===
+
+
+R66 · Teil E: Maß-Bestätigung und Freigabe je Lauf aus laeufe.csv
+Beginn: 2026-09-25 16:23:05 CEST (UTC+0200)
+Ende:   2026-09-25 16:23:05 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/soll-ist/e1_mass_freigabe.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/soll-ist/e1_mass_freigabe.py (wörtlich) ---
+#!/usr/bin/env python3
+"""Teil E (SOLL-IST), nur lesend: aus arbeit/kasse/laeufe.csv je Lauf Zweig, id, werk_id, Budget, Status,
+Beginn, das Feld „bestaetigt_von“ des eingefrorenen Maßes und den Anfang der Felder „richtung“ und „freigabe“.
+Zweck: Belege für MP3.5 (Maß bestätigt von wem), MP4 (Freigabe/Vollmacht) und MP10 (Philipp entscheidet).
+Schreibt nichts."""
+import csv
+import json
+import sys
+
+csv.field_size_limit(sys.maxsize)
+PFAD = '/root/sicherung/biotop-lage-01/arbeit/kasse/laeufe.csv'
+
+with open(PFAD, newline='', encoding='utf-8') as f:
+    zeilen = list(csv.DictReader(f, delimiter=';'))
+
+print(f'Zeilen gesamt: {len(zeilen)}')
+zweige = {}
+for z in zeilen:
+    zweige[z['zweig']] = zweige.get(z['zweig'], 0) + 1
+print('Zeilen je Zweig:', zweige)
+print()
+print('zweig;id;werk_id;budget_eur;status;begonnen_am;mass.bestaetigt_von;richtung[:90];freigabe[:160]')
+for z in zeilen:
+    try:
+        mass = json.loads(z['mass']) if z['mass'] else {}
+    except json.JSONDecodeError:
+        mass = {'bestaetigt_von': '(mass nicht als JSON lesbar)'}
+    bv = mass.get('bestaetigt_von', '') if isinstance(mass, dict) else ''
+    richtung = (z.get('richtung') or '').replace('\n', ' ')[:90]
+    freigabe = (z.get('freigabe') or '').replace('\n', ' ')[:160]
+    print(f"{z['zweig']};{z['id']};{z['werk_id']};{z['budget_eur']};{z['status']};{z['begonnen_am'][:19]};"
+          f"{bv};{richtung};{freigabe}")
+--- Ende /root/sicherung/biotop-lage-01/entwurf/soll-ist/e1_mass_freigabe.py ---
+Ausgabe (vollständig, stdout und stderr):
+Zeilen gesamt: 115
+Zeilen je Zweig: {'STAMM': 25, 'VB1': 26, 'R02': 26, 'T3': 38}
+
+zweig;id;werk_id;budget_eur;status;begonnen_am;mass.bestaetigt_von;richtung[:90];freigabe[:160]
+STAMM;1;1;30.0;abgebrochen;2026-09-18T21:40:42;Philipp (Auftrag 18.09.2026: Maß laut Masterprompt 3.5 harte Maße; Kernmaß-Formel Entscheidung Hermes);;
+STAMM;2;1;30.0;bereit;2026-09-18T21:44:49;Vorschlag Hermes 18.09.2026 (Bestätigung Philipp offen; Toleranz groesste_funktion 25 %);;
+STAMM;3;;1.0;gestoppt;2026-09-18T22:04:12;;;
+STAMM;4;3;0.1;abgebrochen;2026-09-18T22:04:51;Hermes (Kassenprobe);;
+STAMM;5;4;0.1;abgebrochen;2026-09-18T22:11:45;Hermes (Kassenprobe 2);;
+STAMM;6;5;5.0;abgebrochen;2026-09-18T22:48:35;Masterprompt v2 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2;;
+STAMM;7;6;3.0;abgebrochen;2026-09-18T23:20:20;Masterprompt v2 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2;;
+STAMM;8;7;2.0;abgebrochen;2026-09-18T23:33:13;Masterprompt v2 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2;;
+STAMM;9;8;2.0;beendet;2026-09-18T23:53:36;Masterprompt v2 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2;;
+STAMM;10;9;0.1;abgebrochen;2026-09-19T00:09:20;Masterprompt v2 3.5;;
+STAMM;11;;0.05;angelegt;2026-09-19T00:28:44;;;
+STAMM;12;10;10.0;abgebrochen;2026-09-19T00:41:55;Masterprompt v3 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2; groesste_funktion absolut 60;;
+STAMM;13;11;8.0;beendet;2026-09-19T01:47:07;Masterprompt v3 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2; groesste_funktion absolut 60;;
+STAMM;14;12;1.0;verworfen;2026-09-19T11:03:07;Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2; Grenzmaße gegen Bestwert des Laufs; groesste_funktion absolut 60;;
+STAMM;15;13;1.0;verworfen;2026-09-19T11:09:10;Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2; Grenzmaße gegen Bestwert des Laufs; groesste_funktion absolut 60;;
+STAMM;16;14;3.0;verworfen;2026-09-19T11:26:06;Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2; Grenzmaße gegen Bestwert des Laufs; groesste_funktion absolut 60;{"_verweise_eigenes_werk": [], "_verweise_werkuebergreifend": [], "artgedaechtnis": [], "a;
+STAMM;17;15;3.0;gesaettigt;2026-09-19T11:55:34;Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Verfassung logmuehle Satz 2; Grenzmaße gegen Bestwert des Laufs; groesste_funktion absolut 60;{"artgedaechtnis": [], "aufwand_generationen": 2, "bereiche": ["filtern"], "ertrag": "Kern;
+STAMM;18;16;3.0;verworfen;2026-09-19T14:41:03;Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Norm-Regel 3.7 in der Fassung Philipp 19.09.2026; Grenzmasse gegen Bestwert des Laufs;{"_verweise_eigenes_werk": [], "_verweise_werkuebergreifend": [], "artgedaechtnis": [], "a;
+STAMM;19;17;3.0;verworfen;2026-09-19T15:06:18;Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Norm-Regel 3.7 in der Fassung Philipp 19.09.2026; Grenzmasse gegen Bestwert des Laufs;{"_verweise_eigenes_werk": ["A376", "A375", "A372", "A371", "A370", "A369", "A368", "A379";
+STAMM;20;18;3.0;gesaettigt;2026-09-19T15:40:05;Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Norm-Regel 3.7 in der Fassung Philipp 19.09.2026; Grenzmasse gegen Bestwert des Laufs;{"_verweise_eigenes_werk": ["A437", "A436", "A427", "A426", "A428", "A429", "A430", "A431";
+STAMM;21;18;1.0;verworfen;2026-09-19T20:34:21;Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Norm-Regel 3.7 in der Fassung Philipp 19.09.2026; Grenzmasse gegen Bestwert des Laufs;;
+STAMM;22;19;3.0;gesaettigt;2026-09-19T20:57:41;Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Norm-Regel 3.7 in der Fassung Philipp 19.09.2026; Grenzmasse gegen Bestwert des Laufs;{"_verweise_eigenes_werk": ["A15", "A454"], "_verweise_werkuebergreifend": ["A597", "A569";
+STAMM;23;20;2.0;gesaettigt;2026-09-19T21:32:55;Masterprompt v5 Abschnitt 3.5 (Messlauf Artgedaechtnis-Muster);{"_verweise_eigenes_werk": ["A311", "A331"], "_verweise_werkuebergreifend": ["A359", "A249;
+STAMM;24;21;1.5;bereit;2026-09-19T22:57:49;Masterprompt v6 Abschnitt 3.5 (Messlauf Tor 2 Zeile 8);{"_verweise_eigenes_werk": ["A33"], "_verweise_werkuebergreifend": [], "artgedaechtnis": [;
+STAMM;25;22;0.8;bereit;2026-09-20T01:13:30;Masterprompt Lauf 25 (Aufnahmesperre C im laufenden Betrieb);{"_verweise_eigenes_werk": ["A33", "A651"], "_verweise_werkuebergreifend": [], "artgedaech;
+VB1;1;1;30.0;abgebrochen;2026-09-18T21:40:42;Philipp (Auftrag 18.09.2026: Maß laut Masterprompt 3.5 harte Maße; Kernmaß-Formel Entscheidung Hermes);;
+VB1;2;1;30.0;bereit;2026-09-18T21:44:49;Vorschlag Hermes 18.09.2026 (Bestätigung Philipp offen; Toleranz groesste_funktion 25 %);;
+VB1;3;;1.0;gestoppt;2026-09-18T22:04:12;;;
+VB1;4;3;0.1;abgebrochen;2026-09-18T22:04:51;Hermes (Kassenprobe);;
+VB1;5;4;0.1;abgebrochen;2026-09-18T22:11:45;Hermes (Kassenprobe 2);;
+VB1;6;5;5.0;abgebrochen;2026-09-18T22:48:35;Masterprompt v2 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2;;
+VB1;7;6;3.0;abgebrochen;2026-09-18T23:20:20;Masterprompt v2 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2;;
+VB1;8;7;2.0;abgebrochen;2026-09-18T23:33:13;Masterprompt v2 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2;;
+VB1;9;8;2.0;beendet;2026-09-18T23:53:36;Masterprompt v2 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2;;
+VB1;10;9;0.1;abgebrochen;2026-09-19T00:09:20;Masterprompt v2 3.5;;
+VB1;11;;0.05;angelegt;2026-09-19T00:28:44;;;
+VB1;12;10;10.0;abgebrochen;2026-09-19T00:41:55;Masterprompt v3 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2; groesste_funktion absolut 60;;
+VB1;13;11;8.0;beendet;2026-09-19T01:47:07;Masterprompt v3 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2; groesste_funktion absolut 60;;
+VB1;14;12;1.0;verworfen;2026-09-19T11:03:07;Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2; Grenzmaße gegen Bestwert des Laufs; groesste_funktion absolut 60;;
+VB1;15;13;1.0;verworfen;2026-09-19T11:09:10;Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2; Grenzmaße gegen Bestwert des Laufs; groesste_funktion absolut 60;;
+VB1;16;14;3.0;verworfen;2026-09-19T11:26:06;Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2; Grenzmaße gegen Bestwert des Laufs; groesste_funktion absolut 60;{"_verweise_eigenes_werk": [], "_verweise_werkuebergreifend": [], "artgedaechtnis": [], "a;
+VB1;17;15;3.0;gesaettigt;2026-09-19T11:55:34;Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Verfassung logmuehle Satz 2; Grenzmaße gegen Bestwert des Laufs; groesste_funktion absolut 60;{"artgedaechtnis": [], "aufwand_generationen": 2, "bereiche": ["filtern"], "ertrag": "Kern;
+VB1;18;16;3.0;verworfen;2026-09-19T14:41:03;Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Norm-Regel 3.7 in der Fassung Philipp 19.09.2026; Grenzmasse gegen Bestwert des Laufs;{"_verweise_eigenes_werk": [], "_verweise_werkuebergreifend": [], "artgedaechtnis": [], "a;
+VB1;19;17;3.0;verworfen;2026-09-19T15:06:18;Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Norm-Regel 3.7 in der Fassung Philipp 19.09.2026; Grenzmasse gegen Bestwert des Laufs;{"_verweise_eigenes_werk": ["A376", "A375", "A372", "A371", "A370", "A369", "A368", "A379";
+VB1;20;18;3.0;gesaettigt;2026-09-19T15:40:05;Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Norm-Regel 3.7 in der Fassung Philipp 19.09.2026; Grenzmasse gegen Bestwert des Laufs;{"_verweise_eigenes_werk": ["A437", "A436", "A427", "A426", "A428", "A429", "A430", "A431";
+VB1;21;18;1.0;verworfen;2026-09-19T20:34:21;Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Norm-Regel 3.7 in der Fassung Philipp 19.09.2026; Grenzmasse gegen Bestwert des Laufs;;
+VB1;22;19;3.0;gesaettigt;2026-09-19T20:57:41;Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Norm-Regel 3.7 in der Fassung Philipp 19.09.2026; Grenzmasse gegen Bestwert des Laufs;{"_verweise_eigenes_werk": ["A15", "A454"], "_verweise_werkuebergreifend": ["A597", "A569";
+VB1;23;20;2.0;gesaettigt;2026-09-19T21:32:55;Masterprompt v5 Abschnitt 3.5 (Messlauf Artgedaechtnis-Muster);{"_verweise_eigenes_werk": ["A311", "A331"], "_verweise_werkuebergreifend": ["A359", "A249;
+VB1;24;21;1.5;bereit;2026-09-19T22:57:49;Masterprompt v6 Abschnitt 3.5 (Messlauf Tor 2 Zeile 8);{"_verweise_eigenes_werk": ["A33"], "_verweise_werkuebergreifend": [], "artgedaechtnis": [;
+VB1;25;22;0.8;bereit;2026-09-20T01:13:30;Masterprompt Lauf 25 (Aufnahmesperre C im laufenden Betrieb);{"_verweise_eigenes_werk": ["A33", "A651"], "_verweise_werkuebergreifend": [], "artgedaech;
+VB1;26;23;3.0;gesaettigt;2026-09-20T19:31:54;Hermes unter Übungswerk-Vollmacht;{"_verweise_eigenes_werk": ["A175", "A141", "A249", "A6"], "_verweise_werkuebergreifend": ;
+R02;1;1;30.0;abgebrochen;2026-09-18T21:40:42;Philipp (Auftrag 18.09.2026: Maß laut Masterprompt 3.5 harte Maße; Kernmaß-Formel Entscheidung Hermes);;
+R02;2;1;30.0;bereit;2026-09-18T21:44:49;Vorschlag Hermes 18.09.2026 (Bestätigung Philipp offen; Toleranz groesste_funktion 25 %);;
+R02;3;;1.0;gestoppt;2026-09-18T22:04:12;;;
+R02;4;3;0.1;abgebrochen;2026-09-18T22:04:51;Hermes (Kassenprobe);;
+R02;5;4;0.1;abgebrochen;2026-09-18T22:11:45;Hermes (Kassenprobe 2);;
+R02;6;5;5.0;abgebrochen;2026-09-18T22:48:35;Masterprompt v2 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2;;
+R02;7;6;3.0;abgebrochen;2026-09-18T23:20:20;Masterprompt v2 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2;;
+R02;8;7;2.0;abgebrochen;2026-09-18T23:33:13;Masterprompt v2 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2;;
+R02;9;8;2.0;beendet;2026-09-18T23:53:36;Masterprompt v2 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2;;
+R02;10;9;0.1;abgebrochen;2026-09-19T00:09:20;Masterprompt v2 3.5;;
+R02;11;;0.05;angelegt;2026-09-19T00:28:44;;;
+R02;12;10;10.0;abgebrochen;2026-09-19T00:41:55;Masterprompt v3 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2; groesste_funktion absolut 60;;
+R02;13;11;8.0;beendet;2026-09-19T01:47:07;Masterprompt v3 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2; groesste_funktion absolut 60;;
+R02;14;12;1.0;verworfen;2026-09-19T11:03:07;Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2; Grenzmaße gegen Bestwert des Laufs; groesste_funktion absolut 60;;
+R02;15;13;1.0;verworfen;2026-09-19T11:09:10;Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2; Grenzmaße gegen Bestwert des Laufs; groesste_funktion absolut 60;;
+R02;16;14;3.0;verworfen;2026-09-19T11:26:06;Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2; Grenzmaße gegen Bestwert des Laufs; groesste_funktion absolut 60;{"_verweise_eigenes_werk": [], "_verweise_werkuebergreifend": [], "artgedaechtnis": [], "a;
+R02;17;15;3.0;gesaettigt;2026-09-19T11:55:34;Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Verfassung logmuehle Satz 2; Grenzmaße gegen Bestwert des Laufs; groesste_funktion absolut 60;{"artgedaechtnis": [], "aufwand_generationen": 2, "bereiche": ["filtern"], "ertrag": "Kern;
+R02;18;16;3.0;verworfen;2026-09-19T14:41:03;Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Norm-Regel 3.7 in der Fassung Philipp 19.09.2026; Grenzmasse gegen Bestwert des Laufs;{"_verweise_eigenes_werk": [], "_verweise_werkuebergreifend": [], "artgedaechtnis": [], "a;
+R02;19;17;3.0;verworfen;2026-09-19T15:06:18;Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Norm-Regel 3.7 in der Fassung Philipp 19.09.2026; Grenzmasse gegen Bestwert des Laufs;{"_verweise_eigenes_werk": ["A376", "A375", "A372", "A371", "A370", "A369", "A368", "A379";
+R02;20;18;3.0;gesaettigt;2026-09-19T15:40:05;Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Norm-Regel 3.7 in der Fassung Philipp 19.09.2026; Grenzmasse gegen Bestwert des Laufs;{"_verweise_eigenes_werk": ["A437", "A436", "A427", "A426", "A428", "A429", "A430", "A431";
+R02;21;18;1.0;verworfen;2026-09-19T20:34:21;Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Norm-Regel 3.7 in der Fassung Philipp 19.09.2026; Grenzmasse gegen Bestwert des Laufs;;
+R02;22;19;3.0;gesaettigt;2026-09-19T20:57:41;Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Norm-Regel 3.7 in der Fassung Philipp 19.09.2026; Grenzmasse gegen Bestwert des Laufs;{"_verweise_eigenes_werk": ["A15", "A454"], "_verweise_werkuebergreifend": ["A597", "A569";
+R02;23;20;2.0;gesaettigt;2026-09-19T21:32:55;Masterprompt v5 Abschnitt 3.5 (Messlauf Artgedaechtnis-Muster);{"_verweise_eigenes_werk": ["A311", "A331"], "_verweise_werkuebergreifend": ["A359", "A249;
+R02;24;21;1.5;bereit;2026-09-19T22:57:49;Masterprompt v6 Abschnitt 3.5 (Messlauf Tor 2 Zeile 8);{"_verweise_eigenes_werk": ["A33"], "_verweise_werkuebergreifend": [], "artgedaechtnis": [;
+R02;25;22;0.8;bereit;2026-09-20T01:13:30;Masterprompt Lauf 25 (Aufnahmesperre C im laufenden Betrieb);{"_verweise_eigenes_werk": ["A33", "A651"], "_verweise_werkuebergreifend": [], "artgedaech;
+R02;26;22;0.0;kartiert;2026-09-20T18:42:07;;;
+T3;1;1;30.0;abgebrochen;2026-09-18T21:40:42;Philipp (Auftrag 18.09.2026: Maß laut Masterprompt 3.5 harte Maße; Kernmaß-Formel Entscheidung Hermes);;
+T3;2;1;30.0;bereit;2026-09-18T21:44:49;Vorschlag Hermes 18.09.2026 (Bestätigung Philipp offen; Toleranz groesste_funktion 25 %);;
+T3;3;;1.0;gestoppt;2026-09-18T22:04:12;;;
+T3;4;3;0.1;abgebrochen;2026-09-18T22:04:51;Hermes (Kassenprobe);;
+T3;5;4;0.1;abgebrochen;2026-09-18T22:11:45;Hermes (Kassenprobe 2);;
+T3;6;5;5.0;abgebrochen;2026-09-18T22:48:35;Masterprompt v2 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2;;
+T3;7;6;3.0;abgebrochen;2026-09-18T23:20:20;Masterprompt v2 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2;;
+T3;8;7;2.0;abgebrochen;2026-09-18T23:33:13;Masterprompt v2 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2;;
+T3;9;8;2.0;beendet;2026-09-18T23:53:36;Masterprompt v2 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2;;
+T3;10;9;0.1;abgebrochen;2026-09-19T00:09:20;Masterprompt v2 3.5;;
+T3;11;;0.05;angelegt;2026-09-19T00:28:44;;;
+T3;12;10;10.0;abgebrochen;2026-09-19T00:41:55;Masterprompt v3 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2; groesste_funktion absolut 60;;
+T3;13;11;8.0;beendet;2026-09-19T01:47:07;Masterprompt v3 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2; groesste_funktion absolut 60;;
+T3;14;12;1.0;verworfen;2026-09-19T11:03:07;Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2; Grenzmaße gegen Bestwert des Laufs; groesste_funktion absolut 60;;
+T3;15;13;1.0;verworfen;2026-09-19T11:09:10;Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2; Grenzmaße gegen Bestwert des Laufs; groesste_funktion absolut 60;;
+T3;16;14;3.0;verworfen;2026-09-19T11:26:06;Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2; Grenzmaße gegen Bestwert des Laufs; groesste_funktion absolut 60;{"_verweise_eigenes_werk": [], "_verweise_werkuebergreifend": [], "artgedaechtnis": [], "a;
+T3;17;15;3.0;gesaettigt;2026-09-19T11:55:34;Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Verfassung logmuehle Satz 2; Grenzmaße gegen Bestwert des Laufs; groesste_funktion absolut 60;{"artgedaechtnis": [], "aufwand_generationen": 2, "bereiche": ["filtern"], "ertrag": "Kern;
+T3;18;16;3.0;verworfen;2026-09-19T14:41:03;Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Norm-Regel 3.7 in der Fassung Philipp 19.09.2026; Grenzmasse gegen Bestwert des Laufs;{"_verweise_eigenes_werk": [], "_verweise_werkuebergreifend": [], "artgedaechtnis": [], "a;
+T3;19;17;3.0;verworfen;2026-09-19T15:06:18;Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Norm-Regel 3.7 in der Fassung Philipp 19.09.2026; Grenzmasse gegen Bestwert des Laufs;{"_verweise_eigenes_werk": ["A376", "A375", "A372", "A371", "A370", "A369", "A368", "A379";
+T3;20;18;3.0;gesaettigt;2026-09-19T15:40:05;Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Norm-Regel 3.7 in der Fassung Philipp 19.09.2026; Grenzmasse gegen Bestwert des Laufs;{"_verweise_eigenes_werk": ["A437", "A436", "A427", "A426", "A428", "A429", "A430", "A431";
+T3;21;18;1.0;verworfen;2026-09-19T20:34:21;Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Norm-Regel 3.7 in der Fassung Philipp 19.09.2026; Grenzmasse gegen Bestwert des Laufs;;
+T3;22;19;3.0;gesaettigt;2026-09-19T20:57:41;Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Norm-Regel 3.7 in der Fassung Philipp 19.09.2026; Grenzmasse gegen Bestwert des Laufs;{"_verweise_eigenes_werk": ["A15", "A454"], "_verweise_werkuebergreifend": ["A597", "A569";
+T3;23;20;2.0;gesaettigt;2026-09-19T21:32:55;Masterprompt v5 Abschnitt 3.5 (Messlauf Artgedaechtnis-Muster);{"_verweise_eigenes_werk": ["A311", "A331"], "_verweise_werkuebergreifend": ["A359", "A249;
+T3;24;21;1.5;bereit;2026-09-19T22:57:49;Masterprompt v6 Abschnitt 3.5 (Messlauf Tor 2 Zeile 8);{"_verweise_eigenes_werk": ["A33"], "_verweise_werkuebergreifend": [], "artgedaechtnis": [;
+T3;25;22;0.8;bereit;2026-09-20T01:13:30;Masterprompt Lauf 25 (Aufnahmesperre C im laufenden Betrieb);{"_verweise_eigenes_werk": ["A33", "A651"], "_verweise_werkuebergreifend": [], "artgedaech;
+T3;26;23;10.0;kartiert;2026-09-21T03:43:38;;;
+T3;27;23;10.0;kartiert;2026-09-21T03:48:08;;;
+T3;28;23;10.0;kartiert;2026-09-21T04:05:27;;;
+T3;29;23;10.0;kartiert;2026-09-21T04:35:14;;;
+T3;30;23;10.0;kartiert;2026-09-21T05:34:47;;;
+T3;31;23;10.0;laeuft;2026-09-21T11:11:04;Philipp;;
+T3;32;23;10.0;laeuft;2026-09-21T13:19:35;Philipp;;
+T3;33;23;10.0;kartiert;2026-09-21T16:23:15;;;
+T3;34;23;10.0;kartiert;2026-09-21T16:45:51;;;
+T3;35;23;10.0;kartiert;2026-09-21T17:15:24;;;
+T3;36;23;10.0;laeuft;2026-09-21T18:25:59;Philipp;;
+T3;37;23;10.0;gesaettigt;2026-09-21T22:21:06;Philipp;;
+T3;38;23;10.0;bereit;2026-09-22T13:42:49;Philipp;;
+=== Ende R66 ===
+
+
+R67 · Teil E: Pflichtbestandteile Abschnitt 9 je Biotop-Ordner aus i3.json
+Beginn: 2026-09-25 16:23:06 CEST (UTC+0200)
+Ende:   2026-09-25 16:23:06 CEST (UTC+0200)
+Dauer:  0.0 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/soll-ist/e2_pflichtdateien.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/soll-ist/e2_pflichtdateien.py (wörtlich) ---
+#!/usr/bin/env python3
+"""Teil E (SOLL-IST), nur lesend: Pflichtbestandteile nach Masterprompt v8 Abschnitt 9 je Biotop-Ordner im
+Prüfkanal, aus arbeit/inventar/i3.json (erzeugt von R26). Geprüft je Ordner, nur oberste Ebene:
+BERICHT.md (auch BERICHT-*.md), KASSE.md (auch KASSE-*.md), Unterordner ausgaben/, werk/, biotop/,
+ZWISCHENBERICHT*.md, DATEIEN*.txt, PRUEFSUMME*.txt. Zählt je Bestandteil „x von y Ordnern“.
+Schreibt nichts."""
+import json
+
+PFAD = '/root/sicherung/biotop-lage-01/arbeit/inventar/i3.json'
+daten = json.load(open(PFAD, encoding='utf-8'))
+ordner = [o for o in daten if o['ordner'] != 'gedaechtnis']
+
+
+def hat_datei(o, praefix, endung):
+    return any(n.startswith(praefix) and n.endswith(endung) for n, _ in o['oben'])
+
+
+pruef = {
+    'BERICHT.md': lambda o: hat_datei(o, 'BERICHT', '.md'),
+    'KASSE.md': lambda o: hat_datei(o, 'KASSE', '.md'),
+    'ausgaben/': lambda o: 'ausgaben' in o['erste_ebene'],
+    'werk/': lambda o: 'werk' in o['erste_ebene'],
+    'biotop/': lambda o: 'biotop' in o['erste_ebene'],
+    'ZWISCHENBERICHT*.md': lambda o: hat_datei(o, 'ZWISCHENBERICHT', '.md') or any(
+        e.startswith('zwischen') for e in o['erste_ebene']),
+    'DATEIEN*.txt': lambda o: hat_datei(o, 'DATEIEN', '.txt'),
+    'PRUEFSUMME*.txt': lambda o: hat_datei(o, 'PRUEFSUMME', '.txt'),
+}
+print(f'Quelle: {PFAD}; Ordner ohne gedaechtnis: {len(ordner)}')
+kopf = ['ordner'] + list(pruef)
+print(';'.join(kopf))
+summen = {k: 0 for k in pruef}
+for o in ordner:
+    werte = []
+    for k, f in pruef.items():
+        ja = f(o)
+        summen[k] += ja
+        werte.append('ja' if ja else 'nein')
+    print(';'.join([o['ordner']] + werte))
+print()
+for k, v in summen.items():
+    print(f'{k}: {v} von {len(ordner)} Ordnern')
+--- Ende /root/sicherung/biotop-lage-01/entwurf/soll-ist/e2_pflichtdateien.py ---
+Ausgabe (vollständig, stdout und stderr):
+Quelle: /root/sicherung/biotop-lage-01/arbeit/inventar/i3.json; Ordner ohne gedaechtnis: 19
+ordner;BERICHT.md;KASSE.md;ausgaben/;werk/;biotop/;ZWISCHENBERICHT*.md;DATEIEN*.txt;PRUEFSUMME*.txt
+biotop-gesamtstand;ja;ja;ja;ja;ja;ja;ja;ja
+biotop-lage-01;nein;nein;nein;nein;nein;nein;nein;nein
+biotop-phase-1;ja;ja;ja;ja;ja;nein;ja;ja
+biotop-phase-1-nachlauf;ja;ja;ja;ja;ja;nein;ja;ja
+biotop-phase-2;ja;ja;ja;ja;ja;nein;ja;ja
+biotop-phase-3;ja;ja;ja;ja;ja;nein;ja;ja
+biotop-phase-3-nachlauf;ja;ja;ja;ja;ja;nein;ja;ja
+biotop-phase-4-einstieg-20260921-01;nein;ja;nein;nein;nein;ja;ja;ja
+biotop-phase-4-vorbedingung-1;ja;ja;ja;ja;ja;nein;ja;ja
+biotop-reparatur-01;nein;ja;ja;nein;ja;ja;ja;ja
+biotop-reparatur-02;nein;ja;nein;nein;nein;ja;ja;ja
+biotop-t3-typescript;ja;ja;ja;ja;ja;ja;ja;nein
+biotop-vor-t4;ja;ja;nein;nein;nein;ja;ja;ja
+biotop-vor-t4-02;ja;ja;nein;nein;nein;ja;ja;ja
+biotop-vor-t4-03;ja;ja;nein;nein;nein;ja;ja;ja
+biotop-vor-t4-04;ja;ja;nein;nein;nein;ja;ja;ja
+biotop-vor-t4-05;ja;ja;nein;nein;nein;ja;ja;ja
+biotop-vor-t4-06;nein;nein;nein;nein;nein;ja;nein;nein
+biotop-wiedereinstieg-2026-09-20-01;nein;ja;nein;nein;nein;ja;ja;ja
+
+BERICHT.md: 13 von 19 Ordnern
+KASSE.md: 17 von 19 Ordnern
+ausgaben/: 9 von 19 Ordnern
+werk/: 8 von 19 Ordnern
+biotop/: 9 von 19 Ordnern
+ZWISCHENBERICHT*.md: 12 von 19 Ordnern
+DATEIEN*.txt: 17 von 19 Ordnern
+PRUEFSUMME*.txt: 16 von 19 Ordnern
+=== Ende R67 ===

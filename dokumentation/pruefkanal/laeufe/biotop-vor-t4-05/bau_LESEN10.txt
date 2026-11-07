@@ -1,0 +1,78 @@
+=== Tests mit echtem Lauf (cli.main generation)
+tests/test_verdrahtung.py
+=== test_nachspiel*
+=== nachspiel-Tests (grep vorbereiten/spielen)
+tests/test_vor_t4_04.py:471:def test_nachspiel_vorbereiten_import_ueberschreibt_keine_variable():
+tests/test_vor_t4_04.py:472:    """Fehler in 1d9a5aa: `from .organe import eichung` in nachspiel.vorbereiten band den Namen der Maßeichung des Falls
+=== speicherwerk Kopf
+"""Python-Prüfwerk „speicherwerk“ (Behebungsrunde 2 vor T4): kleinstes Python-Werk, an dem die Python-Sonde des
+Verhaltensvergleichs durch den Annahmepfad (aegis.pruefen) geprüft wird — Gegenprobe des Auftrags: „an einem
+Python-Prüfwerk scheitert ein eingebauter Zwischenspeicher-Fehler“.
+
+- speicherwerk/zahlen/statistik.py: `summe(werte)`, `spannweite(werte)` — rein, sortieren eine Kopie.
+- speicherwerk/text/format.py: `normieren(text)` — Weißraumfolgen (auch Tab/Zeilenumbruch) zu einem Leerzeichen.
+- Referenzlast: last_zahlen/last_text (Arbeit im Bereich einiger Millisekunden), beobachten() als Raster.
+- Kandidat ZWISCHENSPEICHER (Nische schnell): `spannweite` merkt sich das Ergebnis an der REFERENZ der Liste
+  (id(werte)) — nach einer Änderung an Ort und Stelle liefert sie das alte Ergebnis (T3-Muster K2934/K3121: 8 statt 80).
+  Gegenprobe: derselbe Speicher, aber am INHALT (tuple(werte)) — verhaltensgleich.
+- Kandidat WEISSRAUM: `normieren` nur noch für Leerzeichen — Tab und Zeilenumbruch bleiben stehen (T3-Muster K2868).
+  Kein Test und keine Referenzlast nutzt Tab: nur die Formvarianten des Korpus sehen es.
+Kein Modell, keine Netzwirkung; die Kammer ist das Python-Image biotop-kammer:1.
+"""
+from __future__ import annotations
+
+import difflib
+
+PAKET = "speicherwerk"
+STATISTIK = '''"""Kleine Statistik über Zahlenlisten."""
+
+
+def summe(werte: list[float]) -> float:
+    """Summe aller Werte (leere Liste: 0)."""
+    s = 0.0
+    for w in werte:
+        s += w
+    return s
+
+
+=== lazarus ARCHIV / schnappschuss
+def schnappschuss(con: sqlite3.Connection, lauf_id: int, generation: int, werk: Path, masse: dict) -> dict:
+    sicherstellen_repo(werk)
+    tag = f"lauf{lauf_id}-gen{generation}"
+    _git(werk, "add", "-A")
+    st = _git(werk, "status", "--porcelain")
+    if st:
+        _git(werk, "commit", "-qm", f"Biotop Lauf {lauf_id} Generation {generation}")
+    _git(werk, "tag", "-f", tag)
+    ps, n = pruefsumme_werk(werk)
+    ARCHIV.mkdir(parents=True, exist_ok=True)
+    archiv = ARCHIV / f"{tag}.tar.gz"
+    with tarfile.open(archiv, "w:gz") as t:
+        for p in sorted(werk.rglob("*")):
+            if p.is_file() and not any(x in AUSSCHLUSS for x in p.parts) and not p.name.startswith(".env"):
+                t.add(p, arcname=str(p.relative_to(werk)))
+    with transaktion(con):
+        con.execute(
+            "INSERT INTO lazarus(lauf_id, generation, tag, archiv, pruefsumme, masse, erstellt_am) VALUES (?,?,?,?,?,?,?) "
+            "ON CONFLICT(lauf_id, generation) DO UPDATE SET tag=excluded.tag, archiv=excluded.archiv, pruefsumme=excluded.pruefsumme, "
+            "masse=excluded.masse, erstellt_am=excluded.erstellt_am",
+            (lauf_id, generation, tag, str(archiv), ps, j(masse), protokoll.jetzt()))
+    protokoll.schreiben(con, "lazarus.schnappschuss", lauf_id=lauf_id, generation=generation, tag=tag, pruefsumme=ps, dateien=n)
+    return {"tag": tag, "pruefsumme": ps, "dateien": n, "archiv": str(archiv)}
+
+
+=== vorspann_nachweise Schema
+23:    con.execute("""CREATE TABLE IF NOT EXISTS vorspann_nachweise (
+24-        lauf_id INTEGER PRIMARY KEY, status TEXT NOT NULL, ergebnis TEXT,
+25-        nachweis_sha256 TEXT, protokoll_nr INTEGER, mass_sha256 TEXT)""")
+26-
+--
+128:        if con.execute('SELECT 1 FROM vorspann_nachweise WHERE lauf_id=?', (lauf_id,)).fetchone():
+129-            raise _fehler(lauf_id, 'bereits ein Eichversuch unter dieser ID')
+130:        con.execute("INSERT INTO vorspann_nachweise(lauf_id,status) VALUES(?,'laeuft')", (lauf_id,))
+131-    r = {'lauf_id':lauf_id, 'generation':-1, 'erstellt_am':protokoll.jetzt(),
+132-         'regel':'F6 3.5; Verfassungssatz 2: neues Messgerät verlangt neuen Lauf'}
+133-    try:
+--
+=== teillauf
+.....

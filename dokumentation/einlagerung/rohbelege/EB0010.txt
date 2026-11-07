@@ -1,0 +1,84 @@
+EB10 · Schritt 1: Zwischenbericht-Wächter auf BIOTOP-EINLAGERUNG-01 umstellen
+Beginn: 2026-09-25 23:47:38 CEST (UTC+0200)
+Ende:   2026-09-25 23:47:38 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/biotop-einlagerung/arbeit/waechter_setzen.py einlagerung
+--- Inhalt von /root/biotop-einlagerung/arbeit/waechter_setzen.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-EINLAGERUNG-01 · Zwischenbericht-Wächter umstellen: auftrag.json auf <fassung> setzen.
+Sicherung vorher: EB4 (vorher/auftrag.json.vor-biotop-einlagerung-01 und ~/.hermes/zwischenbericht/auftrag.json.vor-biotop-einlagerung-01).
+Fassungen:
+  einlagerung — Zwischenberichte dieses Auftrags nach laeufe/biotop-einlagerung-01/, Übergabe dieses Auftrags.
+                „repos“ bleibt leer (Entscheidung Hermes): der Wächter ruft `git status` ohne --no-optional-locks, das
+                würde den Index von /root/biotop schreiben; der Git-Stand steht in den Rohbelegen und der Übergabe.
+  geloest     — Wächter vom Biotop gelöst (Schritt 8): kein Auftrag, keine Übergabe, keine Repos, keine Arbeitsordner;
+                ein künftiger Zwischenbericht ginge nach laeufe/zwischenberichte/ (kein Biotop-Ordner).
+Geschrieben wird eine neue Datei, dann os.replace (atomar); die vorige Fassung wird vorher unter
+/root/biotop-einlagerung/vorher/auftrag.json.vor-<fassung> exklusiv gesichert."""
+import hashlib
+import json
+import os
+import sys
+from pathlib import Path
+
+FASSUNGEN = {
+    'einlagerung': {"auftrag": "biotop-einlagerung-01", "uebergabe": ["/root/biotop-einlagerung/UEBERGABE.md"],
+                    "repos": [], "arbeitsordner": ["/root/biotop-einlagerung/arbeit", "/root/biotop-einlagerung/ausgabe"],
+                    "ausschluss": []},
+    'geloest': {"auftrag": "zwischenberichte", "uebergabe": [], "repos": [], "arbeitsordner": [], "ausschluss": []},
+}
+f = sys.argv[1]
+Z = Path('/root/.hermes/zwischenbericht/auftrag.json')
+alt = Z.read_bytes()
+sich = Path(f'/root/biotop-einlagerung/vorher/auftrag.json.vor-{f}')
+fd = os.open(sich, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+with os.fdopen(fd, 'wb') as h:
+    h.write(alt)
+neu = (json.dumps(FASSUNGEN[f], ensure_ascii=False, indent=1) + '\n').encode()
+tmp = Z.with_name('auftrag.json.neu-einlagerung')
+fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+with os.fdopen(fd, 'wb') as h:
+    h.write(neu)
+json.loads(tmp.read_text())
+os.replace(tmp, Z)
+print(f'vorher: SHA-256 {hashlib.sha256(alt).hexdigest()} · gesichert als {sich}')
+print(alt.decode())
+print(f'nachher ({f}): SHA-256 {hashlib.sha256(Z.read_bytes()).hexdigest()}')
+print(Z.read_text())
+--- Ende /root/biotop-einlagerung/arbeit/waechter_setzen.py ---
+Ausgabe (vollständig, stdout und stderr):
+vorher: SHA-256 e6b91328fed4470f531fbe8a1c27ca3dbead9de9cc90a43d958b6ebc3737cb9f · gesichert als /root/biotop-einlagerung/vorher/auftrag.json.vor-einlagerung
+{
+ "auftrag": "biotop-vor-t4-06",
+ "uebergabe": [
+  "/root/biotop-vor-t4-06/UEBERGABE.md"
+ ],
+ "repos": [
+  "/root/biotop"
+ ],
+ "arbeitsordner": [
+  "/root/biotop-vor-t4-06",
+  "/root/biotop/biotop",
+  "/root/biotop/tests",
+  "/root/biotop/pruefung"
+ ],
+ "ausschluss": []
+}
+
+nachher (einlagerung): SHA-256 e126e0831601299598975b1501a7db5a7e7e5576faf570d871213f9b4c3d82f5
+{
+ "auftrag": "biotop-einlagerung-01",
+ "uebergabe": [
+  "/root/biotop-einlagerung/UEBERGABE.md"
+ ],
+ "repos": [],
+ "arbeitsordner": [
+  "/root/biotop-einlagerung/arbeit",
+  "/root/biotop-einlagerung/ausgabe"
+ ],
+ "ausschluss": []
+}
+
+=== Ende EB10 ===

@@ -1,0 +1,93 @@
+EB81 · Schritt 6.6: Regression mit Kammer im entpackten Stand (Befehl Runde 5: tests/ -m 'not integration')
+Beginn: 2026-09-26 02:29:25 CEST (UTC+0200)
+Ende:   2026-09-26 03:10:55 CEST (UTC+0200)
+Dauer:  2490.5 s
+Exit-Code: 1
+Befehl (wörtlich):
+bash /root/biotop-einlagerung/arbeit/s6_probe.sh test /root/biotop-einlagerung/probe/entpackt /root/biotop-einlagerung/probe/entpackt/root/biotop /root/biotop-einlagerung/probe-belege/lauf-entpackt tests/ -m 'not integration'
+--- Inhalt von /root/biotop-einlagerung/arbeit/s6_probe.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-EINLAGERUNG-01 · Schritt 6: Außenteil der Probe. Aufruf wie s6_innen.sh:
+#   s6_probe.sh <modus> <baum> <biotop-quelle> <ausgabeordner> [<pytest-argumente …>]
+# Vorher/nachher außen: Einhängungen des Wirts, Container, Marke; nachher: jede Datei der Originale, die jünger als die
+# Marke ist (find -newer; /root/.hermes ausgenommen, dort schreibt Hermes laufend) — muss leer sein.
+set -u
+modus=$1; baum=$2; bquelle=$3; aus=$4
+mkdir -p "$aus"
+M=$aus/MARKE; : > "$M"; sleep 1
+echo "== vorher (außen) $(date '+%Y-%m-%d %H:%M:%S %Z')"
+echo "Einhängungen unter /root und /tmp: $(findmnt -rn -o TARGET | grep -c -E '^/root|^/tmp')"
+echo "Container (alle): $(docker ps -aq | wc -l)"
+chmod 755 /root/biotop-einlagerung/arbeit/probe-bin/docker /root/biotop-einlagerung/arbeit/s6_innen.sh
+unshare --mount --net --propagation private --fork bash /root/biotop-einlagerung/arbeit/s6_innen.sh "$@"
+rc=$?
+echo "unshare rc=$rc"
+echo "== nachher (außen) $(date '+%Y-%m-%d %H:%M:%S %Z')"
+echo "Einhängungen unter /root und /tmp: $(findmnt -rn -o TARGET | grep -c -E '^/root|^/tmp')"
+echo "Container (alle): $(docker ps -aq | wc -l) · davon biotop-*: $(docker ps -a --format '{{.Names}}' | grep -c '^biotop-')"
+O="/root/biotop /root/biotop-t3 /root/biotop-vor-t4 /root/biotop-vor-t4-02 /root/biotop-vor-t4-03 /root/biotop-vor-t4-04 /root/biotop-vor-t4-05 /root/biotop-vor-t4-06 /root/phase-4-vorbedingung-1 /root/reparatur-01 /root/reparatur-02 /root/gesamtstand-01 /root/wiedereinstieg-01 /root/biotop-einstieg-20260921-0122 /root/traeger-umstellung-2026-09-20_22-32-03Z /root/uebungswerk /root/uebungswerk2 /root/uebungswerk-nachlauf /root/uebungswerk-p2 /root/uebungswerk-p3 /root/uebungswerk-p3b /root/uebungswerk-p3c /root/uebungswerk-p3d /root/versandwerk-t3 /root/versandwerk-t3-02 /root/versiegelt /root/w7 /root/sicherung/biotop-lage-01"
+n=$(find $O -newer "$M" 2>/dev/null | wc -l)
+echo "Dateien/Ordner der Originale jünger als die Marke: $n"
+find $O -newer "$M" 2>/dev/null | head -20 | sed 's/^/  /'
+exit $rc
+--- Ende /root/biotop-einlagerung/arbeit/s6_probe.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== vorher (außen) 2026-09-26 02:29:26 CEST
+Einhängungen unter /root und /tmp: 0
+Container (alle): 0
+== Abschottung (innen) 2026-09-26 02:29:26 CEST
+Biotop-Ordner durch Kopien ersetzt: 28 · /root/biotop ← /root/biotop-einlagerung/probe/entpackt/root/biotop
+Netz im Namensraum: lo (nur Loopback erwartet; maßgeblich ist der Verbindungsversuch)
+Verbindung ('1.1.1.1', 443) nicht möglich: OSError
+Verbindung ('openrouter.ai', 443) nicht möglich: gaierror
+Verbindung ('212.227.7.117', 443) nicht möglich: OSError
+/root/.hermes/.env: 0 Bytes lesbar (0 = verdeckt)
+/root/.hermes/auth.json: 0 Bytes lesbar (0 = verdeckt)
+Docker-Dienst erreichbar: 29.1.3
+Wächter vorn im PATH: /root/biotop-einlagerung/arbeit/probe-bin/docker
+Inode /root/biotop/daten/biotop.db innen: 2687686 · Inode der Quelle: 2687686
+HEAD innen: e8401af HEAD -> einlagerung/runde-6-stand, tag: eingelagert-20260925
+Einhängungen unter /root und /tmp:
+  /root/biotop-einstieg-20260921-0122 /dev/vda1[/root/biotop-einlagerung/probe/entpackt/root/biotop-einstieg-20260921-0122]
+  /root/biotop-t3 /dev/vda1[/root/biotop-einlagerung/probe/entpackt/root/biotop-t3]
+  /root/biotop-vor-t4-02 /dev/vda1[/root/biotop-einlagerung/probe/entpackt/root/biotop-vor-t4-02]
+  /root/biotop-vor-t4-03 /dev/vda1[/root/biotop-einlagerung/probe/entpackt/root/biotop-vor-t4-03]
+  /root/biotop-vor-t4-04 /dev/vda1[/root/biotop-einlagerung/probe/entpackt/root/biotop-vor-t4-04]
+  /root/biotop-vor-t4-05 /dev/vda1[/root/biotop-einlagerung/probe/entpackt/root/biotop-vor-t4-05]
+  /root/biotop-vor-t4-06 /dev/vda1[/root/biotop-einlagerung/probe/entpackt/root/biotop-vor-t4-06]
+  /root/biotop-vor-t4 /dev/vda1[/root/biotop-einlagerung/probe/entpackt/root/biotop-vor-t4]
+  /root/biotop /dev/vda1[/root/biotop-einlagerung/probe/entpackt/root/biotop]
+  /root/gesamtstand-01 /dev/vda1[/root/biotop-einlagerung/probe/entpackt/root/gesamtstand-01]
+  /root/phase-4-vorbedingung-1 /dev/vda1[/root/biotop-einlagerung/probe/entpackt/root/phase-4-vorbedingung-1]
+  /root/reparatur-01 /dev/vda1[/root/biotop-einlagerung/probe/entpackt/root/reparatur-01]
+  /root/reparatur-02 /dev/vda1[/root/biotop-einlagerung/probe/entpackt/root/reparatur-02]
+  /root/traeger-umstellung-2026-09-20_22-32-03Z /dev/vda1[/root/biotop-einlagerung/probe/entpackt/root/traeger-umstellung-2026-09-20_22-32-03Z]
+  /root/uebungswerk-nachlauf /dev/vda1[/root/biotop-einlagerung/probe/entpackt/root/uebungswerk-nachlauf]
+  /root/uebungswerk-p2 /dev/vda1[/root/biotop-einlagerung/probe/entpackt/root/uebungswerk-p2]
+  /root/uebungswerk-p3 /dev/vda1[/root/biotop-einlagerung/probe/entpackt/root/uebungswerk-p3]
+  /root/uebungswerk-p3b /dev/vda1[/root/biotop-einlagerung/probe/entpackt/root/uebungswerk-p3b]
+  /root/uebungswerk-p3c /dev/vda1[/root/biotop-einlagerung/probe/entpackt/root/uebungswerk-p3c]
+  /root/uebungswerk-p3d /dev/vda1[/root/biotop-einlagerung/probe/entpackt/root/uebungswerk-p3d]
+  /root/uebungswerk /dev/vda1[/root/biotop-einlagerung/probe/entpackt/root/uebungswerk]
+  /root/uebungswerk2 /dev/vda1[/root/biotop-einlagerung/probe/entpackt/root/uebungswerk2]
+  /root/versandwerk-t3-02 /dev/vda1[/root/biotop-einlagerung/probe/entpackt/root/versandwerk-t3-02]
+  /root/versandwerk-t3 /dev/vda1[/root/biotop-einlagerung/probe/entpackt/root/versandwerk-t3]
+  /root/versiegelt /dev/vda1[/root/biotop-einlagerung/probe/entpackt/root/versiegelt]
+  /root/w7 /dev/vda1[/root/biotop-einlagerung/probe/entpackt/root/w7]
+  /root/wiedereinstieg-01 /dev/vda1[/root/biotop-einlagerung/probe/entpackt/root/wiedereinstieg-01]
+  /root/sicherung/biotop-lage-01 /dev/vda1[/root/biotop-einlagerung/probe/entpackt/root/sicherung/biotop-lage-01]
+  /root/.hermes/.env udev[/null]
+  /root/.hermes/.env.sicherung-2026-09-18 udev[/null]
+  /root/.hermes/auth.json udev[/null]
+  /tmp tmpfs
+== Regression 2026-09-26 02:29:26 CEST · TMPDIR=/root/biotop-einlagerung/probe/tmp-lauf-entpackt · Ausgabe /root/biotop-einlagerung/probe-belege/lauf-entpackt
+pytest rc=1 · Dauer 2458 s · Ende 2026-09-26 03:10:24 CEST
+Letzte Zeile: 12 failed, 939 passed, 2 skipped, 93 deselected in 2457.86s (0:40:57)
+docker-Aufrufe über den Wächter: 1418 · davon 'run': 1408 · verweigert (Originalpfad): 0
+0
+unshare rc=1
+== nachher (außen) 2026-09-26 03:10:24 CEST
+Einhängungen unter /root und /tmp: 0
+Container (alle): 0 · davon biotop-*: 0
+Dateien/Ordner der Originale jünger als die Marke: 0
+=== Ende EB81 ===

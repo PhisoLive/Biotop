@@ -1,0 +1,160 @@
+{
+ "mentor_id": 13,
+ "richtungen": [
+  {
+   "name": "Reservierung-Einlösen Verfügbarkeitsprüfung härten",
+   "ziel": "Die zahlreichen offenen Aegis-Funde zu reservierung_einloesen (Überziehung, Ignorieren von Reservierungen, Atomizität) systematisch schließen, sodass Bestand nie unter null fällt und eingelöste Reservierungen nicht weiter zählen.",
+   "ertrag": "Kernmaß lager: schließt ~15 offene Immunfunde (Sicherheitspunkte/Vertragsverstöße), Ziel 0 offene Funde in lager",
+   "risiko": "Berührt lager-internen Vertrag reservierung_einloesen/entnehmen und indirekt test_vertrag_bericht_lager.py; kann Verhalten bei Grenzfällen ändern.",
+   "aufwand_generationen": 3,
+   "bereiche": [
+    "lager"
+   ],
+   "vertraege": [
+    "tests/vertraege/test_vertrag_bericht_lager.py"
+   ],
+   "artgedaechtnis": [],
+   "projektgedaechtnis": [
+    "A33",
+    "A651"
+   ],
+   "nische": "sicher",
+   "_verweise_werkuebergreifend": [],
+   "_verweise_eigenes_werk": [
+    "A33",
+    "A651"
+   ]
+  },
+  {
+   "name": "Journal-Kapselung abdichten",
+   "ziel": "Mutable-Leak- und Encapsulation-Violation-Funde (journal_mutation, mutable_leak) in lager beheben, indem Journal-Einträge und Summen nur über schützende Kopien/Interfaces exponiert werden.",
+   "ertrag": "Kernmaß lager: schließt mehrere offen_norm-Funde (k869, k933, k965), Sicherheitspunkte bleiben 0 statt latentem Risiko",
+   "risiko": "Betrifft internes lager-Interface, potenziell Performance durch Kopien; Vertrag zu bericht/preise falls diese direkt zugreifen.",
+   "aufwand_generationen": 2,
+   "bereiche": [
+    "lager"
+   ],
+   "vertraege": [],
+   "artgedaechtnis": [],
+   "projektgedaechtnis": [
+    "A360",
+    "A11"
+   ],
+   "nische": "sicher",
+   "_verweise_werkuebergreifend": [],
+   "_verweise_eigenes_werk": [
+    "A360",
+    "A11"
+   ]
+  },
+  {
+   "name": "Negative Preise/Rabatte konsequent ablehnen",
+   "ziel": "Die offenen preise-Funde zu negativen Staffel-/Grundpreisen und Rabatten schließen, indem Artikel-Erstellung und Katalogpfad konsistent ValueError werfen, ohne Vertrag zu Formeln zu brechen.",
+   "ertrag": "Kernmaß preise: schließt ~5 offene Funde (k719, k815, k878, k944, k1013), Sicherheitspunkte-Trend stabil bei 0",
+   "risiko": "Frühere Versuche (A652, A653) wurden abgelehnt wegen Nebenwirkungen auf test_vertrag_preise_formeln.py — braucht präzisere Grenzbehandlung dieses Mal.",
+   "aufwand_generationen": 3,
+   "bereiche": [
+    "preise"
+   ],
+   "vertraege": [
+    "tests/vertraege/test_vertrag_preise_formeln.py"
+   ],
+   "artgedaechtnis": [],
+   "projektgedaechtnis": [
+    "A652",
+    "A653",
+    "A454"
+   ],
+   "nische": "sicher",
+   "_verweise_werkuebergreifend": [],
+   "_verweise_eigenes_werk": [
+    "A652",
+    "A653",
+    "A454"
+   ]
+  },
+  {
+   "name": "Laufzeit formeln weiter drücken",
+   "ziel": "Formeln hat mit 118ms die höchste Laufzeit im Werk; verbleibende AST-Walk-Redundanzen bei Validierung/Cache-Miss weiter reduzieren.",
+   "ertrag": "Grenzmaß Laufzeit formeln: erwartete weitere −10-20% ausgehend von bereits erreichten −99%/−64% in früheren Generationen",
+   "risiko": "Nur Cache-Erweiterung, kein Vertragseingriff; Risiko bei zu aggressivem Caching ist Speicherverbrauch, kein funktionaler Bruch.",
+   "aufwand_generationen": 1,
+   "bereiche": [
+    "formeln"
+   ],
+   "vertraege": [],
+   "artgedaechtnis": [
+    "A597",
+    "A569"
+   ],
+   "projektgedaechtnis": [
+    "A175",
+    "A141",
+    "A6"
+   ],
+   "nische": "schnell",
+   "_verweise_werkuebergreifend": [
+    "A597",
+    "A569"
+   ],
+   "_verweise_eigenes_werk": [
+    "A175",
+    "A141",
+    "A6"
+   ]
+  },
+  {
+   "name": "Sättigung anerkennen für bericht",
+   "ziel": "bericht steht bei 0 Fehlschlägen, 0 Sicherheitspunkten, 0 toter Code und niedriger Laufzeit (6.47ms) — Kernmaß am Höchstwert ohne offene Funde.",
+   "ertrag": "Kein weiterer Kernmaßgewinn zu erwarten; Ressourcen sparen für lager/preise, wo offene Funde bestehen.",
+   "risiko": "Keine Berührung; bewusstes Nicht-Handeln vermeidet Umformung ohne Maßgewinn.",
+   "aufwand_generationen": 0,
+   "bereiche": [
+    "bericht"
+   ],
+   "vertraege": [],
+   "artgedaechtnis": [],
+   "projektgedaechtnis": [
+    "A68"
+   ],
+   "nische": "sicher",
+   "_verweise_werkuebergreifend": [],
+   "_verweise_eigenes_werk": [
+    "A68"
+   ]
+  }
+ ],
+ "empfehlung": "Reservierung-Einlösen Verfügbarkeitsprüfung härten",
+ "begruendung": "Die überwältigende Mehrheit der offenen Immunfunde (über 15) betrifft lager/reservierung_einloesen und direkt die Kernkorrektheit (Bestand nie negativ, Reservierung nicht doppelt zählend) — das höchste Gewicht laut Verfassung Punkt 3. Diese Richtung schließt die meisten offenen Funde bei moderatem Aufwand und stützt sich auf bewährte Muster aus A33/A651.",
+ "pruefung": {
+  "anzahl": 5,
+  "anzahl_ok": true,
+  "pflichtfelder_ok": [
+   true,
+   true,
+   true,
+   true,
+   true
+  ],
+  "artgedaechtnis_werkuebergreifend": [
+   "A597",
+   "A569"
+  ],
+  "eigenes_werk_projektgedaechtnis": [
+   "A33",
+   "A651",
+   "A360",
+   "A11",
+   "A652",
+   "A653",
+   "A454",
+   "A175",
+   "A141",
+   "A6",
+   "A68"
+  ],
+  "erfundene_verweise": [],
+  "richtungen_mit_werkuebergreifendem_verweis": 1
+ },
+ "modell": "anthropic/claude-sonnet-5"
+}

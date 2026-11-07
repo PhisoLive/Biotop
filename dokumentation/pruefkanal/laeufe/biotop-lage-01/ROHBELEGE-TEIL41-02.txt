@@ -1,0 +1,170 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 41 (Teile 4–165 dieses Stands) · enthält R40 bis R40
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+[R40 · Fortsetzung, Stück 6 von 6]
+        id INTEGER PRIMARY KEY, werk_id INTEGER, von_bereich TEXT, nach_bereich TEXT, vertrag_pfad TEXT,
+        vertrag_pruefsumme TEXT, begruendung TEXT, versiegelt_am TEXT, abgeloest_am TEXT, abloesegrund TEXT);
+[table eichkosten]
+CREATE TABLE eichkosten (
+        id INTEGER PRIMARY KEY, lauf_id INTEGER, werk_id INTEGER, teil TEXT, kammerlaeufe INTEGER,
+        modellaufrufe INTEGER, kosten_eur REAL, dauer_s REAL, erstellt_am TEXT);
+[table eichung]
+CREATE TABLE eichung (
+        id INTEGER PRIMARY KEY, lauf_id INTEGER, werk_id INTEGER, bereich TEXT, toleranz REAL, spannweite REAL,
+        median REAL, werte TEXT, aussetzer TEXT, nachgemessen INTEGER, gesperrt INTEGER, meldung TEXT, erstellt_am TEXT);
+[table eliten]
+CREATE TABLE eliten (lauf_id INTEGER, nische TEXT, bereich TEXT, kandidat_id INTEGER, generation INTEGER, zuwachs INTEGER,
+        laufzeit_gewinn REAL, diff TEXT, begruendung TEXT, PRIMARY KEY (lauf_id, nische, bereich));
+[table entropie]
+CREATE TABLE entropie (lauf_id INTEGER, generation INTEGER, inhalt TEXT, PRIMARY KEY (lauf_id, generation));
+[table generationen]
+CREATE TABLE generationen (
+  id INTEGER PRIMARY KEY, lauf_id INTEGER, nummer INTEGER, status TEXT,
+  masse TEXT, tag TEXT, pruefsumme TEXT, grund TEXT, erstellt_am TEXT,
+  freigabe_am TEXT, freigabe_grund TEXT, kandidaten TEXT,
+  UNIQUE(lauf_id, nummer));
+[table geschmack]
+CREATE TABLE geschmack (
+  id INTEGER PRIMARY KEY, werk TEXT, lauf_id INTEGER, generation INTEGER, kandidat_id INTEGER, entscheidung TEXT,
+  grund TEXT, von TEXT, merkmale TEXT, quelle TEXT, erstellt_am TEXT, UNIQUE(lauf_id, generation, kandidat_id, quelle));
+[table immunsystem]
+CREATE TABLE immunsystem (
+  id INTEGER PRIMARY KEY, werk_id INTEGER, lauf_id INTEGER, bereich TEXT,
+  name TEXT UNIQUE, code TEXT, ursprung TEXT, status TEXT, erstellt_am TEXT,
+  generation INTEGER);
+[table jury]
+CREATE TABLE jury (id INTEGER PRIMARY KEY, lauf_id INTEGER, generation INTEGER, bereich TEXT, kandidat_a INTEGER, kandidat_b INTEGER,
+        urteile TEXT, einstimmig INTEGER, gewinner INTEGER, erstellt_am TEXT);
+[table kandidaten]
+CREATE TABLE kandidaten (
+  id INTEGER PRIMARY KEY, lauf_id INTEGER, generation INTEGER, bereich TEXT,
+  nische TEXT, anbieter TEXT, modell TEXT, diff TEXT, begruendung TEXT,
+  status TEXT, grund TEXT, masse TEXT, wirkungskreis TEXT, erstellt_am TEXT, vertraege TEXT, ist_probe INTEGER DEFAULT 0);
+[table kasse]
+CREATE TABLE kasse (
+  id INTEGER PRIMARY KEY, lauf_id INTEGER, zeit TEXT, anbieter TEXT,
+  modell TEXT, tokens_ein INTEGER, tokens_aus INTEGER, kosten_eur REAL,
+  zweck TEXT, kontingent INTEGER, protokoll_nr INTEGER);
+[table laeufe]
+CREATE TABLE laeufe (
+  id INTEGER PRIMARY KEY, werk_id INTEGER, budget_eur REAL, status TEXT,
+  begonnen_am TEXT, beendet_am TEXT, mass TEXT, grund TEXT, richtung TEXT,
+  freigabe TEXT);
+[table landkarte]
+CREATE TABLE landkarte (
+  id INTEGER PRIMARY KEY, werk_id INTEGER, stufe INTEGER, schluessel TEXT,
+  inhalt TEXT, pruefsumme TEXT, erstellt_am TEXT, herkunft TEXT,
+  UNIQUE(werk_id, stufe, schluessel));
+[table lazarus]
+CREATE TABLE lazarus (
+  id INTEGER PRIMARY KEY, lauf_id INTEGER, generation INTEGER, tag TEXT,
+  archiv TEXT, pruefsumme TEXT, masse TEXT, erstellt_am TEXT,
+  UNIQUE(lauf_id, generation));
+[table mentor]
+CREATE TABLE mentor (id INTEGER PRIMARY KEY, lauf_id INTEGER, werk_id INTEGER, richtungen TEXT, empfehlung TEXT,
+        begruendung TEXT, modell TEXT, gewaehlt TEXT, gewaehlt_von TEXT, erstellt_am TEXT);
+[table mutanten]
+CREATE TABLE mutanten (id INTEGER PRIMARY KEY, lauf_id INTEGER, werk_id INTEGER, nummer INTEGER, datei TEXT, zeile INTEGER,
+        art TEXT, beschreibung TEXT, code TEXT, quelle TEXT, gefangen_vorher INTEGER, gefangen_nachher INTEGER, gefangen_von TEXT, erstellt_am TEXT);
+[table projektgedaechtnis]
+CREATE TABLE projektgedaechtnis (
+  id INTEGER PRIMARY KEY, werk TEXT, werk_id INTEGER, lauf_id INTEGER, generation INTEGER, kandidat_id INTEGER,
+  bereich TEXT, nische TEXT, dateien TEXT, funktionen TEXT, ansatz TEXT, grund TEXT, grundklasse TEXT, begruendung TEXT, erstellt_am TEXT,
+  UNIQUE(kandidat_id));
+[table protokoll]
+CREATE TABLE protokoll (
+  nr INTEGER PRIMARY KEY, zeit TEXT, art TEXT, inhalt TEXT,
+  hash_vor TEXT, hash TEXT);
+[table strassen]
+CREATE TABLE strassen (
+  id INTEGER PRIMARY KEY, werk_id INTEGER, von TEXT, nach TEXT, art TEXT,
+  UNIQUE(werk_id, von, nach, art));
+[table tokens]
+CREATE TABLE tokens (
+  token_hash TEXT PRIMARY KEY, benutzer TEXT, erstellt_am TEXT);
+[table verfassung_werk]
+CREATE TABLE verfassung_werk (
+  werk_id INTEGER PRIMARY KEY, text TEXT, regeln TEXT, quelle TEXT, eingelegt_am TEXT, eingelegt_von TEXT);
+[table vertraege]
+CREATE TABLE vertraege (
+  id INTEGER PRIMARY KEY, werk_id INTEGER, bereich TEXT, text TEXT,
+  herkunft TEXT, quelle TEXT);
+[table vertraege_explizit]
+CREATE TABLE vertraege_explizit (werk_id INTEGER, von_bereich TEXT, nach_bereich TEXT, pfad TEXT, code TEXT,
+        quelle TEXT, eingelegt_am TEXT, PRIMARY KEY (werk_id, von_bereich, nach_bereich));
+[table werke]
+CREATE TABLE werke (
+  id INTEGER PRIMARY KEY, name TEXT UNIQUE, pfad TEXT, quelle TEXT,
+  aufgenommen_am TEXT, bericht TEXT, sprache TEXT, status TEXT);
+-- STAMM Zeilen je Tabelle:
+   artgedaechtnis: 699
+   bandit: 158
+   benutzer: 1
+   eichgegenstand: 2
+   eichkosten: 11
+   eichung: 25
+   eliten: 34
+   entropie: 43
+   generationen: 144
+   geschmack: 35
+   immunsystem: 379
+   jury: 7
+   kandidaten: 2679
+   kasse: 4070
+   laeufe: 25
+   landkarte: 567
+   lazarus: 70
+   mentor: 13
+   mutanten: 162
+   projektgedaechtnis: 686
+   protokoll: 16030
+   strassen: 279
+   tokens: 4
+   verfassung_werk: 18
+   vertraege: 1222
+   vertraege_explizit: 37
+   werke: 22
+-- T3 /root/biotop-t3/t3.db (mode=ro): Tabellen, die STAMM nicht hat, und abweichende CREATE-Anweisungen
+[nur T3: neutralzaehler]
+CREATE TABLE neutralzaehler (
+        id INTEGER PRIMARY KEY, lauf_id INTEGER NOT NULL, organ TEXT NOT NULL,
+        art TEXT NOT NULL, grund TEXT, einzelheit TEXT, zeit TEXT NOT NULL);
+[nur T3: neutralzaehler_lauf]
+CREATE INDEX neutralzaehler_lauf ON neutralzaehler(lauf_id, organ);
+[nur T3: vorspann_nachweise]
+CREATE TABLE vorspann_nachweise (
+        lauf_id INTEGER PRIMARY KEY, status TEXT NOT NULL, ergebnis TEXT,
+        nachweis_sha256 TEXT, protokoll_nr INTEGER, mass_sha256 TEXT);
+-- T3 Zeilen je Tabelle:
+   artgedaechtnis: 1194
+   bandit: 223
+   benutzer: 1
+   eichgegenstand: 3
+   eichkosten: 127
+   eichung: 85
+   eliten: 67
+   entropie: 75
+   generationen: 184
+   geschmack: 65
+   immunsystem: 411
+   jury: 11
+   kandidaten: 3342
+   kasse: 6673
+   laeufe: 38
+   landkarte: 621
+   lazarus: 93
+   mentor: 13
+   mutanten: 962
+   neutralzaehler: 2613
+   projektgedaechtnis: 1109
+   protokoll: 26448
+   strassen: 355
+   tokens: 4
+   verfassung_werk: 19
+   vertraege: 1365
+   vertraege_explizit: 41
+   vorspann_nachweise: 13
+   werke: 23
+=== Ende R40 ===

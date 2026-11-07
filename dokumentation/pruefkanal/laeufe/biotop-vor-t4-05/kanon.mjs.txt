@@ -1,0 +1,135 @@
+// Kanonische Form beobachteter Werte — gemeinsam für die Verhaltenssonde (verhalten-runner.mjs) und den
+// Aufzeichner der deckenden Tests (deck-setup.mjs), damit beide Seiten Argumente gleich schreiben.
+import {createHash} from 'node:crypto';
+
+export const VERFAELSCHT = Symbol.for('biotop.verfaelscht');
+function nativ(c) {
+  try { return typeof c === 'function' && /\[native code\]\s*\}\s*$/.test(Function.prototype.toString.call(c)); } catch { return false; }
+}
+// Behebungsrunde 5 (Entscheidung 1): Vollständigkeitsprüfung nach jedem Erfassen eines Objekts. Was Object.keys nicht
+// liefert — private Felder (#…), nicht aufzählbare und Symbol-Eigenschaften, interne Daten eingebauter Objekte —, steht
+// in `fehlend`; der Wirt zählt die Funktion dann als Enthaltung, nie als „0 Abweichungen, tragfähig“.
+function vollstaendig(x, fehlend) {
+  if (!fehlend) return;
+  const name = x?.constructor?.name ?? 'Object';
+  const versteckt = Object.getOwnPropertyNames(x).filter(k => !Object.prototype.propertyIsEnumerable.call(x, k));
+  if (versteckt.length) fehlend.push(`${name}: nicht aufzählbare Eigenschaften ${JSON.stringify(versteckt.slice(0, 5))}`);
+  if (Object.getOwnPropertySymbols(x).length) fehlend.push(`${name}: Symbol-Eigenschaften nicht erfasst`);
+  for (let p = Object.getPrototypeOf(x); p && p !== Object.prototype; p = Object.getPrototypeOf(p)) {
+    const k = Object.hasOwn(p, 'constructor') ? p.constructor : null;
+    if (typeof k !== 'function') continue;
+    if (nativ(k)) {
+      if (!Object.keys(x).length) fehlend.push(`${name}: eingebautes Objekt ohne erfassbare Daten`);
+      break;
+    }
+    let src = '';
+    try { src = Function.prototype.toString.call(k); } catch { src = ''; }
+    if (/(^|[\s;{}])(static\s+)?#[A-Za-z_$][\w$]*\s*(=|;|\r?\n)/.test(src)) { fehlend.push(`${name}: private Felder (#…) nicht erfassbar`); break; }
+  }
+}
+export function kan(x, anc, fehlend) {
+  if (x === null) return null;
+  if (x && typeof x === 'object' && x[VERFAELSCHT]) return '__verfaelscht';
+  switch (typeof x) {
+    case 'number':
+      if (Number.isNaN(x)) return '__NaN';
+      if (!Number.isFinite(x)) return x > 0 ? '__Inf' : '__-Inf';
+      return Object.is(x, -0) ? '__-0' : x;
+    case 'string': case 'boolean': return x;
+    case 'undefined': return '__undefined';
+    case 'bigint': return '__big:' + x;
+    case 'function': return '__fn';
+    case 'symbol': return '__sym';
+  }
+  if (anc.has(x)) return '__zyklus';
+  anc.add(x);
+  let r;
+  if (Array.isArray(x)) r = x.map(v => kan(v, anc, fehlend));
+  else if (x instanceof Map) r = {__map: [...x.entries()].map(([k, v]) => [kan(k, anc, fehlend), kan(v, anc, fehlend)])};
+  else if (x instanceof Set) r = {__set: [...x.values()].map(v => kan(v, anc, fehlend))};
+  else if (x instanceof Error) r = {__fehler: x.constructor?.name ?? 'Error', meldung: String(x.message)};
+  else if (x instanceof Date) r = {__datum: x.getTime()};
+  else if (x instanceof RegExp) r = {__regex: String(x)};                                   // Behebungsrunde 5: Werte
+  else if (typeof URL === 'function' && x instanceof URL) r = {__url: x.href};
+  else if (x instanceof ArrayBuffer) r = {__puffer: Array.from(new Uint8Array(x))};
+  else if (ArrayBuffer.isView(x) && !(x instanceof DataView)) r = {__typisiert: x.constructor?.name, werte: Array.from(x)};
+  else { vollstaendig(x, fehlend); r = {}; for (const k of Object.keys(x).sort()) r[k] = kan(x[k], anc, fehlend); }
+  anc.delete(x);
+  return r;
+}
+
+export function knapp(t) {
+  if (t.length <= 200) return t;
+  return t.slice(0, 120) + '…#' + createHash('sha256').update(t).digest('hex').slice(0, 16);
+}
+
+// Ergebnistext eines Aufrufs — genau wie verhalten-runner.mjs/wert() ihn für die Beobachtung bildet.
+export function ergebnisText(v) {
+  if (v && typeof v.then === 'function') return '__promise';
+  try { return knapp(JSON.stringify(kan(v, new Set()))); } catch { return '__unkanonisch'; }
+}
+export function fehlerText(e) { return 'Fehler:' + (e?.constructor?.name ?? 'unbekannt'); }
+export function eingabeText(args) {
+  try { return knapp(JSON.stringify(kan(args, new Set()))); } catch { return '__unkanonisch'; }
+}
+
+// Merkmalsklassen einer Eingabe — dieselben Namen wie kern/py/verhalten.py/klassen_von und die Formarten der Sonde
+// (Deckung je Muster, Entscheidung Chat-Claude 24.09.2026). Leer heißt: gewöhnliche Eingabe.
+const WEISS = /[\t\n\r\v\f\u00a0\u2028\u2029\u3000\u2009]/;
+const WEISS_SONST = /[\v\f\u2028\u2029\u3000\u2009]/;
+// Merkmale einer Zeichenkette — je Formvariante der Sonde ein eigenes Merkmal (Entscheidung Chat-Claude 2,
+// Behebungsrunde 4; Review 03 Nr. 1). Dieselben Namen wie kern/py/verhalten.py::_text_merkmale.
+export function textMerkmale(x) {
+  const m = new Set();
+  const ohneCrlf = x.split('\r\n').join('');
+  if (x.includes('\r\n')) m.add('crlf');
+  if (ohneCrlf.includes('\r')) m.add('cr');
+  if (ohneCrlf.includes('\n')) m.add('zeilenumbruch');
+  if (x.includes('\t')) m.add('tab');
+  if (x.includes('\u00a0')) m.add('nbsp');
+  if (WEISS_SONST.test(x)) m.add('weissraum_sonst');
+  if (x.includes('  ')) m.add('doppelleer');
+  if (x !== x.replace(/^\s+/, '')) m.add('rand_vorn');
+  if (x !== x.replace(/\s+$/, '')) m.add('rand_hinten');
+  if (/\p{Lu}/u.test(x)) m.add('gross');
+  if (/\p{L}/u.test(x) && x === x.toLowerCase() && x !== x.toUpperCase()) m.add('klein');
+  if (/(?<![\d.])0\d/.test(x)) m.add('zahlform_null_vorn');
+  if (/\d\.\d*0(?!\d)/.test(x)) m.add('zahlform_null_hinten');
+  if (x.length >= 40) m.add('lang');
+  if ([...x].some(c => c.charCodeAt(0) > 127 && !WEISS.test(c))) m.add('nichtascii');
+  return m;
+}
+export function klassenVon(werte) {
+  const out = new Set();
+  const geh = (x, t) => {
+    if (t > 6) return;
+    if (x === null || x === undefined) { out.add('null'); return; }
+    if (typeof x === 'boolean') return;
+    if (typeof x === 'number') {
+      if (!Number.isFinite(x)) out.add('nichtendlich');
+      else if (x === 0) out.add('null_zahl');
+      else if (x < 0) out.add('negativ');
+      return;
+    }
+    if (typeof x === 'string') {
+      if (x === '') { out.add('leer'); return; }
+      for (const m of textMerkmale(x)) out.add(m);
+      return;
+    }
+    if (typeof x !== 'object') return;
+    if (Array.isArray(x) || x instanceof Set) {
+      const el = [...x];
+      if (!el.length) out.add('leer');
+      if (el.length >= 20) out.add('lang');
+      for (const v of el.slice(0, 40)) geh(v, t + 1);
+      return;
+    }
+    if (x instanceof Map) { if (!x.size) out.add('leer'); for (const v of [...x.values()].slice(0, 40)) geh(v, t + 1); return; }
+    const keys = Object.keys(x);
+    if (!keys.length) out.add('leer');
+    if (keys.length > 1 && JSON.stringify(keys) !== JSON.stringify([...keys].sort())) out.add('schluesselfolge');
+    for (const kk of keys.slice(0, 40)) geh(x[kk], t + 1);
+  };
+  for (const w of werte) geh(w, 0);
+  return [...out].sort();
+}

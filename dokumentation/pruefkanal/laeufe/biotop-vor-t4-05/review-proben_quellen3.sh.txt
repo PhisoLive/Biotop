@@ -1,0 +1,12 @@
+#!/bin/bash
+# Nur lesend: Einzelstellen an HEAD
+export TMPDIR=/tmp/review-vor-t4-05
+cd /root/biotop
+V=biotop/kern/py/verhalten.py
+echo "== Randfall-Zahlen / -Werte"; git show HEAD:$V | grep -n -E "RAND_WERTE|RANDWERTE|randwerte|10 \*\* |2 \*\* |100,|1000" | head -20
+echo "== FORM_MERKMALE"; git show HEAD:$V | sed -n '/^FORM_MERKMALE/,/})/p'
+echo "== korpus_randfaelle: wie gerufen"; git show HEAD:$V | awk '/^def korpus_randfaelle/,/^def _zusicherung/' | grep -n -E "muster\(|ns\[|getattr\(|orig|wickeln|TRANSPARENT|werte =|for w in" | head -20
+echo "== aegis: laufzeit_stufe im urteil / unbeobachtet"; git show HEAD:biotop/organe/aegis.py | grep -n -E "laufzeit_stufe|unbeobachtet|geurteilt\"\)" | head -12
+echo "== gegenzeugen.doppelurteil"; git show HEAD:biotop/kern/gegenzeugen.py | awk '/^def doppelurteil/,/^def torzeile_schwaechen/' | head -40
+echo "== organe"; ls biotop/organe/ | tr '\n' ' '; echo
+echo "== vorprobe_e2.sh"; cat /root/biotop-vor-t4-05/proben/vorprobe_e2.sh

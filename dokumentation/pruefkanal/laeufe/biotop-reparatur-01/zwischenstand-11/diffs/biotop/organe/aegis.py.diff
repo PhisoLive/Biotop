@@ -1,0 +1,34 @@
+--- a/biotop/organe/aegis.py
++++ b/biotop/organe/aegis.py
+@@ -76,19 +76,27 @@
+     """Führt `testdateien` in der Kammer aus. Rückgabe je „datei::name“ → {ok, bestaetigt, meldung}."""
+     if not testdateien:
+         return {}
+-    skript = ("import subprocess,sys;subprocess.run([sys.executable,'-m','pytest','-q','-p','no:cacheprovider','--tb=short',"
+-              "'--junitxml=/tmp/j.xml',*sys.argv[1:]]);print('@@J@@'+open('/tmp/j.xml').read()+'@@E@@')")
++    skript = ("import subprocess,sys;p=subprocess.run([sys.executable,'-m','pytest','-q','-p','no:cacheprovider','--tb=short',"
++              "'--junitxml=/tmp/j.xml',*sys.argv[1:]]);print('@@J@@'+open('/tmp/j.xml').read()+'@@E@@');"
++              "sys.exit(0 if p.returncode in (0,1) else p.returncode)")
+     e = kammer.ausfuehren(werk, ["python", "_messgeraet/lauf.py", *testdateien], zeitlimit_s=120,
+                           dateien={**dateien, "_messgeraet/lauf.py": skript})
+     m = re.search(r"@@J@@(.*)@@E@@", e.stdout, re.S)
+     out: dict[str, dict] = {}
+-    if not m:
++    if e.zeitlimit or e.rc != 0 or not m:
+         for t in testdateien:
+-            out[f"{t}::*"] = {"ok": False, "bestaetigt": False, "meldung": "Sammelfehler/Zeitlimit: " + (e.stderr or e.stdout)[-300:]}
++            out[f"{t}::*"] = {"ok": False, "bestaetigt": False,
++                             "meldung": f"Sammelfehler/Kammerabbruch/Zeitlimit (rc={e.rc}): " + (e.stderr or e.stdout)[-300:]}
+         return out
+     for tc in ET.fromstring(m.group(1)).iter("testcase"):
+         datei = (tc.get("classname") or "").replace(".", "/") + ".py"
+         name = tc.get("name")
++        skipped = tc.find("skipped")
++        if skipped is not None:
++            # Auch pytest-xfail ist kein bestandener oder bestätigender Zeuge.
++            out[f"{datei}::{name}"] = {"ok": False, "bestaetigt": False, "uebersprungen": True,
++                                      "meldung": (skipped.get("message") or skipped.text or "Übersprungen")[:300]}
++            continue
+         f = tc.find("failure"); er = tc.find("error")
+         if f is None and er is None:
+             out[f"{datei}::{name}"] = {"ok": True, "bestaetigt": False, "meldung": ""}

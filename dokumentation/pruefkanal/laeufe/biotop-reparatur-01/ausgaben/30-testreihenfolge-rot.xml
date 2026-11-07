@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.398" timestamp="2026-09-20T16:14:26.858026+02:00" hostname="ubuntu"><testcase classname="tests.test_testreihenfolge" name="test_kernmass_und_pareto_kommen_vor_rauschen" time="0.359"><failure message="AssertionError: ['tests/test_rauschmessung.py::test_rauschmessung_braucht_genau_fuenf_werte[0]', 'tests/test_rauschmessung.py::test_ra...ung_braucht_genau_fuenf_werte[4]', 'tests/test_rauschmessung.py::test_rauschmessung_braucht_genau_fuenf_werte[6]', ...]&#10;assert 45 &lt; 0&#10; +  where 45 = max([31, 32, 33, 34, 35, 36, ...])&#10; +  and   0 = min([0, 1, 2, 3, 4, 5, ...])">def test_kernmass_und_pareto_kommen_vor_rauschen():
+        repo = Path(__file__).resolve().parents[1]
+        env = os.environ.copy()
+        env["PYTHONPATH"] = str(repo)
+        r = subprocess.run([sys.executable, "-m", "pytest", "--collect-only", "-q",
+                            "tests/test_rauschmessung.py", "tests/test_kernmass_pareto.py"],
+                           cwd=repo, env=env, text=True, capture_output=True, timeout=30)
+        assert r.returncode == 0, r.stdout + r.stderr
+        ids = [s for s in r.stdout.splitlines() if s.startswith("tests/") and "::" in s]
+        kern = [i for i, s in enumerate(ids) if s.startswith("tests/test_kernmass_pareto.py::")]
+        rauschen = [i for i, s in enumerate(ids) if s.startswith("tests/test_rauschmessung.py::")]
+        assert kern and rauschen
+&gt;       assert max(kern) &lt; min(rauschen), ids
+E       AssertionError: ['tests/test_rauschmessung.py::test_rauschmessung_braucht_genau_fuenf_werte[0]', 'tests/test_rauschmessung.py::test_ra...ung_braucht_genau_fuenf_werte[4]', 'tests/test_rauschmessung.py::test_rauschmessung_braucht_genau_fuenf_werte[6]', ...]
+E       assert 45 &lt; 0
+E        +  where 45 = max([31, 32, 33, 34, 35, 36, ...])
+E        +  and   0 = min([0, 1, 2, 3, 4, 5, ...])
+
+tests/test_testreihenfolge.py:20: AssertionError</failure></testcase></testsuite></testsuites>

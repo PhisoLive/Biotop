@@ -1,0 +1,250 @@
+=== test_vorspann 114-125 (Voraussetzungen)
+@pytest.mark.parametrize('fehlt', ['Verfassung','Landkarte','Referenzlast','Verträge'])
+def test_unit_voraussetzungen_vor_erster_messung(unit_vorspann, monkeypatch, fehlt):
+    con, raw = unit_vorspann
+    if fehlt == 'Verfassung': con.execute('DELETE FROM verfassung_werk')
+    elif fehlt == 'Landkarte': con.execute('DELETE FROM landkarte')
+    elif fehlt == 'Referenzlast': monkeypatch.setattr(L, '_referenzlast', lambda *a: None)
+    else: con.execute('DELETE FROM vertraege_explizit')
+    with pytest.raises(V.VorspannFehler, match=fehlt):
+        V.ausfuehren(con, 1)
+    assert raw['reihenfolge'] == []
+
+
+=== vorspann ausfuehren 121-150
+STUFE2_KAMMERLAUF_S = 60      # Entscheidung Chat-Claude 1: ein Kammerlauf der Stufe 2 bleibt unter einer Minute
+
+
+def ausfuehren(con, lauf_id):
+    """Eichen vor gen0 und Maß. Rohdaten bleiben im Nachweis und im Protokoll."""
+    _tabelle(con)
+    with transaktion(con):
+        if con.execute('SELECT 1 FROM vorspann_nachweise WHERE lauf_id=?', (lauf_id,)).fetchone():
+            raise _fehler(lauf_id, 'bereits ein Eichversuch unter dieser ID')
+        con.execute("INSERT INTO vorspann_nachweise(lauf_id,status) VALUES(?,'laeuft')", (lauf_id,))
+    r = {'lauf_id':lauf_id, 'generation':-1, 'erstellt_am':protokoll.jetzt(),
+         'regel':'F6 3.5; Verfassungssatz 2: neues Messgerät verlangt neuen Lauf'}
+    try:
+        return _ausfuehren(con, lauf_id, r)
+    except Exception as e:
+        with transaktion(con):
+            con.execute("UPDATE vorspann_nachweise SET status='gescheitert',ergebnis=?,nachweis_sha256=NULL WHERE lauf_id=?",
+                        (j(r), lauf_id))
+        protokoll.schreiben(con, 'vorspann.gescheitert', lauf_id=lauf_id, grund=str(e), ergebnis=r)
+        raise _fehler(lauf_id, str(e)) from e
+
+
+def _ausfuehren(con, lauf_id, r):
+    from .. import lauf as L
+    lauf = L._lauf(con, lauf_id)
+    alt = con.execute('SELECT 1 FROM generationen WHERE lauf_id=?', (lauf_id,)).fetchone()
+    gen0_alt = any(lj(z['inhalt']).get('lauf_id') == lauf_id for z in con.execute(
+        "SELECT inhalt FROM protokoll WHERE art LIKE 'generation0.%'"))
+    if lauf['mass'] is not None or alt or gen0_alt or lauf['status'] not in ('aufgenommen', 'kartiert'):
+        raise ValueError('kein frischer Lauf vor Generation minus eins')
+=== vorspann 196-240
+        raise ValueError('Messung des Eich-Ausgangs ungültig: ' + str(r['basis'].get('grund')))
+    # Maßeichung (T3): jede Prüferregel am sauberen Vergleichsbereich der Verfassung messen, bevor sie zählt.
+    # Dieselbe Figur wie die Rauschmessung, auf die Maße selbst angewandt. Sie gilt schon für die Eichproben,
+    # damit Vorprobe und Lauf denselben Bewertungsweg nutzen. Ein benannter, aber fehlender Bereich ist ein
+    # Fehler (leere Eichung), kein stilles „keine Fehlalarme".
+    r['masseichung'] = masseichung.eichen(r['basis'], masseichung.sauberer_bereich(verf))
+    tausch['_masseichung'] = r['masseichung']
+    r['eichproben'] = eichproben.proben(con, lauf_id, werk['id'], pfad, paket, bereiche,
+                                      landkarte.bereichs_strassen(kanten, paket), r['basis'], r['basis'], ref,
+                                      tausch, generation=-1)
+    p = r['eichproben']
+    # Proben isolieren ihre Datenbank; die gemessenen Kosten kommen als Rohdaten zurück.
+    for gruppe, prefix in (('proben', 'probe'), ('gegenproben', 'gegenprobe')):
+        for name, e in (p.get(gruppe) or {}).items():
+            eichung.kosten_buchen(con, lauf_id, werk['id'], f'{prefix}.{name}', e['kammerlaeufe'],
+                                 e['dauer_s'], modellaufrufe=e['modellaufrufe'], kosten_eur=e['kosten_eur'])
+    gegenstand = r['gegenstand']['gegenstand']
+    datei = pfad / gegenstand['vertrag_pfad']
+    if (p.get('gegenstand') != gegenstand or eichgegenstand.lesen(con, werk['id']) != gegenstand
+            or not datei.is_file() or hashlib.sha256(datei.read_bytes()).hexdigest() != gegenstand['vertrag_pruefsumme']):
+        raise ValueError('Eichgegenstand während der Proben verändert oder andere Probequelle')
+    r['qualitaet'] = _qualitaet(p)
+    if _quellen(con, lauf_id) != r['quellen']:
+        raise ValueError('Messgerät/Quellen während der Eichung verändert (Satz 2)')
+    r['kosten'] = eichung.kosten(con, lauf_id)
+    digest = _sha(r)
+    nr = protokoll.schreiben(con, 'vorspann.bestanden', lauf_id=lauf_id, nachweis_sha256=digest, ergebnis=r)
+    with transaktion(con):
+        con.execute("UPDATE vorspann_nachweise SET status='bestanden',ergebnis=?,nachweis_sha256=?,protokoll_nr=? WHERE lauf_id=?",
+                    (j(r), digest, nr, lauf_id))
+    return dict(r, nachweis_sha256=digest)
+
+
+def mass_binden(con, lauf_id, mass):
+    """In derselben Transaktion wie laeufe.mass schreiben: genau einmal, nie ersetzen."""
+    digest = _sha(mass)
+    cur = con.execute("""UPDATE vorspann_nachweise SET mass_sha256=?
+        WHERE lauf_id=? AND status='bestanden' AND mass_sha256 IS NULL AND nachweis_sha256=?
+        AND NOT EXISTS(SELECT 1 FROM laeufe WHERE id=? AND mass IS NOT NULL)""",
+        (digest, lauf_id, mass['vorspann_sha256'], lauf_id))
+    if cur.rowcount != 1:
+        raise _fehler(lauf_id, 'Maß bereits gebunden oder Nachweis fehlt')
+    return digest
+
+
+=== lauf mass_einfrieren 100-140
+    if verf is None:
+        raise LaufFehler("Verfassung des Werks fehlt (3.3 F2) — vor dem Maß einlegen: biotop verfassung <lauf> <datei.md> <regeln.json>")
+    tausch = (verf.get("regeln") or {}).get("tausch") or {}
+    # Maßeichung (T3): Das eingefrorene Ausgangsmaß rechnet schon ohne die stillgelegten Regeln — sonst
+    # verglichen Entropie und Bestwert die geeichten Generationen mit einem ungeeichten Ausgang.
+    eichung_mass = nachweis.get("masseichung")
+    mess = masseichung.anwenden(mess, eichung_mass)
+    mess["kernmass_f2"] = messgeraet.kernmass_f2(mess)
+    mass = {"fassung": 2, "vorspann_sha256": nachweis["nachweis_sha256"],
+            "kernmass": "je Bereich: −tests_fehlgeschlagen − sicherheit_punkte(10·HIGH+3·MEDIUM+1·LOW) − tote_funktionen; Höchstwert 0; bestandene Tests zählen nicht; paarweise Messung mit dem Testbestand des Kandidaten",
+            "pareto": list(messgeraet.PARETO_F2) + ["baut"],
+            "grenzen": {"laufzeit_faktor": tausch.get("laufzeit_faktor", 2.0), "laufzeit_faktor_bei_sicherheitsgewinn": tausch.get("laufzeit_faktor_bei_sicherheitsgewinn", tausch.get("laufzeit_faktor", 2.0)),
+                        "sonst_faktor": tausch.get("sonst_faktor", 1.25), "groesste_funktion_absolut": 60, "rauschtoleranz_ohne_kernmassgewinn": messgeraet.RAUSCH_F4, "bezug": "Bestwert des Laufs (F4: beste angenommene Generation je Maß, einschließlich Generation 0)"},
+            "tausch_quelle": verf["quelle"], "bereiche": bereiche, "paket": paket, "referenzlast": f"{werk['name']}.py",
+            "nischen": list(__import__("biotop.organe.nischen", fromlist=["NISCHEN"]).NISCHEN), "groesste_funktion_absolut": 60,
+            "pareto_je_test": True, "norm_regel": "3.7 F4 (alle neuen Tests, expliziter Verweis)", "bandit_kein_vorschlag": "neutral (3.6 F4)", "archivierung_offener_funde": "nach 5 Generationen (3.10 F4)", "immunisierung": "3.10 F3 (nur bestandene, Doppelungen gekennzeichnet)",
+            "masseichung": {"sauberer_bereich": (eichung_mass or {}).get("sauberer_bereich"),
+                            "stillgelegt": (eichung_mass or {}).get("stillgelegt") or [],
+                            "funde_im_sauberen": (eichung_mass or {}).get("funde_im_sauberen") or {}},
+            "verhaltensvergleich": "je überlebendem Kandidaten: Vorgeneration gegen Kandidat, Referenzlast als Korpus, Folge/Alias/Mutation; jede Abweichung braucht einen deckenden Test",
+            "bestaetigt_von": bestaetigt_von, "eingefroren_am": protokoll.jetzt()}
+    _vorspann_verlangen(con, lauf_id, "mass")  # auch nach der langen Messung unverändert
+    with transaktion(con):
+        try:
+            mass_sha256 = vorspann.mass_binden(con, lauf_id, mass)
+        except vorspann.VorspannFehler as e:
+            raise LaufFehler(str(e)) from e
+        con.execute("UPDATE laeufe SET mass=?, status='bereit' WHERE id=?", (j(mass), lauf_id))
+        con.execute("INSERT INTO generationen(lauf_id, nummer, status, masse, erstellt_am, grund) VALUES (?,?,?,?,?,?)",
+                    (lauf_id, 0, "angenommen", j(mess), protokoll.jetzt(), "Ausgangszustand"))
+    s = lazarus.schnappschuss(con, lauf_id, 0, Path(werk["pfad"]), mess)
+    with transaktion(con):
+        con.execute("UPDATE generationen SET tag=?, pruefsumme=? WHERE lauf_id=? AND nummer=0", (s["tag"], s["pruefsumme"], lauf_id))
+    protokoll.schreiben(con, "mass.eingefroren", lauf_id=lauf_id, mass_sha256=mass_sha256, vorspann_sha256=nachweis["nachweis_sha256"], fassung=2,
+                        kernmass_f2=mess["kernmass_f2"], kernmass_f2_roh=_kernmass_f2_roh(mess),
+                        kernmass_messgeraet=mess.get("kernmass"), kernmass_messgeraet_roh=mess.get("kernmass_roh", mess.get("kernmass")),
+                        grenzen=mass["grenzen"], bestaetigt_von=bestaetigt_von)
+    return {"mass": mass, "messung": mess, "schnappschuss": s}
+
+
+def bestwert_des_laufs(con, lauf_id, bereiche) -> dict:
+=== generation0 messen
+132:class NichtGemessen(RuntimeError):
+310:def messen(con: sqlite3.Connection, lauf_id: int, werk_id: int, werk: Path, mutanten: list[dict], phase: str) -> dict:
+343:        raise NichtGemessen(f"Generation 0, Durchlauf {phase}: {neutral} von {len(mutanten)} Mutantenläufen neutral "
+=== MESSSKRIPT ref_pfad
+52:ref_pfad = sys.argv[3] if len(sys.argv) > 3 else ""
+200:if ref_pfad and os.path.exists(ref_pfad):
+202:    exec(open(ref_pfad).read(), ns)
+622:ref_pfad, bereiche = sys.argv[1], json.loads(sys.argv[2])
+624:exec(open(ref_pfad).read(), ns)
+=== _klassen_sicher
+def _klassen_sicher(f):
+    try:
+        return sorted(f())
+    except Exception:  # noqa: BLE001
+        return ['__unbestimmt']
+
+
+# ---------------------------------------------------------------- Ergebnis eines Aufrufs
+=== kandidaten-Schema
+31:CREATE TABLE IF NOT EXISTS kandidaten (
+32-  id INTEGER PRIMARY KEY, lauf_id INTEGER, generation INTEGER, bereich TEXT,
+33-  nische TEXT, anbieter TEXT, modell TEXT, diff TEXT, begruendung TEXT,
+34-  status TEXT, grund TEXT, masse TEXT, wirkungskreis TEXT, erstellt_am TEXT,
+35-  ist_probe INTEGER DEFAULT 0);
+=== aegis vertraege_benannt
+=== test_vor_t4_04 Kopf-Importe
+import sqlite3
+import sys
+import time
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
+from biotop.kern import datenbank, messgeraet
+from biotop.organe import aegis, kammer
+from biotop.organe import verhaltensvergleich as vv
+
+sys.path.insert(0, str(Path(__file__).parent))
+import test_vor_t4_03 as R3  # noqa: E402
+
+QUELLE = R3.QUELLE
+ALT_NORMIEREN = '    return " ".join(text.split())\n'
+=== __main__ Kopf 1-38
+"""Befehlszeile des Biotops (Phase 1: einzige Oberfläche).
+
+  biotop lauf anlegen --budget 30
+  biotop einlegen <lauf> <name> <quelle>
+  biotop kartieren <lauf>
+  biotop vorspann <lauf>            (Generation minus eins, vor gen0 und mass)
+  biotop gen0 <lauf>
+  biotop mass <lauf> --bestaetigt-von Philipp
+  biotop generation <lauf>
+  biotop freigabe <lauf> <nummer> frei|ablehnen --grund "..." --von Philipp
+  biotop abbrechen <lauf> --grund "..." --von "..." [--art satz2|budget|philipp|sonst]   (Pflicht, nie gesperrt)
+  biotop lazarus liste|rueckkehr <lauf> [nummer] [--ziel PFAD]
+  biotop kasse <lauf>
+  biotop protokoll [--ab N] [--art X]
+  biotop benutzer <name>            (Kennwort über Umgebungsvariable BIOTOP_KENNWORT)
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+from pathlib import Path
+import sys
+
+from . import lauf as L
+from .kern import anmeldung, kasse, protokoll
+from .kern.datenbank import verbinden
+from .organe import lazarus
+
+
+def _p(obj):
+    print(json.dumps(obj, ensure_ascii=False, indent=1, default=str))
+
+
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(prog="biotop")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+=== __main__ Ende
+            else:
+                _p([dict(z) for z in con.execute("SELECT werk, quelle, entscheidung, COUNT(*) n FROM geschmack GROUP BY werk, quelle, entscheidung")])
+        elif a.cmd == "entropie":
+            from .organe import entropie as E
+            _p({"verlauf": E.verlauf(con, a.lauf), "saettigung": E.saettigung(con, a.lauf)})
+        elif a.cmd == "oberflaeche-belege":
+            from . import oberflaeche as O
+            _p(O.belege())
+        elif a.cmd == "dienst":
+            from . import dienst as D
+            D.starten(a.host, a.port)
+        elif a.cmd == "benutzer":
+            anmeldung.benutzer_anlegen(con, a.name, os.environ.get("BIOTOP_KENNWORT", ""))
+            _p({"benutzer": a.name, "angelegt": True})
+        return 0
+    except (L.LaufFehler, L.vorspann.VorspannFehler, kasse.BudgetErschoepft) as e:
+        print(f"ABBRUCH: {e}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+=== eichproben _einzelprobe-Aufruf in proben
+496:def _einzelprobe(con, lauf_id, werk_id, pfad, paket, bereiche, bstrassen, basis, ausgang, ref, tausch,
+590:                        ziel[name] = _einzelprobe(db, lauf_id, werk_id, werk, paket, bereiche, bstrassen,
+=== eichung-Job
+K3091 W60_ist  r2 gesperrt=[] eingang=1.244 längster Kammerlauf=10.3s
+K3091 W240     r2 gesperrt=[] eingang=1.155 längster Kammerlauf=11.4s
+K3091 W480     r2 gesperrt=[] eingang=1.15 längster Kammerlauf=12.6s
+K3091 W60_ist  r3 gesperrt=['eingang'] eingang=1.884 längster Kammerlauf=10.8s
+K3091 W240     r3 gesperrt=[] eingang=1.15 längster Kammerlauf=11.4s
+K3091 W480     r3 gesperrt=[] eingang=1.208 längster Kammerlauf=12.8s
+t3.db unverändert: True
+ende 18:27:56

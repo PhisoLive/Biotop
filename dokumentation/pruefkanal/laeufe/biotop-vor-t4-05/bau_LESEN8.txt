@@ -1,0 +1,341 @@
+=== drahtwerk 36-72
+LISTE = ("import { plus } from '../beta/wert.js';\n\n"
+         "/** Erhöht jeden Wert um eins. */\nexport function summen(werte: number[]): number[] {\n"
+         "  const aus: number[] = [];\n  for (const w of werte) {\n    aus.push(w + 1);\n  }\n  return aus;\n}\n\n"
+         "/** Summe aller Werte. */\nexport function gesamt(werte: number[]): number {\n"
+         "  let s = 0;\n  for (const w of werte) {\n    s = plus(s, w);\n  }\n  return s;\n}\n\n"
+         "function ungenutzt(x: number): number {\n  return x * 3;\n}\n")
+
+WERT = ("/** Halbiert eine Zahl. */\nexport function halb(x: number): number {\n  return x / 2;\n}\n\n"
+        "/** Addiert zwei Zahlen. */\nexport function plus(a: number, b: number): number {\n  return a + b;\n}\n\n"
+        "/** Wert an Position i, außerhalb 0. */\nexport function an(werte: number[], i: number): number {\n"
+        "  return werte[i] ?? 0;\n}\n")
+
+DATEIEN = {
+    "package.json": json.dumps({"name": NAME, "version": "0.1.0", "private": True, "type": "module",
+                                "description": "Prüfwerk ohne Betriebszweck für den Verdrahtungsnachweis"}, indent=2) + "\n",
+    "README.md": "# drahtwerk\n\nKleines Prüfwerk ohne Betriebszweck: Zahlenlisten summieren.\n",
+    "tsconfig.json": json.dumps({"compilerOptions": {"target": "ES2022", "module": "NodeNext", "moduleResolution": "NodeNext",
+                                                     "strict": True, "skipLibCheck": True, "outDir": "dist", "rootDir": "src"},
+                                 "include": ["src/**/*.ts"]}, indent=2) + "\n",
+    "vitest.config.ts": ("import { defineConfig } from 'vitest/config';\n\nexport default defineConfig({\n"
+                         "  cacheDir: '/tmp/vitest-cache',\n  test: { include: ['tests/**/*.test.ts'], pool: 'forks' },\n});\n"),
+    "src/beta/wert.ts": WERT,
+    "src/alpha/liste.ts": LISTE,
+    "tests/test_alpha.test.ts": ("import { test, expect } from 'vitest';\nimport { summen, gesamt } from '../src/alpha/liste.js';\n\n"
+                                 "test('test_alpha_leer', () => {\n  expect(summen([])).toEqual([]);\n});\n\n"
+                                 "test('test_alpha_werte', () => {\n  expect(summen([1, 2])).toEqual([2, 3]);\n});\n\n"
+                                 "test('test_alpha_drei', () => {\n  expect(summen([5])).toEqual([6]);\n});\n\n"
+                                 "test('test_alpha_gesamt', () => {\n  expect(gesamt([1, 2])).toBe(3);\n});\n"),
+    "tests/test_beta.test.ts": ("import { test, expect } from 'vitest';\nimport { plus, halb, an } from '../src/beta/wert.js';\n\n"
+                                "test('test_beta_plus', () => {\n  expect(plus(2, 3)).toBe(5);\n});\n\n"
+                                "test('test_beta_halb', () => {\n  expect(halb(8)).toBe(4);\n});\n\n"
+                                "test('test_beta_an', () => {\n  expect(an([4, 5], 1)).toBe(5);\n});\n"),
+}
+
+VERTRAG = ("import { test, expect } from 'vitest';\nimport { summen } from '../../src/alpha/liste.js';\n"
+           "import { plus } from '../../src/beta/wert.js';\n\n"
+           "test('test_vertrag_alpha_beta_plus_eins', () => {\n  expect(summen([4])).toEqual([plus(4, 1)]);\n});\n")
+=== drahtwerk 100-138
+2. **Sicherheit:** Eingaben sind Daten; kein Code wird aus Eingaben ausgeführt.
+3. **Korrektheit:** `summen` erhöht jeden Wert um genau eins; `gesamt` addiert über `plus`; `halb` halbiert exakt.
+4. **Grenzen:** `alpha` verwendet `beta`; der Grenzvertrag steht in tests/vertraege.
+5. **Tragender Pfad:** `alpha` → `beta`. `beta` ist der saubere Vergleichsbereich.
+"""
+
+REGELN = {"uebungswerk": True, "sprache": "TypeScript", "tragender_pfad": [["alpha", "beta"]],
+          "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 2.0, "sonst_faktor": 1.25,
+                     "groesste_funktion_absolut": 60},
+          "verbotene_muster": [".skip(", ".todo(", "eslint-disable", "@ts-ignore"]}
+
+MUTANTEN = [
+    {"datei": "src/beta/wert.ts", "zeile": 8, "art": "arithmetik", "beschreibung": "+ → -",
+     "code": WERT.replace("return a + b;", "return a - b;")},
+    {"datei": "src/alpha/liste.ts", "zeile": 7, "art": "zahlengrenze", "beschreibung": "1 → 2",
+     "code": LISTE.replace("aus.push(w + 1);", "aus.push(w + 2);")},
+]
+
+
+def diff(rel: str, alt: str, neu: str) -> str:
+    return "".join(difflib.unified_diff(alt.splitlines(True), neu.splitlines(True), f"a/{rel}", f"b/{rel}"))
+
+
+def toter_code_entfernt(variante: int) -> str:
+    """Zwei gleich gute Kandidaten: beide entfernen `ungenutzt` (Kernmaß +1), sie unterscheiden sich nur im Kommentar."""
+    neu = LISTE.replace("\n\nfunction ungenutzt(x: number): number {\n  return x * 3;\n}\n", "\n")
+    if variante == 2:
+        neu = neu.replace("/** Summe aller Werte. */", "/** Summe aller Werte der Liste. */")
+    return diff("src/alpha/liste.ts", LISTE, neu)
+
+
+def gesamt_leer_falsch() -> str:
+    """Toter Code entfernt (Kernmaß +1, besteht das Maß) UND gesamt([]) liefert −1 statt 0 — ungedeckt."""
+    neu = LISTE.replace("\n\nfunction ungenutzt(x: number): number {\n  return x * 3;\n}\n", "\n")
+    neu = neu.replace("  let s = 0;\n  for (const w of werte) {", "  if (werte.length === 0) return -1;\n  let s = 0;\n  for (const w of werte) {")
+    assert neu != LISTE and "return -1" in neu
+    return diff("src/alpha/liste.ts", LISTE, neu)
+
+
+=== verhalten.mjs
+// Verhaltensvergleich (T3, Befund K2934/K3121): „schneller, aber falsch" sichtbar machen.
+//
+// Wickelt jede exportierte Funktion der geänderten Module in einen Aufzeichner und lässt
+// dann die Referenzlast laufen — genau die Codepfade, deren Laufzeit das Maß belohnt.
+// Je Funktion werden die ersten `kappe` äußeren Aufrufe in vier Mustern beobachtet:
+//   #i                  der Aufruf selbst
+//   #i@alias            dieselben Referenzen sofort noch einmal
+//   #i@mutation         Eingabe an Ort und Stelle geändert (gleiche Länge), erneut aufgerufen
+//   #i@nach_ruecksetzung  Eingabe zurückgesetzt, erneut aufgerufen
+// Ein Zwischenspeicher, der an der Referenz statt am Inhalt hängt, liefert bei @mutation
+// oder @nach_ruecksetzung ein veraltetes Ergebnis — der Einzelaufruf sieht das nie.
+//
+// Fassung 8 (Grundsatz 11): Zusätzlich bekommt jede exportierte Funktion einen Randfall-Korpus aus ihrer
+// deklarierten Signatur (Typvertrag). Die Signaturen stammen immer von der VORGENERATION (req.signaturen, sonst aus
+// dem Quelltext dieses Stands gelesen und zurückgegeben), damit beide Seiten dieselben Aufrufe bekommen.
+import fs from 'node:fs';
+import {lauf} from './testlauf.mjs';
+import {quellenbau} from './bau.mjs';
+import {parse, funktionen, ts} from './ast.mjs';
+import {einwickeln as einwickelnAst} from './einwickeln.mjs';
+
+// Einwickeln am Syntaxbaum (einwickeln.mjs): auch `export const f = (…) =>` (Behebungsrunde 3, Review 02 Nr. 9b).
+export function einwickeln(code, modul) {
+  return einwickelnAst(ts, code, modul, '__vvAufzeichnen');
+}
+
+// Deklarierte Parametertypen je exportierter Funktion, aus dem TypeScript-Syntaxbaum des Quellmoduls.
+export function signaturen_lesen(module) {
+  const out = {};
+  for (const m of module) {
+    const p = '/werk/src/' + m + '.ts';
+    if (!fs.existsSync(p)) continue;
+    try {
+      out[m] = {};
+      for (const f of funktionen(parse(fs.readFileSync(p, 'utf8'), p))) {
+        if (f.exportiert && /^[A-Za-z_$][\w$]*$/.test(f.name)) out[m][f.name] = f.params.map(x => x.type);
+      }
+    } catch { out[m] = {}; }
+  }
+  return out;
+}
+
+export function verhalten(req) {
+  const bau = quellenbau();
+  if (!bau.gueltig || !bau.baut) {
+    return {gueltig: false, art: 'inhalt', grund: 'Quellbau fehlgeschlagen: ' + String(bau.prozess.stdout).slice(0, 800)};
+  }
+  const signaturen = req.signaturen ?? signaturen_lesen(req.module);
+  const eingewickelt = {}, nicht_eingewickelt = {};
+  for (const m of req.module) {
+    const p = '/werk/dist/' + m + '.js';
+    if (!fs.existsSync(p)) { eingewickelt[m] = null; continue; }
+    const e = einwickeln(fs.readFileSync(p, 'utf8'), m);
+    fs.writeFileSync(p, e.code);
+    eingewickelt[m] = e.namen;
+    if (e.nicht_eingewickelt.length) nicht_eingewickelt[m] = e.nicht_eingewickelt;
+  }
+  fs.writeFileSync('_biotop_referenz.ts', req.referenzlast);
+  fs.writeFileSync('/tmp/ts-vv-anfrage.json', JSON.stringify({bereiche: req.bereiche, kappe: req.kappe ?? 8, form_kappe: req.form_kappe ?? 16,
+                                                              korpus_erweitert: req.korpus_erweitert ?? true,
+                                                              module: req.module, signaturen, eingewickelt,
+                                                              beispiele: req.beispiele ?? null}));
+  fs.rmSync('/tmp/ts-vv-ergebnis.json', {force: true});
+  const p = lauf('node', ['--import', '/opt/biotop-ts/node_modules/tsx/dist/loader.mjs', '_messgeraet/ts/verhalten-runner.mjs']);
+  let out = {gueltig: false, art: 'infrastruktur', grund: 'Verhaltens-Runnerabbruch: rc=' + p.rc + ' ' + String(p.stderr).slice(-800)};
+  if (p.rc === 0 && !p.signal && !p.fehler && fs.existsSync('/tmp/ts-vv-ergebnis.json')) {
+    out = JSON.parse(fs.readFileSync('/tmp/ts-vv-ergebnis.json', 'utf8'));
+  }
+  return {...out, eingewickelt, nicht_eingewickelt, signaturen};
+}
+=== aegis junit_lauf 89-100
+def junit_lauf(werk: Path, paket: str, dateien: dict[str, str], testdateien: list[str]) -> dict[str, dict]:
+    """Führt `testdateien` in der Kammer aus. Rückgabe je „datei::name“ → {ok, bestaetigt, meldung}."""
+    if not testdateien:
+        return {}
+    if sprachprofil.ist_typescript(werk):
+        from ..kern import typescript
+        r = typescript.testlauf(werk, dateien, testdateien)
+        if not r.get("gueltig"):
+            # Inhaltsbefund über die gelieferte Datei (unsammelbar, Skip, leer) ist ein
+            # Ergebnis über den Angriff, kein Messgerätfehler — der Python-Pfad unten
+            # behandelt denselben Fall seit jeher so. Nur Infrastruktur bricht ab:
+            # ohne laufendes Messgerät gibt es kein Urteil.
+=== typescript testlauf/_aufruf 43-58, 170-200
+        raise TypeScriptFehler("Kammerabbruch: " + json.dumps(roh, ensure_ascii=False))
+    m = re.fullmatch(r"@@TS1:([0-9a-f]{64}):([A-Za-z0-9+/=]+)@@\s*", e.stdout)
+    if not m:
+        raise TypeScriptFehler("TS-Transport fehlt/beschädigt/zu groß: " + json.dumps(roh, ensure_ascii=False))
+    try:
+        text = zlib.decompress(base64.b64decode(m[2]))
+        if hashlib.sha256(text).hexdigest() != m[1]:
+            raise ValueError("Prüfsumme")
+        d = json.loads(text)
+    except (ValueError, zlib.error) as exc:
+        raise TypeScriptFehler("Beschädigter TS-Transport") from exc
+    if d.get("fehler"):
+        raise TypeScriptFehler(d["fehler"])
+    return d["ergebnis"], roh
+
+
+def baulauf(werk: Path, dateien: dict | None = None) -> dict:
+    try:
+        d, roh = _aufruf(werk, "baulauf", dateien=dateien)
+        d["roh"] = roh
+        return d
+    except TypeScriptFehler as exc:
+        return dict(gueltig=False, baut=False, rc=None, grund=str(exc), roh=str(exc))
+
+
+def testlauf(werk: Path, dateien: dict | None = None, testdateien: list | None = None) -> dict:
+    try:
+        d, roh = _aufruf(werk, "testlauf", dateien=dateien, testdateien=testdateien)
+        d["roh"] = roh
+        return d
+    except TypeScriptFehler as exc:
+        return dict(gueltig=False, grund=str(exc), art="infrastruktur", faelle={}, rc=None, roh=str(exc))
+=== runner Randkorpus-Variablen/wert-Ende 88-94
+  function geh(x, t) {
+    if (!schlicht(x) || seen.has(x) || t > 4) return;
+    seen.add(x);
+    if (Array.isArray(x)) { log.push([x, x.slice(), true]); for (const v of x) geh(v, t + 1); }
+    else { log.push([x, Object.assign({}, x), false]); for (const k of Object.keys(x)) geh(x[k], t + 1); }
+  }
+  for (const a of args) geh(a, 0);
+=== runner 300-360
+  else if (p && typeof p === 'object' && '__obj' in p) {
+    const keys = Object.keys(p.__obj);
+    if (keys.length > 1) { const o = {}; for (const k of [...keys].reverse()) o[k] = p.__obj[k]; out.push([{__obj: o}, 'schluesselfolge']); }
+    let n = 0;
+    for (const k of keys) {
+      const v = p.__obj[k];
+      if (typeof v === 'string' && v.length && n < 2) { n++; for (const [w, art] of textFormen(v).slice(0, 6)) out.push([{__obj: {...p.__obj, [k]: w}}, art]); }
+    }
+  }
+  const s0 = JSON.stringify(p);
+  return out.filter(([v]) => JSON.stringify(v) !== s0 || (p && typeof p === 'object' && '__obj' in p));
+}
+function hatLeerzeichen(p) {
+  if (typeof p === 'string') return p.trim().includes(' ');
+  if (Array.isArray(p)) return p.some(hatLeerzeichen);
+  if (p && typeof p === 'object' && '__obj' in p) return Object.values(p.__obj).some(hatLeerzeichen);
+  return false;
+}
+// Formvarianten aus der Grundliste und (Review 02 Nr. 10) aus jeder Randliste mit Leerzeichen. Rückgabe [[liste, art]].
+function formvarianten(quellen) {
+  const listen = [];
+  for (const grund of quellen) grund.forEach((p, j) => { for (const [v, art] of formWerte(p)) { const l = grund.slice(); l[j] = v; listen.push([l, art, grund]); } });
+  const gesehen = new Set();
+  return listen.filter(([l]) => { const s = JSON.stringify(l) + '|' + JSON.stringify(l.map(x => x && x.__obj ? Object.keys(x.__obj) : null));
+                                  if (gesehen.has(s)) return false; gesehen.add(s); return true; }).slice(0, FORM_KAPPE);
+}
+function argumentlisten(typen, beispiel) {
+  const k = typen.map((typ, j) => {
+    const b = beispiel ? beispiel[j] : undefined;
+    let c = typKandidaten(typ, b);
+    if (b !== undefined) c = [b, ...c];
+    if (!c.length) c = [{__obj: {}}, []];             // unbekannter Typ ohne Beispiel: tastend
+    const gesehen = new Set();
+    return c.filter(v => { const s = JSON.stringify(v); if (gesehen.has(s)) return false; gesehen.add(s); return true; });
+  });
+  if (!typen.length) return [[]];
+  const grund = k.map(c => c[0]);
+  const listen = [grund];
+  for (let j = 0; j < k.length; j++) for (const v of k[j].slice(1)) { const l = grund.slice(); l[j] = v; listen.push(l); }
+  const gesehen = new Set();
+  return listen.filter(l => { const s = JSON.stringify(l); if (gesehen.has(s)) return false; gesehen.add(s); return true; })
+               .slice(0, RAND_KAPPE);
+}
+
+// Muster = Merkmalsklassen ALLER Argumente (wie im Aufzeichner deck-setup.mjs), bei Formvarianten zusätzlich die Formart.
+// Muster eines Korpusaufrufs (Entscheidung Chat-Claude 3, Behebungsrunde 4): nur die Argumente, die die Sonde gegenüber
+// `bezug` verändert hat — Randfall: deren Merkmale; Formvariante: die von der Umformung eingeführten Merkmale.
+// Merkmale sind die Formvarianten der Sonde (Entscheidung Chat-Claude 2); Randwerte (leer, null, lang, nicht-ASCII …)
+// tragen keines. Muster = die Formvarianten-Merkmale, die die Veränderung einführt (danach minus davor) — wie Python.
+const FORM_MERKMALE = new Set(['tab', 'zeilenumbruch', 'crlf', 'cr', 'nbsp', 'weissraum_sonst', 'doppelleer', 'rand_vorn',
+  'rand_hinten', 'gross', 'klein', 'zahlform_null_vorn', 'zahlform_null_hinten', 'zahltyp', 'behaelter', 'schluesselfolge']);
+function musterVon(liste, bezug, form) {
+  const varJ = liste.map((v, j) => (j >= bezug.length || JSON.stringify(v) !== JSON.stringify(bezug[j])) ? j : -1).filter(j => j >= 0);
+  if (!varJ.length) return [];
+  try {
+    const neu = new Set(klassenVon(varJ.map(j => unpack(liste[j]))));
+    for (const m of klassenVon(varJ.filter(j => j < bezug.length).map(j => unpack(bezug[j])))) neu.delete(m);
+    return [...neu].filter(m => FORM_MERKMALE.has(m)).sort();
+  } catch { return ['__unbestimmt']; }
+}
+
+=== verhalten.py instanz 949-971
+def instanz(n):
+    """Frische Instanz der Klasse n aus dem Rezept (Vorgeneration); ohne Rezept aus der Signatur von __init__."""
+    cls = KLASSEN[n]
+    r = (REQ.get('konstruktion') or KONSTRUKTION).get(n)
+    if r and r.get('art') == 'aufruf':
+        return cls(*[unpack(v) for v in r['args']], **{k: unpack(v) for k, v in r['kwargs'].items()})
+    if r and r.get('art') == 'zustand':
+        o = cls.__new__(cls)
+        _felder_setzen(o, {k: unpack(v) for k, v in r['z'].items()})
+        return o
+    try:
+        ps = [p for p in list(inspect.signature(cls).parameters.values())
+              if p.default is inspect.Parameter.empty and p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)]
+    except (TypeError, ValueError):
+        ps = []
+    typen = ['' if p.annotation is inspect.Parameter.empty else
+             (p.annotation if isinstance(p.annotation, str) else getattr(p.annotation, '__name__', str(p.annotation)))
+             for p in ps]
+    grund = argumentlisten(typen, None)[0] if typen else []
+    return cls(*[unpack(v) for v in grund])
+
+
+# ---------------------------------------------------------------- Korpus: Randfälle und Formvarianten
+=== verhalten.py _metadaten/_teil/_fertig 293-330
+def _teil(name, art):
+    if name:
+        d = teilweise.setdefault(name, {})
+        d[art] = d.get(art, 0) + 1
+
+
+def _koroutine_ausfuehren(v):
+    """Koroutine in einer eigenen Ereignisschleife ausführen, wenn keine läuft (Review 03 Nr. 7). Rückgabe
+    (ergebnis, fehler) oder None, wenn eine Schleife läuft (dann bleibt es bei „unvergleichbar“)."""
+    try:
+        asyncio.get_running_loop()
+        return None
+    except RuntimeError:
+        pass
+    schleife = asyncio.new_event_loop()
+    try:
+        try:
+            return schleife.run_until_complete(v), None
+        except BaseException as e:  # noqa: B902 — ein Fehler der Koroutine ist beobachtetes Verhalten
+            return None, e
+    finally:
+        schleife.close()
+
+
+async def _fertig(ergebnis, fehler):
+    if fehler is not None:
+        raise fehler
+    return ergebnis
+
+
+def _weiter(elemente, quelle, fehler):
+    yield from elemente
+    if fehler is not None:
+        raise fehler
+    if quelle is not None:
+        yield from quelle
+
+
+=== eichung job
+K2904 W240     r2 gesperrt=[] eingang=1.15 längster Kammerlauf=12.0s
+K2904 W480     r2 gesperrt=[] eingang=1.15 längster Kammerlauf=13.4s
+K2904 W60_ist  r3 gesperrt=[] eingang=1.175 längster Kammerlauf=11.1s
+K2904 W240     r3 gesperrt=[] eingang=1.15 längster Kammerlauf=12.3s
+K2904 W480     r3 gesperrt=[] eingang=1.15 längster Kammerlauf=13.3s
+K3091 W60_ist  r0 gesperrt=['eingang'] eingang=1.652 längster Kammerlauf=11.2s
+K3091 W240     r0 gesperrt=[] eingang=1.15 längster Kammerlauf=12.0s
+K3091 W480     r0 gesperrt=[] eingang=1.185 längster Kammerlauf=13.2s
+K3091 W60_ist  r1 gesperrt=[] eingang=1.29 längster Kammerlauf=11.0s
+K3091 W240     r1 gesperrt=[] eingang=1.15 längster Kammerlauf=11.9s
+K3091 W480     r1 gesperrt=[] eingang=1.15 längster Kammerlauf=12.9s
+K3091 W60_ist  r2 gesperrt=[] eingang=1.244 längster Kammerlauf=10.3s

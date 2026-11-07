@@ -1,0 +1,464 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 78 (Teile 4–165 dieses Stands) · enthält R81 bis R82
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R81 · Teil B: drahtwerk-Verfassung je Fassung, Einlege-Belege, T4–T6, Zeitstempel der Verfassungsdateien (nur lesend)
+Beginn: 2026-09-25 16:33:06 CEST (UTC+0200)
+Ende:   2026-09-25 16:33:07 CEST (UTC+0200)
+Dauer:  0.6 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/verfassungen/b5_belege.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/verfassungen/b5_belege.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil B (nur lesend): drahtwerk, Einlege-Belege, T4–T6, Zeitstempel.
+
+(Wortlaut-Dateien — arbeit/lesen/*, arbeit/verlauf/*, Rohbelege, Berichte im Prüfkanal — werden nach dem Hinweis von
+Hermes vom 25.09. nicht hier, sondern mit read_file/search_files gelesen.)
+
+1. drahtwerk: VERFASSUNG und REGELN aus jeder drahtwerk-Fassung per ast (kein Import, kein Ausführen):
+   Arbeitsbaum, Prüfkanal-Kopien, Bauskripte der Runde 6, git-Geschichte (git log / git show, nur lesend).
+2. Einlege-Belege *verfassung*.json (< 200 Bytes) im Prüfkanal: Inhalt. VERFASSUNG-HTTPS.json: Inhalt.
+3. T4/T5/T6: Verzeichnisse unter /root, Werkordner der Kasse, Prüfkanal-Ordner; /tmp nach VERFASSUNG*.md (Tiefe ≤ 5).
+4. Zeitstempel, Bytes, Schluss-Zeilenumbruch und SHA-256 der Verfassungsdateien.
+Schreibt nichts.
+"""
+import ast
+import hashlib
+import json
+import os
+import re
+import subprocess
+import time
+from pathlib import Path
+
+SCHLUESSEL = Path('/etc/pruefkanal/schluessel').read_text().strip()
+LAEUFE = f'/var/pruefkanal/oeffentlich/_akte/{SCHLUESSEL}/laeufe'
+
+
+def zeige(p) -> str:
+    return str(p).replace(LAEUFE, '{LAEUFE}').replace(SCHLUESSEL, '{SCHLUESSEL}')
+
+
+def sha(b: bytes) -> str:
+    return hashlib.sha256(b).hexdigest()
+
+
+print('== 1. drahtwerk: VERFASSUNG und REGELN je Fassung (ast, ohne Import)')
+
+
+def aus_quelle(q: str):
+    try:
+        baum = ast.parse(q)
+    except SyntaxError as f:
+        return None, None, f'SyntaxError {f}'
+    v = r = None
+    for n in ast.walk(baum):
+        if isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name):
+            try:
+                if n.targets[0].id == 'VERFASSUNG':
+                    v = ast.literal_eval(n.value)
+                elif n.targets[0].id == 'REGELN':
+                    r = ast.literal_eval(n.value)
+            except ValueError:
+                pass
+    return v, r, ''
+
+
+quellen = []
+for p in ['/root/biotop/tests/drahtwerk.py', f'{LAEUFE}/biotop-vor-t4/drahtwerk.py',
+          f'{LAEUFE}/biotop-t3-typescript/abschluss-03/drahtwerk.py', '/root/biotop-vor-t4-06/bau/r6_s4_drahtwerk.py',
+          '/root/biotop-vor-t4-06/bau/r6_s4_drahtwerk_pflege.py']:
+    if os.path.exists(p):
+        b = Path(p).read_bytes()
+        quellen.append((zeige(p), b.decode()))
+        print(f'   Datei {zeige(p)} | {len(b)} B | {sha(b)}')
+    else:
+        print(f'   FEHLT: {zeige(p)}')
+git = ['git', '-C', '/root/biotop']
+log = subprocess.run(git + ['log', '--format=%H %cI %s', '--', 'tests/drahtwerk.py'], capture_output=True, text=True)
+print(f'   git log -- tests/drahtwerk.py: rc={log.returncode}, {len(log.stdout.splitlines())} Commits')
+for zeile in log.stdout.splitlines():
+    c = zeile.split(' ', 1)[0]
+    s = subprocess.run(git + ['show', f'{c}:tests/drahtwerk.py'], capture_output=True, text=True)
+    print(f'   {zeile[:140]}')
+    if s.returncode == 0:
+        quellen.append((f'git {c[:12]}:tests/drahtwerk.py', s.stdout))
+gruppen = {}
+for name, q in quellen:
+    v, r, fehler = aus_quelle(q)
+    if fehler:
+        print(f'   {name}: {fehler}')
+        continue
+    vs = sha(v.encode()) if isinstance(v, str) else 'KEINE_VERFASSUNG'
+    rs = sha(json.dumps(r, ensure_ascii=False, indent=1).encode()) if r is not None else 'KEINE_REGELN'
+    gruppen.setdefault((vs, rs), []).append(name)
+    print(f'   {name}: VERFASSUNG {vs} ({len(v.encode()) if isinstance(v, str) else 0} B) · REGELN json.dumps(indent=1) {rs}')
+print('   Gruppen gleicher VERFASSUNG+REGELN:')
+for (vs, rs), namen in gruppen.items():
+    print(f'   - V {vs[:16]}… R {rs[:16]}…: {namen}')
+gesehen = set()
+for name, q in quellen:
+    v, r, _ = aus_quelle(q)
+    if isinstance(v, str) and sha(v.encode()) not in gesehen:
+        gesehen.add(sha(v.encode()))
+        print(f'   --- Wortlaut VERFASSUNG aus {name} (repr):')
+        print('   ' + repr(v))
+        print(f'   --- REGELN (json.dumps, indent=1, ensure_ascii=False) aus {name}:')
+        print(json.dumps(r, ensure_ascii=False, indent=1))
+
+print('\n== 2. Einlege-Belege *verfassung*.json (< 200 B) im Prüfkanal; VERFASSUNG-HTTPS.json')
+for p in sorted(Path(LAEUFE).glob('biotop-*/**/*verfassung*.json')):
+    if p.stat().st_size < 200:
+        print(f'   {zeige(p)} | {p.stat().st_size} B | {p.read_text().strip()}')
+print('   /root/biotop-t3/VERFASSUNG-HTTPS.json:')
+print('   ' + Path('/root/biotop-t3/VERFASSUNG-HTTPS.json').read_text().replace(SCHLUESSEL, '{SCHLUESSEL}').replace('\n', '\n   '))
+
+print('\n== 3. T4/T5/T6')
+top = sorted(p.name for p in Path('/root').iterdir() if p.is_dir())
+print('   /root-Verzeichnisse mit t4/t5/t6 im Namen:', [n for n in top if re.search(r't[456]', n.lower())])
+print('   Werkordner /root/biotop/daten/werke:', sorted(p.name for p in Path('/root/biotop/daten/werke').iterdir()))
+print('   Prüfkanal-Ordner mit t4/t5/t6 im Namen:', sorted(p.name for p in Path(LAEUFE).iterdir() if re.search(r't[456]', p.name)))
+treffer = []
+if os.path.exists('/tmp/biotop-kammer-exklusiv'):
+    print('   /tmp-Suche NICHT AUSGEFÜHRT: /tmp/biotop-kammer-exklusiv besteht')
+else:
+    for d, dirs, files in os.walk('/tmp'):
+        if d.count('/') > 6:
+            dirs[:] = []
+            continue
+        for f in files:
+            if f.lower().startswith('verfassung') and f.lower().endswith(('.md', '.json')):
+                p = os.path.join(d, f)
+                try:
+                    treffer.append(f'{p} | {os.path.getsize(p)} B | {sha(open(p, "rb").read())}')
+                except OSError as fehler:
+                    treffer.append(f'{p} | UNLESBAR {fehler}')
+    print(f'   /tmp VERFASSUNG*.md/.json (Tiefe ≤ 5): {len(treffer)}')
+    for t in treffer[:60]:
+        print('   ' + t)
+
+print('\n== 4. Verfassungsdateien: Bytes, mtime, ctime (Ortszeit CEST), Schluss-Zeilenumbruch, SHA-256')
+for p in ['/root/biotop/verfassungen/lagerhaus.md', '/root/biotop/verfassungen/lagerhaus.regeln.json',
+          '/root/biotop/verfassungen/logmuehle.md', '/root/biotop/verfassungen/logmuehle.regeln.json',
+          '/root/phase-4-vorbedingung-1/privat/verfassung.md', '/root/phase-4-vorbedingung-1/privat/verfassung.regeln.json',
+          '/root/biotop-t3/VERFASSUNG-T3-ENTWURF.md', '/root/biotop-t3/VERFASSUNG-T3-02.md',
+          '/root/biotop-t3/VERFASSUNG-T3-02.regeln.json']:
+    st = os.stat(p)
+    b = open(p, 'rb').read()
+    print(f'   {p} | {st.st_size} B | mtime {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(st.st_mtime))} | '
+          f'ctime {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(st.st_ctime))} | Schluss-\\n: {b.endswith(bytes([10]))} | {sha(b)}')
+--- Ende /root/sicherung/biotop-lage-01/entwurf/verfassungen/b5_belege.py ---
+Ausgabe (vollständig, stdout und stderr):
+== 1. drahtwerk: VERFASSUNG und REGELN je Fassung (ast, ohne Import)
+   Datei /root/biotop/tests/drahtwerk.py | 16319 B | 0b1246a89113087ae2cb237e31f91449da19589054677d65159084b133b73777
+   Datei {LAEUFE}/biotop-vor-t4/drahtwerk.py | 9871 B | e43f71f7ed4317fbd0029a5bcdd0ab76830bdb21b447dbd29c724c3a5a879e34
+   Datei {LAEUFE}/biotop-t3-typescript/abschluss-03/drahtwerk.py | 8244 B | 877d74fd63c2df1e707cb86a6b12a322976fed7bb439bf3933eecd3b367ac50d
+   Datei /root/biotop-vor-t4-06/bau/r6_s4_drahtwerk.py | 8830 B | 45c7c2e24ac2c5393e12d39a1f4d9ee463b0bc7f0205860858c41d911b384b66
+   Datei /root/biotop-vor-t4-06/bau/r6_s4_drahtwerk_pflege.py | 3356 B | 9e2895e458e3c65b54eb37af670aadb28647b663eb207cd872ab6db74d293ed8
+   git log -- tests/drahtwerk.py: rc=0, 3 Commits
+   0c2f058d57f68b8891b535d6e00214172c82fefa 2026-09-24T20:24:54+02:00 Vor T4, Runde 5: Vollständigkeitsprüfung, fallende Zusicherung, Ausfall j
+   58bd9f9f658358256b581821de91d2e0df74eec5 2026-09-23T17:32:34+02:00 Vor T4: Behebungsrunde — Vorbedingungen 1–11 aus Masterprompt Fassung 8
+   f82170711bc4230076ade4ff7602f45bb375b1e7 2026-09-23T13:59:41+02:00 T3: Abwehr im Annahmepfad — Maßeichung und Verhaltensvergleich eingehängt
+   /root/biotop/tests/drahtwerk.py: VERFASSUNG 13677832e59fcfef89fce35eed4ca0124de5fe595425714f002c5b44fdd576ec (520 B) · REGELN json.dumps(indent=1) 1bb6f77ccf4da46a85ad171b183d03113a25cc237c799638d90de31524bb963d
+   {LAEUFE}/biotop-vor-t4/drahtwerk.py: VERFASSUNG 13677832e59fcfef89fce35eed4ca0124de5fe595425714f002c5b44fdd576ec (520 B) · REGELN json.dumps(indent=1) 1bb6f77ccf4da46a85ad171b183d03113a25cc237c799638d90de31524bb963d
+   {LAEUFE}/biotop-t3-typescript/abschluss-03/drahtwerk.py: VERFASSUNG 13677832e59fcfef89fce35eed4ca0124de5fe595425714f002c5b44fdd576ec (520 B) · REGELN json.dumps(indent=1) 1bb6f77ccf4da46a85ad171b183d03113a25cc237c799638d90de31524bb963d
+   /root/biotop-vor-t4-06/bau/r6_s4_drahtwerk.py: VERFASSUNG KEINE_VERFASSUNG (0 B) · REGELN json.dumps(indent=1) KEINE_REGELN
+   /root/biotop-vor-t4-06/bau/r6_s4_drahtwerk_pflege.py: VERFASSUNG KEINE_VERFASSUNG (0 B) · REGELN json.dumps(indent=1) KEINE_REGELN
+   git 0c2f058d57f6:tests/drahtwerk.py: VERFASSUNG 13677832e59fcfef89fce35eed4ca0124de5fe595425714f002c5b44fdd576ec (520 B) · REGELN json.dumps(indent=1) 1bb6f77ccf4da46a85ad171b183d03113a25cc237c799638d90de31524bb963d
+   git 58bd9f9f6583:tests/drahtwerk.py: VERFASSUNG 13677832e59fcfef89fce35eed4ca0124de5fe595425714f002c5b44fdd576ec (520 B) · REGELN json.dumps(indent=1) 1bb6f77ccf4da46a85ad171b183d03113a25cc237c799638d90de31524bb963d
+   git f82170711bc4:tests/drahtwerk.py: VERFASSUNG 13677832e59fcfef89fce35eed4ca0124de5fe595425714f002c5b44fdd576ec (520 B) · REGELN json.dumps(indent=1) 1bb6f77ccf4da46a85ad171b183d03113a25cc237c799638d90de31524bb963d
+   Gruppen gleicher VERFASSUNG+REGELN:
+   - V 13677832e59fcfef… R 1bb6f77ccf4da46a…: ['/root/biotop/tests/drahtwerk.py', '{LAEUFE}/biotop-vor-t4/drahtwerk.py', '{LAEUFE}/biotop-t3-typescript/abschluss-03/drahtwerk.py', 'git 0c2f058d57f6:tests/drahtwerk.py', 'git 58bd9f9f6583:tests/drahtwerk.py', 'git f82170711bc4:tests/drahtwerk.py']
+   - V KEINE_VERFASSUNG… R KEINE_REGELN…: ['/root/biotop-vor-t4-06/bau/r6_s4_drahtwerk.py', '/root/biotop-vor-t4-06/bau/r6_s4_drahtwerk_pflege.py']
+   --- Wortlaut VERFASSUNG aus /root/biotop/tests/drahtwerk.py (repr):
+   '# Verfassung drahtwerk (Prüfwerk ohne Betriebszweck)\n\n1. **Zweck:** Das Werk summiert Zahlenlisten; es dient nur dem Verdrahtungsnachweis des Biotops.\n2. **Sicherheit:** Eingaben sind Daten; kein Code wird aus Eingaben ausgeführt.\n3. **Korrektheit:** `summen` erhöht jeden Wert um genau eins; `gesamt` addiert über `plus`; `halb` halbiert exakt.\n4. **Grenzen:** `alpha` verwendet `beta`; der Grenzvertrag steht in tests/vertraege.\n5. **Tragender Pfad:** `alpha` → `beta`. `beta` ist der saubere Vergleichsbereich.\n'
+   --- REGELN (json.dumps, indent=1, ensure_ascii=False) aus /root/biotop/tests/drahtwerk.py:
+{
+ "uebungswerk": true,
+ "sprache": "TypeScript",
+ "tragender_pfad": [
+  [
+   "alpha",
+   "beta"
+  ]
+ ],
+ "tausch": {
+  "laufzeit_faktor": 2.0,
+  "laufzeit_faktor_bei_sicherheitsgewinn": 2.0,
+  "sonst_faktor": 1.25,
+  "groesste_funktion_absolut": 60
+ },
+ "verbotene_muster": [
+  ".skip(",
+  ".todo(",
+  "eslint-disable",
+  "@ts-ignore"
+ ]
+}
+
+== 2. Einlege-Belege *verfassung*.json (< 200 B) im Prüfkanal; VERFASSUNG-HTTPS.json
+   {LAEUFE}/biotop-phase-1-nachlauf/ausgaben/13-verfassung.json | 38 B | {
+ "werk_id": 5,
+ "eingelegt": true
+}
+   {LAEUFE}/biotop-phase-1-nachlauf/ausgaben/63-lauf7-verfassung.json | 38 B | {
+ "werk_id": 6,
+ "eingelegt": true
+}
+   {LAEUFE}/biotop-phase-1-nachlauf/ausgaben/83-verfassung.json | 38 B | {
+ "werk_id": 7,
+ "eingelegt": true
+}
+   {LAEUFE}/biotop-phase-1-nachlauf/ausgaben/93-verfassung.json | 38 B | {
+ "werk_id": 8,
+ "eingelegt": true
+}
+   {LAEUFE}/biotop-phase-2/ausgaben/43-verfassung.json | 39 B | {
+ "werk_id": 11,
+ "eingelegt": true
+}
+   {LAEUFE}/biotop-phase-3/ausgaben/103-verfassung.json | 39 B | {
+ "werk_id": 18,
+ "eingelegt": true
+}
+   {LAEUFE}/biotop-phase-3/ausgaben/13-verfassung.json | 39 B | {
+ "werk_id": 14,
+ "eingelegt": true
+}
+   {LAEUFE}/biotop-phase-3/ausgaben/33-verfassung.json | 39 B | {
+ "werk_id": 15,
+ "eingelegt": true
+}
+   {LAEUFE}/biotop-phase-3/ausgaben/83-verfassung.json | 39 B | {
+ "werk_id": 16,
+ "eingelegt": true
+}
+   {LAEUFE}/biotop-phase-3/ausgaben/93-verfassung.json | 39 B | {
+ "werk_id": 17,
+ "eingelegt": true
+}
+   {LAEUFE}/biotop-phase-3/ausgaben/lauf14-verworfen/13-verfassung.json | 39 B | {
+ "werk_id": 12,
+ "eingelegt": true
+}
+   {LAEUFE}/biotop-phase-3/ausgaben/lauf15-verworfen/13-verfassung.json | 39 B | {
+ "werk_id": 13,
+ "eingelegt": true
+}
+   {LAEUFE}/biotop-phase-3-nachlauf/ausgaben/203-verfassung.json | 39 B | {
+ "werk_id": 19,
+ "eingelegt": true
+}
+   {LAEUFE}/biotop-phase-3-nachlauf/ausgaben/21-verfassung.json | 39 B | {
+ "werk_id": 20,
+ "eingelegt": true
+}
+   {LAEUFE}/biotop-phase-4-vorbedingung-1/ausgaben/09-verfassung.json | 39 B | {
+ "werk_id": 21,
+ "eingelegt": true
+}
+   {LAEUFE}/biotop-phase-4-vorbedingung-1/ausgaben/25-03-verfassung.json | 39 B | {
+ "werk_id": 22,
+ "eingelegt": true
+}
+   /root/biotop-t3/VERFASSUNG-HTTPS.json:
+   [
+     {
+       "datei": "DATEIEN.txt",
+       "http": 200,
+       "bytegleich": true,
+       "sha256": "8b3f97158c82f00d969b8290660f67a4a68f8343c08cc40bca10344a0d967d5c"
+     },
+     {
+       "datei": "MANIFEST.sha256",
+       "http": 200,
+       "bytegleich": true,
+       "sha256": "dc556d9c4a53fe099877694310e7af6d6dfbb2b4632d2674cf5d83a1c0952406"
+     },
+     {
+       "datei": "PRUEFSUMME-ORDNER.txt",
+       "http": 200,
+       "bytegleich": true,
+       "sha256": "d4dc38b313cb0b45827312862ad727c2321002fe196a7fb40d506800fcfcd0ce"
+     },
+     {
+       "datei": "VERFASSUNG-T3-ENTWURF.md",
+       "http": 200,
+       "bytegleich": true,
+       "sha256": "d048a77e9faf2e24ae1a8145510d1b8c2f2957747b519d100c14e0ed0a4e0ac0"
+     },
+     {
+       "datei": "ZWISCHENBERICHT.md",
+       "http": 200,
+       "bytegleich": true,
+       "sha256": "8576ec0cefc18cc6e701d905c61994ce48583f206070adf3d6aea4da82708c9d"
+     }
+   ]
+   
+
+== 3. T4/T5/T6
+   /root-Verzeichnisse mit t4/t5/t6 im Namen: ['biotop-vor-t4', 'biotop-vor-t4-02', 'biotop-vor-t4-03', 'biotop-vor-t4-04', 'biotop-vor-t4-05', 'biotop-vor-t4-06']
+   Werkordner /root/biotop/daten/werke: ['lagerhaus', 'lagerhaus-c-25', 'lagerhaus-kasse', 'lagerhaus-kasse2', 'lagerhaus-kasse3', 'lagerhaus-nachlauf', 'lagerhaus-nachlauf2', 'lagerhaus-nachlauf8', 'lagerhaus-nachlauf9', 'lagerhaus-ohne-tests', 'lagerhaus-p2', 'lagerhaus-p2-13', 'lagerhaus-p3-14', 'lagerhaus-p3-15', 'lagerhaus-p3-16', 'lagerhaus-p3-18', 'lagerhaus-p3-19', 'lagerhaus-p3-20', 'lagerhaus-p3-22', 'lagerhaus-zeile8-24', 'logmuehle-17', 'logmuehle-23', 'versandwerk-t3-02']
+   Prüfkanal-Ordner mit t4/t5/t6 im Namen: ['biotop-vor-t4', 'biotop-vor-t4-02', 'biotop-vor-t4-03', 'biotop-vor-t4-04', 'biotop-vor-t4-05', 'biotop-vor-t4-06']
+   /tmp VERFASSUNG*.md/.json (Tiefe ≤ 5): 18
+   /tmp/r6-s4/s4-stichprobe-hp25zfwv/vorlage/VERFASSUNG.regeln.json | 340 B | 1bb6f77ccf4da46a85ad171b183d03113a25cc237c799638d90de31524bb963d
+   /tmp/r6-s4/s4-stichprobe-hp25zfwv/vorlage/VERFASSUNG.md | 520 B | 13677832e59fcfef89fce35eed4ca0124de5fe595425714f002c5b44fdd576ec
+   /tmp/r6-s4/s4-stichprobe-vbqh_d1t/vorlage/VERFASSUNG.regeln.json | 340 B | 1bb6f77ccf4da46a85ad171b183d03113a25cc237c799638d90de31524bb963d
+   /tmp/r6-s4/s4-stichprobe-vbqh_d1t/vorlage/VERFASSUNG.md | 520 B | 13677832e59fcfef89fce35eed4ca0124de5fe595425714f002c5b44fdd576ec
+   /tmp/r6-s4/s4-stichprobe-ra8m1d2w/vorlage/VERFASSUNG.regeln.json | 340 B | 1bb6f77ccf4da46a85ad171b183d03113a25cc237c799638d90de31524bb963d
+   /tmp/r6-s4/s4-stichprobe-ra8m1d2w/vorlage/VERFASSUNG.md | 520 B | 13677832e59fcfef89fce35eed4ca0124de5fe595425714f002c5b44fdd576ec
+   /tmp/r6-s4/s4-stichprobe-0bn0jy_7/vorlage/VERFASSUNG.regeln.json | 340 B | 1bb6f77ccf4da46a85ad171b183d03113a25cc237c799638d90de31524bb963d
+   /tmp/r6-s4/s4-stichprobe-0bn0jy_7/vorlage/VERFASSUNG.md | 520 B | 13677832e59fcfef89fce35eed4ca0124de5fe595425714f002c5b44fdd576ec
+   /tmp/r6-s4/s4-stichprobe-_pwhoc0c/vorlage/VERFASSUNG.regeln.json | 340 B | 1bb6f77ccf4da46a85ad171b183d03113a25cc237c799638d90de31524bb963d
+   /tmp/r6-s4/s4-stichprobe-_pwhoc0c/vorlage/VERFASSUNG.md | 520 B | 13677832e59fcfef89fce35eed4ca0124de5fe595425714f002c5b44fdd576ec
+   /tmp/r6-s4/s4-stichprobe-94tnq7ls/vorlage/VERFASSUNG.regeln.json | 340 B | 1bb6f77ccf4da46a85ad171b183d03113a25cc237c799638d90de31524bb963d
+   /tmp/r6-s4/s4-stichprobe-94tnq7ls/vorlage/VERFASSUNG.md | 520 B | 13677832e59fcfef89fce35eed4ca0124de5fe595425714f002c5b44fdd576ec
+   /tmp/r6-s4/s4-stichprobe-hbceo0pn/vorlage/VERFASSUNG.regeln.json | 340 B | 1bb6f77ccf4da46a85ad171b183d03113a25cc237c799638d90de31524bb963d
+   /tmp/r6-s4/s4-stichprobe-hbceo0pn/vorlage/VERFASSUNG.md | 520 B | 13677832e59fcfef89fce35eed4ca0124de5fe595425714f002c5b44fdd576ec
+   /tmp/drahtwerk-rauschen/VERFASSUNG.regeln.json | 340 B | 1bb6f77ccf4da46a85ad171b183d03113a25cc237c799638d90de31524bb963d
+   /tmp/drahtwerk-rauschen/VERFASSUNG.md | 520 B | 13677832e59fcfef89fce35eed4ca0124de5fe595425714f002c5b44fdd576ec
+   /tmp/drahtwerk-probe/VERFASSUNG.regeln.json | 340 B | 1bb6f77ccf4da46a85ad171b183d03113a25cc237c799638d90de31524bb963d
+   /tmp/drahtwerk-probe/VERFASSUNG.md | 489 B | 4630f6e3d6661d3576d720350989feb4e28909eb9e4f9c87233ca8cb4ef46ba4
+
+== 4. Verfassungsdateien: Bytes, mtime, ctime (Ortszeit CEST), Schluss-Zeilenumbruch, SHA-256
+   /root/biotop/verfassungen/lagerhaus.md | 1506 B | mtime 2026-09-19 00:46:48 | ctime 2026-09-21 12:08:58 | Schluss-\n: True | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14
+   /root/biotop/verfassungen/lagerhaus.regeln.json | 806 B | mtime 2026-09-19 00:46:48 | ctime 2026-09-21 12:08:58 | Schluss-\n: True | 34d67f36719395b6cff4c9bed88b8b506ae525943aa7c84682b7c0167ad27abc
+   /root/biotop/verfassungen/logmuehle.md | 1841 B | mtime 2026-09-19 13:38:36 | ctime 2026-09-21 12:08:58 | Schluss-\n: True | 0ce7f8651ae70ad0783cb6caa8f54b9ebbcf789b5e6b116d6df6fb63242bc803
+   /root/biotop/verfassungen/logmuehle.regeln.json | 691 B | mtime 2026-09-19 13:39:25 | ctime 2026-09-21 12:08:58 | Schluss-\n: True | bce33200a57d77e5a9254e0da271c38c9ce23404506cc6cfb0bf902e5051b0c8
+   /root/phase-4-vorbedingung-1/privat/verfassung.md | 1506 B | mtime 2026-09-20 21:32:13 | ctime 2026-09-20 21:32:13 | Schluss-\n: True | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14
+   /root/phase-4-vorbedingung-1/privat/verfassung.regeln.json | 729 B | mtime 2026-09-20 21:32:13 | ctime 2026-09-20 21:32:13 | Schluss-\n: False | 74e9d337f7ecf17d84fd6c66e05eeb68e2486b7cc96b900400a1b0becb14fe72
+   /root/biotop-t3/VERFASSUNG-T3-ENTWURF.md | 2498 B | mtime 2026-09-21 02:25:10 | ctime 2026-09-21 02:25:10 | Schluss-\n: True | d048a77e9faf2e24ae1a8145510d1b8c2f2957747b519d100c14e0ed0a4e0ac0
+   /root/biotop-t3/VERFASSUNG-T3-02.md | 4418 B | mtime 2026-09-21 03:40:41 | ctime 2026-09-21 03:40:41 | Schluss-\n: True | 5ece12d93dc760d6bfb834d7d1cd53e29065bd54d673e2381a23d50234f78a28
+   /root/biotop-t3/VERFASSUNG-T3-02.regeln.json | 1398 B | mtime 2026-09-21 05:04:33 | ctime 2026-09-21 05:04:33 | Schluss-\n: True | e750eb4d5033442f842028c5b2fde5c403dedfcf9b2c05260091bc6c0269e54b
+=== Ende R81 ===
+
+
+R82 · Deckt die Biotop-Kette der Sitzungsdatenbank alle Biotop-Nachrichten ab? Sitzungen ab 18.09. mit Kettenzugehörigkeit und Treffern (ohne Inhalte)
+Beginn: 2026-09-25 16:33:10 CEST (UTC+0200)
+Ende:   2026-09-25 16:33:13 CEST (UTC+0200)
+Dauer:  2.7 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/f17_kette.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/f17_kette.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Deckt die Biotop-Kette der Sitzungsdatenbank alle Biotop-Nachrichten ab?
+Für jede Sitzung ab 18.09.2026 (Quelle telegram, cli, cron, subagent …): in der Kette ja/nein, Eltern, Beginn,
+Nachrichtenzahl, und — nur für Sitzungen AUSSERHALB der Kette — wie viele Nachrichten „biotop“ oder Biotop-Kennwörter
+enthalten (Zählung, kein Inhalt; Regel 2.4: Inhalte anderer Vorhaben bleiben draußen). Titel nur für Kettensitzungen."""
+import datetime as dt
+import re
+import sqlite3
+
+AB = dt.datetime(2026, 9, 18).timestamp()
+START = '20260918_205818_3767d1c9'
+con = sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+sess = {r[0]: {'source': r[1], 'title': r[2], 'parent': r[3], 'started': r[4]} for r in con.execute(
+    'SELECT id, source, title, parent_session_id, started_at FROM sessions')}
+kinder = {}
+for sid, s in sess.items():
+    kinder.setdefault(s['parent'], []).append(sid)
+kette, stapel = set(), [START]
+while stapel:
+    x = stapel.pop()
+    if x in kette:
+        continue
+    kette.add(x)
+    stapel += kinder.get(x, [])
+WORT = re.compile(r'biotop|masterprompt|lagerhaus|logmuehle|versandwerk|drahtwerk|prüfkanal|pruefkanal', re.I)
+zahl = {}
+for sid, rolle, inhalt, ts in con.execute('SELECT session_id, role, content, timestamp FROM messages WHERE timestamp >= ?', (AB,)):
+    z = zahl.setdefault(sid, {'n': 0, 'user': 0, 'treffer': 0, 'user_treffer': 0, 'erste': ts, 'letzte': ts})
+    z['n'] += 1
+    z['erste'] = min(z['erste'], ts)
+    z['letzte'] = max(z['letzte'], ts)
+    t = inhalt or ''
+    hit = bool(WORT.search(t))
+    z['treffer'] += hit
+    if rolle == 'user':
+        z['user'] += 1
+        z['user_treffer'] += hit
+f = lambda ts: dt.datetime.fromtimestamp(ts).strftime('%m-%d %H:%M')
+print(f'Sitzungen mit Nachrichten ab 18.09.: {len(zahl)} · davon in der Kette ab {START}: {len(set(zahl) & kette)}')
+print('Sitzung | Quelle | Kette | Eltern | erste–letzte Nachricht | Nachrichten | davon user | Treffer Biotop-Wörter (alle/user) | Titel (nur Kette)')
+for sid in sorted(zahl, key=lambda s: zahl[s]['erste']):
+    s, z = sess.get(sid, {}), zahl[sid]
+    ink = sid in kette
+    print(f"{sid} | {s.get('source')} | {'ja' if ink else 'NEIN'} | {s.get('parent') or '-'} | {f(z['erste'])}–{f(z['letzte'])} | "
+          f"{z['n']} | {z['user']} | {z['treffer']}/{z['user_treffer']} | {(s.get('title') or '')[:70] if ink else '(nicht ausgegeben)'}")
+aus = [s for s in zahl if s not in kette and zahl[s]['user_treffer'] > 0]
+print(f'\nSitzungen AUSSERHALB der Kette mit Biotop-Wörtern in user-Nachrichten: {len(aus)}')
+for sid in aus:
+    print(f"  {sid} | {sess.get(sid, {}).get('source')} | user-Treffer {zahl[sid]['user_treffer']} von {zahl[sid]['user']}")
+--- Ende /root/sicherung/biotop-lage-01/arbeit/f17_kette.py ---
+Ausgabe (vollständig, stdout und stderr):
+Sitzungen mit Nachrichten ab 18.09.: 63 · davon in der Kette ab 20260918_205818_3767d1c9: 55
+Sitzung | Quelle | Kette | Eltern | erste–letzte Nachricht | Nachrichten | davon user | Treffer Biotop-Wörter (alle/user) | Titel (nur Kette)
+20260918_205818_3767d1c9 | telegram | ja | 20260918_205756_abcd91a4 | 09-18 20:59–09-18 21:08 | 3 | 1 | 1/1 | [The user sent a text document…
+20260918_223638_04e4469a | telegram | ja | 20260918_210910_32c47a71 | 09-18 22:43–09-18 22:59 | 5 | 2 | 0/0 | hi
+20260918_225704_c25e0e | cli | NEIN | - | 09-18 22:57–09-18 22:57 | 2 | 1 | 0/0 | (nicht ausgegeben)
+20260918_225759_0f1590 | cli | NEIN | - | 09-18 22:58–09-18 22:58 | 2 | 1 | 0/0 | (nicht ausgegeben)
+20260918_225920_3e614670 | telegram | ja | 20260918_223638_04e4469a | 09-18 22:59–09-20 04:50 | 2464 | 63 | 772/35 | Infinite Evolution Biotop Masterprompt für Hermes
+20260920_045023_5299d50d | telegram | ja | 20260918_225920_3e614670 | 09-20 04:54–09-20 05:18 | 111 | 5 | 19/3 | Hermes-Sitzung nach Speicherüberlauf wieder aufnehmen
+20260920_050847_fa0691 | cli | NEIN | - | 09-20 05:08–09-20 05:08 | 1 | 1 | 0/0 | (nicht ausgegeben)
+20260920_052507_2f047335 | telegram | ja | 20260920_052430_f8f85177 | 09-20 05:25–09-20 06:10 | 210 | 6 | 10/2 | [The user sent a text document… #2
+20260920_060904_3d127e | cli | NEIN | - | 09-20 06:09–09-20 06:09 | 2 | 1 | 0/0 | (nicht ausgegeben)
+20260920_063003_896e94ff | telegram | ja | 20260920_052507_2f047335 | 09-20 06:40–09-21 01:54 | 2708 | 72 | 894/54 | Biotop-Gesamtstand vor Vorbedingung 1 prüfen
+20260920_064840_bc4fdf | subagent | ja | 20260920_063003_896e94ff | 09-20 06:48–09-20 07:19 | 210 | 3 | 115/3 | 
+20260920_064840_b1a46f | subagent | ja | 20260920_063003_896e94ff | 09-20 06:48–09-20 07:21 | 282 | 6 | 125/5 | 
+20260920_153318_fabf75 | subagent | ja | 20260920_063003_896e94ff | 09-20 15:33–09-20 16:26 | 193 | 5 | 50/2 | 
+20260920_153318_ea8dbb | subagent | ja | 20260920_063003_896e94ff | 09-20 15:33–09-20 16:02 | 128 | 1 | 26/0 | 
+20260920_153318_0a3cba | subagent | ja | 20260920_063003_896e94ff | 09-20 15:33–09-20 16:12 | 245 | 3 | 101/0 | 
+20260920_154552_fb1d15 | subagent | ja | 20260920_063003_896e94ff | 09-20 15:45–09-20 16:18 | 204 | 3 | 46/1 | 
+20260920_163500_48817a | subagent | ja | 20260920_063003_896e94ff | 09-20 16:35–09-20 16:53 | 93 | 2 | 19/0 | 
+20260920_163500_7f6a9a | subagent | ja | 20260920_063003_896e94ff | 09-20 16:35–09-20 16:53 | 79 | 1 | 18/0 | 
+20260920_171412_c76131 | subagent | ja | 20260920_063003_896e94ff | 09-20 17:14–09-20 17:35 | 135 | 2 | 34/0 | 
+20260920_171412_cfc213 | subagent | ja | 20260920_063003_896e94ff | 09-20 17:14–09-20 17:43 | 128 | 2 | 37/0 | 
+20260920_171412_380a20 | subagent | ja | 20260920_063003_896e94ff | 09-20 17:14–09-20 17:35 | 140 | 1 | 52/0 | 
+20260920_175155_924e23 | subagent | ja | 20260920_063003_896e94ff | 09-20 17:51–09-20 18:07 | 90 | 2 | 37/2 | 
+20260920_181535_be7ab8 | subagent | ja | 20260920_063003_896e94ff | 09-20 18:15–09-20 18:40 | 112 | 4 | 40/2 | 
+20260920_182616_131f16 | subagent | ja | 20260920_063003_896e94ff | 09-20 18:26–09-20 19:09 | 201 | 4 | 68/0 | 
+20260920_182616_add6c0 | subagent | ja | 20260920_063003_896e94ff | 09-20 18:26–09-20 19:10 | 284 | 9 | 103/5 | 
+20260920_182616_8bc1c3 | subagent | ja | 20260920_063003_896e94ff | 09-20 18:26–09-20 18:52 | 133 | 5 | 39/2 | 
+20260920_194001_945c2e | subagent | ja | 20260920_063003_896e94ff | 09-20 19:40–09-20 19:51 | 35 | 1 | 10/0 | 
+20260920_204838_54c3b4 | subagent | ja | 20260920_063003_896e94ff | 09-20 20:48–09-20 20:53 | 22 | 1 | 9/1 | 
+20260920_223745_e99975 | subagent | ja | 20260920_063003_896e94ff | 09-20 22:37–09-20 22:41 | 22 | 1 | 9/0 | 
+20260920_231149_8305ec | subagent | ja | 20260920_063003_896e94ff | 09-20 23:11–09-20 23:37 | 193 | 3 | 104/0 | 
+20260921_004703_6c8afc | cli | NEIN | - | 09-21 00:47–09-21 00:47 | 2 | 1 | 0/0 | (nicht ausgegeben)
+20260921_005129_df2475 | cli | NEIN | - | 09-21 00:51–09-21 00:51 | 2 | 1 | 0/0 | (nicht ausgegeben)
+20260921_005905_c9f5e7 | cli | NEIN | - | 09-21 01:02–09-21 01:02 | 2 | 1 | 0/0 | (nicht ausgegeben)
+20260921_015554_e79a4a0f | telegram | ja | 20260920_063003_896e94ff | 09-21 01:56–09-23 19:35 | 3661 | 86 | 1518/68 | Sitzungsstatus und Übergabestand für Biotop bestätigen
+20260921_023021_a2ac4d | subagent | ja | 20260921_015554_e79a4a0f | 09-21 02:30–09-21 03:51 | 197 | 7 | 96/2 | 
+20260921_023021_fc79fe | subagent | ja | 20260921_015554_e79a4a0f | 09-21 02:30–09-21 03:24 | 142 | 1 | 87/1 | 
+20260922_063204_c6aa3c | subagent | ja | 20260921_015554_e79a4a0f | 09-22 06:32–09-22 06:53 | 67 | 1 | 24/0 | 
+20260922_145906_3f0287 | subagent | ja | 20260921_015554_e79a4a0f | 09-22 14:59–09-22 15:21 | 108 | 1 | 10/0 | 
+20260923_062946_caf149 | subagent | ja | 20260921_015554_e79a4a0f | 09-23 06:29–09-23 10:36 | 880 | 9 | 399/6 | 
+20260923_141831_d9b4cf | subagent | ja | 20260921_015554_e79a4a0f | 09-23 14:18–09-23 15:09 | 113 | 1 | 38/1 | 
+20260923_181805_5f4764 | subagent | ja | 20260921_015554_e79a4a0f | 09-23 18:18–09-23 19:15 | 97 | 1 | 41/1 | 
+20260923_194003_92313ee1 | telegram | ja | 20260923_193931_36ad1393 | 09-23 19:42–09-24 16:10 | 1743 | 23 | 575/21 | Neue Sitzung nach automatischem Zurücksetzen…
+20260923_205700_1b4e96 | cli | NEIN | - | 09-23 20:57–09-23 20:57 | 2 | 1 | 0/0 | (nicht ausgegeben)
+20260924_003814_8bcbb4 | subagent | ja | 20260923_194003_92313ee1 | 09-24 00:38–09-24 02:05 | 121 | 1 | 37/1 | 
+20260924_073859_4729a7 | subagent | ja | 20260923_194003_92313ee1 | 09-24 07:38–09-24 08:36 | 119 | 1 | 43/1 | 
+20260924_150913_a9326d | telegram | ja | 20260923_194003_92313ee1 | 09-24 15:09–09-24 21:51 | 448 | 6 | 185/5 | Runde 4 hat den wichtigsten Punkt geschafft…
+20260924_203120_e6c401 | telegram | ja | 20260924_150913_a9326d | 09-24 20:31–09-25 16:33 | 1414 | 25 | 625/21 | Zuerst Runde 5 abschließen: Es gilt das zweite…
+20260925_001805_512a27 | subagent | ja | 20260924_203120_e6c401 | 09-25 00:18–09-25 04:44 | 606 | 5 | 218/3 | 
+20260925_001805_f0fcb7 | subagent | ja | 20260924_203120_e6c401 | 09-25 00:18–09-25 03:31 | 243 | 2 | 101/2 | 
+20260925_002251_dec70e | subagent | ja | 20260924_203120_e6c401 | 09-25 00:22–09-25 03:18 | 113 | 3 | 41/1 | 
+20260925_035450_dad814 | subagent | ja | 20260924_203120_e6c401 | 09-25 03:54–09-25 08:30 | 865 | 5 | 246/2 | 
+20260925_050613_954859 | subagent | ja | 20260924_203120_e6c401 | 09-25 05:06–09-25 09:40 | 1002 | 6 | 528/6 | 
+20260925_084443_a0e4df | subagent | ja | 20260924_203120_e6c401 | 09-25 08:44–09-25 12:36 | 347 | 3 | 95/3 | 
+20260925_125142_033a80 | subagent | ja | 20260924_203120_e6c401 | 09-25 12:51–09-25 16:33 | 356 | 1 | 59/1 | 
+20260925_161047_8fef8e | subagent | ja | 20260924_203120_e6c401 | 09-25 16:10–09-25 16:31 | 140 | 2 | 76/2 | 
+20260925_161047_154999 | subagent | ja | 20260924_203120_e6c401 | 09-25 16:10–09-25 16:27 | 65 | 1 | 40/1 | 
+20260925_161047_5651dc | subagent | ja | 20260924_203120_e6c401 | 09-25 16:10–09-25 16:33 | 215 | 3 | 122/3 | 
+20260925_161047_23e44b | subagent | ja | 20260924_203120_e6c401 | 09-25 16:10–09-25 16:29 | 122 | 2 | 68/2 | 
+20260925_161047_1a3720 | subagent | ja | 20260924_203120_e6c401 | 09-25 16:10–09-25 16:33 | 146 | 2 | 86/2 | 
+20260925_161047_b6f209 | subagent | ja | 20260924_203120_e6c401 | 09-25 16:10–09-25 16:30 | 147 | 2 | 81/2 | 
+20260925_161047_983a5a | subagent | ja | 20260924_203120_e6c401 | 09-25 16:10–09-25 16:30 | 152 | 4 | 92/4 | 
+20260925_161047_d126b7 | subagent | ja | 20260924_203120_e6c401 | 09-25 16:10–09-25 16:27 | 83 | 1 | 44/1 | 
+20260925_163044_69477c | subagent | ja | 20260924_203120_e6c401 | 09-25 16:30–09-25 16:33 | 61 | 1 | 40/1 | 
+
+Sitzungen AUSSERHALB der Kette mit Biotop-Wörtern in user-Nachrichten: 0
+=== Ende R82 ===

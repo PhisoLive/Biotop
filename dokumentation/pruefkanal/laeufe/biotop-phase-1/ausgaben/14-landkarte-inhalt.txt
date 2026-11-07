@@ -1,0 +1,66 @@
+== STRASSEN (Modul→Modul, gemessen vom Biotop) ==
+lagerhaus.bericht -> lagerhaus.bericht.auswertung [import]
+lagerhaus.bericht.auswertung -> lagerhaus.lager [import]
+lagerhaus.bericht.auswertung -> lagerhaus.preise [import]
+lagerhaus.formeln -> lagerhaus.formeln.auswertung [import]
+lagerhaus.lager -> lagerhaus.lager.bestand [import]
+lagerhaus.lager -> lagerhaus.lager.journal [import]
+lagerhaus.lager.bestand -> lagerhaus.lager.journal [import]
+lagerhaus.preise -> lagerhaus.preise.katalog [import]
+lagerhaus.preise -> lagerhaus.preise.rabatt [import]
+lagerhaus.preise -> lagerhaus.preise.waehrung [import]
+lagerhaus.preise.katalog -> lagerhaus.preise.waehrung [import]
+lagerhaus.preise.rabatt -> lagerhaus.formeln [import]
+lagerhaus.preise.rabatt -> lagerhaus.preise.waehrung [import]
+== STUFE 0 ==
+Das Software-Werk dient der Verwaltung und Auswertung von Lagerbeständen, Preisen und Journalbewegungen. Der Bereich "lager" verwaltet Bestände basierend auf Journalbuchungen. Der Bereich "preise" kümmert sich um Artikel-, Staffelpreise und Rabatte, wobei er auf den Bereich "formeln" für die Auswertung von Rabattformeln zurückgreift. Der Bereich "bericht" aggregiert und stellt Daten aus den Bereichen "lager" und "preise" in Form von Auswertungen und Berichten dar.
+== STUFE 1 ==
+bericht :: Der Bereich "bericht" ist für die Erstellung von Auswertungen und Berichten über Lagerbestände, Journalbewegungen und Preise zuständig. Hauptbegriffe sind "Auswertung" und "Bericht". Dieser Bereich ist abhängig von den Modulen "lager", "journal" und "katalog", da er deren Daten für seine Berechnungen und Darstellungen nutzt.
+formeln :: Der Bereich "formeln" ermöglicht die Auswertung von Rabattformeln. Hauptbegriffe sind die Variablen `menge`, `preis`, `summe` und mathematische Funktionen. Die Auswertung hängt von der korrekten Syntax der Formel und gültigen Ergebnissen ab, wobei ungültige Fälle durch die Ausnahme `FormelFehler` signalisiert werden.
+lager :: Der Bereich "lager" verwaltet die Bestandsführung und Buchungen. Hauptbegriffe sind `Lager`, `Bestand`, `Buchung` und `Journal`. Der `Bestand` wird aus einem unveränderlichen `Journal` von `Buchungen` abgeleitet. Abhängigkeiten bestehen zwischen `Bestand` und `Journal` sowie zwischen `Lager` und den anderen Klassen.
+preise :: Der Bereich `preise` verwaltet alle preisrelevanten Informationen und Berechnungen. Hauptbegriffe umfassen Artikel, Staffelpreise, Rabatte und Währungen. Die Funktionalität wird durch die Module `katalog`, `rabatt` und `waehrung` bereitgestellt, die jeweils für die Artikelverwaltung, Rabattanwendung und Währungsumrechnung zuständig sind. Abhängigkeiten bestehen zu anderen Modulen, die Artikeldaten oder Warenkorbinformationen bereitstellen.
+== STUFE 2 ==
+lagerhaus/bericht/__init__.py a82b7b5e72c7835f :: Die Datei `lagerhaus/bericht/__init__.py` exportiert Funktionen zur Erstellung von Auswertungen über Lagerbestände und Preise, die auf Daten aus Lager, Journal und Katalog basieren.
+lagerhaus/bericht/auswertung.py 4b0c7c2abdc5595a :: Diese Datei enthält Funktionen zur Auswertung von Lagerbeständen, Journalbewegungen und zur Erstellung von Berichten.
+lagerhaus/formeln/__init__.py f6f2c77beb2b2ba9 :: Die Datei `lagerhaus/formeln/__init__.py` exportiert die Funktionen `auswerten` und `pruefen` sowie die Ausnahme `FormelFehler` aus dem Untermodul `auswertung`, um die Auswertung einfacher Rabattformeln zu ermöglichen.
+lagerhaus/formeln/auswertung.py 872bc2020dab5317 :: Die Datei `lagerhaus/formeln/auswertung.py` enthält Funktionen zur Auswertung von Rabattformeln, die die Variablen `menge`, `preis` und `summe` verwenden, sowie mathematische Funktionen, und wirft bei ungültigen Formeln oder Ergebnissen einen `FormelFehler`.
+lagerhaus/lager/__init__.py ef9682524fb332b1 :: Diese Datei initialisiert das `lager`-Paket und stellt die Klassen `Lager`, `NichtGenugBestand`, `Buchung` und `Journal` für die Verwaltung von Lagerbeständen, Buchungen und Reservierungen bereit.
+lagerhaus/lager/bestand.py 48a0b78605470b88 :: Die Datei `lagerhaus/lager/bestand.py` implementiert die Bestandsführung eines Lagers, wobei der Bestand aus einem Journal abgeleitet wird und Reservierungen verwaltet werden.
+lagerhaus/lager/journal.py 94608df67d600fb4 :: Die Datei `lagerhaus/lager/journal.py` definiert die Klassen `Buchung` und `Journal` zur Erfassung und Verwaltung von Bestandsänderungen als unveränderliche Einträge.
+lagerhaus/preise/__init__.py 3fa64429b7c060cf :: Diese Datei initialisiert das `preise`-Paket und stellt die Klassen und Funktionen für Artikelkataloge, Staffelpreise, Rabatte und Währungsumrechnung bereit.
+lagerhaus/preise/katalog.py 81eb2116fa596674 :: Die Datei `lagerhaus/preise/katalog.py` definiert die Klassen `UnbekannterArtikel`, `Staffel`, `Artikel` und `Katalog` zur Verwaltung von Artikeln und deren Staffelpreisen.
+lagerhaus/preise/rabatt.py 26dea37916b46856 :: Die Datei `lagerhaus/preise/rabatt.py` implementiert die Logik zur Anwendung von Rabattregeln auf Warenkorbsummen, wobei jede Regel eine Bedingung und einen Betrag als Formel definiert und die Regeln sequenziell auf die jeweils reduzierte Summe angewendet werden.
+lagerhaus/preise/waehrung.py 6bdfe1603995ec9f :: Diese Datei definiert Umrechnungskurse und Funktionen zur kaufmännischen Rundung von Geldbeträgen auf zwei Nachkommastellen sowie zur Währungsumrechnung.
+== STUFE 3 (Anzahl Funktionen je Datei) ==
+lagerhaus/bericht/__init__.py 0
+lagerhaus/bericht/auswertung.py 3
+lagerhaus/formeln/__init__.py 0
+lagerhaus/formeln/auswertung.py 3
+lagerhaus/lager/__init__.py 0
+lagerhaus/lager/bestand.py 12
+lagerhaus/lager/journal.py 6
+lagerhaus/preise/__init__.py 0
+lagerhaus/preise/katalog.py 9
+lagerhaus/preise/rabatt.py 4
+lagerhaus/preise/waehrung.py 2
+== VERTRÄGE (docstring) ==
+[bericht] lagerwert(lager, katalog) -> float ≥ 0, auf Cent gerundet; Artikel ohne (lagerhaus/bericht/__init__.py)
+[bericht] bewegungsbericht(journal) -> je Artikel (zugang, abgang), beide ≥ 0. (lagerhaus/bericht/__init__.py)
+[bericht] Alle Funktionen sind frei von Nebenwirkungen. (lagerhaus/bericht/__init__.py)
+[formeln] auswerten(formel, menge, preis, summe) -> float | bool (lagerhaus/formeln/__init__.py)
+[formeln] Eine Formel mit unbekannten Namen führt zu FormelFehler. (lagerhaus/formeln/__init__.py)
+[formeln] Die Auswertung hat keine Nebenwirkungen. (lagerhaus/formeln/__init__.py)
+[lager] Lager.bestand(artikel_nr) -> int ≥ 0. (lagerhaus/lager/__init__.py)
+[lager] Lager.entnehmen(artikel_nr, menge) senkt den Bestand nie unter 0; bei (lagerhaus/lager/__init__.py)
+[lager] Jede Buchung landet im Journal (unveränderlich, fortlaufend). (lagerhaus/lager/__init__.py)
+[lager] bestand() ≥ 0 jederzeit. (lagerhaus/lager/bestand.py)
+[lager] entnehmen() bucht ganz oder gar nicht. (lagerhaus/lager/bestand.py)
+[lager] verfuegbar() = bestand − reserviert; eine eingelöste Reservierung ist (lagerhaus/lager/bestand.py)
+[preise] Katalog.preis_fuer(artikel_nr, menge) -> float, auf Cent gerundet, nie negativ. (lagerhaus/preise/__init__.py)
+[preise] Staffelpreise gelten ab der eingetragenen Mindestmenge (einschließlich). (lagerhaus/preise/__init__.py)
+[preise] rabatt_anwenden(...) -> float, auf Cent gerundet, nie negativ. (lagerhaus/preise/__init__.py)
+[preise] Staffeln gelten ab `ab_menge` einschließlich: bei ab_menge=10 zahlt (lagerhaus/preise/katalog.py)
+[preise] preis_fuer liefert den Gesamtpreis (Stückpreis × Menge), auf Cent gerundet. (lagerhaus/preise/katalog.py)
+[preise] rabatt_anwenden(summe, regeln, menge, preis) -> float ≥ 0, auf Cent gerundet; (lagerhaus/preise/rabatt.py)
+[preise] Regeln werden in Reihenfolge angewendet; jede Regel sieht die schon (lagerhaus/preise/rabatt.py)
+abgeleitete Verträge: 34

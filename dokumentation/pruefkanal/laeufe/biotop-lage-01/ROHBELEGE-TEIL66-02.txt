@@ -1,0 +1,192 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 66 (Teile 4–165 dieses Stands) · enthält R62 bis R62
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R62 · Teil A: Abschnitte Eigene Entscheidungen der Berichte (gekürzt je Punkt), vor-t4-06 Übergabe und Baudateien
+Beginn: 2026-09-25 16:20:41 CEST (UTC+0200)
+Ende:   2026-09-25 16:20:41 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/entscheidungen/a5_eigene_entscheidungen.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/entscheidungen/a5_eigene_entscheidungen.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil A (nur lesend) — FK17: Abschnitte „Eigene Entscheidungen“ der Berichte, je Punkt gekürzt.
+Je Bericht: Überschrift mit Zeile, dann je Aufzählungspunkt (Folgezeilen angehängt) die ersten 330 Zeichen.
+Dazu aus /root/biotop-vor-t4-06/UEBERGABE.md die Zeilen mit „Eigene Entscheidung“/„Entscheidung Hermes“ samt 2 Folgezeilen,
+und aus BAU-S1B-M2B.md, BAU-S4-VERDRAHTUNG.md, S1-ABBRUCH.md, sperre/SPERRE-02…, SPERRE-04…, VERDICHTUNG-OPENROUTER.md
+die Trefferzeile mit 3 Folgezeilen. Prüfkanal-Schlüssel maskiert."""
+import re
+from pathlib import Path
+
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+L = Path(f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe')
+BERICHTE = [
+    L / 'biotop-phase-1/BERICHT.md', L / 'biotop-phase-1-nachlauf/BERICHT.md', L / 'biotop-phase-2/BERICHT.md',
+    L / 'biotop-phase-4-vorbedingung-1/nach-reparatur-02/abschluss-01/MESSPLAN.md',
+    L / 'biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md',
+    L / 'biotop-vor-t4/BERICHT.md', L / 'biotop-vor-t4-02/BERICHT.md', L / 'biotop-vor-t4-03/BERICHT.md',
+    L / 'biotop-vor-t4-04/BERICHT.md', L / 'biotop-vor-t4-05/BERICHT.md',
+    Path('/root/biotop-vor-t4-06/VERDICHTUNG-OPENROUTER.md'),
+]
+m = lambda p: str(p).replace(str(L), '{LAEUFE}')
+for p in BERICHTE:
+    z = p.read_text(errors='replace').splitlines()
+    for i, s in enumerate(z):
+        mm = re.match(r'^(#+) .*(Eigene Entscheidungen|Eigene Entscheidung)', s)
+        if not mm:
+            continue
+        ebene = len(mm.group(1))
+        j = i + 1
+        punkte, akt = [], None
+        while j < len(z) and not re.match(rf'^#{{1,{ebene}}} ', z[j]):
+            t = z[j]
+            if re.match(r'^\s*([-*]|\d+\.)\s', t) and not t.startswith('   '):
+                if akt:
+                    punkte.append(akt)
+                akt = t.strip()
+            elif t.strip() and akt is not None:
+                akt += ' ' + t.strip()
+            elif t.strip() and akt is None:
+                punkte.append('(Vortext) ' + t.strip())
+            j += 1
+        if akt:
+            punkte.append(akt)
+        print(f'\n##### {m(p)}:{i + 1}: {s.strip()} — {len([x for x in punkte if not x.startswith("(Vortext)")])} Punkte')
+        for x in punkte:
+            print('  •', x[:330] + ('…' if len(x) > 330 else ''))
+print('\n##### /root/biotop-vor-t4-06/UEBERGABE.md — Zeilen mit eigener Entscheidung')
+z = Path('/root/biotop-vor-t4-06/UEBERGABE.md').read_text(errors='replace').splitlines()
+for i, s in enumerate(z):
+    if re.search(r'[Ee]igene Entscheidung|Entscheidung Hermes', s):
+        print(f'  {i + 1}: ' + ' ⏎ '.join(x.strip() for x in z[i:i + 3])[:600])
+for n in ('BAU-S1B-M2B.md', 'BAU-S4-VERDRAHTUNG.md', 'S1-ABBRUCH.md', 'sperre/SPERRE-02-S3-gateway-waechter.md',
+          'sperre/SPERRE-04-S1b-formatsperre.md'):
+    p = Path('/root/biotop-vor-t4-06') / n
+    z = p.read_text(errors='replace').splitlines()
+    for i, s in enumerate(z):
+        if re.search(r'[Ee]igene Entscheidung|Entscheidung Hermes', s):
+            print(f'\n##### {p}:{i + 1}: ' + ' ⏎ '.join(x.strip() for x in z[i:i + 4])[:700])
+--- Ende /root/sicherung/biotop-lage-01/entwurf/entscheidungen/a5_eigene_entscheidungen.py ---
+Ausgabe (vollständig, stdout und stderr):
+
+##### {LAEUFE}/biotop-phase-1/BERICHT.md:74: ## 4. Eigene Entscheidungen von Hermes (Konfiguration, keine Architektur) — 7 Punkte
+  • 1. **Prüfkanal-Stelle:** bestehender Kanal `/var/pruefkanal/…/laeufe/biotop-phase-1/` (von Philipp bestätigt).
+  • 2. **Kernmaß-Formel** und **Toleranzen** (s. o.). Philipp soll das Maß bestätigen oder ändern; danach neuer Lauf (Verfassungssatz 2).
+  • 3. **Modelle:** Masse `openai/gpt-4.1-mini` + `google/gemini-2.5-flash` (zwei Hersteller, Schwarm); Angriff `google/gemini-2.5-flash`; Landkarte `google/gemini-2.5-flash-lite`; Ethik `openai/gpt-4.1-mini`. Philipp kann in `genesis.NISCHEN`, `aegis.MODELL_ANGRIFF`, `landkarte.MODELL_ZUSAMMENFASSUNG` ändern.
+  • 4. **Freigaben im Hauptlauf** hat Hermes stellvertretend erteilt (3 Generationen, je mit Begründung im Protokoll `freigabe.frei`), weil Philipp nicht am Terminal war. Im echten Betrieb gibt Philipp frei; der Mechanismus (`freigabe`) ist derselbe.
+  • 5. **Lauf 1 abgebrochen und Lauf 2 gestartet**, weil zwei Mängel im Biotop selbst behoben wurden (Diff-Werk ersetzte git-apply; Toleranz groesste_funktion) — das ist eine Maßänderung, also neuer Lauf (Verfassungssatz 2). Beide Läufe sind in der Datenbank.
+  • 6. **Kassenprobe zweimal gemessen** (`44a`, `44`): Messung 1 zeigte, dass die Vorprüfung je Aufruf zwar vor dem überschreitenden Aufruf abbrach (kein Cent über Budget), aber erst mitten in Generation 4. Die Torzeile verlangt Abbruch vor dem **ersten** Aufruf der nächsten Generation → `generation_vorpruefung` ergänzt (Voranschlag…
+  • 7. **Biotop-Code wurde von Hermes geändert, nie vom Biotop** — alle Änderungen während der Läufe waren Fehlerbehebungen durch Hermes am Kern, protokolliert (`lauf.abgebrochen` #80, `immun.verworfen`), git-Historie in `/root/biotop`. Das laufende Biotop hat keinen Schreibpfad auf seinen eigenen Code (Kandidaten dürfen nur `lagerh…
+
+##### {LAEUFE}/biotop-phase-1-nachlauf/BERICHT.md:109: ## 7. Eigene Entscheidungen von Hermes — 7 Punkte
+  • 1. Pareto **je Test** (nicht in v2 wörtlich; Folge aus Lauf 7). Vorschlag für Fassung 3.
+  • 2. Ins Werk nur bestandene Immuntests; nicht bestandene bleiben `offen` im Immunsystem (Folge aus Lauf 6). Vorschlag für Fassung 3: 3.10 präzisieren.
+  • 3. Befundklassen-Katalog als Teil des Messgeräts (`befundklassen.py`), Umgehungen für B307/B102; Einstieg je Werk in der Verfassung (`regeln.einstiege`). Katalog nur von Philipp zu ändern.
+  • 4. Schweres Modell über OpenRouter (claude-sonnet-4.5), nicht über den Anthropic-Träger, wegen der Vorgabe „Träger bleibt unangetastet"; getrennt gezählt.
+  • 5. Lauf 9 nach Generation 6 beendet (Kernmaß F2 = 0 = Höchstwert in allen Bereichen; kein Sättigungsorgan in Phase 1).
+  • 6. Freigaben in Läufen 6–10 unter Vollmacht Abschnitt 4 (17 Freigaben, je mit `vollmacht`-Feld und Maß-Urteil im Protokoll).
+  • 7. Wechselkurs 1,08 fest; Toleranzen aus Phase 1 durch F2-Grenzmaße ersetzt. ---
+
+##### {LAEUFE}/biotop-phase-2/BERICHT.md:110: ## 6. Eigene Entscheidungen von Hermes — 8 Punkte
+  • 1. **Lauf 12 abgebrochen, Lauf 13 vom selben Ausgang** (Maßänderung → neuer Lauf, Satz 2): die Norm-Probe zeigte, dass die Norm-Regel nur auf Ankläger-Tests wirkte; ein mitgebrachter Norm-Test wäre ins Werk gekommen (`lauf12-vorlauf/52-normprobe.txt`). Lauf 12 selbst: 10 Generationen, 4 angenommen, inhaltlich gleiche Funde (S2 −…
+  • 2. **Verhandlung: „bestanden" = Paar ohne Vertrags-/Pareto-/Grenzverletzung**; ob es angenommen wird, entscheidet danach das Maß. Erste Fassung verlangte „ueberlebt" (inkl. Kernmaßgewinn) — damit wäre eine reine Vertragsänderung nie „bestanden" gewesen, obwohl 3.8 Schritt 2 nur die gemeinsame Prüfung verlangt (`54a-…` vs `54-…`)…
+  • 3. **Zwei Biotop-Fehler während Lauf 13 korrigiert, ohne Maßwirkung**, protokolliert (`biotop.korrektur`): Paarprüfung in der Verhandlung las nur das gespeicherte Einzelurteil (Status nicht zurückgesetzt) — betraf 4 Verhandlungen in Lauf 12/13, alle wären auch danach gescheitert (Anpassungen brachten den Vertragstest nicht zum B…
+  • 4. **Mutanten**: 20 handgesetzt, versiegelt vor Lauf 12 (`/root/versiegelt/MUTANTEN-phase2.json`, sha256 `eeb3de60…`), verteilt 9 preise / 7 lager / 2 formeln / 2 bericht, Arten vergleich 6 / rueckgabe 8 / grenze 4 / arithmetik 2. #7 (`rest <= 0` → `< 0` in `rabatt_anwenden`) und #19 (`menge > 0` → `>= 0` in `bewegungsbericht`) …
+  • 5. **S2-Kriterium** vor Lauf 12 versiegelt festgelegt (zwei Bedingungen, s. Zeile 3).
+  • 6. **Vertragstests** (17) von Hermes aus Anhang A + Docstrings abgeleitet — Philipp/Chat-Claude bestätigen sie bei Vorlage.
+  • 7. **Lauf 13 nach Gen 14 beendet** (Sättigung ist Phase 3; 7 von 7 Freigaben unter Vollmacht Abschnitt 4).
+  • 8. Proben laufen gegen den jeweils letzten angenommenen Stand und werden mit `nische='probe'`/`status='probe_*'` gekennzeichnet; sie schreiben nie ins Werk. ---
+
+##### {LAEUFE}/biotop-phase-4-vorbedingung-1/nach-reparatur-02/abschluss-01/MESSPLAN.md:8: ## Eigene Entscheidungen von Hermes vor den Ergebnissen — 4 Punkte
+  • - Vorhandene Mechanik an den bestehenden Tests test_ansage_aufnahme.py und test_artvorlage.py prüfen. Keine neue Gesamt-Reparaturprüfung und keine Umdefinition der abgenommenen Batterie. Reparatur-02 bleibt Ausgang.
+  • - Quelle: unveränderte private Eich-/Werkquelle aus Reparatur-02. Native Aufnahme, Landkarte, Verfassung/Verträge, Vorspann, Gen0, Maß-Freeze, Mentor und natürliche Generationen; keine eingespeisten Schwarmvorschläge oder Angriffstests. Gen0 darf nur mit ausdrücklich erreichtem ursprünglichem Ziel zum Freeze führen; Existenz ein…
+  • - Genau ein Messlauf bis zur natürlichen Sättigung, Budget-/Infrastrukturabbruch oder höchstens sechs Generationen. Kein Abbruch beim ersten günstigen Prozentwert, keine Auswahl einer günstigen Teilmenge, kein Neustart zur Ergebniskosmetik. Mentor einmal; Wahl der Empfehlung unter Übungswerk-Vollmacht, sofern sie eine ausführbar…
+  • - Passiver Mitschnitt steht vor Laufbeginn fest: tatsächliche Modellanfragen/-antworten ohne Zugangsdaten; Angriffscode und Schlüsselvorrat vor dem Angriff, Kandidatenkennung und eigene Ansagekennung; vollständige Kammerergebnisse und native CLI-Ausgaben. Keine Ersetzung einer Modellantwort, kein Eingriff in Testurteile. Privatp…
+
+##### {LAEUFE}/biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md:479: ## Eigene Entscheidungen (mit Begründung) — 7 Punkte
+  • 1. Verdrahtungstest in der Standard-Regression. Nur so macht ein nie gerufenes Organ jede Regression rot.
+  • 2. Sauberer Vergleichsbereich aus dem wörtlichen Satz der versiegelten Verfassung, ohne die Verfassung anzufassen.
+  • 3. Verhaltensvergleich erst nach bestandenem Maß. Das spart Kammerläufe; Folge: 11 von 29 Nachspielen mit eingeschaltetem Vergleich bekamen kein Verhaltensurteil.
+  • 4. Im Nachspiel keine erfundenen Angriffe.
+  • 5. Code-Befunde des Reviews nicht in T3 behoben, sondern als rote Spezifikation für T4 (§9).
+  • 6. Sperren 2 und 5 nach Philipps Regel unverändert ausgeführt.
+  • 7. Wächter-Schwellen 110/140 statt 120, wegen des Minutentakts. Zustellung nur lokal; Fehler gehen in diesen Chat.
+
+##### {LAEUFE}/biotop-vor-t4/BERICHT.md:283: ## 10. Eigene Entscheidungen — 9 Punkte
+  • 1. **`model.default` in `config.yaml` gesetzt.** Philipp hatte per `/model` umgestellt. Dieser Override gilt nur für die Unterhaltung und ging beim Zurücksetzen um 19:35 verloren; gemessen an der 429-Anfrage um 19:45:55. Die Sicherung liegt daneben.
+  • 2. **Beleg am frischen CLI-Prozess statt am Gateway.** Ein Gateway-Dump bräuchte `HERMES_DUMP_REQUESTS=1` in `.env`. Das wirkt ab dem nächsten Turn und schreibt jede Anfrage samt Verlauf auf die Platte. Nicht ungefragt.
+  • 3. **Maßstab „gültig“ in §2.** Es gilt die Vertragsgrammatik. Wo der Vertrag schweigt (Weißraum), entscheidet die versiegelte Normalversion, die nur gelesen wurde. Das Weißraum-Korpus W ist nach Sicht von R ergänzt und so gekennzeichnet.
+  • 4. **Wächter: je Turn einmal.** Nicht einmal je Sitzung, weil ein Zwischenbericht den Stand des Turns zeigt. Ergebnis in der gestorbenen Sitzung: 6 Berichte in 3½ h. Weitere Festlegungen: - `lock_contended` ist kein Scheitern. - Die Kontextfüllung kommt aus dem Log, weil `state.db` keine laufende Kontextgröße führt.
+  • 5. **Review-Befunde als Code, ohne zweites Review.** Der Auftrag verlangt ihren eigenen Commit. Nach der Regel „ein Review“ belegen ihn Tests, Gegenproben und die volle Regression.
+  • 6. **5 Messungen je Seite, „Laufzeit nur wo sie entscheidet“, Befundklassen je geändertem Bereich.** Diese Entscheidungen gelten unverändert wie im Entwurf (Punkte 1–7 dort).
+  • 7. **Die Weißraum-Spezifikation ist nicht in `/root/biotop/tests` eingecheckt.** Commit und Regression waren gelaufen, und ein roter Test hätte die Regression rot gemacht. Sie liegt als Text für den nächsten Auftrag im Ordner. Dasselbe gilt für `spez/test_spez_laufzeit_gepaart_teilausfall.py`.
+  • 8. **Dritter Durchgang für K2904 und K3091.** Er ist eine Wiederholungsmessung nach einem Ausreißer. Durchgang 2 bleibt als gescheiterte Zeile stehen, und alle drei Werte sind berichtet.
+  • 9. **Keinen neuen Code nach dem Review für K2904 und den Teilausfall.** Beides wäre neuer, ungeprüfter Code nach dem einen Reviewdurchgang. Der Teilausfall ist deshalb eine rote Spezifikation, und die Laufzeitgrenze außerhalb des Wirkungskreises ist eine Frage an Philipp.
+
+##### {LAEUFE}/biotop-vor-t4-02/BERICHT.md:368: ## 10. Eigene Entscheidungen — 7 Punkte
+  • 1. **Regel „S1 sauber“** (§1): Marker 0-mal ausgeführt und jeder Ausdruck, den die Normalversion rechnet, gleich gerechnet. Gemessen mit Leerzeichen, Tab und Zeilenumbruch, weil das die Formen sind, die die Entscheidung („soweit die Normalversion ihn rechnet“) sichtbar macht. Andere Weißraumzeichen (CRLF, NBSP) sind nur in R gem…
+  • 2. **Deckung verlangt dieselbe Eingabe und dasselbe Ergebnis.** Folge: Ein veralteter Zwischenspeicher ist nie deckbar. Das ist gewollt. - Berichtigt nach Review Nr. 6 und 8: Die Regel ist strenger als Grundsatz 11. Sie prüft zudem nicht, ob der Test das Ergebnis zusichert; ein Test, der `f('a')` nur nebenbei ruft, deckt mit. - …
+  • 3. **Beleg durch aufgezeichnete Aufrufe statt Quelltext**, und ein deckender Test, der im Aufzeichnerlauf nicht besteht, ist ein Messgerätausfall. Ohne diese Bedingung könnte das Instrument das Verhalten verändern und trotzdem urteilen.
+  • 4. **Nachmessung nur der gerissenen Bereiche, einmal, 5 je Seite.** Bestätigt heißt: Die zweite gepaarte Messung reißt dieselbe Grenze. Bei „nicht bestätigt“ bleibt die erste gepaarte Messung Grundlage des übrigen Urteils (Gewinne, Nischenmaß).
+  • 5. **Gesperrte Bereiche fordert die gepaarte Messung nicht an.** Sonst hätte ein dort fehlender Wert die ganze Messung ungültig gemacht, obwohl sie dort nichts entscheidet.
+  • 6. **Formvarianten mit Kappe 16 je Funktion** und nur für die erste Argumentliste. Das hält die Kammerzeit klein. Nicht gemessen ist, ob Varianten späterer Argumentlisten weitere Abweichungen fänden.
+  • 7. **Python-Eichproben mit eigener Referenzlast** (`REF_PAAR`). Im Lauf reicht der Vorspann die Last des Werks durch.
+
+##### {LAEUFE}/biotop-vor-t4-03/BERICHT.md:395: ## 12. Eigene Entscheidungen — 9 Punkte
+  • 1. **Deckung je Merkmal gelesen:** Ein Muster gilt als gedeckt, wenn jedes seiner Merkmale von einem festhaltenden Test getroffen wird, nicht nur von einem einzigen Aufruf mit allen Merkmalen zugleich. Grund: Die Formvarianten der Sonde variieren je ein Merkmal; alle Merkmale in einem Aufruf zu verlangen, käme der verworfenen Re…
+  • 2. **Uneinige Gewinnmessungen: gepoolter Median** über beide gepaarten Messungen. Sonst bliebe ein Grenzfall unentschieden; die größere Stichprobe liegt dort, wo das Rauschen entscheidet. Festgelegt vor den Nachspielen.
+  • 3. **Band = 0,85 ÷ t … 0,85 · t** mit der gemessenen Rauschtoleranz t des Bereichs.
+  • 4. **Muster über alle Argumente** (nicht nur die variierten Stellen), damit Lastbeobachtungen ihr Weißraum-Merkmal tragen. Folge: Merkmale nicht variierter Argumente werden mitverlangt (§3, `null_zahl`).
+  • 5. **`kern/gegenzeugen.py` statt `organe/`:** Der Verdrahtungstest verlangt für jedes Organ einen Aufruf im Lauf; die Gegenzeugen sind wie in T3 private Bauverifikation außerhalb des Laufs.
+  • 6. **Typtreuer Ausgangsdefekt** in der Nebenwirkungsprobe (§9).
+  • 7. **Vorher/Nachher an denselben Testfunktionen:** Die Fälle der Lücken wurden am alten Code aus `git archive 6243377` ausgeführt, statt eigene Altfälle zu bauen — dieselben Diffs, dieselbe Last, derselbe Ablauf.
+  • 8. **Zwischenberichte des Wächters in `DATEIEN.txt`:** Sie liegen im selben Ordner, sind aber eigene Lieferungen mit eigener Prüfsumme; `DATEIEN.txt` nennt ihre Abholadressen, das Manifest dieses Ordners umfasst sie nicht.
+  • 9. **Nachtrag-Commit `0aac612`** statt Änderung von `d54bf2f`, und die Regression danach noch einmal voll: Die Geschichte bleibt unverändert, und die Zahl 533/2/0 gehört zu genau dem Stand, der jetzt HEAD ist.
+
+##### {LAEUFE}/biotop-vor-t4-04/BERICHT.md:319: ## 12. Eigene Entscheidungen — 7 Punkte
+  • 1. **Stufe 2 ist dieselbe Last mit zehnfacher Menge, nicht zehnfachen Werten.** Die erste Fassung vergrößerte auch Werte (`skalar(i * 100)`) und riss den Wertebereich des Werks. Die Wiederholungszahlen blieben gleich. So steigt die Kammerzeit nur um den Faktor ≈ 1,6 (Median 6,3 s → 9,9 s), und alle 12 von 12 Kammerläufen bleiben…
+  • 2. **Merkmal = Formvariante; Randwerte tragen keins.** Entscheidung 2 nennt die Formvarianten. Leer, `None`, lang und nicht-ASCII sind Randwerte des Korpus, keine Formvarianten; ihre Abweichungen haben das gewöhnliche Muster. Folge: Ein Test, der die Funktion festhält, deckt sie ohne passenden Randwert. Die Merkmale `lang`, `lee…
+  • 3. **Die Rauschmessung im Nachspiel misst an Stufe 2 neu.** Die Läufe 37/38 tragen nur Toleranzen der Stufe 1. Toleranzen einer anderen Last auf Stufe 2 anzuwenden, hätte die Grenzmaße verfälscht. Das Nachspiel verhält sich jetzt wie ein Lauf mit dem neuen Instrument.
+  • 4. **Kappe der Verfälschungsläufe: 24 je Kandidat.** Die Obergrenze ist gezählt: Ausgelassene Proben lassen ihre Abweichungen ungedeckt, nie gedeckt. Die Zahl ist eine Schätzung: 5 Formvarianten-Merkmale × wenige geänderte Funktionen. Gemessen wurde an K2868: 2 Verfälschungsläufe, 0 ausgelassen.
+  • 5. **Eigene Tests = neu oder im Quelltext geändert**, je Testfunktion. Einen unveränderten Test aus einer Datei, die der Kandidat erweitert, zählt die Regel nicht als eigenen Test; er gehört zur Vorgeneration.
+  • 6. **Nachtrag-Commit statt Änderung von `1d9a5aa`.** Die Geschichte bleibt unverändert; die Nachspiele an `1d9a5aa` bleiben als abgebrochene Belege im Ordner.
+  • 7. **Die Torzeile am T3-Werk ist eine Feststellung**, keine Neubewertung von T3. Entscheidung 5 gilt für künftige Testwerke. Die alte Zahl 4 von 5 stand nur auf dem versiegelten Gegenzeugen; das steht daneben.
+
+##### {LAEUFE}/biotop-vor-t4-05/BERICHT.md:504: ## 13. Eigene Entscheidungen — 11 Punkte
+  • 1. **Enthaltung des ganzen Urteils bei unvollständiger Erfassung**, nur wenn das Urteil sonst tragfähig wäre (Eine Ablehnung wegen einer ungedeckten Abweichung bleibt eine Ablehnung.). **Diese Entscheidung war falsch** (Philipp, 24.09.): - Sie widerspricht Entscheidung 3 und schafft denselben Totalausfall wie Review 04 Nr. 4. - …
+  • 2. **Die unabhängige Aufzählung ist `object.__getstate__`**, Pythons eigener Kopierzustand, und keine zweite eigene Liste. Eine eigene zweite Aufzählung hätte dieselben blinden Stellen wie die erste.
+  • 3. **Festhalten in Python am pytest-Bericht** (Absturzstelle und Meldung). Das ist vor dem Bau gemessen (`VORPROBE-E2`), nicht angenommen.
+  • 4. **Eingrenzung per `os.fork` aus dem Zustand vor der Last.** Ein erster Entwurf wiederholte die Last im selben Prozess und erbte den vom ersten Lauf veränderten Modulzustand (§14 Nr. 2). - Halbierung statt ein Lauf je Funktion, wegen des Kammer-Zeitlimits von 240 s. - Scheitert die Eingrenzung, enthalten sich alle Funktionen d…
+  • 5. **`ITER_KAPPE` 1000.** Mit 50 riss der eigene Randfall-Korpus (Zahl 100) die Kappe an linearen Generatoren, und die Sonde enthielt sich an ihren eigenen Eingaben (`TEILLAUF-1`).
+  • 6. **Kappe:** Enthaltung nur, wenn jede ungedeckte Abweichung an einer ausgelassenen Probe hängt.
+  • 7. **Register:** Aufrufer und Phase müssen stimmen. Die Kernmodule `gegenzeugen`, `tor4` und `messgeraet` werden zusätzlich zu den Organen aufgezeichnet.
+  • 8. **Normalvergleich einer Altlast:** - Alle angenommenen Kandidaten mit der Altlast im Bereich oder Wirkungskreis zählen. - Jede Abweichung zählt als verändert, außer ein unabhängiger Test der Liste deckt sie. Auch eine Abweichung, die ein anderer Test deckt, zählt; das ist streng; so gelesen steht es im Wortlaut der Entscheidu…
+  • 9. **Stufe-2-Last `eingang` mit 240 Wiederholungen** (gemessen). Im Drahtwerk ist nur `alpha` zehnfach. Geprüft wird dort die Verdrahtung der Stufe, nicht ihre Größe, und die Laufzeit des Verdrahtungstests bleibt bei ≈ 29 min.
+  • 10. **Parametrisierte Kandidatentests werden jetzt aufgenommen.** Ohne Aufnahme wäre der Ausschluss nach Kennung (Nr. 16) ohne Gegenstand.
+  • 11. **Das Tor-4-Skript berechnet nur die Zeile „Schwächen“**, die übrigen Zeilen stehen als „nicht berechnet“ im Ergebnis.
+
+##### /root/biotop-vor-t4-06/VERDICHTUNG-OPENROUTER.md:50: ## Eigene Entscheidungen — 2 Punkte
+  • - **Modell `google/gemini-3.6-flash`:** Das ist Hermes' eigenes Verdichtungsmodell auf seinem Nous-Weg (`_NOUS_MODEL`, `agent/auxiliary_client.py:909`), mit 1 Mio. Token Kontext (diese Sitzung stand bei 612.326) und dem niedrigen Preis oben. **Nicht** das bisherige Modell: Bis zum Widerruf verdichtete Hermes über die Anthropic-A…
+  • - **Gilt profilweit:** Die Einstellung betrifft alle Sitzungen dieses Profils, auch die Subagenten. Gemessen ist nur diese Sitzung.
+
+##### /root/biotop-vor-t4-06/UEBERGABE.md — Zeilen mit eigener Entscheidung
+  118: Modellwahl (eigene Entscheidung): `google/gemini-3.6-flash` — Hermes' eigenes Verdichtungsmodell der Nous-Bahn ⏎ (`_NOUS_MODEL` in agent/auxiliary_client.py), 1 Mio. Kontext, 0,75 $/M ein, 3,75 $/M aus. NÄCHSTE Schritte, je einzeln: ⏎ `hermes config set auxiliary.compression.provider openrouter` → `hermes config set auxiliary.compression.model
+  159: Verdrahtungslauf, Befehlszeile `stufe2` und tor4-Belege, Typsieb-Protokoll, **eigene Entscheidung: Kernstand-Abweichung ⏎ zwischen Eichphase und Vorspann sperrt** (Satz 2), Fixture fund_vorspann. Voller Verdrahtungstest an einer Kopie ohne ⏎ S1-Halbstand, nur bei ruhiger Kammer.
+  164: - 05:02 Eigene Entscheidungen (für Bericht §Entscheidungen): (1) VORHER-NACHHER-S3 endgültig gestrichen (Ergebnis einer ⏎ Umgehung zählt nicht; Kette misst neu). (2) S3 offener Punkt 4, Ausreißer: Kriterium der Eichphase bleibt wörtlich ⏎ (Spannweite < 0,25 über alle 8 Werte, jeder ≥ 10 ms), kein Ausreißerfilter — ein Hänger erzwingt eine Verdoppelung,
+  178: - 08:50 **Eigene Entscheidung: M2(b) in diese Runde** (Startregel + Philipp 25.09.: stiller Durchlass → diese Runde; ⏎ Vorbedingung 2 „unbeobachtet = Enthaltung“; Entscheidung 3 „geänderte Funktion enthält sich → zurückgestellt“). Meine ⏎ Engführung im Auftrag S1 („nur unvollständig/Ausfall/Zeitgrenze“) war der Fehler. **S1b gestartet** (`sa-0-f62eb72d`,
+  225: - 12:55 **Eigene Entscheidung: Klasse statt Fall** — gelesen (`bau/hermes/H-LESEN-WEGE.txt`): `verhaltensvergleich.pruefen` ⏎ hat drei Wege mit `tragfaehig: True` ohne Beobachtung/Enthaltung: `unbeobachtet` (0 von y), `sonde_vorgeneration_inhalt` ⏎ (Vorgeneration nicht beobachtbar → gar kein Vergleich), `keine_quellaenderung` (auch bei Datendateien im Quellpaket);
+
+##### /root/biotop-vor-t4-06/BAU-S1B-M2B.md:29: ## Warum M2(b) in diese Runde gehört (Entscheidung Hermes, nach der Startregel) ⏎ - **Startregel für T4**, vorab gesetzt: „T4 beginnt, sobald das Review dieser Runde keinen stillen Durchlass mehr findet ⏎ — jede bekannte Lücke muss eine gezählte Enthaltung sein; Lücken, die sich nur enthalten, behebt T4 im Lauf.“ ⏎ - **Philipp, 25.09.:** Ein stiller Durchlass „gehört mit Gegenprobe in diese Runde“.
+
+##### /root/biotop-vor-t4-06/BAU-S1B-M2B.md:100: ## Teil C — Nebenwirkung abstellen (Entscheidung Hermes) ⏎ - `tests/test_t3_eichpfad.py` schreibt ohne `T3_EICH_BELEGE` nach `/root/biotop-t3/eichbau`. Ändere nur den Standard ⏎ auf den `tmp_path` des Tests; die Zusicherungen bleiben unverändert. Einen Grund trägst du in die Liste der geänderten ⏎ Tests ein.
+
+##### /root/biotop-vor-t4-06/BAU-S4-VERDRAHTUNG.md:134: 6. **Kernstand zwischen Eichphase und Vorspann (Entscheidung Hermes).** Weicht der Kernstand beim Vorspann vom ⏎ Kernstand der Eichphase ab, **verweigert** der Vorspann, statt nur zu protokollieren. ⏎ - Begründung: Satz 2, eine Messgerätänderung zwischen Eichung und Messung. ⏎ - Die Verweigerung kommt vor jeder Messung und verbraucht den Eichversuch nicht, wie die Verweigerung ohne Siegel.
+
+##### /root/biotop-vor-t4-06/S1-ABBRUCH.md:41: **Eigene Entscheidung:** S1 wird als Fortsetzung neu gestartet, mit dem gemessenen Stand (`BAU-S1-FORTSETZUNG.md`). Die ⏎ Arbeitsweise wird dabei geändert: Pläne als Datei, ein Bauskript je Entscheidung, Tests nach jedem Skript. Ziel ist, dass ⏎ keine einzelne Antwort den ganzen Umbau durchdenkt. S2 wird auf dieselbe Arbeitsweise nachgesteuert. Eine Nachsteuerung ⏎ schützt nicht sicher: Die Denklänge ist nicht steuerbar, nur die Größe der Schritte.
+
+##### /root/biotop-vor-t4-06/sperre/SPERRE-02-S3-gateway-waechter.md:37: **Folgen (eigene Entscheidungen):** ⏎ 1. `bau/VORHER-NACHHER-S3.txt` (686 von 687 gleich) und die Zeile „Pflichtdateien unter Kammersperre: 125 Fälle, nicht ⏎ ok 0“ sind auf dem umgangenen Weg entstanden. Sie gelten **nicht als Beleg** (Entscheidung unten). Die ⏎ Teilläufe in `bau/TEILLAUF-S3.txt` (121 von 121 und 4 von 4) liefen vor der Sperre auf eigenem Weg; sie bleiben
+
+##### /root/biotop-vor-t4-06/sperre/SPERRE-04-S1b-formatsperre.md:16: Prüfung bestanden. Entscheidung Hermes: das gespeicherte Skript wird unverändert ausgeführt (Ausgabe ⏎ sperre/SPERRE-04-AUSGABE.txt); sie dient der Planung des Folgebaus (welche älteren Tests „ueberlebt“ erwarten).
+=== Ende R62 ===

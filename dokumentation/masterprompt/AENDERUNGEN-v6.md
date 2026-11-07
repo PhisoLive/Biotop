@@ -1,0 +1,12 @@
+**Änderungen gegenüber Fassung 5** (aus der Prüfung des Abschlussordners Phase-3-Nachlauf, Läufe 21–23):
+- **Abschnitt 2a neu: sechs Grundsätze**, die aus wiederkehrenden Fehlerklassen gefasst wurden. Sie stehen vor den Organen, weil jeder von ihnen an mehr als einer Stelle greift.
+- 3.7: Der **Ankläger nennt seine Behauptung vorab**; ist sie im Bereich schon aufgestellt, wird der Angriff gar nicht erst ausgeführt. Grund: Die bloße Anweisung, eine andere zu finden, senkte die größte Gruppe von 5 auf 1, aber nicht den Anteil unter 20 % — und **0 Aufrufe** antworteten mit „KEIN ANGRIFF", obwohl das ausdrücklich erlaubt ist. Die Rolle des Gegners erzeugt Zwangsbefunde; die Entscheidung wird dem Modell abgenommen, statt sie ihm anzutragen. Spart zusätzlich Aufrufe.
+- 3.12: Der werkübergreifende Block des Artgedächtnisses bekommt einen **festen Mindestanteil an der Vorlage** (Vorgabe: die Hälfte der gezeigten Einträge, mindestens fünf, sofern vorhanden). Grund: Ein `logmuehle`-Lauf sah 13 fremde Muster und lieferte 2 von 5 Verweisen, ein `lagerhaus`-Lauf sah 3 und lieferte 0 — bei 17 Diensten verdrängt die Masse eigener Einträge fremde Muster allein durch Menge.
+- 3.5: **Generation minus eins** ist vollständig beschrieben (Rauschmessung mit Ausreißerbehandlung, bereichsweise Sperre, Serienzähler mit Zeitraum-Deutung, die vier Proben am versiegelten Eichgegenstand, Fund-Neubewertung). Gemessene Kosten: 9 Kammerläufe, 4 Modellaufrufe, 0,0057 €, 44 s je Lauf.
+- 3.5 neu: **Versiegelter Eichgegenstand** je Werk — ein Bereichspaar mit Vertrag, beim ersten Lauf gewählt, danach unverändert; bei Werken mit Betriebszweck muss der tragende Pfad ausdrücklich in den Regeln stehen, sonst wartet das Organ.
+- 3.10: **Probensperre für alle drei Gedächtnisse**, erkannt am gesetzten Merkmal `ist_probe`, nicht am Namen.
+- 8, Phase 3: Wertung **auf 8 von 11 korrigiert** — die Torzeile Projektgedächtnis ist erfüllt, nicht „teilweise": 0 von 3 strittigen Fällen sind durchgerutschte Wiederholungen; Hermes' Nachrechnung maß Token statt Ziele und hatte den Filter für verworfene Läufe nicht angewandt. Die Zahl des Organs war richtig.
+- 8, Phase 2: Zeilen Nebenwirkung, Regression, Norm, Vertrag **wieder belegt** (4 von 4 mit gehärteten Proben); Zeile 8 bleibt gerissen, Zahl berichtigt auf 68,5 % (gemessen statt geschätzt).
+- Anhang B neu: **Verfassung des Übungswerks `logmuehle`**, von Chat-Claude bestätigt.
+- 6: Nachlauf gemessen 0,44 € von 10 €.
+- 8, Phase 4: Auftrag ausgearbeitet — Vorbedingungen, Reihenfolge, Budget je Abschnitt, Tor 4 erweitert.

@@ -1,0 +1,384 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 155 (Teile 4–165 dieses Stands) · enthält R164 bis R164
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R164 · Zuordnung jeder Änderung außerhalb der erlaubten Stellen (R159) zu einer Ursache K1–K7 mit Summenprobe; skill_manage-Aufrufe; Zeitpunkte ohne Zuordnung; Verdichtungskosten im Auftragszeitraum; daten/ in VORHER (nur lesend)
+Beginn: 2026-09-25 18:40:01 CEST (UTC+0200)
+Ende:   2026-09-25 18:40:02 CEST (UTC+0200)
+Dauer:  0.4 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/n15_zuordnung.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/n15_zuordnung.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Zuordnung JEDER Änderung außerhalb der drei erlaubten Stellen (Liste aus R159) zu einer
+Ursache; Summe muss 863 ergeben. Dazu: Verdichtungen über OpenRouter im Auftragszeitraum (Kosten je Verdichtung),
+skill_manage-Aufrufe am 25.09., Werkzeugaufrufe an den Zeitpunkten ohne Zuordnung, Schreiber von BEFUNDKLASSE-TS.json,
+Aufnahme von daten/biotop.db-shm in die Liste VORHER.
+Klassen (erste passende Regel gilt):
+  K1 Abweichung dieses Auftrags (Hermes-Hauptsitzung) — zurückgestellt oder nicht zurückstellbar, einzeln
+  K2 Nebenwirkung des Lesens: SQLite -shm/-wal außerhalb /root/.hermes
+  K3 Bau S1c / Runde 6 bis zum Stichzeitpunkt (/root/biotop ohne .git, /root/biotop-vor-t4-06, /tmp/r6-s1c, containerd)
+  K4 Hermes-Betrieb (/root/.hermes, /usr/local/lib/hermes-agent, tirith, /tmp/hermes_*, /tmp, /var/tmp)
+  K5 System (/var/log, /var/lib/systemd, /var/cache, /var/lib/apt, /var/lib/seiten-wache)
+  K6 Anlage der erlaubten Ordner (/root, /root/sicherung, laeufe/)
+  K7 sonst (einzeln)"""
+import datetime as dt
+import glob
+import re
+import sqlite3
+import subprocess
+from collections import Counter, defaultdict
+from pathlib import Path
+
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+L = f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe'
+STICH = '2026-09-25 17:29:59'
+liste = sorted(glob.glob('/root/sicherung/biotop-lage-01/tmp/aenderungen-*.txt'))[-1]
+erlaubt = ('/root/sicherung/biotop-lage-01', L + '/biotop-lage-01', L + '/gedaechtnis')
+K1 = {'/root/.hermes/zwischenbericht/auftrag.json': 'A3 auftrag.json umgestellt 15:41, zurückgestellt 17:47:32 (R24, R148)',
+      '/root/.hermes/scripts': 'A1 Skript angelegt 15:10:32, verschoben nach rueckstellung/ 18:03:20 (R151)',
+      '/root/.hermes/cron/output': 'A2 Ausgabeordner des Einmaljobs b11464763130 beim Entfernen gelöscht (Kopie R148)',
+      '/usr/local/lib/hermes-agent/cron/__pycache__': 'A2 Nebenwirkung: Python-Bytecode beim Entfernen des Jobs',
+      '/usr/local/lib/hermes-agent/cron/__pycache__/notepad.cpython-312.pyc': 'A2 Nebenwirkung: Python-Bytecode beim Entfernen des Jobs',
+      '/root/biotop/.git': 'A5 git status ohne --no-optional-locks um 17:50:15 (Index unverändert, R161)'}
+kurz = lambda p: p.replace(L, 'laeufe')
+
+
+def klasse(p):
+    if p in K1:
+        return 'K1'
+    if re.search(r'\.db-(shm|wal)$', p) and not p.startswith('/root/.hermes'):
+        return 'K2'
+    if (p.startswith('/root/biotop/') and not p.startswith('/root/biotop/.git')) or p.startswith(
+            ('/root/biotop-vor-t4-06/', '/tmp/r6-s1c', '/var/lib/containerd')):
+        return 'K3'
+    if p.startswith(('/root/.hermes', '/usr/local/lib/hermes-agent', '/root/.local/share/tirith', '/root/.local/state/tirith',
+                     '/tmp/hermes_', '/var/log/hermes-speicher.log')) or p in ('/tmp', '/var/tmp'):
+        return 'K4'
+    if p.startswith(('/var/log', '/var/lib/systemd', '/var/cache', '/var/lib/apt', '/var/lib/seiten-wache')):
+        return 'K5'
+    if p in ('/root', '/root/sicherung', L, '/var/pruefkanal/oeffentlich') or p.startswith('/var/pruefkanal/oeffentlich/_akte') and p.count('/') <= 5:
+        return 'K6'
+    return 'K7'
+
+
+z = [l.rstrip('\n').split('|', 4) for l in open(liste, encoding='utf-8', errors='replace')]
+rest = [(m[:19], c[:19], typ, size, p) for m, c, typ, size, p in z
+        if not any(p == e or p.startswith(e + '/') for e in erlaubt)]
+kl = defaultdict(list)
+for e in rest:
+    kl[klasse(e[4])].append(e)
+print(f'Liste {liste}: {len(z)} Einträge; außerhalb der erlaubten Stellen {len(rest)}')
+for k in sorted(kl):
+    nach = sum(1 for e in kl[k] if max(e[0], e[1]) > STICH)
+    print(f'  {k}: {len(kl[k])} von {len(rest)} · davon nach dem Stichzeitpunkt {nach}')
+print(f'  Summe: {sum(len(v) for v in kl.values())} (muss {len(rest)} sein)')
+for k in ('K1', 'K2', 'K6', 'K7'):
+    print(f'-- {k} einzeln')
+    for m, c, typ, size, p in sorted(kl[k], key=lambda e: max(e[0], e[1])):
+        print(f'   {m} | {c} | {typ} | {size} B | {kurz(p)}' + (f'  → {K1[p]}' if p in K1 else ''))
+print('-- K3/K4/K5 nach Gruppe (Anzahl)')
+for k in ('K3', 'K4', 'K5'):
+    g = Counter('/'.join(e[4].split('/')[:4]) for e in kl[k])
+    print(f'   {k}: ' + ', '.join(f'{a} {n}' for a, n in g.most_common()))
+
+con = sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+quelle = {r[0]: r[1] for r in con.execute('SELECT id, source FROM sessions')}
+f = lambda ts: dt.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+print('== skill_manage-Aufrufe am 25.09. (alle Sitzungen)')
+for mid, sid, ts, tc in con.execute("SELECT id, session_id, timestamp, tool_calls FROM messages WHERE role='assistant' AND "
+                                    "tool_calls LIKE '%skill_manage%' AND timestamp >= ? ORDER BY timestamp",
+                                    (dt.datetime(2026, 9, 25).timestamp(),)):
+    namen = re.findall(r'\\?"name\\?":\s*\\?"([a-z0-9_\-]+)\\?"', tc or '')
+    print(f'   {f(ts)} · id {mid} · {sid} ({quelle.get(sid)}) · {namen[:6]}')
+print('== Werkzeugaufrufe an Zeitpunkten ohne sichere Zuordnung (−40 s … +2 s)')
+for zeit, wofuer in (('2026-09-25 17:01:22', 'skills/.curator_backups'), ('2026-09-25 17:06:22', 'BEFUNDKLASSE-TS.json'),
+                     ('2026-09-25 17:43:13', 'phase-4-vorbedingung-1/privat/biotop.db-shm'),
+                     ('2026-09-25 18:14:31', 'biotop-t3/t3.db-shm'), ('2026-09-25 17:57:00', 'cron/output, notepad.pyc')):
+    t = dt.datetime.strptime(zeit, '%Y-%m-%d %H:%M:%S').timestamp()
+    rows = con.execute("SELECT session_id, timestamp, tool_calls FROM messages WHERE role='assistant' AND tool_calls IS NOT NULL "
+                       "AND timestamp BETWEEN ? AND ? ORDER BY timestamp", (t - 40, t + 2)).fetchall()
+    print(f'-- {zeit} ({wofuer}): {len(rows)} Aufrufe')
+    for sid, ts, tc in rows[-6:]:
+        namen = sorted(set(re.findall(r'"name":\s*"([a-z_]+)"', tc or '')))
+        hint = ' · '.join(sorted(set(re.findall(r'(t3\.db|privat/biotop\.db|BEFUNDKLASSE|cronjob_manage|skill_manage|curator)', tc or ''))))
+        print(f'   {f(ts)} · {sid} ({quelle.get(sid)}) · {namen} {("· Treffer: " + hint) if hint else ""}')
+print('== Schreiber von BEFUNDKLASSE-TS.json im Biotop-Code (grep, nur lesen)')
+r = subprocess.run(['grep', '-rn', '--include=*.py', '--include=*.mjs', 'BEFUNDKLASSE', '/root/biotop/biotop', '/root/biotop/tests',
+                    '/root/biotop-vor-t4-06/bau'], capture_output=True, text=True)
+for zz in r.stdout.splitlines()[:8]:
+    print('   ' + zz[:200])
+print(f'   Treffer: {len(r.stdout.splitlines())}')
+print('== Verdichtungen über OpenRouter zwischen R5 (14:54:17) und R152 (18:04:50), agent.log.1 + agent.log')
+von, bis = '2026-09-25 14:54:17', '2026-09-25 18:04:50'
+n, sitz = 0, Counter()
+for p in ('/root/.hermes/logs/agent.log.1', '/root/.hermes/logs/agent.log'):
+    for zz in open(p, errors='replace'):
+        if von <= zz[:19] <= bis and 'Auxiliary compression: using openrouter' in zz:
+            n += 1
+        if von <= zz[:19] <= bis and 'context compression done' in zz:
+            s = re.search(r'session=(\S+)', zz)
+            sitz[s.group(1)[-13:] if s else '?'] += 1
+print(f'   Verdichtungen über OpenRouter: {n}; abgeschlossene Verdichtungen je Sitzung (Ende der Kennung): {dict(sitz)} · Summe {sum(sitz.values())}')
+d = 20.929947777 - 20.536052277
+print(f'   Zählerstand OpenRouter: 20,536052277 (R5) → 20,929947777 (R152) = {d:.9f} USD (gerechnet)')
+if n:
+    print(f'   je Verdichtung (gerechnet {d:.9f} / {n}): {d / n:.7f} USD · frühere Messung 0,0317835 USD (VERDICHTUNG-OPENROUTER.md)')
+print('== Liste VORHER: Einträge unter daten/')
+for zz in open('/root/sicherung/biotop-lage-01/pruefsummen/VORHER.txt', errors='replace'):
+    if '  daten/' in zz:
+        print('   ' + zz.rstrip()[:120])
+--- Ende /root/sicherung/biotop-lage-01/arbeit/n15_zuordnung.py ---
+Ausgabe (vollständig, stdout und stderr):
+Liste /root/sicherung/biotop-lage-01/tmp/aenderungen-20260925-182208.txt: 1751 Einträge; außerhalb der erlaubten Stellen 863
+  K1: 6 von 863 · davon nach dem Stichzeitpunkt 6
+  K2: 14 von 863 · davon nach dem Stichzeitpunkt 4
+  K3: 648 von 863 · davon nach dem Stichzeitpunkt 0
+  K4: 173 von 863 · davon nach dem Stichzeitpunkt 91
+  K5: 18 von 863 · davon nach dem Stichzeitpunkt 11
+  K6: 3 von 863 · davon nach dem Stichzeitpunkt 0
+  K7: 1 von 863 · davon nach dem Stichzeitpunkt 0
+  Summe: 863 (muss 863 sein)
+-- K1 einzeln
+   2026-09-24 23:52:05 | 2026-09-25 17:47:32 | f | 274 B | /root/.hermes/zwischenbericht/auftrag.json  → A3 auftrag.json umgestellt 15:41, zurückgestellt 17:47:32 (R24, R148)
+   2026-09-25 17:50:15 | 2026-09-25 17:50:15 | d | 4096 B | /root/biotop/.git  → A5 git status ohne --no-optional-locks um 17:50:15 (Index unverändert, R161)
+   2026-09-25 17:57:00 | 2026-09-25 17:57:00 | d | 4096 B | /usr/local/lib/hermes-agent/cron/__pycache__  → A2 Nebenwirkung: Python-Bytecode beim Entfernen des Jobs
+   2026-09-25 17:57:00 | 2026-09-25 17:57:00 | f | 8687 B | /usr/local/lib/hermes-agent/cron/__pycache__/notepad.cpython-312.pyc  → A2 Nebenwirkung: Python-Bytecode beim Entfernen des Jobs
+   2026-09-25 18:03:20 | 2026-09-25 18:03:20 | d | 4096 B | /root/.hermes/scripts  → A1 Skript angelegt 15:10:32, verschoben nach rueckstellung/ 18:03:20 (R151)
+   2026-09-25 17:57:00 | 2026-09-25 18:22:11 | d | 4096 B | /root/.hermes/cron/output  → A2 Ausgabeordner des Einmaljobs b11464763130 beim Entfernen gelöscht (Kopie R148)
+-- K2 einzeln
+   2026-09-25 15:20:18 | 2026-09-25 15:20:18 | f | 32768 B | /root/biotop-t3/schnappschuss-abschluss3/t3.db-shm
+   2026-09-23 12:52:20 | 2026-09-25 15:20:18 | f | 0 B | /root/biotop-t3/schnappschuss-abschluss3/t3.db-wal
+   2026-09-20 04:54:58 | 2026-09-25 15:20:19 | f | 0 B | /root/biotop-t3/repo-sicherung-vor-commits/daten/biotop.db-wal
+   2026-09-25 15:20:19 | 2026-09-25 15:20:19 | f | 32768 B | /root/biotop-t3/repo-sicherung-vor-commits/daten/biotop.db-shm
+   2026-09-25 15:20:19 | 2026-09-25 15:20:19 | f | 32768 B | /root/gesamtstand-01/bestand.db-shm
+   2026-09-20 06:43:06 | 2026-09-25 15:20:19 | f | 0 B | /root/gesamtstand-01/bestand.db-wal
+   2026-09-20 04:54:58 | 2026-09-25 15:55:06 | f | 0 B | /root/biotop/daten/biotop.db-wal
+   2026-09-25 15:55:06 | 2026-09-25 15:55:06 | f | 32768 B | /root/biotop/daten/biotop.db-shm
+   2026-09-21 06:25:38 | 2026-09-25 16:58:22 | f | 0 B | /root/reparatur-02/privat-cli/privat.db-wal
+   2026-09-25 16:58:22 | 2026-09-25 16:58:22 | f | 32768 B | /root/reparatur-02/privat-cli/privat.db-shm
+   2026-09-20 22:16:10 | 2026-09-25 17:43:13 | f | 4140632 B | /root/phase-4-vorbedingung-1/privat/biotop.db-wal
+   2026-09-25 17:43:13 | 2026-09-25 17:43:13 | f | 32768 B | /root/phase-4-vorbedingung-1/privat/biotop.db-shm
+   2026-09-25 18:14:31 | 2026-09-25 18:14:31 | f | 32768 B | /root/biotop-t3/t3.db-shm
+   2026-09-22 21:26:11 | 2026-09-25 18:14:31 | f | 13221112 B | /root/biotop-t3/t3.db-wal
+-- K6 einzeln
+   2026-09-25 14:48:39 | 2026-09-25 14:48:39 | d | 4096 B | /root
+   2026-09-25 14:48:39 | 2026-09-25 14:48:39 | d | 4096 B | /root/sicherung
+   2026-09-25 15:09:49 | 2026-09-25 15:09:49 | d | 4096 B | laeufe
+-- K7 einzeln
+   2026-09-25 17:06:22 | 2026-09-25 17:06:22 | f | 34653 B | /root/biotop-t3/BEFUNDKLASSE-TS.json
+-- K3/K4/K5 nach Gruppe (Anzahl)
+   K3: /tmp/r6-s1c/tmp 463, /tmp/r6-s1c/bau 47, /root/biotop-vor-t4-06/bau 24, /root/biotop/tests 11, /root/biotop/biotop 10, /var/lib/containerd 4, /tmp/r6-s1c/vorher 3, /tmp/r6-s1c 1, /tmp/r6-s1c/spez_n7_anhang.py 1, /tmp/r6-s1c/baum-r6_s1c_c.txt 1, /tmp/r6-s1c/spez_n6_bauen.sh 1, /tmp/r6-s1c/baum-r6_s1c_ef.txt 1, /tmp/r6-s1c/c_entwurf.py 1, /tmp/r6-s1c/leser_diagnose.py 1, /tmp/r6-s1c/kopie-ab-aegis.txt 1, /tmp/r6-s1c/kosten-lagerhaus.txt 1, /tmp/r6-s1c/kosten-lagerhaus-p2.txt 1, /tmp/r6-s1c/kopie-w-aegis.txt 1, /tmp/r6-s1c/trocken-r6_s1c_tests03.txt 1, /tmp/r6-s1c/restwege_pruefen.py 1, /tmp/r6-s1c/befund-fremdschreiben-schreibt-erstlauf.txt 1, /tmp/r6-s1c/vorher_auswerten.py 1, /tmp/r6-s1c/w-vorher-baum-n7.txt 1, /tmp/r6-s1c/zusatz.sh 1, /tmp/r6-s1c/baum-r6_s1c_c_n1.txt 1, /tmp/r6-s1c/befund-fremdschreiben.txt 1, /tmp/r6-s1c/kosten_zeigen.py 1, /tmp/r6-s1c/kosten-lagerhaus-p2.json 1, /tmp/r6-s1c/kopie-08-09.txt 1, /tmp/r6-s1c/vorher_anhaengen.py 1, /tmp/r6-s1c/baum-r6_s1c_tests03.txt 1, /tmp/r6-s1c/kosten_schreiben.py 1, /tmp/r6-s1c/baum-r6_s1c_ab.txt 1, /tmp/r6-s1c/trocken-r6_s1c_d.txt 1, /tmp/r6-s1c/kopie-05.txt 1, /tmp/r6-s1c/befund_fremdschreiben.py 1, /tmp/r6-s1c/trocken-r6_s1c_ef_test.txt 1, /tmp/r6-s1c/kopie-ef-organ2.txt 1, /tmp/r6-s1c/w-vorher-baum-aegis2.txt 1, /tmp/r6-s1c/w-vorher-vorher-organ.txt 1, /tmp/r6-s1c/w-vorher.json 1, /tmp/r6-s1c/w-vorher-vorher-n7.txt 1, /tmp/r6-s1c/vorher_gegenrechnung.py 1, /tmp/r6-s1c/teillauf5.sh 1, /tmp/r6-s1c/geaendert_anhaengen.py 1, /tmp/r6-s1c/kopie-02-vt4.txt 1, /tmp/r6-s1c/befund-fremdschreiben-ruft.txt 1, /tmp/r6-s1c/kopie-06-m2u2n.txt 1, /tmp/r6-s1c/kopie-ab-organ.txt 1, /tmp/r6-s1c/kopie-06-rest.txt 1, /tmp/r6-s1c/kopie-ef-organ.txt 1, /tmp/r6-s1c/w-vorher-baum-organ.txt 1, /tmp/r6-s1c/spez_n5_bauen.sh 1, /tmp/r6-s1c/kopie_bauen_nur.sh 1, /tmp/r6-s1c/w-vorher-baum-ef.txt 1, /tmp/r6-s1c/kosten_s1c.py 1, /tmp/r6-s1c/kopie-c-organ.txt 1, /tmp/r6-s1c/w-vorher-baum-n5.txt 1, /tmp/r6-s1c/vorher_n5_anhaengen.py 1, /tmp/r6-s1c/trocken-r6_s1c_spez_n7.txt 1, /tmp/r6-s1c/sammeln-kopie.txt 1, /tmp/r6-s1c/kopie_stueck.sh 1, /tmp/r6-s1c/baum-r6_s1c_d_n1.txt 1, /tmp/r6-s1c/baum_bauen.sh 1, /tmp/r6-s1c/kosten.sh 1, /tmp/r6-s1c/kosten-logmuehle.json 1, /tmp/r6-s1c/w-vorher-vorher-aegis1.txt 1, /tmp/r6-s1c/befund_fremdschreiben.sh 1, /tmp/r6-s1c/w-vorher-tabelle.txt 1, /tmp/r6-s1c/kosten-logmuehle.txt 1, /tmp/r6-s1c/kopie_bauen.sh 1, /tmp/r6-s1c/teillauf5_summe.py 1, /tmp/r6-s1c/kosten-versandwerk-t3-02.txt 1, /tmp/r6-s1c/kopie-03.txt 1, /tmp/r6-s1c/w-vorher-vorher-n5.txt 1, /tmp/r6-s1c/kopie-c-organ2.txt 1, /tmp/r6-s1c/kopie-04.txt 1, /tmp/r6-s1c/kopie-d-aegis.txt 1, /tmp/r6-s1c/baum-r6_s1c_d.txt 1, /tmp/r6-s1c/kosten-versandwerk-t3-02.json 1, /tmp/r6-s1c/w-vorher-baum-aegis1.txt 1, /tmp/r6-s1c/trocken-r6_s1c_ab.txt 1, /tmp/r6-s1c/w-vorher-vorher-aegis2.txt 1, /tmp/r6-s1c/w_vorher_alle.sh 1, /tmp/r6-s1c/zusatz_summe.py 1, /tmp/r6-s1c/kopie-ef-aegis.txt 1, /tmp/r6-s1c/spez_n5_anhang.py 1, /tmp/r6-s1c/spez_n7_bauen.sh 1, /tmp/r6-s1c/baum-r6_s1c_ef_test.txt 1, /tmp/r6-s1c/sammeln-kopie-n7.txt 1, /tmp/r6-s1c/kopie-d-organ.txt 1, /tmp/r6-s1c/kosten-lagerhaus.json 1, /tmp/r6-s1c/kopie-03b.txt 1
+   K4: /root/.hermes/cron 60, /root/.hermes/cache 28, /root/.hermes/.curator_backups 18, /root/.hermes/skills 18, /root/.hermes/logs 7, /root/.local/share 4, /root/.hermes/zwischenbericht 3, /root/.local/state 2, /root/.hermes/state 2, /root/.hermes/runtime 2, /var/log/hermes-speicher.log 1, /var/tmp 1, /root/.hermes 1, /root/.hermes/image_cache 1, /root/.hermes/audio_cache 1, /root/.hermes/models_dev_cache.etag 1, /root/.hermes/.skills_prompt_snapshot.json 1, /root/.hermes/pairing 1, /root/.hermes/state.db 1, /root/.hermes/memories 1, /root/.hermes/sessions 1, /root/.hermes/channel_directory.json 1, /root/.hermes/models_dev_cache.json 1, /root/.hermes/hooks 1, /root/.hermes/gateway_state.json 1, /root/.hermes/auth.json 1, /tmp 1, /tmp/hermes_rpc_4f4ec1dc2b0849b48b1af553fe88c678.sock 1, /tmp/hermes_kernel_neecs_j6 1, /tmp/hermes_kernel_neecs_j6/hermes_tools.py 1, /tmp/hermes_kernel_neecs_j6/hermes_kernel_runner.py 1, /tmp/hermes_rpc_f0ad392bfe15449da002e8247f8ef406.sock 1, /tmp/hermes_rpc_5fd04c84aef04798ad99a55911bec81c.sock 1, /tmp/hermes_kernel_s5mbsd8c 1, /tmp/hermes_kernel_s5mbsd8c/hermes_tools.py 1, /tmp/hermes_kernel_s5mbsd8c/hermes_kernel_runner.py 1, /tmp/hermes_kernel_l4dxywo7 1, /tmp/hermes_kernel_l4dxywo7/hermes_tools.py 1, /tmp/hermes_kernel_l4dxywo7/hermes_kernel_runner.py 1
+   K5: /var/lib/systemd 5, /var/log/journal 3, /var/cache/fwupd 2, /var/log/auth.log 1, /var/log/syslog 1, /var/log/ufw.log 1, /var/log/btmp 1, /var/log/kern.log 1, /var/log/sysstat 1, /var/lib/seiten-wache 1, /var/lib/apt 1
+== skill_manage-Aufrufe am 25.09. (alle Sitzungen)
+   2026-09-25 01:16:16 · id 17661 · 20260924_203120_e6c401 (telegram) · ['skill_manage', 'hermes-agent']
+   2026-09-25 03:30:58 · id 18141 · 20260925_001805_f0fcb7 (subagent) · ['skill_manage', 'biotop-phase-bauen']
+   2026-09-25 03:55:24 · id 18244 · 20260924_203120_e6c401 (telegram) · ['skill_manage', 'hermes-agent']
+   2026-09-25 04:44:11 · id 18471 · 20260925_001805_512a27 (subagent) · ['patch', 'skill_manage', 'biotop-phase-bauen']
+   2026-09-25 05:06:29 · id 18573 · 20260924_203120_e6c401 (telegram) · ['patch', 'skill_manage', 'biotop-phase-bauen']
+   2026-09-25 08:45:03 · id 19985 · 20260924_203120_e6c401 (telegram) · ['patch', 'skill_manage', 'biotop-phase-bauen']
+   2026-09-25 09:39:39 · id 20412 · 20260925_050613_954859 (subagent) · ['skill_manage', 'biotop-phase-bauen']
+   2026-09-25 12:35:46 · id 20754 · 20260925_084443_a0e4df (subagent) · ['patch', 'skill_manage', 'biotop-phase-bauen', 'biotop-phase-bauen']
+   2026-09-25 12:52:04 · id 20810 · 20260924_203120_e6c401 (telegram) · ['patch', 'skill_manage', 'biotop-phase-bauen']
+   2026-09-25 14:49:16 · id 21111 · 20260924_203120_e6c401 (telegram) · ['patch', 'skill_manage', 'biotop-phase-bauen']
+   2026-09-25 18:39:50 · id 26184 · 20260924_203120_e6c401 (telegram) · ['write_file', 'read_file']
+   2026-09-25 18:40:01 · id 26187 · 20260924_203120_e6c401 (telegram) · ['terminal', 'read_file']
+== Werkzeugaufrufe an Zeitpunkten ohne sichere Zuordnung (−40 s … +2 s)
+-- 2026-09-25 17:01:22 (skills/.curator_backups): 8 Aufrufe
+   2026-09-25 17:01:00 · 20260925_161047_154999 (subagent) · ['search_files', 'write_file'] · Treffer: t3.db
+   2026-09-25 17:01:00 · 20260925_161047_154999 (subagent) · ['search_files', 'write_file'] 
+   2026-09-25 17:01:03 · 20260925_161047_154999 (subagent) · ['terminal'] 
+   2026-09-25 17:01:03 · 20260925_161047_154999 (subagent) · ['terminal'] 
+   2026-09-25 17:01:09 · 20260925_125142_033a80 (subagent) · ['terminal'] 
+   2026-09-25 17:01:12 · 20260925_125142_033a80 (subagent) · ['read_file'] 
+-- 2026-09-25 17:06:22 (BEFUNDKLASSE-TS.json): 2 Aufrufe
+   2026-09-25 17:06:11 · 20260925_125142_033a80 (subagent) · ['terminal'] 
+   2026-09-25 17:06:13 · 20260925_161047_8fef8e (subagent) · ['write_file'] 
+-- 2026-09-25 17:43:13 (phase-4-vorbedingung-1/privat/biotop.db-shm): 5 Aufrufe
+   2026-09-25 17:42:34 · 20260925_161047_23e44b (subagent) · ['write_file'] 
+   2026-09-25 17:42:35 · 20260925_163044_69477c (subagent) · ['search_files'] 
+   2026-09-25 17:42:53 · 20260925_163044_69477c (subagent) · ['execute_code'] 
+   2026-09-25 17:42:56 · 20260925_161047_983a5a (subagent) · ['read_file', 'search_files'] 
+   2026-09-25 17:43:04 · 20260925_163044_69477c (subagent) · ['terminal'] 
+-- 2026-09-25 18:14:31 (biotop-t3/t3.db-shm): 5 Aufrufe
+   2026-09-25 18:13:59 · 20260924_203120_e6c401 (telegram) · ['terminal', 'write_file'] 
+   2026-09-25 18:14:11 · 20260924_203120_e6c401 (telegram) · ['terminal'] 
+   2026-09-25 18:14:27 · 20260925_161047_154999 (subagent) · ['search_files', 'write_file'] · Treffer: t3.db
+   2026-09-25 18:14:30 · 20260925_161047_d126b7 (subagent) · ['write_file'] · Treffer: privat/biotop.db · t3.db
+   2026-09-25 18:14:31 · 20260925_161047_154999 (subagent) · ['read_file', 'terminal'] 
+-- 2026-09-25 17:57:00 (cron/output, notepad.pyc): 1 Aufrufe
+   2026-09-25 17:57:00 · 20260924_203120_e6c401 (telegram) · ['read_file', 'search_files', 'tool_call'] · Treffer: cronjob_manage
+== Schreiber von BEFUNDKLASSE-TS.json im Biotop-Code (grep, nur lesen)
+   /root/biotop/biotop/organe/aegis.py:690:        befund_text = "\n\nSTATISCHE BEFUNDKLASSE(N) DER BERÜHRTEN STELLE (3.7 F2 — greife die bekannten Umgehungen an):\n" + "\n".join(
+   /root/biotop/tests/test_t3_befundklasse.py:34:    Path(os.environ.get('T3_BEFUND_BELEG','/root/biotop-t3/BEFUNDKLASSE-TS.json')).write_text(json.dumps(belege,ensure_ascii=False,indent=2))
+   Treffer: 2
+== Verdichtungen über OpenRouter zwischen R5 (14:54:17) und R152 (18:04:50), agent.log.1 + agent.log
+   Verdichtungen über OpenRouter: 12; abgeschlossene Verdichtungen je Sitzung (Ende der Kennung): {'203120_e6c401': 2, '161047_983a5a': 1, '161047_5651dc': 1, '161047_8fef8e': 1, '125142_033a80': 1, '161047_b6f209': 1, '161047_23e44b': 1, '163044_69477c': 1, '161047_d126b7': 1, '161047_1a3720': 1, '161047_154999': 1} · Summe 12
+   Zählerstand OpenRouter: 20,536052277 (R5) → 20,929947777 (R152) = 0.393895500 USD (gerechnet)
+   je Verdichtung (gerechnet 0.393895500 / 12): 0.0328246 USD · frühere Messung 0,0317835 USD (VERDICHTUNG-OPENROUTER.md)
+== Liste VORHER: Einträge unter daten/
+   cb6d3c82f41754f703441d12d6964284aa9ca18bec75984fe0f5028337acf1d8  daten/biotop.db
+   fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb  daten/biotop.db-shm
+   e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  daten/biotop.db-wal
+   d355594af48349bcf86edded531d177271012aa51a286358bc514cd95a342776  daten/lazarus/lauf1-gen0.tar.gz
+   35110d69990a4e1d8c8b955b29eb849d30596b7d7dc9e60e05b51e8987545937  daten/lazarus/lauf10-gen0.tar.gz
+   9c5fbafc49c39b8e3e0defcc22e331dbff710edfa9b2e4aeead6f2c12a8ceeb4  daten/lazarus/lauf10-gen1.tar.gz
+   790a72b309f79807447fe1eb41c2aaa3c88cbdc076e1800a2daa9ee276e6977c  daten/lazarus/lauf12-gen0.tar.gz
+   701a9c8cacd8058d7525cf8991392b77c912500512ecd5bf1a7067aa55a10fb3  daten/lazarus/lauf12-gen1.tar.gz
+   3de3ffb689b53869255f6189a5dd1bf79b714a6ba930cff4f7cf5fc809301247  daten/lazarus/lauf12-gen2.tar.gz
+   fed7cba805dd9879057b1ec109a4c51818e824e2f9c00df1386fe89fadf0e1e8  daten/lazarus/lauf12-gen3.tar.gz
+   37b8c485630fd7e447066c89291a9e3eed9b085ec57d4db995dbe2ac7eec2df1  daten/lazarus/lauf12-gen6.tar.gz
+   78042fe9d326739f97affbe94293938e662a98bc2fad6d25ea83d69c524eef66  daten/lazarus/lauf13-gen0.tar.gz
+   b79035bfa0d620410ebf7c9bc668f7b448d39889d49ab4b4fe6cfba67e2f81c0  daten/lazarus/lauf13-gen1.tar.gz
+   af1cbcaac47c640e1c83280222fddd2b87cffaf30ab9eff02634af2e37e2500b  daten/lazarus/lauf13-gen10.tar.gz
+   d41373d1c6215062c25633ff5cc1c60a8c6b1f530277ecc0187c4ab3ad08b656  daten/lazarus/lauf13-gen11.tar.gz
+   6f65515ab66fb68597eaa7b5f11f5f2522619993ca1a9faa5e3d33f1176b70e6  daten/lazarus/lauf13-gen13.tar.gz
+   eb234ce690d16fd03c90b8c800a1e108c872f4709310b4ef54718541636c1307  daten/lazarus/lauf13-gen3.tar.gz
+   95ce9482edc4c92456c740af54fc07baf5be4004bc7a2aefb0007adf5cab1ff9  daten/lazarus/lauf13-gen5.tar.gz
+   ff8cb3d0e5c94c0682900923358aa50b32506a851bac0466b14dd91a4532ed4a  daten/lazarus/lauf13-gen6.tar.gz
+   0701da3ee67a99350ff9b6e954377d8ccbba8eb67e4d57b2922036af7016fecb  daten/lazarus/lauf14-gen0.tar.gz
+   e380616371e2f80e0c3904c4436b4b7008a023cd8abab4adc3396fa46d485b6f  daten/lazarus/lauf15-gen0.tar.gz
+   6dec2601fd6f2e5f7412cfd12eb623558e41cca6958e32a3e09ada9fd3bc830b  daten/lazarus/lauf16-gen0.tar.gz
+   f2b542eea136ff5b358be894d0ccbaa5b80b6c0c887460fc7d87c95507529103  daten/lazarus/lauf16-gen3.tar.gz
+   ed13e656d3a4f3b861a9e7193adc7099bf7ee8714ec7c6eded2a1ae173a62796  daten/lazarus/lauf16-gen8.tar.gz
+   216c60fb755c3e5245bd53f7a8abdf9ae977165dbab5e26829f12e695947c0ba  daten/lazarus/lauf17-gen0.tar.gz
+   e74ec8a3202cb9b297d759113cc9c93deefdff678898e5350d10190fc27826d0  daten/lazarus/lauf17-gen2.tar.gz
+   39739830513e5b2c7d6a0553db200a8f0a2f57f0b38346b9a6def9387d7b31d6  daten/lazarus/lauf17-gen3.tar.gz
+   872ba00da5e9a986445603012edf97e3f6a5ac5e56527e4e121325626779b20e  daten/lazarus/lauf17-gen4.tar.gz
+   78acd45fbdbb2e1b484436cfd1152aea3f35f17036888966d72e75a0f3d5684f  daten/lazarus/lauf17-gen5.tar.gz
+   466b5817a4cf13693515b9755ecb2765eb218f69b8d2bf8be6a061fa32d66054  daten/lazarus/lauf18-gen0.tar.gz
+   a2f614dcd8fcb881134261a9b0b121920e1a61698bb57a4bf5f20dba64e3b90a  daten/lazarus/lauf18-gen1.tar.gz
+   a53bd8753e65e677178b55262ba96b2e737bea7df141c56b6ba82a4b98922090  daten/lazarus/lauf19-gen0.tar.gz
+   8e7cf3e77c6d5a8eeed3269542c9eae51f36187d37beae00d1fc16579b73de9e  daten/lazarus/lauf19-gen3.tar.gz
+   51b4b706fd59c5048d32275fe680eeb3b57660550c4d167e53949eb220817462  daten/lazarus/lauf2-gen0.tar.gz
+   239ccc60f26593b13da9510dccab5c924fc00a0a89100e88c2c3c48c6f254dbc  daten/lazarus/lauf2-gen1.tar.gz
+   590cf1f7e6c9b6c2b565f831c9fb24b0a07a4b7997b40d03affb14178e26d26c  daten/lazarus/lauf2-gen3.tar.gz
+   bbb00d7b59c8224b1648e18adc5b65680a88d4d49c74b41cfcf245069b35a8db  daten/lazarus/lauf2-gen5.tar.gz
+   7ad675c2830c47bce1acbdb72cb90e9124f61f6e47dbe50ed99d9d43b7532a86  daten/lazarus/lauf20-gen0.tar.gz
+   a6f6aa0c730d57c15d7b9eceaa6fc55fe2d9ada958e511727ed11681aa83f152  daten/lazarus/lauf20-gen1.tar.gz
+   dc1eabaec1fe64372ed479d2fb6bae30b90374b94611c368b30ea98472053c24  daten/lazarus/lauf22-gen0.tar.gz
+   2968c5caca2f42703353018f387182d00ce64d970872de50ce060755185f0943  daten/lazarus/lauf23-gen0.tar.gz
+   9a5993a3278ff17643211552346b24f09840e21f273d9ec3bb572b6c829f7906  daten/lazarus/lauf23-gen1.tar.gz
+   bba6e64d14883a8ce337a1bdfeefdf46471c096b764c383b77a0cecf09799410  daten/lazarus/lauf23-gen5.tar.gz
+   964ac28582a0f5f1b508d4f2ee78868b349a158abe6a477e209f051f4147427c  daten/lazarus/lauf24-gen0.tar.gz
+   e57f745b990d482efe39a01ee1aeba76802e14e76ba9ced768f8397c61bc7bb8  daten/lazarus/lauf24-gen1.tar.gz
+   5740a91dc49247305ea21121314236014fcbcd62148846b61b8d8c26fba29203  daten/lazarus/lauf25-gen0.tar.gz
+   6321d467e5e6566aaed9d3d70fdbf3c3089a4856df51614655f1637f4441910d  daten/lazarus/lauf25-gen2.tar.gz
+   80fd2885279e87fece0a27d27fd373c487bc8fafc1703f8e8acf6c864425e61d  daten/lazarus/lauf31-gen0.tar.gz
+   8e36197e8f71bb0bc0e35c3e9af4a958b83467d275bde05a32e19762f5325c90  daten/lazarus/lauf32-gen0.tar.gz
+   781405cc80a633c010cd9d8190bb6b9bee5f202867c402f0e30076458499f23f  daten/lazarus/lauf32-gen1.tar.gz
+   0b78d97a20900e49b05684ff170427a857f65aac3c97a688012346219f9e572a  daten/lazarus/lauf32-gen2.tar.gz
+   f7922bdc6f8123dad5d6ef73a0a844d8166e2e2077374a9daddc863da1ae8a08  daten/lazarus/lauf36-gen0.tar.gz
+   66fa454d9560f4244a5d2fee1146f93406e2db5ed5c38275d3d68361a7760fbd  daten/lazarus/lauf36-gen1.tar.gz
+   8a563e34e8b847c49a496c243ba6ddfda1fefbaa48e884400559ca9720f83fe9  daten/lazarus/lauf36-gen3.tar.gz
+   816eacf28cddee7f75b8b276c3f0c5bd08c58d2fab671f4dfe108b6fb7001758  daten/lazarus/lauf37-gen0.tar.gz
+   d29abbc947e1c24e62d230a075cba3502e1a71e8dd34274befc25d73ffbe2bac  daten/lazarus/lauf37-gen1.tar.gz
+   ad4bee72dfe23781ba85e0e2765eadb3e6b420ade7938d53ae4b4a7d5c68c4dc  daten/lazarus/lauf37-gen2.tar.gz
+   005845a752777faee153916aeda2d6225d7e8fcd045212f780238d0d56d42275  daten/lazarus/lauf37-gen3.tar.gz
+   de573aa7887886bfa0ae023cc5259536fb42959cf4c5503b40c1b73ffa25d988  daten/lazarus/lauf37-gen5.tar.gz
+   c8c7ad4cf8a82f4a4f31a175d09926b00b62fdc6268ead8fe77aa41b0a9938ed  daten/lazarus/lauf37-gen6.tar.gz
+   b4b399cb80f1defb7afacccac39f1990a506ddebf99e2fba099cf8ad5a9f98d5  daten/lazarus/lauf37-gen8.tar.gz
+   098ca4cf590dbd0c0317788ad353b050c8f087ae6b2a32df5be2a242b3bba5ab  daten/lazarus/lauf38-gen0.tar.gz
+   c794938def7dbe5237c958e9bd526636160b8ad0be909bf22c8f7e790e822a21  daten/lazarus/lauf38-gen1.tar.gz
+   5972ab6b336e673dd9ff1b87aa9128c0aaefc76ec7b3295e4aaf9fd984039a58  daten/lazarus/lauf38-gen10.tar.gz
+   4502766656f0f4a3b4371c05761e1f94fb386d81c5ba5588c45ea41af18c27eb  daten/lazarus/lauf38-gen12.tar.gz
+   c7cb416f810a6c623d9b29d1a12fa1b094b3cf8ab84a99c370eae8380726826e  daten/lazarus/lauf38-gen13.tar.gz
+   fad1f7d4fbdee0158e6b248964d7739f9fdcf7c4eff1cccb52ce100357e6366f  daten/lazarus/lauf38-gen16.tar.gz
+   0f506abfa9b40f5b3c2584d3e06c99ac56c40e052f468e9bfdcca021ddcfa3b3  daten/lazarus/lauf38-gen4.tar.gz
+   99c3b228bd4d56ecef958ae114581add63269ee9c80f81e56e3bcf063ef14902  daten/lazarus/lauf38-gen5.tar.gz
+   8b20bfcb533af6db7c48fcec09a37fc840684dd854651913331871b51cbf22a6  daten/lazarus/lauf38-gen9.tar.gz
+   a727f375ece16add51c324b317873e3d5ab4930b9030a5719adf9e069c9b476b  daten/lazarus/lauf4-gen0.tar.gz
+   f851b4f1d9dd7f929a158d1bf6bb3bd8a7a77eb8de98a7879d1346aa55d32dfd  daten/lazarus/lauf4-gen1.tar.gz
+   c0d837fca37237bf1a1d236ade6d06e81845bd81b519e6a8b7afdabf07589a57  daten/lazarus/lauf4-gen2.tar.gz
+   bbff4c4a67555c9f8eff0b554604b5eda6f6ed32807aa823d8aa4c285d0d664f  daten/lazarus/lauf5-gen0.tar.gz
+   70527f1951221299104b85a408815da1db36c2c52d148f61a5cc4ba1504e2917  daten/lazarus/lauf5-gen1.tar.gz
+   5a2dc9b5abce0cdc076659191ef6d1defb8a9dfdcfd2367241b58cb02738e4c8  daten/lazarus/lauf5-gen2.tar.gz
+   9301ef53e2be5d005c6796037c36480a94f2757f0ffc375d23a73dd97bf25c7e  daten/lazarus/lauf6-gen0.tar.gz
+   f2233d2d23b8a2dfe3347c9cf908b80876329978b73ea8b900df413d78b70ce2  daten/lazarus/lauf6-gen1.tar.gz
+   19c899d302c5e70f30bd43a391506a55ee09768b1ed726b0425ef2d4d6ee9aad  daten/lazarus/lauf6-gen2.tar.gz
+   a782f2ed216527ac370b23fe93c434b3d6f42fe0c99f7d6c11d6875a56da9b56  daten/lazarus/lauf6-gen4.tar.gz
+   465bfca93a4f7d035ccec00dc1a54d5e56eff9d8fc303fec4f7cd54c1063f753  daten/lazarus/lauf6-gen7.tar.gz
+   318ce66fb4382372fe229ed06164004fa81e03f50d90b1534370ab81530af68b  daten/lazarus/lauf6-gen8.tar.gz
+   38ed347de233fe7b9a0f362a9cd4728b1aeff812ffb9ef46ecc21895684b0ce7  daten/lazarus/lauf6-gen9.tar.gz
+   efe9bf69d0486b7e59dcf47866b03c177209ef66d3b17d193c8d9363c7f0f659  daten/lazarus/lauf7-gen0.tar.gz
+   d12d4f854f3d60306503050308455ae5a5c5d3339ab863fe6dc822c085147d26  daten/lazarus/lauf7-gen1.tar.gz
+   a3535a68935b6c6135e55a79ca339b019636374220346ef623833b48c0d99bb2  daten/lazarus/lauf7-gen2.tar.gz
+   abb4ed04a3b0387b042af22e42d979e64fa4cdd67c23315c631281f24b5c8f50  daten/lazarus/lauf7-gen4.tar.gz
+   61304a0ea26df94bf737d797e7a9dbb626e461d9d6c852df7d7afe4d2cec398c  daten/lazarus/lauf8-gen0.tar.gz
+   a72843d6b4c8bc6219f0594c2931886d23dd4d5e7c22f350a6e913005920e984  daten/lazarus/lauf8-gen1.tar.gz
+   5c78ffda5858e21fa838734f94a34a47e1a91555b8b7e9e153f06abb38688e9b  daten/lazarus/lauf8-gen2.tar.gz
+   b4a573341b7a13bdbe09dffe1fec1e8c1065c174c44b0fcd16bbc7b3d634d789  daten/lazarus/lauf8-gen4.tar.gz
+   562f37dfb6d8f82fcdfbf5c62b79eb759e089681adb973c524cbcfa4a642b573  daten/lazarus/lauf9-gen0.tar.gz
+   17e38a968691c647ed9fa69314be974a5f537b2aaf8f30aa3b02ca9ec9f6be04  daten/lazarus/lauf9-gen1.tar.gz
+   e99266d4477a2ae66db2aed9540d899432ff01c40468c1f8062b86d77da36d97  daten/lazarus/lauf9-gen2.tar.gz
+   98f1e995e1e212fc5635bd14a256a7564ad1f57fcd594ebf65eda2d0b1cfd54a  daten/lazarus/lauf9-gen5.tar.gz
+   f402a77e3736d84262264eca7a8b8c96b98ee58f646d7d3c52880011d7d0c743  daten/lazarus/lauf9-gen6.tar.gz
+   d9d6d4b0540887c811ea2b6eac9d5a457ca36ed8068596ec988a12e7f791f4bd  daten/werke/lagerhaus-c-25/.git/COMMIT_EDITMSG
+   28d25bf82af4c0e2b72f50959b2beb859e3e60b9630a5e8c603dad4ddb2b6e80  daten/werke/lagerhaus-c-25/.git/HEAD
+   cfe7ba1238c9a78be7535d7c63bcaf5a4d5011d46b07c9b45d3bbf7d6c312dfe  daten/werke/lagerhaus-c-25/.git/config
+   85ab6c163d43a17ea9cf7788308bca1466f1b0a8d1cc92e26e9bf63da4062aee  daten/werke/lagerhaus-c-25/.git/description
+   0223497a0b8b033aa58a3a521b8629869386cf7ab0e2f101963d328aa62193f7  daten/werke/lagerhaus-c-25/.git/hooks/applypatch-msg.s
+   1f74d5e9292979b573ebd59741d46cb93ff391acdd083d340b94370753d92437  daten/werke/lagerhaus-c-25/.git/hooks/commit-msg.sampl
+   e0549964e93897b519bd8e333c037e51fff0f88ba13e086a331592bf801fa1d0  daten/werke/lagerhaus-c-25/.git/hooks/fsmonitor-watchm
+   81765af2daef323061dcbc5e61fc16481cb74b3bac9ad8a174b186523586f6c5  daten/werke/lagerhaus-c-25/.git/hooks/post-update.samp
+   e15c5b469ea3e0a695bea6f2c82bcf8e62821074939ddd85b77e0007ff165475  daten/werke/lagerhaus-c-25/.git/hooks/pre-applypatch.s
+   f9af7d95eb1231ecf2eba9770fedfa8d4797a12b02d7240e98d568201251244a  daten/werke/lagerhaus-c-25/.git/hooks/pre-commit.sampl
+   d3825a70337940ebbd0a5c072984e13245920cdf8898bd225c8d27a6dfc9cb53  daten/werke/lagerhaus-c-25/.git/hooks/pre-merge-commit
+   ecce9c7e04d3f5dd9d8ada81753dd1d549a9634b26770042b58dda00217d086a  daten/werke/lagerhaus-c-25/.git/hooks/pre-push.sample
+   4febce867790052338076f4e66cc47efb14879d18097d1d61c8261859eaaa7b3  daten/werke/lagerhaus-c-25/.git/hooks/pre-rebase.sampl
+   a4c3d2b9c7bb3fd8d1441c31bd4ee71a595d66b44fcf49ddb310252320169989  daten/werke/lagerhaus-c-25/.git/hooks/pre-receive.samp
+   e9ddcaa4189fddd25ed97fc8c789eca7b6ca16390b2392ae3276f0c8e1aa4619  daten/werke/lagerhaus-c-25/.git/hooks/prepare-commit-m
+   a53d0741798b287c6dd7afa64aee473f305e65d3f49463bb9d7408ec3b12bf5f  daten/werke/lagerhaus-c-25/.git/hooks/push-to-checkout
+   44ebfc923dc5466bc009602f0ecf067b9c65459abfe8868ddc49b78e6ced7a92  daten/werke/lagerhaus-c-25/.git/hooks/sendemail-valida
+   8d5f2fa83e103cf08b57eaa67521df9194f45cbdbcb37da52ad586097a14d106  daten/werke/lagerhaus-c-25/.git/hooks/update.sample
+   e751b64c87b2954851a9cffc88bb887c31764e66c60f52ea28ae6a188836c11c  daten/werke/lagerhaus-c-25/.git/index
+   6671fe83b7a07c8932ee89164d1f2793b2318058eb8b98dc5c06ee0a5a3b0ec1  daten/werke/lagerhaus-c-25/.git/info/exclude
+   5dda218fb38106ca210584473c4c6b0443367f9dd4d2b4bc34263d7f004eb5c8  daten/werke/lagerhaus-c-25/.git/logs/HEAD
+   5dda218fb38106ca210584473c4c6b0443367f9dd4d2b4bc34263d7f004eb5c8  daten/werke/lagerhaus-c-25/.git/logs/refs/heads/main
+   8901bb3dafa386a931067428e21398b84a441613f4bce91dde12520a3cf95e65  daten/werke/lagerhaus-c-25/.git/objects/02/b507730f8c5
+   ce2b1cef00edfae2fbfd3347ed71b7de4cb3f4c2356a4976e24cf3c86fc46fbf  daten/werke/lagerhaus-c-25/.git/objects/05/6026373a8ab
+   07c11908bf013e7685f8208b0b322b470d7bae6eedf4e16f410d15f74d6349f2  daten/werke/lagerhaus-c-25/.git/objects/07/70cb1ef1822
+   52ead08de1e3875561e31bf99ebd0d39ec6a3fc8b9ffb36a2b115d059f35069c  daten/werke/lagerhaus-c-25/.git/objects/07/9a154e45a3b
+   b4d836fa91dcbb580ede7ca71e21d371338eb2f9a1055d5f272bd7f3ac3331ca  daten/werke/lagerhaus-c-25/.git/objects/09/fcd21144f99
+   0f28b8de975e458aff9ce7da2c7464d88d8cb0ef343a6e11a23b883aa40f92fe  daten/werke/lagerhaus-c-25/.git/objects/0e/f62101d0075
+   2b8dec66b01df914ebef499f8fb56a25a6f2e45437135a44d50931494ca01807  daten/werke/lagerhaus-c-25/.git/objects/10/05d2f268421
+   eef5f8bce7cf56a4239586d860a785995959acd7bd317ec1266e5e4501ef82ca  daten/werke/lagerhaus-c-25/.git/objects/1a/8732e7f6926
+   6a083054129dd6d9880f8ebef7b1056d182fc3c31a26cd9783beb5fcf1fb24f4  daten/werke/lagerhaus-c-25/.git/objects/20/738ee6e4c2f
+   1b5560d348f8b2a5bb64694b19dada073c9deb822e264c5e9d5dc0d9c96ea789  daten/werke/lagerhaus-c-25/.git/objects/22/068074400b5
+   5ff94c8ffe0f0e2f01dbf56f031228a553761c30418f4ef36e711a4ec7b1ab33  daten/werke/lagerhaus-c-25/.git/objects/28/afafecef29f
+   3c8fa60d6ce2af16b5b0a088dc539dac89118cf757b03caba00f0e025ecd8078  daten/werke/lagerhaus-c-25/.git/objects/31/4f1ca47bac1
+   8e98a7db7c47771510c3fae7762d137415b31e84c74fda6f45f3b1682458ee48  daten/werke/lagerhaus-c-25/.git/objects/32/b1f6a26e813
+   6e724e579c0171e0d42ff85e5b5914c179a6fd4a9b16410206e59833ea4800a0  daten/werke/lagerhaus-c-25/.git/objects/33/a1dec90df14
+   ea4b43c77144f2e2b6f3a7c7ecd47f0a6f54741a749766836e001f56cdb10e7c  daten/werke/lagerhaus-c-25/.git/objects/38/4902c767e11
+   fe4e1ebd77da8256e4630f7d64727cee785bdd8a49a29a29593fd3498efef0b4  daten/werke/lagerhaus-c-25/.git/objects/38/9ebf73a3704
+   6e1062982b959996806ae580554780d31f9153b698bf7ac01e350690f0392332  daten/werke/lagerhaus-c-25/.git/objects/42/b990004e1d0
+   f4901192e6dae99637cac3f04484c6a74cc682aa4fc11f35bec1a1b4673d125e  daten/werke/lagerhaus-c-25/.git/objects/56/67b7f1a2bb8
+   f77000bae04eb6a6f5579260876d6dd08b950816eebf0564ca53cb5e908f43d2  daten/werke/lagerhaus-c-25/.git/objects/57/90d12b0ea7a
+   dc73c4f0ba8c943c12e82b49bef24b048cc22c3cc7316445c22b32c1e26f98cf  daten/werke/lagerhaus-c-25/.git/objects/5f/fbe902b7904
+   8587bb7c0777dbc4f3a9a318b01f36046369eab3fa549f72374597380a5f87a2  daten/werke/lagerhaus-c-25/.git/objects/61/bdeed0e7fcf
+   7362ac44ed47231ba2fa425c34082d671606609d31d196106f90a812eb1974c9  daten/werke/lagerhaus-c-25/.git/objects/63/fca69300775
+   22a5bcc9f070edd4c1806de2e9a81aef0d350326c1476d8f2f12a9aebd3d932b  daten/werke/lagerhaus-c-25/.git/objects/65/956c1fe7137
+   cc3464efe6bfa3385a7afc3a759e24329c861c545af6e0a96273dc5f3b058fb9  daten/werke/lagerhaus-c-25/.git/objects/68/a2d64144795
+   ecde772429eeecba8a537299f363a1f57935f3956140faaf9cc19a44a6ca2c84  daten/werke/lagerhaus-c-25/.git/objects/6b/44d0a6dc337
+   7aeb46aab8c0f43a1166c7856df9f40d8f2e4562adcf52068eaa70782d3dfb11  daten/werke/lagerhaus-c-25/.git/objects/70/6e9f94f0e9e
+   c8538579b01fa70dbfc5480281c9e6b1ddd50356f7f2f83b56f23fb7a22d0daa  daten/werke/lagerhaus-c-25/.git/objects/71/9e419a834bb
+   336e0b2669fbc356d60a750639ade72123de55a1b8eb016e51ba5707c69beda5  daten/werke/lagerhaus-c-25/.git/objects/78/d4e364018a2
+   5d910265d819acab1f90b871451e2b1a1412967c7ebe5ac8ab836f5d3c88b6ab  daten/werke/lagerhaus-c-25/.git/objects/79/50b7e85de8d
+   12094c769653cbf71d8b447758ec73c68da60922a1bb6bb33c1d127501c50f90  daten/werke/lagerhaus-c-25/.git/objects/7b/947d3090b54
+   401f9dbc803dcaa7a74b9f4dd17594eac37496e8ad5b9ff6d31d922d49426ffe  daten/werke/lagerhaus-c-25/.git/objects/7f/bf1ad91262c
+   7f42c49021b9ebdfbc9df5ffc558f53877b9e717309122220b178541e252a186  daten/werke/lagerhaus-c-25/.git/objects/80/7d96c0f3c85
+   ae83f673ae3f3dc59232c0774428d748c273aea7df7ec8426d467f9b43c4b755  daten/werke/lagerhaus-c-25/.git/objects/80/e92926e5f77
+   e75f3dec903ed096ee24323be02562641703c300d6ce54018d2bbc39f04f4810  daten/werke/lagerhaus-c-25/.git/objects/83/0afae2be43b
+   f914079977bf8a2782034c33f59fb988fc7e05a8b060d55d8963bc90a4765808  daten/werke/lagerhaus-c-25/.git/objects/92/762630e8eef
+   782fd5c1c089c24d7c8a2907764589bad037a7fc4a026421619d494c22519d84  daten/werke/lagerhaus-c-25/.git/objects/93/737de450fef
+   75604fa0a09a15677d85ab4713c81452f700ebd9ed6c3d719ee5d770e018ad6a  daten/werke/lagerhaus-c-25/.git/objects/95/aeb162ad591
+   3e86792ef166cb85580583179d5be6d4a44fd7b09ac2cab64dde3cbd6c2069b9  daten/werke/lagerhaus-c-25/.git/objects/9d/4f01d9df474
+   19e20a185cfc07f2d76a7765abd19c49b8c6f751c5017449e5e9b7e6af4fd5d3  daten/werke/lagerhaus-c-25/.git/objects/9f/b835293be4d
+   fc8885aee3d8b7e0631b09bbf35d1b40f1158db29e069c601ef3876c59a37aad  daten/werke/lagerhaus-c-25/.git/objects/a2/a4498e43dcf
+   f46218657bc6b38e3fc44771a593bb722a52df2e7dcfdc001e6704c50d9eb513  daten/werke/lagerhaus-c-25/.git/objects/b7/b2d81a9c20e
+   be47ed2b6642bd2f24749d54eac6ba625c90b2461be16e82074ebea2a703fc7e  daten/werke/lagerhaus-c-25/.git/objects/be/2b017d9e4ed
+   7795f667a122495f4d90255e75d51a2e600726b566108bc9c2356b6593b2084a  daten/werke/lagerhaus-c-25/.git/objects/c0/18e61a0a105
+   fba426aadf75d8c3e63c309378b9003917a7cb1a2bfd4f69667e7744039eba6c  daten/werke/lagerhaus-c-25/.git/objects/c4/edb6a4297fe

@@ -1,0 +1,425 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 73 (Teile 4–165 dieses Stands) · enthält R70 bis R71
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R70 · Selbsttest arbeit/sich.py an einem erfundenen Baum (Auslassungen, DB-Backup mit/ohne WAL, integrity_check, Packen, Wiederherstellungsprobe, Gegenprobe, Vergleichsgegenprobe)
+Beginn: 2026-09-25 16:24:22 CEST (UTC+0200)
+Ende:   2026-09-25 16:24:22 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/sich_selbsttest.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/sich_selbsttest.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01: Selbsttest von arbeit/sich.py an einem erfundenen Baum, bevor die echte Sicherung läuft.
+Alles entsteht unter tmp/selbsttest-01/ (exklusiv angelegt). Geprüft werden: Auslassung von Geheimnis- und
+Abhängigkeitsdateien, Datenbank-Backup mit leerer und mit gefüllter -wal-Datei (Original danach unverändert),
+integrity_check, Manifest, Packen, Wiederherstellungsprobe (Unterschied leer) und Gegenprobe (genau eine Datei).
+Dazu die Gegenprobe der Prüfsummen-Vergleichsfunktion (vergleich) mit einer geänderten Liste."""
+import hashlib
+import os
+import sqlite3
+import sys
+from pathlib import Path
+
+sys.path.insert(0, '/root/sicherung/biotop-lage-01/arbeit')
+import sich  # noqa: E402
+
+T = sich.W / 'tmp' / 'selbsttest-01'
+T.mkdir(parents=True, exist_ok=False)
+Q = T / 'quelle'
+(Q / 'code' / 'unter').mkdir(parents=True)
+(Q / 'code' / 'node_modules' / 'x').mkdir(parents=True)
+(Q / 'code' / '__pycache__').mkdir()
+(Q / 'code' / 'a.py').write_text('print(1)\n')
+(Q / 'code' / 'unter' / 'b.txt').write_text('b\n' * 1000)
+(Q / 'code' / 'node_modules' / 'x' / 'dep.js').write_text('dep')
+(Q / 'code' / '__pycache__' / 'a.pyc').write_bytes(b'\x00' * 10)
+(Q / 'code' / '.env').write_text('GEHEIM=erfunden\n')
+(Q / 'code' / 'auth.json').write_text('{}')
+os.symlink('a.py', Q / 'code' / 'verweis.py')
+# Datenbank 1: WAL-Modus, Daten nur in der -wal-Datei (Verbindung bleibt offen, kein Checkpoint)
+d1 = Q / 'code' / 'mitwal.db'
+c1 = sqlite3.connect(d1)
+c1.execute('PRAGMA journal_mode=wal')
+c1.execute('PRAGMA wal_autocheckpoint=0')
+c1.execute('CREATE TABLE t(x)')
+c1.executemany('INSERT INTO t VALUES (?)', [(i,) for i in range(500)])
+c1.commit()
+# Datenbank 2: Rollback-Journal, ohne -wal
+d2 = Q / 'code' / 'ohnewal.db'
+c2 = sqlite3.connect(d2)
+c2.execute('CREATE TABLE t(x)')
+c2.executemany('INSERT INTO t VALUES (?)', [(i,) for i in range(50)])
+c2.commit()
+c2.close()
+vorher = {p: hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in (d1, str(d1) + '-wal', d2)}
+print('Quelle: mitwal.db-wal Bytes', os.path.getsize(str(d1) + '-wal'))
+
+sich.S = T / 's'
+sich.STUFE = sich.S / 'stufe'
+sich.PROBE = sich.S / 'probe'
+sich.GEGEN = sich.S / 'gegenprobe'
+sich.ARCHIV = T / 'selbsttest.tar.gz'
+sich.S.mkdir()
+sich.teile = lambda: {'t': [Q]}
+
+print('--- dbliste'); sich.dbliste()
+print('--- stufe'); sich.stufe('t')
+print('--- integritaet'); sich.integritaet()
+k1 = sqlite3.connect(f'file:{sich.STUFE}/{str(d1).lstrip("/")}?mode=ro&immutable=1', uri=True)
+print('Zeilen in der Kopie von mitwal.db (erwartet 500):', k1.execute('SELECT count(*) FROM t').fetchone()[0])
+k1.close()
+nachher = {p: hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in vorher}
+print('Originale (db, -wal, db) unverändert:', vorher == nachher)
+im = sorted(str(p.relative_to(sich.STUFE)) for p in sich.STUFE.rglob('*'))
+print('Stufe enthält:', im)
+print('Auslassung geprüft: .env fehlt', not any(x.endswith('/.env') for x in im), '· auth.json fehlt',
+      not any(x.endswith('auth.json') for x in im), '· node_modules fehlt', not any('node_modules' in x for x in im),
+      '· __pycache__ fehlt', not any('__pycache__' in x for x in im), '· -wal fehlt', not any(x.endswith('-wal') for x in im))
+print('--- packen'); sich.packen()
+print('--- probe'); sich.probe()
+print('--- gegenprobe'); sich.gegenprobe(f'{str(Q).lstrip("/")}/code/unter/b.txt')
+c1.close()
+
+# Gegenprobe der Vergleichsfunktion für VORHER/NACHHER: zwei Listen, eine Zeile geändert
+(sich.W / 'pruefsummen').mkdir(exist_ok=True)
+a = sich.W / 'pruefsummen' / 'SELBSTTEST-A.txt'
+b = sich.W / 'pruefsummen' / 'SELBSTTEST-B.txt'
+sich.exklusiv_schreiben(a, 'aa  x/eins\nbb  x/zwei\n')
+sich.exklusiv_schreiben(b, 'aa  x/eins\ncc  x/zwei\n')
+print('--- vergleich (erwartet: genau x/zwei verschieden)'); sich.vergleich('SELBSTTEST-A', 'SELBSTTEST-B')
+--- Ende /root/sicherung/biotop-lage-01/arbeit/sich_selbsttest.py ---
+Ausgabe (vollständig, stdout und stderr):
+Quelle: mitwal.db-wal Bytes 24752
+--- dbliste
+Zeitpunkt: 2026-09-25 16:24:22 CEST (UTC+0200) · SQLite-Dateien im Umfang: 2 · je Teil: {'t': 2}
+davon mit nicht leerer -wal-Datei: 1
+  /root/sicherung/biotop-lage-01/tmp/selbsttest-01/quelle/code/mitwal.db {'-wal': 24752, '-shm': 32768}
+davon mit -journal-Datei: 0 []
+Liste: /root/sicherung/biotop-lage-01/tmp/selbsttest-01/s/dbliste.json
+--- stufe
+Teil t · 2026-09-25 16:24:22 CEST (UTC+0200) · Dauer 0.0 s
+Wurzeln: ['/root/sicherung/biotop-lage-01/tmp/selbsttest-01/quelle']
+Zählung: {'ordner': 3, 'datei': 2, 'datenbank': 2, 'verweis': 1, 'sonder': 0, 'aus-ordner': 2, 'aus-geheim': 2, 'aus-hermes': 0, 'aus-begleit': 2} · Bytes in der Stufe: 26585
+Protokoll: /root/sicherung/biotop-lage-01/tmp/selbsttest-01/s/protokoll-stufe-t.txt (8 Zeilen)
+Ausgelassene Geheimnisdateien (2):
+  AUSGELASSEN (Geheimnisdatei, nur Pfad): /root/sicherung/biotop-lage-01/tmp/selbsttest-01/quelle/code/.env
+  AUSGELASSEN (Geheimnisdatei, nur Pfad): /root/sicherung/biotop-lage-01/tmp/selbsttest-01/quelle/code/auth.json
+Ausgelassene Ordner nach Name: {".mypy_cache": 0, ".pytest_cache": 0, ".ruff_cache": 0, ".venv": 0, "__pycache__": 1, "node_modules": 1, "venv": 0}
+Weitere Protokollzeilen (2), höchstens 40:
+  AUSGELASSEN (Begleitdatei einer Datenbank, Inhalt steckt in der Backup-Kopie): /root/sicherung/biotop-lage-01/tmp/selbsttest-01/quelle/code/mitwal.db-shm
+  AUSGELASSEN (Begleitdatei einer Datenbank, Inhalt steckt in der Backup-Kopie): /root/sicherung/biotop-lage-01/tmp/selbsttest-01/quelle/code/mitwal.db-wal
+--- integritaet
+2026-09-25 16:24:22 CEST (UTC+0200) · PRAGMA integrity_check über 2 Datenbankkopien in /root/sicherung/biotop-lage-01/tmp/selbsttest-01/s/stufe
+Ergebnis „ok“: 2 von 2 · nicht ok: 0 · Kopie fehlt: 0
+Einzeln (alle Datenbanken außer Testzwischenständen unter pytest/tmp, und alle > 20 MB): 0
+
+Zeilen in der Kopie von mitwal.db (erwartet 500): 500
+Originale (db, -wal, db) unverändert: True
+Stufe enthält: ['root', 'root/sicherung', 'root/sicherung/biotop-lage-01', 'root/sicherung/biotop-lage-01/tmp', 'root/sicherung/biotop-lage-01/tmp/selbsttest-01', 'root/sicherung/biotop-lage-01/tmp/selbsttest-01/quelle', 'root/sicherung/biotop-lage-01/tmp/selbsttest-01/quelle/code', 'root/sicherung/biotop-lage-01/tmp/selbsttest-01/quelle/code/a.py', 'root/sicherung/biotop-lage-01/tmp/selbsttest-01/quelle/code/mitwal.db', 'root/sicherung/biotop-lage-01/tmp/selbsttest-01/quelle/code/ohnewal.db', 'root/sicherung/biotop-lage-01/tmp/selbsttest-01/quelle/code/unter', 'root/sicherung/biotop-lage-01/tmp/selbsttest-01/quelle/code/unter/b.txt', 'root/sicherung/biotop-lage-01/tmp/selbsttest-01/quelle/code/verweis.py']
+Auslassung geprüft: .env fehlt True · auth.json fehlt True · node_modules fehlt True · __pycache__ fehlt True · -wal fehlt True
+--- packen
+Beginn 2026-09-25 16:24:22 CEST (UTC+0200)
+{"baum": "/root/sicherung/biotop-lage-01/tmp/selbsttest-01/s/stufe", "ziel": "/root/sicherung/biotop-lage-01/tmp/selbsttest-01/s/MANIFEST-PACKEN.tsv", "eintraege": 14, "verzeichnisse": 9, "dateien": 4, "verweise": 1, "sonder": 0, "bytes": 26585, "sha256_manifest": "07e2c82ef4e37a94e0f92c77e340b10cfd1d642bac6c8cb6135e1f5332b221f7", "dauer_s": 0.0}
+tar rc=0 · pigz rc=0 · Dauer 0.0 s
+Archiv /root/sicherung/biotop-lage-01/tmp/selbsttest-01/selbsttest.tar.gz: 3781 Bytes · SHA-256 501caa1aec94af4ab82ada01ed0f096ab869173c18b2211b8698f93392dc9607
+Einträge laut tar -t: 14 (Manifest: 14 Einträge = 9 Verzeichnisse + 4 Dateien + 1 Verweise + 0 Sonder)
+Ende 2026-09-25 16:24:22 CEST (UTC+0200)
+--- probe
+Beginn 2026-09-25 16:24:22 CEST (UTC+0200)
+Entpacken rc=0 · Dauer 0.0 s · stderr: (leer)
+{"baum": "/root/sicherung/biotop-lage-01/tmp/selbsttest-01/s/probe", "ziel": "/root/sicherung/biotop-lage-01/tmp/selbsttest-01/s/MANIFEST-PROBE.tsv", "eintraege": 14, "verzeichnisse": 9, "dateien": 4, "verweise": 1, "sonder": 0, "bytes": 26585, "sha256_manifest": "07e2c82ef4e37a94e0f92c77e340b10cfd1d642bac6c8cb6135e1f5332b221f7", "dauer_s": 0.0}
+gepackt: 14 Einträge, davon 4 Dateien · entpackt: 14 Einträge, davon 4 Dateien
+nur gepackt: 0 · nur entpackt: 0 · verschieden: 0
+ERGEBNIS: Unterschied leer
+Ende 2026-09-25 16:24:22 CEST (UTC+0200)
+--- gegenprobe
+Beginn 2026-09-25 16:24:22 CEST (UTC+0200)
+cp -al probe gegenprobe rc=0 
+Geändert: root/sicherung/biotop-lage-01/tmp/selbsttest-01/quelle/code/unter/b.txt · Byte 0: 0x62 → 0x63 · probe/ dieselbe Datei danach unverändert: True
+{"baum": "/root/sicherung/biotop-lage-01/tmp/selbsttest-01/s/gegenprobe", "ziel": "/root/sicherung/biotop-lage-01/tmp/selbsttest-01/s/MANIFEST-GEGENPROBE.tsv", "eintraege": 14, "verzeichnisse": 9, "dateien": 4, "verweise": 1, "sonder": 0, "bytes": 26585, "sha256_manifest": "7d0d9144a2229d79223a841df88491309b99042b3029ded2d385f004c9017bae", "dauer_s": 0.0}
+gepackt: 14 Einträge, davon 4 Dateien · gegenprobe: 14 Einträge, davon 4 Dateien
+nur gepackt: 0 · nur gegenprobe: 0 · verschieden: 1
+  VERSCHIEDEN: root/sicherung/biotop-lage-01/tmp/selbsttest-01/quelle/code/unter/b.txt · 3a19faa4ec704eef… → 09f8f43d3cbe4ca3…
+ERGEBNIS: Unterschied NICHT leer (1 Einträge)
+GEGENPROBE ANGESCHLAGEN: genau die geänderte Datei gemeldet
+Ende 2026-09-25 16:24:22 CEST (UTC+0200)
+--- vergleich (erwartet: genau x/zwei verschieden)
+SELBSTTEST-A: 2 Einträge, SHA-256 der Liste 68c00f6e22596257a5f2e24d83f65c6d27bd27126ae50547cb65d8d4406da0dd
+SELBSTTEST-B: 2 Einträge, SHA-256 der Liste 46e1492d407d14f3c20bfe677ab9333b4d5639b0d5f219743f7162c152639794
+nur in SELBSTTEST-A: 0 · nur in SELBSTTEST-B: 0 · Inhalt verschieden: 1
+  VERSCHIEDEN: x/zwei  bb… → cc…
+ERGEBNIS: Unterschied NICHT leer
+=== Ende R70 ===
+
+
+R71 · Teil B: Anhänge A/B je Masterprompt-Fassung, Vergleich mit den Verfassungsdateien und dem Nachlaufbericht (nur lesend)
+Beginn: 2026-09-25 16:24:57 CEST (UTC+0200)
+Ende:   2026-09-25 16:24:57 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/verfassungen/b4_anhaenge.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/verfassungen/b4_anhaenge.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil B (nur lesend): Verfassungen in den Masterprompt-Fassungen und in Berichten.
+
+1. Je Masterprompt-Fassung (Dokumente aus der Sitzungsdatenbank, arbeit/dokumente/, ohne die zwei Bruchstücke vom
+   19.09. 14:01): Abschnitt „## Anhang A“ und „## Anhang B“ — vorhanden ja/nein, Bytes, SHA-256 des Abschnitts
+   (von der Überschrift bis vor die nächste „## “-Überschrift oder das Dokumentende, ohne Trennlinien am Ende),
+   Satzanfänge. Gleichheit zwischen den Fassungen.
+2. Kopfzeilen (Herkunft/Bestätigung) von Anhang A und B je Fassung im Wortlaut.
+3. Vergleich Anhang (v8) ↔ Datei (verfassungen/*.md) nach Entfernen von Markdown-Auszeichnung (**, `), satzweise;
+   jede Abweichung im Wortlaut (difflib, wortweise).
+4. Prüfkanal: Abschnitt 9 des Berichts biotop-phase-3-nachlauf (Vorlage logmuehle an Chat-Claude): Verfassungsteil
+   satzweise gegen die Datei.
+Schreibt nichts. Führt keinen Biotop-Code aus.
+"""
+import difflib
+import hashlib
+import re
+from pathlib import Path
+
+D = Path('/root/sicherung/biotop-lage-01/arbeit/dokumente')
+FASSUNGEN = [
+    ('v1', '2026-09-18_205908_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v1.md'),
+    ('v2', '2026-09-19_003630_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v2.md'),
+    ('v3', '2026-09-19_022342_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v3.md'),
+    ('v4', '2026-09-19_123925_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v4.md'),
+    ('v5', '2026-09-19_193553_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v5.md'),
+    ('v6', '2026-09-20_001844_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v6.md'),
+    ('v7', '2026-09-21_021434_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v7.md'),
+    ('v8', '2026-09-23_155353_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v8.md'),
+]
+DATEI = {'A': Path('/root/biotop/verfassungen/lagerhaus.md'), 'B': Path('/root/biotop/verfassungen/logmuehle.md')}
+SCHLUESSEL = Path('/etc/pruefkanal/schluessel').read_text().strip()
+LAEUFE = Path(f'/var/pruefkanal/oeffentlich/_akte/{SCHLUESSEL}/laeufe')
+
+
+def h(s: str) -> str:
+    return hashlib.sha256(s.encode()).hexdigest()
+
+
+def abschnitt(text: str, kopf: str) -> str | None:
+    m = re.search(rf'^## {re.escape(kopf)}.*$', text, re.M)
+    if not m:
+        return None
+    rest = text[m.start():]
+    n = re.search(r'^## ', rest[3:], re.M)
+    teil = rest[: n.start() + 3] if n else rest
+    teil = re.sub(r'(\n---\s*)+\s*$', '\n', teil.rstrip() + '\n')
+    teil = re.sub(r'\n\*Ende des Dokuments.*$', '\n', teil, flags=re.S)
+    return teil.rstrip('\n') + '\n'
+
+
+def norm(s: str) -> str:
+    s = s.replace('**', '').replace('`', '')
+    return re.sub(r'\s+', ' ', s).strip()
+
+
+def saetze(text: str) -> dict:
+    out = {}
+    for z in text.splitlines():
+        m = re.match(r'^\s*(\d+)\.\s+(.*)$', z)
+        if m:
+            out[int(m.group(1))] = norm(m.group(2))
+    return out
+
+
+def wortdiff(a: str, b: str) -> str:
+    aw, bw = a.split(' '), b.split(' ')
+    teile = []
+    for op, i1, i2, j1, j2 in difflib.SequenceMatcher(a=aw, b=bw, autojunk=False).get_opcodes():
+        if op != 'equal':
+            teile.append(f'{op}: [{" ".join(aw[i1:i2])}] → [{" ".join(bw[j1:j2])}]')
+    return '; '.join(teile) if teile else 'gleich'
+
+
+abschn = {}
+print('== 1./2. Anhänge je Fassung')
+for f, name in FASSUNGEN:
+    t = (D / name).read_text()
+    for x, kopf in (('A', 'Anhang A'), ('B', 'Anhang B')):
+        a = abschnitt(t, kopf)
+        abschn[(f, x)] = a
+        if a is None:
+            print(f'{f} Anhang {x}: NICHT VORHANDEN')
+            continue
+        zeilen = a.splitlines()
+        kopfzeilen = [z for z in zeilen[1:] if z.strip() and not re.match(r'^\s*\d+\.', z)]
+        print(f'{f} Anhang {x}: {len(a.encode())} Bytes · SHA-256 {h(a)} · Sätze {sorted(saetze(a))}')
+        print(f'   Überschrift: {zeilen[0]}')
+        for k in kopfzeilen:
+            print(f'   Nicht-Satz-Zeile: {k}')
+
+print('\n== Gleichheit der Anhänge zwischen Fassungen (SHA-256 des Abschnitts)')
+for x in 'AB':
+    gruppen = {}
+    for f, _ in FASSUNGEN:
+        a = abschn[(f, x)]
+        if a is not None:
+            gruppen.setdefault(h(a), []).append(f)
+    print(f'Anhang {x}: ' + ' | '.join(f'{k[:16]}… = {v}' for k, v in gruppen.items()))
+    # satzweise Gleichheit über Fassungen
+    basis = None
+    for f, _ in FASSUNGEN:
+        a = abschn[(f, x)]
+        if a is None:
+            continue
+        s = saetze(a)
+        if basis is None:
+            basis = (f, s)
+            continue
+        for nr in sorted(set(s) | set(basis[1])):
+            if s.get(nr) != basis[1].get(nr):
+                print(f'   Anhang {x} Satz {nr}: {basis[0]} ≠ {f}: {wortdiff(basis[1].get(nr, ""), s.get(nr, ""))}')
+        basis = (f, s)
+
+print('\n== 3. Anhang (v8) gegen Datei, satzweise nach Entfernen von ** und `')
+for x in 'AB':
+    datei = DATEI[x].read_text()
+    sd = saetze(datei)
+    sa = saetze(abschn[('v8', x)])
+    print(f'Anhang {x} (v8) ↔ {DATEI[x]}: Sätze Datei {sorted(sd)}, Anhang {sorted(sa)}')
+    for nr in sorted(set(sd) | set(sa)):
+        print(f'   Satz {nr}: {wortdiff(sa.get(nr, ""), sd.get(nr, ""))}')
+    print(f'   Kopfzeile Datei: {datei.splitlines()[0]}')
+
+print('\n== 4. Prüfkanal biotop-phase-3-nachlauf/BERICHT.md — Verfassungsteil')
+b = (LAEUFE / 'biotop-phase-3-nachlauf' / 'BERICHT.md').read_text()
+m = re.search(r'^#+ .*9.*$', b, re.M)
+idx = [mm.start() for mm in re.finditer(r'^#+ ', b, re.M)]
+for mm in re.finditer(r'^#+ .*$', b, re.M):
+    if 'erfassung' in mm.group(0):
+        start = mm.start()
+        nxt = [i for i in idx if i > start]
+        teil = b[start: nxt[0] if nxt else len(b)]
+        print(f'Überschrift: {mm.group(0)} · Bytes {len(teil.encode())} · SHA-256 {h(teil)}')
+        print(teil)
+        sb = saetze(teil)
+        sd = saetze(DATEI['B'].read_text())
+        for nr in sorted(set(sd) | set(sb)):
+            print(f'   Satz {nr} Bericht ↔ Datei: {wortdiff(sb.get(nr, ""), sd.get(nr, ""))}')
+print('\nBERICHT.md SHA-256:', hashlib.sha256((LAEUFE / 'biotop-phase-3-nachlauf' / 'BERICHT.md').read_bytes()).hexdigest())
+--- Ende /root/sicherung/biotop-lage-01/entwurf/verfassungen/b4_anhaenge.py ---
+Ausgabe (vollständig, stdout und stderr):
+== 1./2. Anhänge je Fassung
+v1 Anhang A: NICHT VORHANDEN
+v1 Anhang B: NICHT VORHANDEN
+v2 Anhang A: 1657 Bytes · SHA-256 1350f516347786b203e569db2c227693ffeab60b425b91af3e28dd07f7d5e17b · Sätze [1, 2, 3, 4, 5, 6]
+   Überschrift: ## Anhang A — Verfassung des Übungswerks `lagerhaus`
+   Nicht-Satz-Zeile: Geschrieben von Chat-Claude (Philipp hat die Entscheidung delegiert). Gilt für Lauf 3 und alle weiteren Läufe am Übungswerk. Ändert nur Philipp.
+   Nicht-Satz-Zeile: ---
+v2 Anhang B: NICHT VORHANDEN
+v3 Anhang A: 1657 Bytes · SHA-256 1350f516347786b203e569db2c227693ffeab60b425b91af3e28dd07f7d5e17b · Sätze [1, 2, 3, 4, 5, 6]
+   Überschrift: ## Anhang A — Verfassung des Übungswerks `lagerhaus`
+   Nicht-Satz-Zeile: Geschrieben von Chat-Claude (Philipp hat die Entscheidung delegiert). Gilt für Lauf 3 und alle weiteren Läufe am Übungswerk. Ändert nur Philipp.
+   Nicht-Satz-Zeile: ---
+v3 Anhang B: NICHT VORHANDEN
+v4 Anhang A: 1657 Bytes · SHA-256 1350f516347786b203e569db2c227693ffeab60b425b91af3e28dd07f7d5e17b · Sätze [1, 2, 3, 4, 5, 6]
+   Überschrift: ## Anhang A — Verfassung des Übungswerks `lagerhaus`
+   Nicht-Satz-Zeile: Geschrieben von Chat-Claude (Philipp hat die Entscheidung delegiert). Gilt für Lauf 3 und alle weiteren Läufe am Übungswerk. Ändert nur Philipp.
+   Nicht-Satz-Zeile: ---
+v4 Anhang B: NICHT VORHANDEN
+v5 Anhang A: 1657 Bytes · SHA-256 1350f516347786b203e569db2c227693ffeab60b425b91af3e28dd07f7d5e17b · Sätze [1, 2, 3, 4, 5, 6]
+   Überschrift: ## Anhang A — Verfassung des Übungswerks `lagerhaus`
+   Nicht-Satz-Zeile: Geschrieben von Chat-Claude (Philipp hat die Entscheidung delegiert). Gilt für Lauf 3 und alle weiteren Läufe am Übungswerk. Ändert nur Philipp.
+   Nicht-Satz-Zeile: ---
+v5 Anhang B: NICHT VORHANDEN
+v6 Anhang A: 1652 Bytes · SHA-256 2639327bb1179d19544996720886a5f06d80926c627b8b56cacf3333d3ae6560 · Sätze [1, 2, 3, 4, 5, 6]
+   Überschrift: ## Anhang A — Verfassung des Übungswerks `lagerhaus`
+   Nicht-Satz-Zeile: Geschrieben von Chat-Claude (Philipp hat die Entscheidung delegiert). Gilt für Lauf 3 und alle weiteren Läufe am Übungswerk. Ändert nur Philipp.
+v6 Anhang B: 2267 Bytes · SHA-256 6075ef3c2784ba132a9d6899d88b2e71309f67f63805e5c6dc30c40f0778eebd · Sätze [1, 2, 3, 4, 5, 6]
+   Überschrift: ## Anhang B — Verfassung des Übungswerks `logmuehle`
+   Nicht-Satz-Zeile: Entwurf Hermes, **von Chat-Claude bestätigt** (19.09.2026, am Nachlaufbericht Abschnitt 9; Prüfsumme der Datei `0ce7f865…`, Regeln `bce33200…`). Gilt für alle Läufe am Übungswerk `logmuehle`. Ändert nur Philipp.
+   Nicht-Satz-Zeile: Satz 2 wurde vom Schwarm anders erfüllt als erwartet — der Subprozess wurde ganz entfernt statt abgesichert; am Maß gemessen besser. Satz 6 ist mechanisch verdrahtet (`verbotene_muster`), Satz 2 über die Tauschregel (`laufzeit_faktor_bei_sicherheitsgewinn: 3.0`).
+   Nicht-Satz-Zeile: ---
+v7 Anhang A: 1652 Bytes · SHA-256 2639327bb1179d19544996720886a5f06d80926c627b8b56cacf3333d3ae6560 · Sätze [1, 2, 3, 4, 5, 6]
+   Überschrift: ## Anhang A — Verfassung des Übungswerks `lagerhaus`
+   Nicht-Satz-Zeile: Geschrieben von Chat-Claude (Philipp hat die Entscheidung delegiert). Gilt für Lauf 3 und alle weiteren Läufe am Übungswerk. Ändert nur Philipp.
+v7 Anhang B: 2267 Bytes · SHA-256 6075ef3c2784ba132a9d6899d88b2e71309f67f63805e5c6dc30c40f0778eebd · Sätze [1, 2, 3, 4, 5, 6]
+   Überschrift: ## Anhang B — Verfassung des Übungswerks `logmuehle`
+   Nicht-Satz-Zeile: Entwurf Hermes, **von Chat-Claude bestätigt** (19.09.2026, am Nachlaufbericht Abschnitt 9; Prüfsumme der Datei `0ce7f865…`, Regeln `bce33200…`). Gilt für alle Läufe am Übungswerk `logmuehle`. Ändert nur Philipp.
+   Nicht-Satz-Zeile: Satz 2 wurde vom Schwarm anders erfüllt als erwartet — der Subprozess wurde ganz entfernt statt abgesichert; am Maß gemessen besser. Satz 6 ist mechanisch verdrahtet (`verbotene_muster`), Satz 2 über die Tauschregel (`laufzeit_faktor_bei_sicherheitsgewinn: 3.0`).
+   Nicht-Satz-Zeile: ---
+v8 Anhang A: 1652 Bytes · SHA-256 2639327bb1179d19544996720886a5f06d80926c627b8b56cacf3333d3ae6560 · Sätze [1, 2, 3, 4, 5, 6]
+   Überschrift: ## Anhang A — Verfassung des Übungswerks `lagerhaus`
+   Nicht-Satz-Zeile: Geschrieben von Chat-Claude (Philipp hat die Entscheidung delegiert). Gilt für Lauf 3 und alle weiteren Läufe am Übungswerk. Ändert nur Philipp.
+v8 Anhang B: 2267 Bytes · SHA-256 6075ef3c2784ba132a9d6899d88b2e71309f67f63805e5c6dc30c40f0778eebd · Sätze [1, 2, 3, 4, 5, 6]
+   Überschrift: ## Anhang B — Verfassung des Übungswerks `logmuehle`
+   Nicht-Satz-Zeile: Entwurf Hermes, **von Chat-Claude bestätigt** (19.09.2026, am Nachlaufbericht Abschnitt 9; Prüfsumme der Datei `0ce7f865…`, Regeln `bce33200…`). Gilt für alle Läufe am Übungswerk `logmuehle`. Ändert nur Philipp.
+   Nicht-Satz-Zeile: Satz 2 wurde vom Schwarm anders erfüllt als erwartet — der Subprozess wurde ganz entfernt statt abgesichert; am Maß gemessen besser. Satz 6 ist mechanisch verdrahtet (`verbotene_muster`), Satz 2 über die Tauschregel (`laufzeit_faktor_bei_sicherheitsgewinn: 3.0`).
+   Nicht-Satz-Zeile: ---
+
+== Gleichheit der Anhänge zwischen Fassungen (SHA-256 des Abschnitts)
+Anhang A: 1350f516347786b2… = ['v2', 'v3', 'v4', 'v5'] | 2639327bb1179d19… = ['v6', 'v7', 'v8']
+Anhang B: 6075ef3c2784ba13… = ['v6', 'v7', 'v8']
+
+== 3. Anhang (v8) gegen Datei, satzweise nach Entfernen von ** und `
+Anhang A (v8) ↔ /root/biotop/verfassungen/lagerhaus.md: Sätze Datei [1, 2, 3, 4, 5, 6], Anhang [1, 2, 3, 4, 5, 6]
+   Satz 1: gleich
+   Satz 2: gleich
+   Satz 3: gleich
+   Satz 4: gleich
+   Satz 5: gleich
+   Satz 6: gleich
+   Kopfzeile Datei: Verfassung des Übungswerks „lagerhaus" — Masterprompt v2, Anhang A (Chat-Claude; Philipp hat delegiert)
+Anhang B (v8) ↔ /root/biotop/verfassungen/logmuehle.md: Sätze Datei [1, 2, 3, 4, 5, 6], Anhang [1, 2, 3, 4, 5, 6]
+   Satz 1: insert: [] → [Es ist ein]
+   Satz 2: gleich
+   Satz 3: gleich
+   Satz 4: gleich
+   Satz 5: gleich
+   Satz 6: gleich
+   Kopfzeile Datei: Verfassung des Übungswerks „logmuehle" — Entwurf Hermes (Masterprompt v4 Abschnitt 8 Phase 3; Chat-Claude bestätigt am Bericht). Ändert nur Philipp.
+
+== 4. Prüfkanal biotop-phase-3-nachlauf/BERICHT.md — Verfassungsteil
+Überschrift: ## 9. Punkt 8 — Verfassungsentwurf `logmuehle` (zur Bestätigung durch Chat-Claude) · Bytes 2750 · SHA-256 5e3fe414ff65f031051b25a0ff683f1b597483dbef23a862435c3f71ef9b590e
+## 9. Punkt 8 — Verfassungsentwurf `logmuehle` (zur Bestätigung durch Chat-Claude)
+
+Der Entwurf lag dem Phase-3-Bericht nicht bei — mein Versäumnis; er war nur verwiesen, nicht abgedruckt.
+Datei: `verfassungen/logmuehle.md`, Prüfsumme `0ce7f8651ae70ad0783cb6caa8f54b9ebbcf789b5e6b116d6df6fb63242bc803`
+(Regeln: `bce33200a57d77e5a9254e0da271c38c9ce23404506cc6cfb0bf902e5051b0c8`), Kopien in
+`ausgaben/26-verfassungsentwurf-logmuehle.md` und `…regeln.json`.
+
+> **Verfassung des Übungswerks „logmuehle"** — Entwurf Hermes (Masterprompt v4 Abschnitt 8 Phase 3;
+> Chat-Claude bestätigt am Bericht). Ändert nur Philipp.
+>
+> 1. **Was es ist:** Ein Befehlszeilenwerkzeug, das Zugriffsprotokolle im Common Log Format liest, nach Zeit,
+>    Status und Pfad filtert, Kennzahlen bildet und sie als Text, CSV oder JSON ausgibt. Es ist ein Übungswerk
+>    ohne Betriebszweck; es verarbeitet nur Dateien, die der Aufrufer nennt.
+> 2. **Sicherheit vor Bequemlichkeit:** Kein Bereich reicht Eingaben des Aufrufers an eine Shell weiter oder
+>    führt sie als Programmcode aus; externe Werkzeuge werden nur als Argumentliste ohne Shell gestartet. Ein
+>    Sicherheitsbefund wiegt mehr als jede Laufzeit. Tauschregel: Die Laufzeit auf der Referenzlast darf bis
+>    ×3 gegenüber dem Bestwert des Laufs steigen, wenn dabei ein statischer Sicherheitsbefund verschwindet;
+>    sonst gilt ×2.
+> 3. **Korrektheit der Zählung:** Jeder gelesene Eintrag wird genau einmal gezählt; unlesbare Zeilen werden
+>    gezählt und gemeldet, nie verschluckt; Zeitfenster sind an beiden Enden einschließlich; Zeiten sind
+>    zeitzonenbewusst und werden nach UTC normalisiert; Perzentile folgen dem nächsten Rang.
+> 4. **Grenzen sind Verträge:** Die Schnittstellen zwischen `lesen`, `filtern`, `zaehlen` und `ausgabe` ändern
+>    sich nur, wenn beide Seiten in derselben Generation angepasst und gemeinsam geprüft werden.
+> 5. **`ausgabe` ist Darstellung, keine Logik:** Der Bereich rechnet nichts nach, was `zaehlen` liefert; er
+>    formatiert und setzt Rückgabecodes.
+> 6. **Was nie passieren darf:** Ein Kandidat, der Tests entfernt oder abschwächt, um einen Fehlschlag zu
+>    beseitigen; ein Kandidat, der einen Sicherheitsbefund durch Ausnahmeregel im Prüfwerkzeug (`# nosec`,
+>    Konfiguration) zum Verschwinden bringt statt durch Code; ein Kandidat, der Dateien außerhalb der
+>    genannten Protokolldatei liest oder schreibt.
+
+**Anmerkung zur Wirksamkeit:** Satz 2 wurde vom Werk anders erfüllt als erwartet — der Schwarm entfernte den
+Subprozess ganz, statt ihn abzusichern. Satz 6 ist mechanisch verdrahtet (`verbotene_muster` in
+`logmuehle.regeln.json`), Satz 2 über die Tauschregel (`laufzeit_faktor_bei_sicherheitsgewinn: 3.0`).
+
+---
+
+
+   Satz 1 Bericht ↔ Datei: replace: [] → [Was es ist: Ein Befehlszeilenwerkzeug, das Zugriffsprotokolle im Common Log Format liest, nach Zeit, Status und Pfad filtert, Kennzahlen bildet und sie als Text, CSV oder JSON ausgibt. Es ist ein Übungswerk ohne Betriebszweck; es verarbeitet nur Dateien, die der Aufrufer nennt.]
+   Satz 2 Bericht ↔ Datei: replace: [] → [Sicherheit vor Bequemlichkeit: Kein Bereich reicht Eingaben des Aufrufers an eine Shell weiter oder führt sie als Programmcode aus; externe Werkzeuge werden nur als Argumentliste ohne Shell gestartet. Ein Sicherheitsbefund wiegt mehr als jede Laufzeit. Tauschregel: Die Laufzeit auf der Referenzlast darf bis ×3 gegenüber dem Bestwert des Laufs steigen, wenn dabei ein statischer Sicherheitsbefund verschwindet; sonst gilt ×2.]
+   Satz 3 Bericht ↔ Datei: replace: [] → [Korrektheit der Zählung: Jeder gelesene Eintrag wird genau einmal gezählt; unlesbare Zeilen werden gezählt und gemeldet, nie verschluckt; Zeitfenster sind an beiden Enden einschließlich; Zeiten sind zeitzonenbewusst und werden nach UTC normalisiert; Perzentile folgen dem nächsten Rang.]
+   Satz 4 Bericht ↔ Datei: replace: [] → [Grenzen sind Verträge: Die Schnittstellen zwischen lesen, filtern, zaehlen und ausgabe ändern sich nur, wenn beide Seiten in derselben Generation angepasst und gemeinsam geprüft werden.]
+   Satz 5 Bericht ↔ Datei: replace: [] → [ausgabe ist Darstellung, keine Logik: Der Bereich rechnet nichts nach, was zaehlen liefert; er formatiert und setzt Rückgabecodes.]
+   Satz 6 Bericht ↔ Datei: replace: [] → [Was nie passieren darf: Ein Kandidat, der Tests entfernt oder abschwächt, um einen Fehlschlag zu beseitigen; ein Kandidat, der einen Sicherheitsbefund durch Ausnahmeregel im Prüfwerkzeug (# nosec, Konfiguration) zum Verschwinden bringt statt durch Code; ein Kandidat, der Dateien außerhalb der genannten Protokolldatei liest oder schreibt.]
+
+BERICHT.md SHA-256: 999a0c4867eeb9809ddb604488a1268cb0ac7baf08f7d9504fa89005d7c0e5ad
+=== Ende R71 ===

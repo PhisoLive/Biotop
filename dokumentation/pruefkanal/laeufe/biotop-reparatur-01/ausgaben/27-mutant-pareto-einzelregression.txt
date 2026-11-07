@@ -1,0 +1,27 @@
+GESTELLTER GEGENMUTANT, NICHT PRODUKTIVCODE
+BEFEHL: /root/reparatur-01/venv/bin/python -m pytest tests/test_kernmass_pareto.py -k erkennt_einzelregression -q --junitxml=/var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/ausgaben/27-mutant-pareto-einzelregression.xml
+F                                                                        [100%]
+=================================== FAILURES ===================================
+________ test_pareto_erkennt_einzelregression_trotz_sinkender_fehlsumme ________
+
+messung = <function messung.<locals>.bauen at 0x70dc72fa22a0>
+
+    def test_pareto_erkennt_einzelregression_trotz_sinkender_fehlsumme(messung):
+        basis, kandidat = messung(), messung()
+        basis["bereiche"]["alpha"]["tests_fehlgeschlagen"] = 2
+        basis["werk"]["tests_fehlgeschlagen_liste"] = ["test_alt_eins", "test_alt_zwei"]
+        kandidat["bereiche"]["alpha"]["tests_fehlgeschlagen"] = 1
+        kandidat["werk"]["tests_fehlgeschlagen_liste"] = ["test_regression"]
+        schlechter, _ = M.pareto_f2(basis, kandidat, ["alpha", "beta"])
+>       assert any("Regression je Test" in s and "test_regression" in s for s in schlechter)
+E       assert False
+E        +  where False = any(<generator object test_pareto_erkennt_einzelregression_trotz_sinkender_fehlsumme.<locals>.<genexpr> at 0x70dc72fb0ee0>)
+
+tests/test_kernmass_pareto.py:49: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_kernmass_pareto.py::test_pareto_erkennt_einzelregression_trotz_sinkender_fehlsumme
+1 failed, 14 deselected in 0.06s
+
+STDERR:
+
+RC: 1

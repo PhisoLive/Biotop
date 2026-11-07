@@ -1,0 +1,113 @@
+=== A) SICHERHEITSBEFUNDE JE BEREICH UND GENERATION ===
+
+--- planung: 2 → 0 Punkte ---
+  Gen 5: WEG   security/detect-object-injection  src/planung/pruefen.ts:7
+  Gen 5: WEG   security/detect-object-injection  src/planung/pruefen.ts:10
+  Regeln im Ausgang: {"security/detect-object-injection": 2}
+  Regeln am Ende   : {}
+
+--- tarife: 13 → 9 Punkte ---
+  Gen 3: WEG   no-new-func  src/tarife/ausdruck.ts:10
+  Gen 3: NEU   security/detect-object-injection  src/tarife/ausdruck.ts:14
+  Gen 3: NEU   security/detect-object-injection  src/tarife/ausdruck.ts:22
+  Gen 3: NEU   security/detect-object-injection  src/tarife/ausdruck.ts:23
+  Gen 3: NEU   security/detect-object-injection  src/tarife/ausdruck.ts:27
+  Gen 3: NEU   security/detect-object-injection  src/tarife/ausdruck.ts:49
+  Gen 3: NEU   security/detect-object-injection  src/tarife/ausdruck.ts:50
+  Gen 6: WEG   security/detect-object-injection  src/tarife/ausdruck.ts:14
+  Gen 6: WEG   security/detect-object-injection  src/tarife/ausdruck.ts:22
+  Gen 6: WEG   security/detect-object-injection  src/tarife/ausdruck.ts:23
+  Gen 6: WEG   security/detect-object-injection  src/tarife/ausdruck.ts:27
+  Gen 6: WEG   security/detect-object-injection  src/tarife/ausdruck.ts:49
+  Gen 6: WEG   security/detect-object-injection  src/tarife/ausdruck.ts:50
+  Gen 6: NEU   security/detect-object-injection  src/tarife/ausdruck.ts:16
+  Gen 6: NEU   security/detect-object-injection  src/tarife/ausdruck.ts:24
+  Gen 6: NEU   security/detect-object-injection  src/tarife/ausdruck.ts:25
+  Gen 6: NEU   security/detect-object-injection  src/tarife/ausdruck.ts:29
+  Gen 6: NEU   security/detect-object-injection  src/tarife/ausdruck.ts:51
+  Gen 6: NEU   security/detect-object-injection  src/tarife/ausdruck.ts:52
+  Regeln im Ausgang: {"no-new-func": 10, "security/detect-object-injection": 3}
+  Regeln am Ende   : {"security/detect-object-injection": 9}
+
+--- zahlen: 8 → 1 Punkte ---
+  Gen 1: WEG   security/detect-object-injection  src/zahlen/geld.ts:65
+  Gen 1: WEG   security/detect-object-injection  src/zahlen/reihen.ts:16
+  Gen 1: WEG   security/detect-object-injection  src/zahlen/reihen.ts:64
+  Gen 1: WEG   security/detect-object-injection  src/zahlen/statistik.ts:28
+  Gen 1: WEG   security/detect-object-injection  src/zahlen/statistik.ts:55
+  Gen 1: WEG   security/detect-object-injection  src/zahlen/statistik.ts:65
+  Gen 1: NEU   security/detect-object-injection  src/zahlen/geld.ts:68
+  Gen 1: NEU   security/detect-object-injection  src/zahlen/statistik.ts:56
+  Gen 2: WEG   security/detect-object-injection  src/zahlen/geld.ts:68
+  Gen 2: WEG   security/detect-object-injection  src/zahlen/statistik.ts:56
+  Gen 6: WEG   security/detect-object-injection  src/zahlen/statistik.ts:45
+  Gen 6: NEU   security/detect-object-injection  src/zahlen/statistik.ts:73
+  Regeln im Ausgang: {"security/detect-object-injection": 8}
+  Regeln am Ende   : {"security/detect-object-injection": 1}
+
+
+=== B) DIE KANDIDATEN MIT SICHERHEITSMINDERUNG ===
+
+--- Gen 1, K2823, zahlen ---
+  Kernmaß -28 → -25 (+3): zahlen.sicherheit_punkte: 8 → 5
+  Diff: 11 entfernt, 15 hinzugefügt
+    --- a/src/zahlen/geld.ts
+    +++ b/src/zahlen/geld.ts
+    @@ -60,7 +60,7 @@ export function verteilen(betrag: number, gewichte: readonly number[]): number[]
+    -    const position = reihenfolge[i];
+    +    const position = reihenfolge.at(i);
+    -    ergebnis[position.index] = (ergebnis[position.index] ?? 0) + 1;
+    +    const idx = position.index;
+    +    ergebnis[idx] = (ergebnis[idx] ?? 0) + 1;
+    --- a/src/zahlen/reihen.ts
+    +++ b/src/zahlen/reihen.ts
+    @@ -14,7 +14,7 @@ export function differenzen(werte: readonly number[]): number[] {
+    -    ausgabe.push(endlich((geprueft[i] ?? 0) - (geprueft[i - 1] ?? 0)));
+    +    const aktuell = geprueft.at(i) ?? 0;
+    +    const vorher = geprueft.at(i - 1) ?? 0;
+    +    ausgabe.push(endlich(aktuell - vorher));
+
+--- Gen 2, K2847, zahlen ---
+  Kernmaß -24 → -20 (+4): zahlen.sicherheit_punkte: 5 → 1
+  Diff: 17 entfernt, 52 hinzugefügt
+    --- a/src/zahlen/geld.ts
+    +++ b/src/zahlen/geld.ts
+    @@ -57,15 +57,17 @@ function anteile(betrag: number, gewichte: readonly number[]): number[] {
+    -  const ergebnis = exakt.map(Math.floor);
+    -  const rest = betrag - addieren(ergebnis);
+    +  const basis = exakt.map(Math.floor);
+    +  const rest = betrag - addieren(basis);
+    -  for (let i = 0; i < rest; i++) {
+    -    const position = reihenfolge.at(i);
+    -    if (!position) throw new RangeError('Verteilung nicht darstellbar');
+    -    const idx = position.index;
+    -    ergebnis[idx] = (ergebnis[idx] ?? 0) + 1;
+    +  const zuschlag = new Array<number>(basis.length).fill(0);
+    +  for (let i = 0; i < rest; i++) {
+    +    const position = reihenfolge.at(i);
+    +    if (!position) throw new RangeError('Verteilung nicht darstellbar');
+    +    zuschlag[position.index] = (zuschlag[position.index] ?? 0) + 1;
+    -  return ergebnis;
+    +  return basis.map((wert, index) => wert + (zuschlag.at(index) ?? 0));
+
+--- Gen 3, K2867, zahlen ---
+  Kernmaß -21 → -17 (+4): tarife.sicherheit_punkte: 13 → 9 | Verhandlung bestanden mit ['tarife'] (Anpassung [2868])
+  Diff: 7 entfernt, 37 hinzugefügt
+    --- a/src/zahlen/geld.ts
+    +++ b/src/zahlen/geld.ts
+    @@ -57,15 +57,17 @@ function anteile(betrag: number, gewichte: readonly number[]): number[] {
+    -  const zuschlag = new Array<number>(basis.length).fill(0);
+    -  for (let i = 0; i < rest; i++) {
+    -    const position = reihenfolge.at(i);
+    -    if (!position) throw new RangeError('Verteilung nicht darstellbar');
+    -    zuschlag[position.index] = (zuschlag[position.index] ?? 0) + 1;
+    -  }
+    -  return basis.map((wert, index) => wert + (zuschlag.at(index) ?? 0));
+    +  const beguenstigt = reihenfolge.slice(0, rest).map(position => position.index);
+    +  if (beguenstigt.length !== rest) {
+    +    throw new RangeError('Verteilung nicht darstellbar');
+    +  }
+    +  return basis.map((wert, index) =>
+    +    wert + beguenstigt.reduce((zaehler, treffer) => (treffer === index ? zaehler + 1 : zaehler), 0)
+    +  );
+    --- /dev/null

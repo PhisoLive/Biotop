@@ -1,0 +1,75 @@
+# N10 — Zwei oder drei? Alle in Lauf 24 erzeugten Immunsystem-Einträge
+
+## Alle in Lauf 24 erzeugten Einträge: 3
+
+  aegis_k2500_preise
+    Bereich preise · Generation 3 · Status gefunden
+    Schlüssel im Ursprung gespeichert: True
+    Behauptung aus dem Code: test_artikel_negativer_grundpreis_erlaubt_bypass → preis_fuer|GtE:zahl
+
+  aegis_k2526_lager
+    Bereich lager · Generation 4 · Status gefunden
+    Schlüssel im Ursprung gespeichert: True
+    Behauptung aus dem Code: test_gesamtmenge_ignoriert_negative_oder_null_bestaende_nicht → gesamtmenge|Eq:zahl
+
+  norm_k2458_lager
+    Bereich lager · Generation 2 · Status offen_norm
+    Schlüssel im Ursprung gespeichert: False
+    Behauptung aus dem Code: test_reservierung_einloesen_wirft_nicht_genug_bestand_bei_ueberschreitung → reservierung_einloesen|raises:NichtGenugBestand
+
+## Antwort auf N10
+  Erzeugte Einträge gesamt: 3
+    davon Ankläger-FUNDE (`aegis_…`): 2 — aegis_k2500_preise, aegis_k2526_lager
+    davon NORM-Einträge (`norm_…`): 1 — norm_k2458_lager
+
+  Die drei Einträge aus N4 und N8 sind diese drei. Sie sind NICHT drei Funde:
+    Ein `norm_…`-Eintrag entsteht aus einem Test, den die Norm-Regel (3.7) als Meinung eingestuft hat.
+    Er bringt 0 Punkte, kommt nicht ins Werk und ist kein vom Ankläger bestätigter Fehler.
+
+  Einträge mit gespeichertem Behauptungsschlüssel: 2 von 3
+    aegis_k2500_preise: ja
+    aegis_k2526_lager: ja
+    norm_k2458_lager: NEIN
+
+## Folge für die Bezugsgrößen
+
+### Zeile 8 (Doppelungsanteil): Bezugsgröße bleibt 2
+  Zeile 8 misst den Anteil unter den vom ANKLÄGER ERZEUGTEN TESTS, also unter den Funden.
+  Ein Norm-Eintrag ist kein erzeugter Fund — er ist das Gegenteil: ein verworfener Test.
+  Erzeugte Funde in Lauf 24: 2. Die Zahl 2 in der Zeile-8-Tabelle ist richtig.
+
+### Durchgerutscht: über ALLE drei neu gemessen
+  Der Prüfer hat recht, dass die Frage gestellt werden muss: Trägt der Norm-Eintrag einen Schlüssel,
+  kann auch er eine vorhandene Behauptung wiederholen. Deshalb hier die Messung über alle drei.
+
+  aegis_k2500_preise / preis_fuer|GtE:zahl: im Vorrat zum Ansagezeitpunkt? JA → DURCHGERUTSCHT
+  aegis_k2526_lager / gesamtmenge|Eq:zahl: im Vorrat zum Ansagezeitpunkt? nein
+  norm_k2458_lager / reservierung_einloesen|raises:NichtGenugBestand: im Vorrat zum Ansagezeitpunkt? JA → DURCHGERUTSCHT
+
+  ERGEBNIS Durchgerutscht über alle 3 erzeugten Einträge: 2 (Maßstab 0 → GERISSEN)
+
+## Der Maßstab ist gerissen — und zwar schärfer, als die erste Messung zeigte
+
+  Beide durchgerutschten Behauptungen standen bereits im ÜBERNOMMENEN Vorrat:
+    `preis_fuer|GtE:zahl` (preise) — aus der Übernahme aus Werk 11
+    `reservierung_einloesen|raises:NichtGenugBestand` (lager) — aus der Übernahme aus Werk 11
+  Für KEINE der beiden gab es eine Ansage in Lauf 24. Die Tests entstanden aus Angriffen, die
+  etwas ANDERES angekündigt hatten:
+    `aegis_k2500_preise` folgte der Ansage `aufnehmen|raises:ValueError` (#15027)
+    `norm_k2458_lager` entstand ohne zugehörige Ansage dieser Behauptung
+
+  DAMIT IST DIE URSACHE DIESELBE WIE BEIM ZUSATZBEFUND: Der Ankläger weicht von seiner Ansage ab.
+  Die Sperre prüft die angesagte Behauptung und lässt den Angriff durch; geschrieben wird dann ein
+  Test über eine Behauptung, die längst im Vorrat steht. Die Sperre kann das nicht verhindern,
+  weil sie die geschriebene Behauptung nie sieht.
+
+  BERICHTIGUNG meiner ersten Messung (N3): Dort galt Durchgerutscht = 0, gemessen über die zwei
+  Funde. Das war zu eng gefasst — ich habe nur geprüft, ob der Test die EIGENE Ansage wiederholt,
+  und dabei den Fall übersehen, dass er eine ANDERE vorhandene Behauptung wiederholt.
+  Richtig ist: **Durchgerutscht = 2**, der Maßstab (0) ist GERISSEN.
+
+  Was das für Vorbedingung 1 heißt: Von den zwei Hälften des Maßstabs ist eine erfüllt
+  (Fehlalarm 0 von 10) und eine gerissen (Durchgerutscht 2). Das Bauteil sperrt zuverlässig, was
+  angesagt wird, aber es sperrt nicht, was geschrieben wird. Die von Chat-Claude unter V9
+  geforderte Prüfung „Ansage gegen Ausführung" ist damit nicht nur Vorbedingung für Tor 4,
+  sondern die Behebung genau dieses Befunds.

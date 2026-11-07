@@ -1,0 +1,185 @@
+# BIOTOP-LAGE-01 · Fassung 2 · `GLOSSAR-TEIL1-01.md`
+
+- **Inhalt:** FK50 · Entwurf D
+- **Stichzeitpunkt:** 25.09.2026 17:29:59 CEST (Ende des Baus S1c). Der Entwurf beschreibt den Stand zur Zeit seines Lesens; was sich bis zum Stich geändert hat, steht im Nachtrag unten.
+- **Verfasser:** Subagent Teil D, Arbeitszeit 25.09.2026 16:10:47–17:49:11 CEST (Delegationsbuch, R193). Eingesetzt von Hermes.
+- **Quelle:** `/root/sicherung/biotop-lage-01/entwurf/aufbau/GLOSSAR.md` · 27451 B · SHA-256 `6a08dddc8a3c7b1cce7c1dec58623b18cde194b18efcffdecec14f4707540edf`. Änderungen beim Einsetzen: nur dieser Kopf und `{LAEUFE}` → `https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe` (3 Stellen).
+- **Prüfung durch Hermes und Rohbelege je Datei:** https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-lage-01/VOLLSTAENDIGKEIT-TEIL1-01.md
+- **Nachtrag Hermes:** Endstand zum Stichzeitpunkt 25.09.2026 17:29:59 CEST: Der Bau S1c der Behebungsrunde 6 endete an seiner Grenze von 250 Werkzeugaufrufen, mit Schlussbericht (R175). Runde 6 ist damit nicht abgeschlossen. Seit Commit `0c2f058` gibt es keinen neuen Commit; nicht eingecheckt sind 25 Einträge (R191). Ein Review fehlt. S1c meldet einen neuen stillen Durchlass (Befund G) und hat 10 rote Tests `test_w_g_*` im Baum gelassen (R170). T4 ist nicht frei. **Nachrichten Philipps zum Stich:** 114 mit Text, davon 44 ab dem 21.09. (START-02 Abschnitt C, R160). Nennt ein Entwurf „114, davon 43 ab 21.09.“, so zählt er nach dem Verzeichnis v2, das bis 16:41:36 reicht. Diese 114 sind 113 Nachrichten mit Text plus die Zeile id 7468 ohne Text (R198). Neu bis zum Stich ist nur die Nachsteuerung (id 24300, 17:08:20). Einzelheiten zum Endstand stehen in LAGE-TEIL1-01.md.
+
+---
+# GLOSSAR (FK50) — Entwurf Teil D
+
+Fachbegriffe des Biotops aus Masterprompt v8, Code und Berichten, alphabetisch (Ä wie A, Ü wie U).
+- **Je Begriff:** Bedeutung in einem Satz, danach die Fundstelle.
+- **Begriffe aus LAGE und TORE** ergänzt Hermes am Ende. Hier steht, was Teil D gefunden hat.
+- **Auslegung Hermes:** Regelkonstanten aus Masterprompt und Code (etwa 0,5 %, 80 von 100, Faktor 2,0) gehören zur Bedeutung eines Begriffs. Sie stehen deshalb auch hier; Messwerte stehen nie im Glossar.
+
+**Abkürzungen der Fundstellen:**
+- **MP v8** = `/root/sicherung/biotop-lage-01/arbeit/dokumente/2026-09-23_155353_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v8.md` (Wortlaut aus der Sitzungsdatenbank, R17), mit Zeile und Abschnitt.
+- **Code** = Pfad unter `/root/biotop` am Commit `0c2f058`, mit Zeile. „Kopf“ = Modul-Docstring (R38).
+- **R5** = `/root/biotop-vor-t4-05/`, **R6** = `/root/biotop-vor-t4-06/` (Arbeitsordner der Runden).
+- Stellenfunde: R56 (Begriffe), R65, R72, R75, R80, R90, R104, R112.
+
+---
+
+- **Abschlussordner:** Ordner im Prüfkanal, mit dem jeder Hermes-Auftrag zwingend endet (BERICHT.md, `ausgaben/`, `werk/`, `biotop/`, KASSE.md). — MP v8 Z.499–505 (§9)
+- **Aegis:** Name des Organs Ankläger. — MP v8 Z.210 (§3.7); `biotop/organe/aegis.py`
+- **Aktenschrank:** Vorhandene Such- und Ablagetechnik (Chunking, Stichwort- und Bedeutungssuche), die laut Masterprompt Teil der Landkarte werden soll; im Code 0 Treffer. — MP v8 Z.154; R75 §2
+- **Altlast:** Gewachsene Schwäche eines Werks (toter Code, Doppelung, uneinheitliches Muster); bei T4 ersetzt eine unabhängig erhobene Altlastenliste die versiegelten Schwächen. — MP v8 Z.426, Z.437; `biotop/tor4.py` Kopf
+- **Angriffstest:** Test des Anklägers, der einen Fehler durch Ausführung bestätigen soll; als Behebungsnachweis gilt er nur bei Absturz der Vorgeneration oder explizitem Vertrags-/Verfassungsverweis. — MP v8 Z.216, Z.221 (§3.7)
+- **Ankläger:** Organ, das jeden Kandidaten zu Fall bringen soll: Wirkungskreis, Verträge, Verfassung, Angriff, Ausführung in der Kammer. — MP v8 Z.210–218 (§3.7); `biotop/organe/aegis.py` Kopf
+- **Ansage:** Die Behauptung, die der Ankläger vor dem Angriff nennt; steht sie im Bereich schon, wird der Angriff nicht ausgeführt (Bauteil A). — MP v8 Z.219; `aegis.py:655–658, 693–711`
+- **Äquivalenter Mutant:** Mutant, der das beobachtbare Verhalten nicht ändert; er wird vor der Zählung mit Beleg aussortiert. — MP v8 Z.195 (§3.5)
+- **Artgedächtnis:** Werkübergreifendes Gedächtnis abstrahierter Muster ohne Werk-, Datei- und Funktionsnamen, das Mentor und Schwarm vorgelegt wird. — MP v8 Z.257 (§3.12); `organe/gedaechtnis.py` Kopf
+- **Aufnahme:** Organ, das ein Werk entgegennimmt, erkennt, einen ersten Testlauf macht und ethisch prüft. — MP v8 Z.141–144 (§3.1); `organe/aufnahme.py`
+- **Aufnahmesperre C:** Deterministische Sperre, die den Schlüssel des tatsächlich geschriebenen Tests gegen den Vorrat des Bereichs prüft und nur Wiederholungen abweist. — `aegis.py:732–749` (Fassung 7, Entscheidung Chat-Claude 20.09.2026); MP v8 Z.444
+- **Auftragsbudget (Auftragsgrenze):** Hartes Budget über alle Läufe eines Auftrags ab `BIOTOP_AUFTRAG_LAUF_AB`; fehlt einer der beiden Werte, verweigert die Kasse den Start. — `kern/kasse.py:45–48, 70ff.`
+- **Ausfallklärung:** Nachträgliche Klärung der Kosten eines ausgefallenen Modellaufrufs, gebucht mit Zweck `ausfall.hoechstfall`. — `kasse.py:175, 213`; R75 §1
+- **Bandit:** Buchführung über Versuche und Erfolge je (Lauf, Nische, Hersteller); daraus wählt eine Thompson-Stichprobe zwei Hersteller je Nische. — MP v8 Z.206; `organe/nischen.py` Kopf
+- **Bauteil A / B / C:** Die drei Bauteile der Vorbedingung 1: A Ansage-Sperre des Anklägers, B Mindestanteil des werkübergreifenden Blocks, C Aufnahmesperre. — `https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-phase-4-vorbedingung-1/nach-reparatur-02/MESSPLAN.md` Z.4; `aegis.py:734, 739`
+- **Befundklasse:** Statische Sicherheitsbefundklasse (Bandit-Kennung), zu der der Kern die bekannten Umgehungen als Immuntests hält. — MP v8 Z.216; `kern/befundklassen.py` Kopf
+- **Behauptung:** Ziel-Funktion plus Zusicherungsart eines Tests; Schlüssel der Doppelungserkennung. — MP v8 Z.219, Z.245
+- **Behebungsrunde:** Auftrag ohne Lauf und ohne Modellgeld, der Messgerätfehler behebt und mit voller Regression, eigenem Commit, einem Review und Abschlussordner endet. — MP v8 Z.476; R30 Z.174–200
+- **behoben heißt verschwunden:** Eine Sicherheitsschwäche gilt erst als behoben, wenn der statische Befund weg ist und die Umgehung als Immuntest im Werk liegt. — MP v8 Z.180 (§3.5)
+- **Bereich:** Teil eines Werks (Modul, Dienst, Schicht), die Einheit von Schwarm, Maßen und Sperren. — MP v8 Z.149; `organe/landkarte.py` (`bereiche_finden`)
+- **Bestwert des Laufs:** Bezug der Grenzmaße, also je Maß und Bereich der beste Wert aller bisher angenommenen Generationen. — MP v8 Z.176
+- **blinder Fleck:** Mutant, den kein Test fängt. — MP v8 Z.194
+- **Breitentest:** Phase 4, in der das Biotop an mehreren Testwerken neuer Art geprüft wird (T3–T6). — MP v8 Z.414–434
+- **Deckung:** Ein Test deckt eine Abweichung, wenn er an der Vorgeneration fällt und am Kandidaten besteht. — MP v8 Z.128; `organe/verhaltensvergleich.py:274`
+- **Doppelgänger:** Kandidat, der sich in weniger als 10 % der geänderten Zeilen von einem anderen derselben Generation unterscheidet. — MP v8 Z.251; `organe/entropie.py` Kopf
+- **Doppelung:** Weiterer Test, der dieselbe Behauptung aufstellt wie ein schon aufgenommener; er wird nicht übernommen. — MP v8 Z.245 (§3.10)
+- **Doppelungsanteil:** Anteil der Doppelungen an allen vom Ankläger erzeugten Angriffstests, Grenze unter 20 %. — MP v8 Z.245, Z.386, Z.444
+- **Doppelungsschlüssel:** Die Behauptung (Ziel-Funktion plus Zusicherung), nicht (Meldungsklasse, Ort). — MP v8 Z.36, Z.245; `aegis.py:530`
+- **Drahtwerk:** Kleinstes TypeScript-Prüfwerk des Verdrahtungstests, an dem ein ganzer Lauf jedes Organ erreicht. — `tests/drahtwerk.py:1` (R65 §5)
+- **Eichfall:** Gestellter roter oder grüner Fall, an dem eine Mechanikprüfung zeigt, dass eine Sperre anschlägt bzw. schweigt. — `pruefung/aufnahmesperre_pruefen.py:1` (R90 §1)
+- **Eichgegenstand:** Je Werk einmal gewähltes und versiegeltes Bereichspaar mit Vertrag, an dem die Eichproben ansetzen. — MP v8 Z.190; `organe/eichgegenstand.py` Kopf
+- **Eichkosten:** Kosten der Generation minus eins, getrennt ausgewiesen (Tabelle `eichkosten`). — MP v8 Z.188; `organe/eichung.py` (`kosten_buchen`)
+- **Eichphase:** Bemessung der Stufe-2-Last bis Spannweite über acht Messungen < 0,25 bei ≥ 10 ms je Stichprobe, danach versiegelt (Runde 6). — R6 `UEBERGABE.md` Z.14–15; R5 `BERICHT.md` Z.596
+- **Eichprobe:** Eine der vier Proben (Nebenwirkung, Regression, Norm, Vertrag), mit denen der Vorspann das Messgerät vor jedem Lauf prüft. — MP v8 Z.186; `organe/eichproben.py` Kopf
+- **Elite:** Bester überlebender Kandidat je (Nische, Bereich), der dem Schwarm der Nische als Ausgangspunkt gezeigt wird (MAP-Elites). — MP v8 Z.205; `nischen.py` Kopf
+- **Enthaltung:** Aussage „nicht beurteilbar“, etwa für eine vom Verhaltensvergleich nicht erreichte Funktion; sie zählt nie als bestanden. — MP v8 Z.128, Z.443; R6 `UEBERGABE.md` Z.12, Z.21–22
+- **Entropie:** Organ, das je Generation Verbesserung und Verschiedenheit misst und die Sättigung meldet. — MP v8 Z.249–252 (§3.11); `organe/entropie.py`
+- **Formvariante:** Aus einer Eingabeliste abgeleitete Variante, mit der die Python-Sonde Randfälle ruft (gekappt bei `FORM_KAPPE`). — `kern/py/verhalten.py:1352–1364` (R72 §3)
+- **Freigabe:** Entscheidung „frei“ oder „ablehnen“ über eine vorgelegte Generation; eine Ablehnung führt über Lazarus zur Vorgeneration zurück. — MP v8 Z.283; `biotop/lauf.py:553–591`
+- **Freigabe-Gate:** Sperre, nach der ein Lauf erst nach der Freigabe der vorgelegten Generation weitergeht; Abbrüche sind ausgenommen. — MP v8 Z.41, Z.305; `lauf.py:200, 560–563`
+- **Fund:** Vom Ankläger bestätigter Fehler mit seinem Test; „offen“, solange ihn kein angenommener Kandidat besteht. — MP v8 Z.242 (§3.10)
+- **Fund-Neubewertung:** Mechanische Neubewertung offener Funde am neuen Ausgang, bevor ein neuer Lauf sie übernimmt. — MP v8 Z.187, Z.246; `organe/fundpruefung.py`
+- **geeichtes Maß:** Maß, aus dem die Maßeichung die stillgelegten Prüferregeln herausnimmt; Schwarm und Ankläger lesen es, das rohe bleibt gekennzeichnet. — MP v8 Z.127, Z.471
+- **Gegenprobe:** Prüfung, die fehlschlagen muss, damit die zugehörige Probe als funktionierend gilt (Grundsatz 8). — MP v8 Z.125
+- **Gegenzeuge:** Test einer versiegelten Schwäche, doppelt geprüft: Schwäche weg und gültiges Verhalten gegen die Normalversion unverändert. — MP v8 Z.437; `kern/gegenzeugen.py` Kopf
+- **Generalprobe:** Nexus-Schritt: Bauen, alle Tests des ganzen Werks, alle harten Maße auf Werkebene, Verfassung und Verträge. — MP v8 Z.229 (§3.8)
+- **Generation:** Schritt eines Laufs (Schwarm, Ankläger, Zusammensetzen, Generalprobe, Pareto, Schnappschuss, Freigabe), der als Ganzes angenommen oder abgelehnt wird. — MP v8 Z.225–232, Z.282
+- **Generation 0:** Schritt vor Generation 1: Mutanten erzeugen und die Tests evolutionieren, bis ≥ 80 von 100 nicht-äquivalenten gefangen sind. — MP v8 Z.194–195; `organe/generation0.py` Kopf
+- **Generation minus eins:** Eichung des Messgeräts vor Generation 0: Rauschmessung, Sperre je Bereich, vier Proben, Fund-Neubewertung, Eichkosten. — MP v8 Z.182–188; `organe/vorspann.py` Kopf
+- **Genesis:** Name des Organs Schwarm. — MP v8 Z.198 (§3.6); `organe/genesis.py`
+- **Geschmacksgedächtnis:** Gedächtnis aller Freigaben und Ablehnungen Philipps, aus dem ab 20 Entscheidungen ein Vorhersagemodell wird. — MP v8 Z.258; `gedaechtnis.py` Kopf
+- **Gewinnschwelle (Gewinnband):** Die Nische „schnell“ gewinnt, wenn die Laufzeit auf ≤ 0,85 sinkt, geprüft in einem Band aus der gemessenen Rauschtoleranz. — `kern/messgeraet.py:735–743` (R72 §3); R30 Z.191
+- **Grenzmaß:** Hartes Maß ohne Punkte (Laufzeit, Speicher, Bauzeit, größte Funktion, Zyklen); wer es reißt, ist tot. — MP v8 Z.176
+- **Grundsatz:** Einer der vierzehn Sätze in Abschnitt 2a, gefasst aus Fehlern der Phasen 1–3 und T3. — MP v8 Z.114–131 (§2a)
+- **Halluzinationsprobe:** Der saubere Vergleichsbereich bleibt unberührt; jede angenommene Änderung dort lässt die Probe reißen, außer sie behebt nachweislich einen Fehler. — MP v8 Z.358, Z.442
+- **harte Maße / weiche Maße:** Harte Maße entscheiden allein und automatisch; weiche Maße (Lesbarkeit, Eleganz) brechen nur Gleichstände über die Jury. — MP v8 Z.172, Z.181
+- **Hersteller:** Modellfamilie im Schwarm (openai, google, deepseek, qwen); je Nische zwei verschiedene. — `nischen.py:24–29`; MP v8 Z.69, Z.375 (Z.206 sagt „Anbieter“)
+- **Immunisierung:** Jeder gefundene Fehler wird zu einem Test im Werk (Verfassungssatz 7). — MP v8 Z.106, Z.239–242
+- **Immunsystem:** Vorrat offener und aufgenommener Immuntests je Bereich (Tabelle `immunsystem`). — MP v8 Z.242; R40 §7
+- **Immuntest:** Test aus einem bestätigten Fehler; er kommt erst ins Werk, wenn ein angenommener Kandidat ihn besteht. — MP v8 Z.173, Z.242
+- **Jury:** Mindestens drei Modelle verschiedener Hersteller, die nur bei Gleichstand aller harten Maße und nur einstimmig entscheiden. — MP v8 Z.181; `organe/jury.py` Kopf
+- **Kammer (Ausführungskammer):** Docker-Container ohne Netz, in dem jeder Bau, Testlauf und jede Messung läuft. — MP v8 Z.260–262 (§3.13); `organe/kammer.py` Kopf
+- **Kandidat:** Änderungssatz (Diff) des Schwarms mit Begründung und berührten Verträgen. — MP v8 Z.208
+- **Kante:** Aufrufkante „funktion ← aufrufer @ phase“, die der Verdrahtungstest im echten Lauf verlangt. — `kern/register.py` Kopf
+- **Kappe:** Obergrenze der Sonde, etwa `KAPPE` äußere Aufrufe je Funktion oder `ITER_KAPPE` ausgelesene Elemente. — `kern/py/verhalten.py` Kopf; R5 `SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md` Z.13, Z.23
+- **Kasse:** Kernbauteil, das jeden Modellaufruf zählt und vor dem Aufruf gegen das Budget prüft. — MP v8 Z.107, Z.264–266; `kern/kasse.py` Kopf
+- **KEIN ANGRIFF:** Erlaubte Antwort des Anklägers ohne Behauptung; der Angriff unterbleibt. — MP v8 Z.219; `aegis.py:700`
+- **„KEIN VORSCHLAG“:** Ehrliche Schwarmantwort ohne Kandidaten, neutral für die Bandit-Gewichtung. — MP v8 Z.52, Z.207; `nischen.py:49`
+- **Kernmaß F1:** Kernmaß der Fassung 1 (Läufe 1–2), unter dem bestandene Tests Punkte brachten; im Code noch als `kernmass_f1`. — MP v8 Z.370; `messgeraet.py` Kopf und `:353`
+- **Kernmaß F2:** Je Bereich −Fehlschläge − 10·HIGH − 3·MEDIUM − 1·LOW − tote Funktionen, Höchstwert 0; bestandene Tests zählen nicht. — MP v8 Z.173; `messgeraet.py` Kopf
+- **Kernstand:** Stand des Biotop-Codes, an dem ein Lauf oder eine Regression gemessen wurde. — MP v8 Z.448; R6 `bau/hermes/H-VOLL-AUSWERTUNG.txt` Z.45
+- **Klassenmaß:** Kernmaß, das die Verfassung je Werkklasse setzen kann. — MP v8 Z.179
+- **Kontingent:** Abo-Kontingent, das die Kasse getrennt zählen soll (Spalte `kasse.kontingent`). — MP v8 Z.266, Z.313; R75 §1
+- **Landkarte:** Organ mit Zoomstufen 0–3, Straßen und Verträgen; einzige Sicht des Schwarms auf das Werk. — MP v8 Z.146–155 (§3.2); `organe/landkarte.py`
+- **Lauf:** Durchgang an einem Werk mit eigenem Maß und Budget, von der Aufnahme bis Sättigung oder Abbruch, in der Datenbank fortlaufend nummeriert. — MP v8 Z.274–287 (§4); `biotop/lauf.py`
+- **Laufzeitriss:** Gerissene Laufzeitgrenze eines Bereichs im Urteil. — `messgeraet.py:726`
+- **laut scheitern:** Eine Prüfung ohne Gegenstand meldet das und stoppt, statt zu bestehen (Verfassungssatz 6). — MP v8 Z.105
+- **Lazarus:** Organ, das jede angenommene Generation als Git-Tag und Archiv sichert; eine Rückkehr löscht nichts. — MP v8 Z.234–237 (§3.9); `organe/lazarus.py`
+- **Maß (eingefroren):** Vor der ersten Generation bestätigtes Maß, danach nicht mehr verhandelbar. — MP v8 Z.101, Z.196
+- **Masse (Modellrolle):** Tokenabgerechnete Schnellmodelle für Schwarm, Angriffe und Landkarte. — MP v8 Z.312 (§6)
+- **Maßeichung:** Prüft jede Prüferregel am sauberen Vergleichsbereich und legt eine Regel still, die dort anschlägt. — MP v8 Z.127, Z.438; `organe/masseichung.py` Kopf
+- **Mechanikprüfung:** Ausdrücklich gekennzeichnete Prüfung an gestellten Fällen, wenn der echte Fall im Lauf nicht eintritt. — MP v8 Z.404–406; `pruefung/bauteilA_mechanik.py` Kopf
+- **Mentor:** Organ, das vor der Arbeit 3–5 Entwicklungsrichtungen vorschlägt; die Wahl trifft Philipp. — MP v8 Z.164–167 (§3.4); `organe/mentor.py`
+- **Messgerät:** Testläufer, Messskripte und Maße als Teil des unantastbaren Kerns. — MP v8 Z.169–196, Z.295; `kern/messgeraet.py`
+- **Messgerätausfall:** Ausfall der Messung, etwa der Sonde; er ist keine Ablehnung des Kandidaten und kein Gedächtniseintrag. — MP v8 Z.443, Z.466; `messgeraet.py:672`
+- **Messgerätfehler:** Fehler im Messgerät, der ein falsches Urteil erzeugt; der Breitentest soll ihn finden. — MP v8 Z.190, Z.434, Z.461
+- **Mutant:** Deterministische Abwandlung des Werks (Vergleich umgedreht, Grenze verschoben …), an der sich zeigt, ob Tests Fehler bemerken. — MP v8 Z.194; `generation0.py` Kopf
+- **Nachgang:** Abarbeitung der Befunde einer Prüfung durch Chat-Claude an einem Abschlussordner (N1–N14; Auslegung Hermes). — `https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-phase-4-vorbedingung-1/NACHGANG-06.md` Kopf (R30 Z.133–134); `pruefung/nachgang_n*.py`
+- **Nachlauf:** Eigener Auftrag nach einer Phase, der offene Torzeilen nachholt (Phase 1: Läufe 6–10; Phase 3: Läufe 21–23). — MP v8 Z.372, Z.412
+- **Nachspiel:** Wiederholung eines aufgezeichneten Kandidaten durch genau die Annahmefunktion `aegis.pruefen`. — `biotop/nachspiel.py` Kopf
+- **Nebenwirkungsprobe:** Eichprobe: Ein Kandidat hebt Bereich A und senkt B; er muss abgelehnt werden, und der Bericht nennt B. — MP v8 Z.382; `eichproben.py` Kopf
+- **Neutralzähler:** Zählt neutrale und geurteilte Ausgänge je Organ; eine Torzeile trägt nur, wenn je Durchlauf mehr als die Hälfte geurteilt ist. — MP v8 Z.446; `organe/neutralzaehler.py` Kopf
+- **Nexus:** Organ für Verhandlung, Zusammensetzen, Generalprobe und Pareto; im Code in `lauf.py` enthalten. — MP v8 Z.223–232 (§3.8)
+- **Nische:** Rolle im Schwarm mit eigenem Auftrag und eigener Temperatur: sicher, schnell, elegant, wild. — MP v8 Z.200–205; `nischen.py:31–57`
+- **Nischenmaß:** Die Nische „schnell“ wird an der Laufzeit gemessen; ihr Kandidat wird nur angenommen, wenn das Kernmaß dabei gleich bleibt oder steigt. — MP v8 Z.178
+- **Norm-Probe:** Eichprobe: Ein Test, der an der Vorgeneration fällt und am Kandidaten besteht, ohne Absturz und Vertragsverweis, bleibt offen und bringt 0 Punkte. — MP v8 Z.384; `eichproben.py` Kopf
+- **Norm-Regel:** Ein neuer Test belegt eine Behebung nur bei Absturz der Vorgeneration oder explizitem Vertrags-/Verfassungsverweis; sonst legt er eine Norm fest. — MP v8 Z.53, Z.221; `aegis.py:906`
+- **Oberfläche:** Web-Oberfläche hinter der Anmeldung, deren Bedienelemente je eine belegte Kernstelle lesen oder schreiben. — MP v8 Z.268–270 (§3.15); `biotop/oberflaeche.py` Kopf
+- **Organ:** Eigenes Modul mit klarer Schnittstelle für eine Aufgabe des Biotops. — MP v8 Z.139 (§3)
+- **Pareto je Test:** Jeder einzelne Test, der an der Vorgeneration besteht und am Kandidaten fällt, tötet den Kandidaten. — MP v8 Z.40, Z.175
+- **Pareto-Maße:** Maße, die im Wirkungskreis nie schlechter werden dürfen (Sicherheitspunkte, tote Funktionen, Bauen, Verträge, Tests je Test). — MP v8 Z.175
+- **Phase:** Bauphase 1–5, jede ein eigener Auftrag mit Abnahmetor. — MP v8 Z.352–354 (§8)
+- **Probe (`ist_probe`):** Eingeschleuster Prüfkandidat; das Merkmal `ist_probe=1` hält ihn aus allen Gedächtnissen heraus. — MP v8 Z.243; `eichproben.py` Kopf
+- **Projektgedächtnis:** Je Werk jeder gescheiterte Weg; Wiederholungen werden ohne Kammerlauf verworfen. — MP v8 Z.256; `gedaechtnis.py` Kopf
+- **Protokoll:** Unveränderliches, fortlaufend nummeriertes Protokoll, jede Zeile mit dem Hash der Vorzeile. — MP v8 Z.300; `kern/protokoll.py` Kopf
+- **Prüfkanal:** Öffentlich abrufbare Ablage der Abschlussordner (`https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/…`). — MP v8 Z.499; AUFBAU-TEIL3 FK36
+- **Rauschmessung:** Fünf Messungen je Bereich am unveränderten Ausgang vor dem Lauf; daraus Toleranz und Sperre. — MP v8 Z.184–185; `organe/eichung.py` Kopf
+- **Rauschtoleranz:** Gemessene Spannweite + 10 Prozentpunkte, mindestens 15 %, höchstens Faktor 2,0; über 1,5 wird der Bereich gesperrt. — MP v8 Z.176, Z.184–185
+- **Referenzlast:** Deterministische Last je Bereich außerhalb des Werks, an der Laufzeit gemessen und Verhalten beobachtet wird. — MP v8 Z.176; `kern/referenzlast/`
+- **Register:** Liste der verlangten Aufrufe (Funktion, Aufrufer, Phase, Grund), die der Verdrahtungstest als Kanten verlangt. — `kern/register.py` Kopf
+- **Regressionsprobe:** Eichprobe: Ein Kandidat macht eine Behebung rückgängig und bringt grüne Tests mit; er muss abgelehnt und der gefallene Einzeltest benannt werden. — MP v8 Z.383; `eichproben.py` Kopf
+- **Review:** Ein Prüfdurchgang am Commit einer Runde; Regel „ein Review, keine Fix-Kaskade“. — MP v8 Z.126; R5 `SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md` Z.3
+- **Richtung:** Entwicklungsrichtung des Mentors mit Ertrag, Risiko, Aufwand und Bereichen; jede Richtung ist ein eigener Lauf. — MP v8 Z.166–167; `mentor.py` Kopf
+- **S1–S4 (Bauaufträge Runde 6):** Teilaufträge der Runde 6: S1 Sonde, S2 Tor-4-Skript, S3 Stufe 2, S4 Verdrahtung, dazu S1b und S1c. — R6 `BAU-S1-SONDE.md` … `BAU-S1C-UNBEOBACHTET.md` (R72 §4)
+- **S1–S5 (Schwächen):** Die versiegelten Schwächen eines Übungs- oder Testwerks; bei `lagerhaus` Sicherheitslücke, Leistungsbremse, Vertragsverletzung, toter Code, fehlerhafte Randbedingung. — MP v8 Z.358, Z.370–372
+- **Sättigung:** Fünf aufeinanderfolgende Generationen bringen zusammen weniger als 0,5 % Verbesserung; das Biotop meldet das und beendet den Lauf. — MP v8 Z.252; `entropie.py` Kopf
+- **Sättigungsregel:** Der Breitentest ist abgeschlossen, wenn zwei aufeinanderfolgende Testwerke neuer Art keinen neuen Messgerätfehler erzeugen. — MP v8 Z.452
+- **sauberer Vergleichsbereich:** Bereich ohne versiegelte Schwäche, an dem Halluzinationsprobe und Maßeichung ansetzen. — MP v8 Z.127, Z.358, Z.442; `masseichung.py:40`
+- **Schnappschuss:** Vollständiger, rückholbarer Zustand einer angenommenen Generation (Lazarus). — MP v8 Z.104
+- **Schwarm:** Organ, das in Nischen viele und verschiedene Kandidaten erzeugt. — MP v8 Z.198–208 (§3.6); `organe/genesis.py` Kopf
+- **schwerer Aufruf:** Aufruf eines schweren Modells (Mentor, Angriff bei Sicherheitsbefund); in der Kasse mit Zweck-Präfix `schwer.`. — MP v8 Z.313; `kasse.py:33–34`; `mentor.py:24`
+- **Sonde:** Beobachtungsprogramm in der Kammer, das die Funktionen geänderter Module einwickelt und ihr Verhalten aufzeichnet. — `kern/py/verhalten.py` Kopf; `verhaltensvergleich.py` Kopf
+- **Spezifikation (rote):** Test, der am Commit rot ist und die verlangte Änderung festhält, stets mit grüner Gegenprobe. — R5 `SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md` Z.3–5; MP v8 Z.476
+- **Startregel (T4):** T4 beginnt, sobald das Review der Runde 6 keinen stillen Durchlass mehr findet. — R6 `UEBERGABE.md` Z.21–22
+- **stiller Durchlass:** Weg, auf dem ein Organ ohne Beobachtung und ohne Enthaltung „tragfähig, 0 Abweichungen“ meldet, sodass ein Kandidat durchrutscht. — R6 `UEBERGABE.md` Z.21, Z.173–175, Z.220–221
+- **Straße:** Gerichtete Kante der Landkarte von Modul zu Modul (Import) oder von Funktion zu Funktion (Aufruf). — MP v8 Z.152; `landkarte.py` Kopf
+- **Stufe 0–3 (Landkarte):** Zoomstufen Werk, Bereiche, Dateien, Funktionen. — MP v8 Z.148–151
+- **Stufe-2-Last:** Referenzlast mit zehnfacher Eingabegröße, an der die Nische „schnell“ den Gewinn und jede Nische die Laufzeitgrenze misst. — `kern/referenzlast/versandwerk-t3-02.stufe2.mjs` Kopf; R6 `UEBERGABE.md` Z.14
+- **Summenpflicht:** Jede Aufschlüsselung im Bericht muss auf die Gesamtzahl aufgehen, sonst werden Differenz und Ursache genannt. — MP v8 Z.507
+- **T3–T6:** Testwerke des Breitentests: T3 TypeScript, T4 großes Python-Werk ohne Tests mit Altlasten, T5 Oberfläche, T6 Zustand und Außenwelt. — MP v8 Z.424–430
+- **Tauschregel:** Regel der Werkverfassung, was gegen was getauscht werden darf; ohne Angabe Laufzeit bis ×2 des Bestwerts. — MP v8 Z.162, Z.176
+- **Teillauf:** Lauf einer Teilmenge der Tests statt der vollen Regression. — R5 `BERICHT.md` Z.398–400; R6 `UEBERGABE.md` Z.74
+- **Testwerk:** Von Hermes gebautes Werk einer neuen Art für den Breitentest. — MP v8 Z.420–432
+- **Tor:** Abnahmetor einer Phase; bestanden, wenn jede Zeile mit beigefügter Ausgabe belegt ist. — MP v8 Z.354
+- **Tor-4-Skript:** `biotop tor4`: berechnet die Torzeile „Schwächen“ für T4 mit doppelter Prüfung je Altlast; die übrigen Zeilen nennt es „nicht berechnet“. — `biotop/tor4.py` Kopf; `__main__.py:7`
+- **Torzeile:** Zeile eines Tors mit Messwert, Grenze und Beleg. — MP v8 Z.354, Z.359–368
+- **Typsieb:** Vorab-Verwerfen von Mutanten (TypeScript), dessen Verteilung bei Generation 0 auszuweisen ist. — MP v8 Z.439, Z.461
+- **Übungswerk:** Von Hermes gebautes Werk ohne Betriebszweck (`lagerhaus`, `logmuehle`) mit versiegelten Schwächen; für es gilt die Vollmacht. — MP v8 Z.288, Z.358; `lauf.py:560`
+- **unantastbarer Kern:** Teile, die nur Philipp ändert (Messgerät, Maß, Verfassungen, Lazarus, Kasse, Protokoll, Biotop-Code). — MP v8 Z.292–303 (§5)
+- **Verbundausfall:** Ausfall eines Modells des Verbunds; er zählt als Ausfall, nie als Beitrag. — MP v8 Z.206, Z.447
+- **Verdrahtungstest:** Test, der einen ganzen Lauf über die Befehlszeile fährt und rot wird, wenn ein Organ oder ein Registereintrag nie gerufen wird (Grundsatz 12). — MP v8 Z.129, Z.448; `tests/test_verdrahtung.py` Kopf
+- **Verfälschung (typtreu):** Die Sonde ersetzt ein Ergebnis durch einen Wert desselben Typs und anderen Inhalts, um zu prüfen, ob ein Test die Abweichung festhält. — R6 `UEBERGABE.md` Z.7–9; R5 SPEZ R6-6 (Z.14); `verhalten.py:29`
+- **Verfassung:** (a) die elf unverhandelbaren Sätze des Biotops; (b) die Verfassung eines Werks: was es ist, was nie passieren darf, Tauschregeln. — MP v8 Z.96–110 (§2), Z.157–162 (§3.3); `verfassungen/`
+- **Verhaltensvergleich:** Vergleicht das Verhalten von Vorgeneration und Kandidat über die Sonde; jede Abweichung braucht einen deckenden Test. — MP v8 Z.128, Z.443; `organe/verhaltensvergleich.py` Kopf
+- **Verhandlung:** Will ein Bereich einen Vertrag ändern, erzeugt der Schwarm des Nachbarn die Anpassung, und beide werden zusammen geprüft. — MP v8 Z.227; `organe/vertraege.py` Kopf; `lauf.py:637`
+- **Verlaufskurve:** Kernmaß je angenommener Generation, am Laufende mit dem Endtestbestand nachgerechnet. — MP v8 Z.177; `__main__.py:60` (`kurve`)
+- **Vertrag:** Zusicherung an der Grenze zweier Bereiche; explizit als Test `test_vertrag_<A>_<B>`. — MP v8 Z.153; `vertraege.py` Kopf
+- **Vertragsprobe:** Eichprobe: Eine Vertragsänderung ohne Anpassung des Nachbarn wird abgelehnt, mit Anpassung angenommen und ins Werk übernommen. — MP v8 Z.385; `eichproben.py` Kopf
+- **Vollmacht:** Schriftliche Vollmacht für Übungswerke: Hermes gibt frei und wählt die Richtung, beides protokolliert. — MP v8 Z.288; `lauf.py:560–563`
+- **Vorbedingung:** Bedingung vor dem nächsten Schritt: Vorbedingung 1 vor Phase 4 und Vorbedingungen 1–11 für T4. — MP v8 Z.18, Z.463–476
+- **Vorlage:** Paket an Philipp zur Freigabe: Diff, Maßvergleich, Anklägerbericht, Geschmacksvorhersage. — MP v8 Z.231, Z.269; Route `/laeufe/<id>/vorlage`
+- **Vorspann:** Pflichtschritt Generation minus eins mit versiegeltem Nachweis, ohne den jeder Eingang verweigert wird. — MP v8 Z.42; `organe/vorspann.py:124–135, 243–249`
+- **Werk:** Software, die das Biotop aufnimmt und hebt (als ZIP, Git-Adresse oder Ordner). — MP v8 Z.142
+- **Werkklasse:** Merkmal eines Werks im Artgedächtnis (Sprache, Größe, Bauart). — `gedaechtnis.py` Kopf; MP v8 Z.179
+- **werkübergreifender Block:** Teil der Artgedächtnis-Vorlage mit fremden Mustern, mindestens die Hälfte der gezeigten Einträge und mindestens fünf. — MP v8 Z.257; `gedaechtnis.py:475`
+- **Wirkungskreis:** Alle Bereiche, die ein Änderungssatz direkt oder über Straßen berührt. — MP v8 Z.213
+- **zurückgestellt:** Status eines Kandidaten bei Messgerätausfall oder bei Enthaltung einer geänderten Funktion: nicht abgelehnt, kein Gedächtniseintrag. — MP v8 Z.466; R6 `UEBERGABE.md` Z.12; `aegis.py:790`
+- **Zwangsbefund:** Befund, den ein Modell nur liefert, weil ihm die Rolle des Gegners einen Befund abverlangt. — MP v8 Z.219
+- **Zweck-Präfix:** Erstes Glied des Feldes `zweck` einer Kassenbuchung (schwarm, aegis, schwer, landkarte …). — R43 §2; `kasse.py:33–34`
+- **Zwischenbericht:** Mechanisch ausgelöster Bericht, spätestens bei 120 von 150 Aufrufen einer Sitzung. — MP v8 Z.450; R4

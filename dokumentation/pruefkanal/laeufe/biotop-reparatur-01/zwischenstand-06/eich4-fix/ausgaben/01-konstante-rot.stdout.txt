@@ -1,0 +1,36 @@
+PRIVATER RUNNER {"cwd": "/root/reparatur-01/nachbesserung-01/vertrag/repo", "PYTHONPATH": "/root/reparatur-01/nachbesserung-01/vertrag/guard:/root/reparatur-01/nachbesserung-01/vertrag/repo", "TMPDIR": "/root/reparatur-01/nachbesserung-01/vertrag/tmp", "BIOTOP_DB": "/root/reparatur-01/nachbesserung-01/vertrag/privat.db", "importiert": "/root/reparatur-01/nachbesserung-01/vertrag/repo/biotop/organe/eichproben.py", "image": "biotop-kammer:1", "argv": ["-vv", "-s", "-p", "no:cacheprovider", "tests/test_review_vertrag.py::test_contract_countercase_is_not_allowed_to_fail_inside_cloned_test", "--basetemp=/root/reparatur-01/nachbesserung-01/vertrag/tmp/01-konstante-rot", "--junitxml=/root/reparatur-01/nachbesserung-01/vertrag/ausgaben/01-konstante-rot.xml"]}
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.1.1, pluggy-1.6.0 -- /root/reparatur-01/venv/bin/python
+rootdir: /root/reparatur-01/nachbesserung-01/vertrag/repo
+configfile: pytest.ini
+collecting ... collected 1 item
+
+tests/test_review_vertrag.py::test_contract_countercase_is_not_allowed_to_fail_inside_cloned_test KONKRETER VERTRAG False {'tests/vertraege/test_vertrag_abnehmer_lieferant.py::test_alt': {'ok': True, 'bestaetigt': False, 'meldung': ''}, 'tests/vertraege/test_vertrag_abnehmer_lieferant.py::test_eichprobe_vertrag_neue_zusicherung': {'ok': False, 'bestaetigt': False, 'meldung': "NameError: name 'EINGABE' is not defined", 'ort': 'tests/vertraege/test_vertrag_abnehmer_lieferant.py'}}
+KONKRETER VERTRAG True {'tests/vertraege/test_vertrag_abnehmer_lieferant.py::test_alt': {'ok': True, 'bestaetigt': False, 'meldung': ''}, 'tests/vertraege/test_vertrag_abnehmer_lieferant.py::test_eichprobe_vertrag_neue_zusicherung': {'ok': False, 'bestaetigt': False, 'meldung': "NameError: name 'EINGABE' is not defined", 'ort': 'tests/vertraege/test_vertrag_abnehmer_lieferant.py'}}
+FAILED
+
+=================================== FAILURES ===================================
+_____ test_contract_countercase_is_not_allowed_to_fail_inside_cloned_test ______
+
+vertragswerk = PosixPath('/root/reparatur-01/nachbesserung-01/vertrag/tmp/01-konstante-rot/test_contract_countercase_is_n0/werk')
+
+    def test_contract_countercase_is_not_allowed_to_fail_inside_cloned_test(vertragswerk):
+        """Review-Repro: EINGABE darf nicht verschwinden; konkreter Vertrag entscheidet."""
+        rows = []
+        for gegenprobe in (False, True):
+            diff, _, belege, _ = eichproben._vertrag_vorbereiten(
+                vertragswerk, 'beispiel', 'abnehmer', 'lieferant', VERTRAG, gegenprobe)
+            dateien = aegis.kandidat_dateien(vertragswerk, diff)
+            zeugen = aegis.junit_lauf(vertragswerk, 'beispiel', dateien, [VERTRAG])
+            rows.append(zeugen[VERTRAGSTEST])
+            print('KONKRETER VERTRAG', gegenprobe, zeugen)
+>       assert rows[1]['ok'] is True, 'Gegenprobe stirbt im geklonten Test statt den benannten Vertrag zu bestehen'
+E       AssertionError: Gegenprobe stirbt im geklonten Test statt den benannten Vertrag zu bestehen
+E       assert False is True
+
+tests/test_review_vertrag.py:44: AssertionError
+- generated xml file: /root/reparatur-01/nachbesserung-01/vertrag/ausgaben/01-konstante-rot.xml -
+=========================== short test summary info ============================
+FAILED tests/test_review_vertrag.py::test_contract_countercase_is_not_allowed_to_fail_inside_cloned_test - AssertionError: Gegenprobe stirbt im geklonten Test statt den benannten Vertrag zu bestehen
+assert False is True
+============================== 1 failed in 4.08s ===============================

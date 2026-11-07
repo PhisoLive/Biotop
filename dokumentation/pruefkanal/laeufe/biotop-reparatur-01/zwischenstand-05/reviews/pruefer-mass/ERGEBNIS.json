@@ -1,0 +1,327 @@
+{
+  "passed": false,
+  "security_concerns": [],
+  "logic_errors": [
+    {
+      "id": "MASS-01",
+      "severity": "high",
+      "priority": "P1",
+      "title": "Die neue Rauschsperre übersieht den Wirkungskreis verhandelter Anpassungen",
+      "file": "/root/reparatur-01/review-01/repo/biotop/lauf.py",
+      "line_start": 325,
+      "line_end": 330,
+      "related_locations": [
+        {
+          "file": "/root/reparatur-01/review-01/repo/biotop/lauf.py",
+          "line_start": 533,
+          "line_end": 542,
+          "role": "Neue Verhandlungssperre prüft nur den direkten Nachbarn, nicht dessen Abhängige."
+        },
+        {
+          "file": "/root/reparatur-01/review-01/repo/biotop/kern/messgeraet.py",
+          "line_start": 432,
+          "line_end": 432,
+          "role": "Neu: Laufzeitprüfung gesperrter Bereiche wird übersprungen."
+        },
+        {
+          "file": "/root/reparatur-01/review-01/repo/biotop/kern/messgeraet.py",
+          "line_start": 463,
+          "line_end": 465,
+          "role": "Neu: Sperre wirkt nur gegen den übergebenen Wirkungskreis."
+        },
+        {
+          "file": "/root/reparatur-01/review-01/repo/biotop/organe/aegis.py",
+          "line_start": 518,
+          "line_end": 525,
+          "role": "Unveränderter Kontext: Wirkungskreis wird nur vom Ursprungsbereich abgeleitet; extra_code erweitert ihn nicht."
+        },
+        {
+          "file": "/root/reparatur-01/review-01/repo/biotop/lauf.py",
+          "line_start": 568,
+          "line_end": 583,
+          "role": "Unveränderter Kontext: Nachbaranpassung wird in extra_code mitgeprüft, aber kein zusätzlicher Wirkungskreis gespeichert."
+        }
+      ],
+      "mechanism": "Bei alpha→beta und gamma→beta ist nur gamma rauschgesperrt. alpha handelt eine erlaubte Änderung in beta aus. Der gespeicherte Wirkungskreis des Gesamtkandidaten bleibt [alpha], obwohl landkarte.wirkungskreis(beta, kanten) [alpha,beta,gamma] ergibt. Die neue Generalprobe vereinigt nur diese unvollständigen gespeicherten Kreise; die neue Zeit-Ausnahme überspringt gamma und der Sperrenschnitt bleibt leer.",
+      "minimal_repro": {
+        "command": "/root/reparatur-01/venv/bin/python -B -m pytest -q -p no:cacheprovider /root/reparatur-01/review-01/pruefer-mass/test_review_contracts.py::test_negotiated_adaptation_must_block_its_blocked_dependents",
+        "setup": "Drei isolierte Bereiche; alpha und gamma importieren beta. Beide Diffs ändern ausschließlich den jeweils eigenen Bereich. Ein Kernmaßgewinn in alpha, benötigte Nachbaranpassung in beta, gamma gesperrt. Modell-/Messgrenzen sind explizite Doubles; _generation_koerper, _verhandeln, aegis.pruefen, Wirkungskreisableitung und urteil_f2 laufen original.",
+        "expected": "Paar vor dem Schreiben verweigern, weil die beta-Anpassung den rauschgesperrten gamma-Bereich erreicht.",
+        "actual": "Generation status=vorgelegt, Kandidat status=angenommen; beta-Datei der Privatfixture wird geändert. Gespeicherter Wirkungskreis=[alpha]; tatsächlicher Anpassungskreis=[alpha,beta,gamma].",
+        "control": "Bei zusätzlicher direkter Sperre von beta: abgelehnt, beta-Datei unverändert. Eine weitere Zweibereichskontrolle erlaubt Änderungen in alpha, solange der gesperrte beta-Bereich tatsächlich unberührt bleibt.",
+        "measurement_caveat": "100→10000 ms sind absichtlich gesetzte Grenzdaten der Unit-Reproduktion, keine gemessenen Laufzeiten."
+      },
+      "diff_attribution": "Neue Regression durch Kombination aus Zeit-Ausnahme und neuer Generalproben-Kreisunion. Der exakte, aus AENDERUNGEN.diff im Speicher rekonstruierte alte urteil_f2 lehnt identische Grenzdaten ab (gamma:10000>200); der neue gibt ok=true. Die ältere Beschränkung des gespeicherten Wirkungskreises wird nicht isoliert als neuer Befund ausgegeben.",
+      "test_gap": [
+        {
+          "file": "/root/reparatur-01/review-01/repo/tests/test_vorspann.py",
+          "line_start": 318,
+          "line_end": 346,
+          "detail": "Die Einzelprüfung wird durch ein Double ersetzt, das den gespeicherten Kreis bereits auf [alpha] setzt; es gibt keine verhandelte zweite Änderung."
+        },
+        {
+          "file": "/root/reparatur-01/review-01/repo/tests/test_vorspann.py",
+          "line_start": 349,
+          "line_end": 360,
+          "detail": "Nur direkt gesperrter Nachbar geprüft, nicht gesperrter Abhängiger eines erlaubten Nachbarn."
+        }
+      ],
+      "suggested_correction": "Den wirksamen Kreis aus allen tatsächlich übernommenen Codeänderungen einschließlich verhandelter Anpassungen ableiten und transitiv erweitern. Gegen die bestehende Sperrliste prüfen; weder Sperrschwelle noch Pareto-Anforderung ändern.",
+      "evidence": [
+        "/root/reparatur-01/review-01/pruefer-mass/negotiation-raw.json#/cases/0",
+        "/root/reparatur-01/review-01/pruefer-mass/negotiation.stdout.txt",
+        "/root/reparatur-01/review-01/pruefer-mass/baseline-comparison.json#/negotiation",
+        "/root/reparatur-01/review-01/pruefer-mass/reviewer-contracts.xml",
+        "/root/reparatur-01/review-01/pruefer-mass/repro-raw.json#/scope_cases"
+      ]
+    },
+    {
+      "id": "MASS-02",
+      "severity": "medium",
+      "priority": "P2",
+      "title": "Neue Wertevalidierung bricht die gesamte Rauschkalibrierung statt nur des ungültigen Bereichs ab",
+      "file": "/root/reparatur-01/review-01/repo/biotop/kern/messgeraet.py",
+      "line_start": 352,
+      "line_end": 354,
+      "related_locations": [
+        {
+          "file": "/root/reparatur-01/review-01/repo/biotop/organe/eichung.py",
+          "line_start": 124,
+          "line_end": 150,
+          "role": "Der Aufrufer sammelt alle Bereiche und fängt die neue ValueError nicht pro Bereich ab."
+        },
+        {
+          "file": "/root/reparatur-01/review-01/repo/biotop/organe/eichung.py",
+          "line_start": 192,
+          "line_end": 218,
+          "role": "Bereichsergebnisse und Kosten werden erst nach der übersprungenen Verarbeitung geschrieben."
+        },
+        {
+          "file": "/root/reparatur-01/review-01/repo/biotop/organe/vorspann.py",
+          "line_start": 115,
+          "line_end": 122,
+          "role": "Neuer verbindlicher Vorspann erklärt den gesamten Versuch bei dieser Ausnahme für gescheitert."
+        },
+        {
+          "file": "/root/reparatur-01/review-01/repo/biotop/organe/vorspann.py",
+          "line_start": 151,
+          "line_end": 152,
+          "role": "Das Rauschergebnis wird erst nach vollständiger Rückgabe übernommen."
+        }
+      ],
+      "mechanism": "Endliche positive Werte zu verlangen ist richtig. Der neue ValueError-Zweig ist jedoch nicht in den bereichsweisen Sperrpfad integriert. Sobald alpha fünfmal 0.0 oder NaN liefert, wird beta trotz fünf gültiger Werte nie ausgewertet; es gibt kein Ergebnis und keinen Eichkosten-Eintrag. Null ist beispielsweise nach der bestehenden Rundung kurzer Laufzeiten auf zwei Nachkommastellen erreichbar.",
+      "minimal_repro": {
+        "command": "/root/reparatur-01/venv/bin/python -B -m pytest -q -p no:cacheprovider /root/reparatur-01/review-01/pruefer-mass/test_review_contracts.py::test_invalid_area_must_not_discard_valid_other_area",
+        "setup": "eichung._messen_einmal als Unit-Grenze fünfmal {alpha:0.0,beta:100.0}, zweite Variante mit NaN in alpha. Echte rauschmessung und echter Toleranzrechner an einer :memory:-DB.",
+        "expected": "alpha gesperrt, beta mit Toleranz 1.15 erhalten, lauf_startet=true; Roh-/Kostenbeleg trotz ungültigem alpha erhalten.",
+        "actual": "Nach fünf Aufrufen des Mess-Doubles ValueError; keine Rückgabe; eichung_rows=[] und eichkosten_rows=[].",
+        "control": "Bei {alpha:None,beta:100.0} folgt bereits korrekt nur die Sperre von alpha; beta bleibt mit 1.15 verfügbar und lauf_startet=true.",
+        "measurement_caveat": "Die fünf Aufrufe sind Unit-Doubles, keine Kammerläufe; die ausbleibenden DB-Einträge sind real gelesen."
+      },
+      "diff_attribution": "Der Ausnahmezweig ist neu im Reparaturdiff. Beanstandet wird nicht die richtige Ablehnung ungültiger Werte, sondern deren neuer globaler Abbrucheffekt samt Verlust des Bereichs-/Verbrauchsbelegs.",
+      "test_gap": [
+        {
+          "file": "/root/reparatur-01/review-01/repo/tests/test_rauschmessung.py",
+          "line_start": 15,
+          "line_end": 18,
+          "detail": "Testet nur ValueError des Zahlenhelfers, nicht die Auswirkung auf weitere gesunde Bereiche im tatsächlichen Collector."
+        },
+        {
+          "file": "/root/reparatur-01/review-01/repo/tests/test_vorspann.py",
+          "line_start": 144,
+          "line_end": 160,
+          "detail": "Verändert einen fertig gemockten Gesamt-Rauschbeleg; der mehrbereichige Collector wird nicht durchlaufen."
+        }
+      ],
+      "suggested_correction": "Die Validierung im Collector bereichsweise behandeln, den betroffenen Bereich mit Beleg sperren und gültige Nachbarbereiche weiter auswerten; bereits angefallene Arbeit auch im Fehlerpfad dokumentieren. Keine Fallback-Freigabe des ungültigen Bereichs.",
+      "evidence": [
+        "/root/reparatur-01/review-01/pruefer-mass/repro-raw.json#/invalid_area_cases",
+        "/root/reparatur-01/review-01/pruefer-mass/repro.stdout.txt",
+        "/root/reparatur-01/review-01/pruefer-mass/reviewer-contracts.stdout.txt",
+        "/root/reparatur-01/review-01/pruefer-mass/reviewer-contracts.xml"
+      ]
+    }
+  ],
+  "suggestions": [
+    {
+      "id": "MASS-S1",
+      "file": "/root/reparatur-01/review-01/repo/tests/test_vorspann.py",
+      "line_start": 318,
+      "line_end": 360,
+      "suggestion": "Die im Reviewer-Verzeichnis ausgeführte Drei-Bereichs-Verhandlung als Regressionstest übernehmen; die unverändert-unbeteiligte Rauschsperre als Positivkontrolle beibehalten."
+    },
+    {
+      "id": "MASS-S2",
+      "file": "/root/reparatur-01/review-01/repo/tests/test_rauschmessung.py",
+      "line_start": 15,
+      "line_end": 18,
+      "suggestion": "Zusätzlich zur isolierten Zahlenfunktion die mehrbereichige Collector-Grenze mit Null/NaN, gesunder Nachbarpopulation und Kosten-/Rohbeleg prüfen."
+    }
+  ],
+  "summary": "Nicht bestanden: zwei neue/regressierte Logikfehler in Rauschsperren-Verbrauch und bereichsweiser Kalibrierung; keine neuen Sicherheitsbefunde im geprüften Umfang.",
+  "scope": {
+    "diff": "/root/reparatur-01/review-01/AENDERUNGEN.diff",
+    "static_scan": "/root/reparatur-01/review-01/STATIK.json",
+    "source": "/root/reparatur-01/review-01/repo",
+    "focus": [
+      "Kernmaß/Pareto je Test",
+      "Rauschkalibrierung und Verbrauch",
+      "A/C Behauptungsschlüssel und aktuelle Selbstansage",
+      "B Mindestanteil und belegter Vorrat",
+      "Testempfindlichkeit"
+    ],
+    "only_new_or_regressed": true,
+    "implementation_changed": false,
+    "standard_correction": "Nach ausdrücklicher Benutzerkorrektur gilt F6: min(2.00,max(1.15,1+getrimmte Spannweite+0.10)); >1.5 sperrt den Bereich. Die zurückgenommene Formel 1+2s wurde nicht als Kriterium verwendet."
+  },
+  "security_scan_assessment": {
+    "file": "/root/reparatur-01/review-01/repo/biotop/organe/kammer.py",
+    "line": 103,
+    "code": "token = _ZAEHLUNGEN.set((*_ZAEHLUNGEN.get(), aufrufe))",
+    "verdict": "False Positive: ContextVar-Rücksetz-Token; keine Zugangsdaten, kein Secret. Reset im finally bei Zeile 107."
+  },
+  "verified": {
+    "baseline_unit_tests": {
+      "name": "unit-checks",
+      "tests": 152,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_s": 3.301,
+      "failed_cases": [],
+      "cases_by_module": {
+        "tests.test_ansage_aufnahme": 21,
+        "tests.test_artvorlage": 12,
+        "tests.test_doppelungsschluessel": 9,
+        "tests.test_kernmass_pareto": 15,
+        "tests.test_rauschmessung": 31,
+        "tests.test_vorspann": 64
+      }
+    },
+    "reviewer_contract_tests": {
+      "name": "reviewer-contracts",
+      "tests": 5,
+      "failures": 3,
+      "errors": 0,
+      "skipped": 0,
+      "duration_s": 0.232,
+      "failed_cases": [
+        {
+          "classname": "reparatur-01.review-01.pruefer-mass.test_review_contracts",
+          "name": "test_negotiated_adaptation_must_block_its_blocked_dependents",
+          "message": "AssertionError: gestiegen: alpha.tote_funktionen: 1 → 0\nassert 'vorgelegt' == 'abgelehnt'\n  \n  - abgelehnt\n  + vorgelegt"
+        },
+        {
+          "classname": "reparatur-01.review-01.pruefer-mass.test_review_contracts",
+          "name": "test_invalid_area_must_not_discard_valid_other_area[0.0]",
+          "message": "AssertionError: {'type': 'ValueError', 'message': 'Rauschwerte müssen endlich und positiv sein; Bool-Werte sind keine Messung'}\nassert 'exception' not in {'input_samples': [{'alpha': '0.0', 'beta': 100.0}, {'alpha': '0.0', 'beta': 100.0}, {'alpha': '0.0', 'beta': 100.0}, ...werte müssen endlich und positiv sein; Bool-Werte sind keine Messung'}, 'eichung_rows': [], 'eichkosten_rows': [], ...}"
+        },
+        {
+          "classname": "reparatur-01.review-01.pruefer-mass.test_review_contracts",
+          "name": "test_invalid_area_must_not_discard_valid_other_area[nan]",
+          "message": "AssertionError: {'type': 'ValueError', 'message': 'Rauschwerte müssen endlich und positiv sein; Bool-Werte sind keine Messung'}\nassert 'exception' not in {'input_samples': [{'alpha': 'nan', 'beta': 100.0}, {'alpha': 'nan', 'beta': 100.0}, {'alpha': 'nan', 'beta': 100.0}, ...werte müssen endlich und positiv sein; Bool-Werte sind keine Messung'}, 'eichung_rows': [], 'eichkosten_rows': [], ...}"
+        }
+      ],
+      "cases_by_module": {
+        "reparatur-01.review-01.pruefer-mass.test_review_contracts": 5
+      }
+    },
+    "mutation_sensitivity": {
+      "mutations": 8,
+      "caught": 8,
+      "details": [
+        {
+          "name": "erase_history_by_key",
+          "tests": 8,
+          "failures": 8,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "foreign_global_window",
+          "tests": 12,
+          "failures": 2,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "foreign_quota_floor",
+          "tests": 12,
+          "failures": 5,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "ignore_measured_tolerance",
+          "tests": 4,
+          "failures": 2,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "kernmass_rewards_passes",
+          "tests": 15,
+          "failures": 3,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "pareto_aggregate_only",
+          "tests": 15,
+          "failures": 1,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "rounded_outlier_identity",
+          "tests": 3,
+          "failures": 3,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "self_announcement_not_exempt",
+          "tests": 2,
+          "failures": 2,
+          "errors": 0,
+          "skipped": 0
+        }
+      ],
+      "raw": "/root/reparatur-01/review-01/pruefer-mass/test-summary.json"
+    },
+    "kernmass_pareto": "Direkte F2-Kernmaßtests und Einzelregression trotz sinkender Fehlersumme bestehen. Mutanten mit Belohnung bestandener Tests bzw. ohne Einzeltest-Regel werden erkannt. Kein neuer F2-Formel-/Pareto-Fehler gefunden.",
+    "A_C": "Aktuelle Ansage wird ausschließlich per nr ausgenommen; historische/fremde Ansagen und bereits aufgenommene Schlüssel bleiben sperrend. Fund-/Normpfade und vollständiger Vorrat getestet; die gezielten Selbstsperr-/Historienverlust-Mutanten werden erkannt.",
+    "B": "Korrigiertes Aufrunden im 25er-Fenster sowie Fremdauswahl vor Begrenzung bestehen die synthetischen Vorratstests einschließlich IDs, knapper Vorräte und älterer Muster. Beide Rückfallmutanten werden erkannt. Keine Aussage über produktiven Bestand.",
+    "noise": "F6-Formel, fünf Werte, ungerundete Aussetzerkennung, begrenztes Nachmessen und Toleranzübergabe bestehen die vorhandenen Unitfälle. Die realen Integrationslücken sind MASS-01 und MASS-02.",
+    "source_unchanged": {
+      "files_before": 125,
+      "files_after": 125,
+      "added": [],
+      "removed": [],
+      "changed": [],
+      "source_hash_manifest_count": 125,
+      "source_hash_matches": 125,
+      "source_hash_mismatches": []
+    }
+  },
+  "limits": [
+    "Keine bezahlten Modellaufrufe, keine Netzaufrufe, keine Docker-/Kammerläufe. Guards verhindern solche Aufrufe in den Prüfprozessen.",
+    "Nur In-Memory-/temporäre DBs und neu angelegte private Fixtures; TMPDIR außerhalb jeder Werk-Quelle.",
+    "Keine produktiven Datenbanken/Werke geöffnet und keine git stash/reset/commit-Aktion.",
+    "Mess- und Modellausgaben in Repros sind ausdrücklich gesetzte Unit-Doubles. Laufentscheidungen und Privatfixture-Writes wurden real ausgeführt und gelesen; keine Behauptung realer Timingmessung.",
+    "152 ausgewählte Eigen-Tests, nicht die gesamte Docker-abhängige Testsuite.",
+    "Die unveränderte vorherige Bool→float-Koercion ist im Rohmaterial sichtbar, aber nicht als neuer Reparaturfehler gezählt."
+  ],
+  "artifacts": {
+    "report": "/root/reparatur-01/review-01/pruefer-mass/BERICHT.md",
+    "json": "/root/reparatur-01/review-01/pruefer-mass/ERGEBNIS.json",
+    "raw_scope": "/root/reparatur-01/review-01/pruefer-mass/repro-raw.json",
+    "raw_negotiation": "/root/reparatur-01/review-01/pruefer-mass/negotiation-raw.json",
+    "baseline": "/root/reparatur-01/review-01/pruefer-mass/baseline-comparison.json",
+    "test_summary": "/root/reparatur-01/review-01/pruefer-mass/test-summary.json",
+    "reviewer_checks": "/root/reparatur-01/review-01/pruefer-mass/test_review_contracts.py",
+    "invariance": "/root/reparatur-01/review-01/pruefer-mass/unveraendert.json",
+    "manifest": "/root/reparatur-01/review-01/pruefer-mass/MANIFEST.json",
+    "checksums": "/root/reparatur-01/review-01/pruefer-mass/SHA256SUMS"
+  }
+}

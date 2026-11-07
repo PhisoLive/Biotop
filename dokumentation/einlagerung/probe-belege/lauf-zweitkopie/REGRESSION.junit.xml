@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="0.293" timestamp="2026-09-26T03:13:03.873790+02:00" hostname="ubuntu"><testcase classname="tests.test_t3_bindung" name="test_ts_instrumentaenderung_invalidiert_versiegelten_nachweis[biotop/kern/ts/messen.mjs]" time="0.089"><failure message="biotop.organe.vorspann.VorspannFehler: Vorspann Lauf 1: Kernstand seit der Eichphase der Stufe 2 verändert (Eichphase 53e95afdaa588722…, jetzt a91cbef507ecc259…) — Satz 2: Messgerätänderung zwischen Eichung und Messung; kein Eichversuch verbraucht (Kernstand der Eichphase wiederherstellen oder neuer Lauf)">unit_vorspann = (&lt;sqlite3.Connection object at 0x7f3a08cce4d0&gt;, {'rauschen': {'toleranz': {'alpha': 1.2, 'beta': 1.3}, 'gesperrt': [],...fuehrt': True, 'pruefbar': True, 'bestanden': False, 'grund': 'Unit-Negativkontrolle', ...}}}, 'reihenfolge': [], ...})
+tmp_path = PosixPath('/root/biotop-einlagerung/probe/tmp-lauf-zweitkopie/pytest-of-root/pytest-0/test_ts_instrumentaenderung_in0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x7f3a08cf0c20&gt;
+geaendert = 'biotop/kern/ts/messen.mjs'
+
+    @pytest.mark.parametrize('geaendert', ['biotop/kern/ts/messen.mjs', 'kammer/typescript/package-lock.json'])
+    def test_ts_instrumentaenderung_invalidiert_versiegelten_nachweis(unit_vorspann,tmp_path,monkeypatch,geaendert):
+        # Charakterisierung der neuen Bindung: kontrollierter Kernbestand,
+        # echte Hashänderung, ursprünglicher Vorspann-Verbraucher.
+        con,_=unit_vorspann
+        wurzel=tmp_path/'instrument'; (wurzel/'biotop/kern/ts').mkdir(parents=True)
+        (wurzel/'kammer/typescript/node_modules').mkdir(parents=True)
+        for p in ('biotop/kern/ts/messen.mjs','kammer/typescript/package-lock.json','kammer/Dockerfile'):
+            (wurzel/p).write_text('ursprünglicher Instrumentinhalt')
+        ignoriert=wurzel/'kammer/typescript/node_modules/fremd.json'
+        ignoriert.write_text('{}')
+        monkeypatch.setattr(vorspann,'WURZEL',wurzel)
+&gt;       r=vorspann.ausfuehren(con,1)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_t3_bindung.py:34: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/vorspann.py:195: in ausfuehren
+    _stufe2_kern_vorpruefung(con, lauf_id)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+con = &lt;sqlite3.Connection object at 0x7f3a08cce4d0&gt;, lauf_id = 1
+
+    def _stufe2_kern_vorpruefung(con, lauf_id):
+        """Behebungsrunde 6 (Bau S4, Entscheidung Hermes): weicht der Kernstand beim Vorspann vom Kernstand der Eichphase
+        der Stufe 2 ab, verweigert der Vorspann — Satz 2, eine Messgerätänderung zwischen Eichung und Messung. Vor jeder
+        Messung und OHNE den Eichversuch zu verbrauchen (wie die Verweigerung ohne Siegel): der Lauf bleibt frisch; mit
+        dem Kernstand der Eichphase läuft derselbe Vorspann. Hat der Lauf schon einen Eichversuch, ist er nicht frisch
+        oder ohne lesbares Siegel, entscheidet der gewohnte Weg (_ausfuehren)."""
+        from .. import lauf as L
+        if con.execute('SELECT 1 FROM vorspann_nachweise WHERE lauf_id=?', (lauf_id,)).fetchone():
+            return
+        try:
+            if _frisch_grund(con, lauf_id, L._lauf(con, lauf_id)):
+                return
+            kern = _stufe2_kern(con, lauf_id)
+        except (L.LaufFehler, stufe2.Stufe2Fehler):
+            return
+        if kern is None or kern[0] == kern[1]:
+            return
+        grund = (f'Kernstand seit der Eichphase der Stufe 2 verändert (Eichphase {str(kern[0])[:16]}…, jetzt '
+                 f'{kern[1][:16]}…) — Satz 2: Messgerätänderung zwischen Eichung und Messung; kein Eichversuch '
+                 f'verbraucht (Kernstand der Eichphase wiederherstellen oder neuer Lauf)')
+        protokoll.schreiben(con, 'vorspann.verweigert', lauf_id=lauf_id, phase='vorspann', grund=grund,
+                            eichphase=kern[0], vorspann=kern[1])
+&gt;       raise VorspannFehler(f'Vorspann Lauf {lauf_id}: {grund}')
+E       biotop.organe.vorspann.VorspannFehler: Vorspann Lauf 1: Kernstand seit der Eichphase der Stufe 2 verändert (Eichphase 53e95afdaa588722…, jetzt a91cbef507ecc259…) — Satz 2: Messgerätänderung zwischen Eichung und Messung; kein Eichversuch verbraucht (Kernstand der Eichphase wiederherstellen oder neuer Lauf)
+
+biotop/organe/vorspann.py:188: VorspannFehler</failure></testcase><testcase classname="tests.test_t3_bindung" name="test_ts_instrumentaenderung_invalidiert_versiegelten_nachweis[kammer/typescript/package-lock.json]" time="0.053"><failure message="biotop.organe.vorspann.VorspannFehler: Vorspann Lauf 1: Kernstand seit der Eichphase der Stufe 2 verändert (Eichphase 53e95afdaa588722…, jetzt a91cbef507ecc259…) — Satz 2: Messgerätänderung zwischen Eichung und Messung; kein Eichversuch verbraucht (Kernstand der Eichphase wiederherstellen oder neuer Lauf)">unit_vorspann = (&lt;sqlite3.Connection object at 0x7f3a08d38310&gt;, {'rauschen': {'toleranz': {'alpha': 1.2, 'beta': 1.3}, 'gesperrt': [],...fuehrt': True, 'pruefbar': True, 'bestanden': False, 'grund': 'Unit-Negativkontrolle', ...}}}, 'reihenfolge': [], ...})
+tmp_path = PosixPath('/root/biotop-einlagerung/probe/tmp-lauf-zweitkopie/pytest-of-root/pytest-0/test_ts_instrumentaenderung_in1')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x7f3a08d14380&gt;
+geaendert = 'kammer/typescript/package-lock.json'
+
+    @pytest.mark.parametrize('geaendert', ['biotop/kern/ts/messen.mjs', 'kammer/typescript/package-lock.json'])
+    def test_ts_instrumentaenderung_invalidiert_versiegelten_nachweis(unit_vorspann,tmp_path,monkeypatch,geaendert):
+        # Charakterisierung der neuen Bindung: kontrollierter Kernbestand,
+        # echte Hashänderung, ursprünglicher Vorspann-Verbraucher.
+        con,_=unit_vorspann
+        wurzel=tmp_path/'instrument'; (wurzel/'biotop/kern/ts').mkdir(parents=True)
+        (wurzel/'kammer/typescript/node_modules').mkdir(parents=True)
+        for p in ('biotop/kern/ts/messen.mjs','kammer/typescript/package-lock.json','kammer/Dockerfile'):
+            (wurzel/p).write_text('ursprünglicher Instrumentinhalt')
+        ignoriert=wurzel/'kammer/typescript/node_modules/fremd.json'
+        ignoriert.write_text('{}')
+        monkeypatch.setattr(vorspann,'WURZEL',wurzel)
+&gt;       r=vorspann.ausfuehren(con,1)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_t3_bindung.py:34: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/vorspann.py:195: in ausfuehren
+    _stufe2_kern_vorpruefung(con, lauf_id)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+con = &lt;sqlite3.Connection object at 0x7f3a08d38310&gt;, lauf_id = 1
+
+    def _stufe2_kern_vorpruefung(con, lauf_id):
+        """Behebungsrunde 6 (Bau S4, Entscheidung Hermes): weicht der Kernstand beim Vorspann vom Kernstand der Eichphase
+        der Stufe 2 ab, verweigert der Vorspann — Satz 2, eine Messgerätänderung zwischen Eichung und Messung. Vor jeder
+        Messung und OHNE den Eichversuch zu verbrauchen (wie die Verweigerung ohne Siegel): der Lauf bleibt frisch; mit
+        dem Kernstand der Eichphase läuft derselbe Vorspann. Hat der Lauf schon einen Eichversuch, ist er nicht frisch
+        oder ohne lesbares Siegel, entscheidet der gewohnte Weg (_ausfuehren)."""
+        from .. import lauf as L
+        if con.execute('SELECT 1 FROM vorspann_nachweise WHERE lauf_id=?', (lauf_id,)).fetchone():
+            return
+        try:
+            if _frisch_grund(con, lauf_id, L._lauf(con, lauf_id)):
+                return
+            kern = _stufe2_kern(con, lauf_id)
+        except (L.LaufFehler, stufe2.Stufe2Fehler):
+            return
+        if kern is None or kern[0] == kern[1]:
+            return
+        grund = (f'Kernstand seit der Eichphase der Stufe 2 verändert (Eichphase {str(kern[0])[:16]}…, jetzt '
+                 f'{kern[1][:16]}…) — Satz 2: Messgerätänderung zwischen Eichung und Messung; kein Eichversuch '
+                 f'verbraucht (Kernstand der Eichphase wiederherstellen oder neuer Lauf)')
+        protokoll.schreiben(con, 'vorspann.verweigert', lauf_id=lauf_id, phase='vorspann', grund=grund,
+                            eichphase=kern[0], vorspann=kern[1])
+&gt;       raise VorspannFehler(f'Vorspann Lauf {lauf_id}: {grund}')
+E       biotop.organe.vorspann.VorspannFehler: Vorspann Lauf 1: Kernstand seit der Eichphase der Stufe 2 verändert (Eichphase 53e95afdaa588722…, jetzt a91cbef507ecc259…) — Satz 2: Messgerätänderung zwischen Eichung und Messung; kein Eichversuch verbraucht (Kernstand der Eichphase wiederherstellen oder neuer Lauf)
+
+biotop/organe/vorspann.py:188: VorspannFehler</failure></testcase></testsuite></testsuites>

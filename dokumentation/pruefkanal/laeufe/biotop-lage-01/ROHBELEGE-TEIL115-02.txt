@@ -1,0 +1,554 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 115 (Teile 4–165 dieses Stands) · enthält R136 bis R137
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R136 · Teil B: Wortlaute einsetzen, dritter Lauf nach Textpflege der Vorlagen (Delegations-Gegenprobe, F1, L5, §11-Hinweis) und eigener Rohbelegnummer in §12
+Beginn: 2026-09-25 17:39:12 CEST (UTC+0200)
+Ende:   2026-09-25 17:39:13 CEST (UTC+0200)
+Dauer:  1.5 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/verfassungen/b8_einsetzen.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/verfassungen/b8_einsetzen.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil B: Wortlaute byteweise in die Vorlagen einsetzen, Fundorte je SHA-256 erheben, Teile schreiben.
+
+Liest: die Verfassungsquellen (Dateien, Zeilenbereiche der Masterprompt-Kopie v8, Konstanten aus
+/root/biotop/tests/drahtwerk.py per ast — kein Import, keine Ausführung), die eigenen Vorlagen.
+Schreibt ausschließlich in /root/sicherung/biotop-lage-01/entwurf/verfassungen/: VERFASSUNGEN-TEIL<n>.md.
+Fundorte: frischer Lauf über dieselben Wurzeln wie b1_finden.py (ohne /root/sicherung), dazu /tmp bis Tiefe 6;
+gehasht werden nur Dateien, deren Größe einer Quelle entspricht. Entfällt, solange /tmp/biotop-kammer-exklusiv besteht.
+Prüft nach dem Schreiben jeden Block gegen das Original (mit Gegenprobe: ein Byte verändert → muss ungleich sein).
+"""
+import ast
+import hashlib
+import json
+import os
+import re
+import time
+from pathlib import Path
+
+O = Path('/root/sicherung/biotop-lage-01/entwurf/verfassungen')
+SCHLUESSEL = Path('/etc/pruefkanal/schluessel').read_text().strip()
+LAEUFE = f'/var/pruefkanal/oeffentlich/_akte/{SCHLUESSEL}/laeufe'
+MP8 = '/root/sicherung/biotop-lage-01/arbeit/dokumente/2026-09-23_155353_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v8.md'
+DRAHT = '/root/biotop/tests/drahtwerk.py'
+GRENZE = 34000
+ZAUN = '````'
+
+
+def sha(b: bytes) -> str:
+    return hashlib.sha256(b).hexdigest()
+
+
+def zeige(p: str) -> str:
+    return p.replace(LAEUFE, '{LAEUFE}').replace(SCHLUESSEL, '{SCHLUESSEL}')
+
+
+def zeilen(pfad: str, von: int, bis: int, anfang_von: str, anfang_bis: str) -> bytes:
+    z = Path(pfad).read_text(encoding='utf-8').split('\n')
+    assert z[von - 1].startswith(anfang_von), (pfad, von, z[von - 1][:40])
+    assert z[bis - 1].startswith(anfang_bis), (pfad, bis, z[bis - 1][:40])
+    return ('\n'.join(z[von - 1:bis]) + '\n').encode()
+
+
+def draht_konstanten():
+    baum = ast.parse(Path(DRAHT).read_text(encoding='utf-8'))
+    v = r = None
+    zv = zr = None
+    for n in ast.walk(baum):
+        if isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name):
+            if n.targets[0].id == 'VERFASSUNG':
+                v, zv = ast.literal_eval(n.value), (n.lineno, n.end_lineno)
+            elif n.targets[0].id == 'REGELN':
+                r, zr = ast.literal_eval(n.value), (n.lineno, n.end_lineno)
+    return v, r, zv, zr
+
+
+dv, dr, zv, zr = draht_konstanten()
+# Schlüssel → (Quelle-Text, Bytes, Sprache des Blocks)
+Q = {}
+
+
+def datei(schl, pfad, sprache):
+    Q[schl] = (f'`{zeige(pfad)}`', Path(pfad).read_bytes(), sprache)
+
+
+datei('lagerhaus_md', '/root/biotop/verfassungen/lagerhaus.md', 'text')
+datei('lagerhaus_regeln', '/root/biotop/verfassungen/lagerhaus.regeln.json', 'json')
+datei('vb1_md', '/root/phase-4-vorbedingung-1/privat/verfassung.md', 'text')
+datei('vb1_regeln', '/root/phase-4-vorbedingung-1/privat/verfassung.regeln.json', 'json')
+datei('logmuehle_md', '/root/biotop/verfassungen/logmuehle.md', 'text')
+datei('logmuehle_regeln', '/root/biotop/verfassungen/logmuehle.regeln.json', 'json')
+datei('t3_02', '/root/biotop-t3/VERFASSUNG-T3-02.md', 'text')
+datei('t3_02_regeln', '/root/biotop-t3/VERFASSUNG-T3-02.regeln.json', 'json')
+datei('t3_entwurf', '/root/biotop-t3/VERFASSUNG-T3-ENTWURF.md', 'text')
+datei('draht_probe_md', '/tmp/drahtwerk-probe/VERFASSUNG.md', 'text')
+Q['mp_v8_anhang_a'] = (f'`{MP8}`, Zeilen 520–529', zeilen(MP8, 520, 529, '## Anhang A', '6. '), 'text')
+Q['mp_v8_anhang_b'] = (f'`{MP8}`, Zeilen 536–547', zeilen(MP8, 536, 547, '## Anhang B', 'Satz 2 wurde'), 'text')
+Q['draht_md'] = (f'Konstante `VERFASSUNG` in `{DRAHT}` Z. {zv[0]}–{zv[1]} (per `ast` gelesen), so wie `anlegen()` sie als '
+                 f'`VERFASSUNG.md` schreibt', dv.encode(), 'text')
+Q['draht_regeln'] = (f'Konstante `REGELN` in `{DRAHT}` Z. {zr[0]}–{zr[1]} (per `ast` gelesen), so wie `anlegen()` sie als '
+                     f'`VERFASSUNG.regeln.json` schreibt: `json.dumps(REGELN, ensure_ascii=False, indent=1)`',
+                     json.dumps(dr, ensure_ascii=False, indent=1).encode(), 'json')
+
+
+def block(schl: str) -> str:
+    quelle, b, sprache = Q[schl]
+    t = b.decode('utf-8')
+    assert ZAUN not in t and '\r' not in t, schl
+    innen = t[:-1] if t.endswith('\n') else t
+    kopf = (f'Quelle: {quelle} · {len(b)} Bytes · SHA-256 `{sha(b)}` · Schluss-Zeilenumbruch: '
+            f'{"ja" if t.endswith(chr(10)) else "nein"}')
+    return f'{kopf}\n\n{ZAUN}{sprache}\n{innen}\n{ZAUN}'
+
+
+def fuellen(t: str) -> str:
+    t = re.sub(r'@@WORTLAUT:(\w+)@@', lambda m: block(m.group(1)), t)
+    t = re.sub(r'@@SHA16:(\w+)@@', lambda m: sha(Q[m.group(1)][1])[:16], t)
+    t = re.sub(r'@@SHA:(\w+)@@', lambda m: sha(Q[m.group(1)][1]), t)
+    return t
+
+
+jetzt = time.strftime('%d.%m.%Y %H:%M')
+v1 = (O / 'vorlage-TEIL1.md').read_text(encoding='utf-8')
+v2 = (O / 'vorlage-TEIL2.md').read_text(encoding='utf-8')
+assert v2.count('@@TEIL3@@') == 1
+v2a, v2b = v2.split('@@TEIL3@@')
+teil1 = fuellen(v1).replace('@@JETZT@@', jetzt)
+teil2 = fuellen(v2a).rstrip('\n') + '\n'
+kopf3 = ('# VERFASSUNGEN — Teil 3 von @@N@@ (FK22) · Entwurf\n\n'
+         'Fortsetzung von Teil 2. Stand des Lesens, Verfahren, Belegregel und Lesehilfe stehen in Teil 1; dieselben Regeln '
+         'gelten hier.\n\n---\n')
+teil3 = kopf3 + fuellen(v2b).rstrip('\n') + '\n'
+
+# ---- §11 Fundorte (frischer Lauf) ----
+print('== Fundorte-Lauf')
+WURZELN = [
+    '/root/biotop', '/root/biotop-t3', '/root/biotop-vor-t4', '/root/biotop-vor-t4-02', '/root/biotop-vor-t4-03',
+    '/root/biotop-vor-t4-04', '/root/biotop-vor-t4-05', '/root/biotop-vor-t4-06', '/root/versandwerk-t3',
+    '/root/versandwerk-t3-02', '/root/uebungswerk', '/root/uebungswerk2', '/root/uebungswerk-nachlauf',
+    '/root/uebungswerk-p2', '/root/uebungswerk-p3', '/root/uebungswerk-p3b', '/root/uebungswerk-p3c',
+    '/root/uebungswerk-p3d', '/root/w7', '/root/phase-4-vorbedingung-1', '/root/reparatur-01', '/root/reparatur-02',
+    '/root/gesamtstand-01', '/root/wiedereinstieg-01', '/root/biotop-einstieg-20260921-0122',
+]
+WURZELN += sorted(str(p) for p in Path(LAEUFE).iterdir() if p.name.startswith('biotop-') or p.name == 'gedaechtnis')
+AUSLASSEN = {'.git', 'node_modules', 'venv', '.venv', '__pycache__', 'dist', 'coverage', '.pytest_cache'}
+ziel = {}
+for schl, (_, b, _) in Q.items():
+    if not schl.startswith('mp_v8'):
+        ziel.setdefault(sha(b), []).append(schl)
+groessen = {len(Q[s[0]][1]) for s in ziel.values()}
+funde = {h: [] for h in ziel}
+sperre = os.path.exists('/tmp/biotop-kammer-exklusiv')
+t0 = time.time()
+n_stat = n_hash = 0
+if sperre:
+    print('NICHT AUSGEFÜHRT: /tmp/biotop-kammer-exklusiv besteht')
+else:
+    for w in WURZELN + ['/tmp']:
+        if not os.path.isdir(w):
+            print('FEHLT:', zeige(w))
+            continue
+        for d, dirs, files in os.walk(w):
+            if w == '/tmp' and d.count('/') > 6:
+                dirs[:] = []
+                continue
+            dirs[:] = sorted(x for x in dirs if x not in AUSLASSEN)
+            for f in sorted(files):
+                p = os.path.join(d, f)
+                try:
+                    st = os.lstat(p)
+                except OSError:
+                    continue
+                n_stat += 1
+                if not os.path.isfile(p) or os.path.islink(p) or st.st_size not in groessen:
+                    continue
+                try:
+                    h = sha(open(p, 'rb').read())
+                except OSError:
+                    continue
+                n_hash += 1
+                if h in funde:
+                    funde[h].append((p, st.st_mtime))
+print(f'Wurzeln {len(WURZELN)} + /tmp · Dateien geprüft {n_stat} · gehasht {n_hash} · {time.time() - t0:.1f} s')
+
+zeilen11 = ['## 11. Fundorte je SHA-256', '',
+            f'Frischer Lauf am {time.strftime("%d.%m.%Y %H:%M")} CEST (Skript `b8_einsetzen.py`).',
+            f'- Durchsucht: {len(WURZELN)} Wurzeln (wie `b1_finden.py`: Biotop-Baum, T3-Ordner, Behebungsrunden, Werkordner, '
+            'Reparatur- und Übergabeordner, alle Prüfkanal-Ordner `biotop-*` und `gedaechtnis`) sowie `/tmp` bis Tiefe 6.',
+            '- Ausgelassen: `.git`, `node_modules`, `venv`, `.venv`, `__pycache__`, `dist`, `coverage`, `.pytest_cache`. Außerdem '
+            '`/root/sicherung` (diese Arbeit), `/root/versiegelt` (versiegelte Schwächen) und `/root/.hermes`.',
+            f'- Geprüfte Dateien: {n_stat}; gehasht, weil die Größe einer Quelle entsprach: {n_hash}.',
+            '- Gezählt sind nur Dateien. Die Kassenzeilen stehen in Teil 3 §9 (R50); die git-Blobs an HEAD sind bytegleich '
+            'mit der Platte (R93); die `drahtwerk`-Konstanten im Testcode, in den Commits und in den Prüfkanal-Kopien '
+            'stehen in Teil 2 §6.1.', '']
+if sperre:
+    zeilen11.append('**NICHT AUSGEFÜHRT:** `/tmp/biotop-kammer-exklusiv` bestand. Ersatz: Rohbelege R41 und R42.')
+namen = {'lagerhaus_md': 'lagerhaus Text', 'vb1_md': 'lagerhaus Text (VB1-Kopie)', 'lagerhaus_regeln': 'lagerhaus Regeln',
+         'vb1_regeln': 'lagerhaus Regeln (VB1-Schreibweise)', 'logmuehle_md': 'logmuehle Text',
+         'logmuehle_regeln': 'logmuehle Regeln', 't3_02': 'T3 Revision 02', 't3_02_regeln': 'T3 Regeln',
+         't3_entwurf': 'T3 Entwurf 01', 'draht_md': 'drahtwerk Text', 'draht_regeln': 'drahtwerk Regeln',
+         'draht_probe_md': 'drahtwerk ältere Variante'}
+for h, schl in ziel.items():
+    liste = sorted(funde[h], key=lambda x: (('/tmp/' in x[0]) + ('/reparatur-01/' in x[0]), x[0]))
+    zeilen11.append(f'**{" = ".join(namen[s] for s in schl)}** · `{h}` · {len(Q[schl[0]][1])} Bytes · Fundorte: {len(liste)}')
+    for p, mt in liste:
+        zeilen11.append(f'- `{zeige(p)}` ({time.strftime("%d.%m. %H:%M", time.localtime(mt))})')
+    zeilen11.append('')
+zeilen11 += ['## 12. Einsetz- und Rückprobe', '',
+             '- Einsetzprüfung beim Schreiben (`b8_einsetzen.py`, Rohbeleg @@RB8@@): @@B8@@',
+             '- Unabhängige Rückprobe (`b9_rueckprobe.py`, Rohbeleg @@RB9@@): @@B9@@', '']
+fund_text = '\n'.join(zeilen11)
+
+# ---- Teile bilden ----
+teile = [teil1, teil2]
+if len((teil3 + '\n---\n\n' + fund_text).encode()) <= GRENZE - 1500:
+    teile.append(teil3 + '\n---\n\n' + fund_text)
+    t_fund = 'Teil 3'
+else:
+    kopf4 = ('# VERFASSUNGEN — Teil 4 von @@N@@ (FK22) · Entwurf\n\n'
+             'Fortsetzung von Teil 3. Stand des Lesens, Verfahren, Belegregel und Lesehilfe stehen in Teil 1.\n\n---\n\n')
+    teile += [teil3, kopf4 + fund_text]
+    t_fund = 'Teil 4'
+n = len(teile)
+teile = [t.replace('@@N@@', str(n)).replace('@@T_FUND@@', t_fund) for t in teile]
+
+# ---- Einsetzprüfung mit Gegenprobe ----
+BLOCK = re.compile(r'^Quelle: ([^\n]*) · (\d+) Bytes · SHA-256 `([0-9a-f]{64})` · Schluss-Zeilenumbruch: (ja|nein)\n\n'
+                   + ZAUN + r'(\w*)\n(.*?)\n' + ZAUN + r'$', re.M | re.S)
+erwartet = {sha(b) for _, b, _ in Q.values()}
+gut = gesamt = 0
+geg_ok = None
+for t in teile:
+    for m in BLOCK.finditer(t):
+        gesamt += 1
+        inhalt = (m.group(6) + ('\n' if m.group(4) == 'ja' else '')).encode()
+        if sha(inhalt) == m.group(3) and m.group(3) in erwartet and len(inhalt) == int(m.group(2)):
+            gut += 1
+        if geg_ok is None:
+            kaputt = bytearray(inhalt)
+            kaputt[len(kaputt) // 2] ^= 1
+            geg_ok = sha(bytes(kaputt)) != m.group(3)
+n_platz = sum(len(re.findall(r'@@WORTLAUT:\w+@@', v)) for v in (v1, v2))
+b8 = (f'{gut} von {gesamt} Wortlautblöcken nach dem Einsetzen SHA-256- und längengleich mit dem Original '
+      f'(Platzhalter in den Vorlagen: {n_platz}); Gegenprobe (ein Byte eines Blocks im Speicher verändert → ungleich): '
+      f'{"angeschlagen" if geg_ok else "NICHT angeschlagen"}.')
+def eigener_rohbeleg() -> str:
+    """Nummer des eigenen Rohbelegs: rb.py hält R<n>.txt offen, solange dieser Prozess läuft (nur /proc lesen)."""
+    pid = os.getppid()
+    for _ in range(6):
+        try:
+            for fd in os.listdir(f'/proc/{pid}/fd'):
+                try:
+                    z = os.readlink(f'/proc/{pid}/fd/{fd}')
+                except OSError:
+                    continue
+                m = re.search(r'/rohbelege/R(\d{4})\.txt$', z)
+                if m:
+                    return f'R{int(m.group(1))}'
+            with open(f'/proc/{pid}/stat') as f:
+                pid = int(f.read().rsplit(')', 1)[1].split()[1])
+        except (OSError, ValueError, IndexError):
+            break
+    return 'UNBEKANNT (Nummer nicht ermittelt; siehe STAND.md)'
+
+
+RB_EIGEN = eigener_rohbeleg()
+print('eigener Rohbeleg:', RB_EIGEN)
+teile = [t.replace('@@B8@@', b8).replace('@@RB8@@', RB_EIGEN) for t in teile]
+
+rest = [re.findall(r'@@[A-Z_0-9]+(?::\w+)?@@', t) for t in teile]
+for i, t in enumerate(teile, 1):
+    assert SCHLUESSEL not in t, f'Schlüssel in Teil {i}'
+    erlaubt = {'@@RB9@@', '@@B9@@'}
+    assert set(rest[i - 1]) <= erlaubt, (i, rest[i - 1])
+    b = t.encode('utf-8')
+    assert len(b) <= GRENZE, f'Teil {i}: {len(b)} Bytes > {GRENZE}'
+    p = O / f'VERFASSUNGEN-TEIL{i}.md'
+    p.write_bytes(b)
+    print(f'{p} · {len(b)} Bytes · SHA-256 {sha(b)} · Restplatzhalter {rest[i - 1]}')
+print('Einsetzprüfung:', b8)
+print('Fundorte je Quelle:', {namen[s[0]]: len(funde[h]) for h, s in ziel.items()})
+print('\n== Belege für Teil 2')
+print('Verzeichnis {LAEUFE}/biotop-t3-typescript/verfassung-02/:')
+for p in sorted(Path(LAEUFE, 'biotop-t3-typescript', 'verfassung-02').iterdir()):
+    st = p.stat()
+    print(f'   {p.name} | {st.st_size} B | mtime {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(st.st_mtime))}')
+for p in ['/tmp/drahtwerk-probe/VERFASSUNG.md', '/tmp/drahtwerk-probe/VERFASSUNG.regeln.json']:
+    st = os.stat(p)
+    print(f'{p} | {st.st_size} B | mtime {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(st.st_mtime))} | '
+          f'{sha(open(p, "rb").read())}')
+--- Ende /root/sicherung/biotop-lage-01/entwurf/verfassungen/b8_einsetzen.py ---
+Ausgabe (vollständig, stdout und stderr):
+== Fundorte-Lauf
+Wurzeln 45 + /tmp · Dateien geprüft 63572 · gehasht 570 · 1.5 s
+eigener Rohbeleg: R136
+/root/sicherung/biotop-lage-01/entwurf/verfassungen/VERFASSUNGEN-TEIL1.md · 28642 Bytes · SHA-256 87a8670ae0fe8e93c5ad77aa2d674ed6afebcf8450baeb6902dca02d5814cd01 · Restplatzhalter []
+/root/sicherung/biotop-lage-01/entwurf/verfassungen/VERFASSUNGEN-TEIL2.md · 27834 Bytes · SHA-256 0fd87be6b8ac6c6ce7220294ebbcb86d3f923c11a5a6c8dfbf30aefb06af8ea2 · Restplatzhalter []
+/root/sicherung/biotop-lage-01/entwurf/verfassungen/VERFASSUNGEN-TEIL3.md · 7861 Bytes · SHA-256 24361557faaaf33dc2b45a1d4f071ebe4f01d5b97d796154b72fd401d40b3eb8 · Restplatzhalter []
+/root/sicherung/biotop-lage-01/entwurf/verfassungen/VERFASSUNGEN-TEIL4.md · 29334 Bytes · SHA-256 6b3096617ec707497fe9a52276743d209ae6e6ee7e5be47fadf7167965620b11 · Restplatzhalter ['@@RB9@@', '@@B9@@']
+Einsetzprüfung: 13 von 13 Wortlautblöcken nach dem Einsetzen SHA-256- und längengleich mit dem Original (Platzhalter in den Vorlagen: 13); Gegenprobe (ein Byte eines Blocks im Speicher verändert → ungleich): angeschlagen.
+Fundorte je Quelle: {'lagerhaus Text': 73, 'lagerhaus Regeln': 72, 'lagerhaus Regeln (VB1-Schreibweise)': 1, 'logmuehle Text': 72, 'logmuehle Regeln': 72, 'T3 Revision 02': 4, 'T3 Regeln': 3, 'T3 Entwurf 01': 2, 'drahtwerk ältere Variante': 1, 'drahtwerk Text': 8, 'drahtwerk Regeln': 9}
+
+== Belege für Teil 2
+Verzeichnis {LAEUFE}/biotop-t3-typescript/verfassung-02/:
+   BESTAETIGUNG.md | 1878 B | mtime 2026-09-21 03:42:22
+   DATEIEN.txt | 349 B | mtime 2026-09-21 03:42:22
+   MANIFEST.sha256 | 328 B | mtime 2026-09-21 03:42:22
+   PRUEFSUMME-ORDNER.txt | 82 B | mtime 2026-09-21 03:42:22
+   VERFASSUNG-T3.md | 4418 B | mtime 2026-09-21 03:42:22
+   ZWISCHENBERICHT.md | 2243 B | mtime 2026-09-21 03:42:22
+/tmp/drahtwerk-probe/VERFASSUNG.md | 489 B | mtime 2026-09-23 11:18:04 | 4630f6e3d6661d3576d720350989feb4e28909eb9e4f9c87233ca8cb4ef46ba4
+/tmp/drahtwerk-probe/VERFASSUNG.regeln.json | 340 B | mtime 2026-09-23 11:18:04 | 1bb6f77ccf4da46a85ad171b183d03113a25cc237c799638d90de31524bb963d
+=== Ende R136 ===
+
+
+R137 · Teil B: unabhängige Rückprobe der Teile VERFASSUNGEN-TEIL1..4 (Blöcke gegen Original, Fundorte neu gehasht, Kurzformen, Größen, Schlüssel; schreibt nur §12)
+Beginn: 2026-09-25 17:39:20 CEST (UTC+0200)
+Ende:   2026-09-25 17:39:20 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/verfassungen/b9_rueckprobe.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/verfassungen/b9_rueckprobe.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil B: unabhängige Rückprobe der Teile VERFASSUNGEN-TEIL<n>.md.
+
+Nutzt keinen Code aus b8_einsetzen.py (eigener, zeilenweiser Leser). Prüft:
+1. je Teil: UTF-8, Bytes <= 34.000, kein Prüfkanal-Schlüssel, keine langen Ziffernfolgen (Chatkennung o. ä.),
+   keine offenen Platzhalter außer @@RB9@@/@@B9@@;
+2. je Wortlautblock: Inhalt -> SHA-256 und Bytes = Angabe der Quelle-Zeile; Original unabhängig neu gelesen
+   (Datei, Zeilenbereich oder Konstante per ast, ohne Import) -> SHA-256 = Angabe;
+3. Übersichtstafel (Teil 1 §1): jede 16-stellige Kurzform ist Anfang einer vollen SHA-256 aus einem Block oder §11;
+4. §11: jeder aufgeführte Pfad neu gehasht = SHA-256 seiner Gruppe; Anzahl je Gruppe = Angabe;
+5. Gegenproben: ein verändertes Byte in einem Block und ein Pfad in der falschen Gruppe müssen anschlagen.
+Schreibt danach nur das Ergebnis in §12 (Platzhalter @@RB9@@, @@B9@@) des Teils, der §12 trägt.
+"""
+import ast
+import hashlib
+import json
+import os
+import re
+from pathlib import Path
+
+O = Path('/root/sicherung/biotop-lage-01/entwurf/verfassungen')
+SCHLUESSEL = Path('/etc/pruefkanal/schluessel').read_text().strip()
+LAEUFE = f'/var/pruefkanal/oeffentlich/_akte/{SCHLUESSEL}/laeufe'
+GRENZE = 34000
+ZAUN = '````'
+fehler = []
+
+
+def sha(b: bytes) -> str:
+    return hashlib.sha256(b).hexdigest()
+
+
+def eigener_rohbeleg() -> str:
+    pid = os.getppid()
+    for _ in range(6):
+        try:
+            for fd in os.listdir(f'/proc/{pid}/fd'):
+                try:
+                    z = os.readlink(f'/proc/{pid}/fd/{fd}')
+                except OSError:
+                    continue
+                m = re.search(r'/rohbelege/R(\d{4})\.txt$', z)
+                if m:
+                    return f'R{int(m.group(1))}'
+            with open(f'/proc/{pid}/stat') as f:
+                pid = int(f.read().rsplit(')', 1)[1].split()[1])
+        except (OSError, ValueError, IndexError):
+            break
+    return 'UNBEKANNT (Nummer nicht ermittelt)'
+
+
+def bloecke(text: str):
+    z = text.split('\n')
+    i = 0
+    while i < len(z):
+        if (z[i].startswith('Quelle: ') and i + 2 < len(z) and z[i + 1] == ''
+                and z[i + 2].startswith(ZAUN) and len(z[i + 2]) > len(ZAUN)):
+            quelle, b_s, s_s, e_s = z[i][len('Quelle: '):].rsplit(' · ', 3)
+            j = i + 3
+            while z[j] != ZAUN:
+                j += 1
+            schluss = e_s.strip().endswith('ja')
+            inhalt = ('\n'.join(z[i + 3:j]) + ('\n' if schluss else '')).encode('utf-8')
+            yield quelle, int(b_s.split()[0].replace('.', '')), s_s.split('`')[1], inhalt
+            i = j + 1
+        else:
+            i += 1
+
+
+def original(quelle: str) -> bytes:
+    pfade = re.findall(r'`([^`]+)`', quelle)
+    if quelle.startswith('Konstante '):
+        name, pfad = pfade[0], pfade[1]
+        baum = ast.parse(Path(pfad).read_text(encoding='utf-8'))
+        for n in baum.body:
+            if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == name for t in n.targets):
+                wert = ast.literal_eval(n.value)
+                return wert.encode('utf-8') if isinstance(wert, str) else \
+                    json.dumps(wert, ensure_ascii=False, indent=1).encode('utf-8')
+        raise KeyError(name)
+    pfad = pfade[0].replace('{LAEUFE}', LAEUFE)
+    roh = Path(pfad).read_bytes()
+    m = re.search(r'Zeilen (\d+)–(\d+)', quelle)
+    if m:
+        zeilen = roh.decode('utf-8').split('\n')
+        return ('\n'.join(zeilen[int(m.group(1)) - 1:int(m.group(2))]) + '\n').encode('utf-8')
+    return roh
+
+
+print('Kammer-Sperre /tmp/biotop-kammer-exklusiv:', 'besteht' if os.path.exists('/tmp/biotop-kammer-exklusiv') else 'nicht vorhanden')
+teile = sorted(O.glob('VERFASSUNGEN-TEIL*.md'), key=lambda p: int(re.search(r'TEIL(\d+)', p.name).group(1)))
+texte = {p: p.read_bytes().decode('utf-8') for p in teile}
+
+# 1. Dateiebene
+n_groesse = 0
+for p, t in texte.items():
+    b = len(t.encode('utf-8'))
+    n_groesse += b <= GRENZE
+    if SCHLUESSEL in t:
+        fehler.append(f'{p.name}: Prüfkanal-Schlüssel enthalten')
+    lang = re.findall(r'(?<![\w.])\d{9,}(?![\w.])', t)
+    if lang:
+        fehler.append(f'{p.name}: lange Ziffernfolgen {lang[:5]}')
+    offen = set(re.findall(r'@@[A-Z_0-9]+(?::\w+)?@@', t)) - {'@@RB9@@', '@@B9@@'}
+    if offen:
+        fehler.append(f'{p.name}: offene Platzhalter {sorted(offen)}')
+    print(f'{p.name}: {b} Bytes (vor dem Eintrag in §12)')
+
+# 2. Wortlautblöcke
+voll = set()
+n_bl = ok_bl = 0
+erster = None
+for p, t in texte.items():
+    for quelle, n_bytes, s_ang, inhalt in bloecke(t):
+        n_bl += 1
+        voll.add(s_ang)
+        try:
+            s_orig = sha(original(quelle))
+        except Exception as e:  # noqa: BLE001 — Rückprobe meldet jeden Lesefehler als Befund
+            s_orig = f'FEHLER {type(e).__name__}: {e}'
+        gut = sha(inhalt) == s_ang and len(inhalt) == n_bytes and s_orig == s_ang
+        ok_bl += gut
+        if erster is None:
+            erster = (inhalt, s_ang)
+        print(f'  Block {n_bl:2d} {p.name}: Inhalt={sha(inhalt)[:16]} Angabe={s_ang[:16]} Original={s_orig[:16]} '
+              f'Bytes {len(inhalt)}/{n_bytes} -> {"gleich" if gut else "UNGLEICH"}')
+        if not gut:
+            fehler.append(f'Block {n_bl} in {p.name} ungleich')
+
+# anlegen() schreibt die Regeln so, wie die Quelle-Zeile es sagt?
+draht = Path('/root/biotop/tests/drahtwerk.py').read_text(encoding='utf-8')
+anlegen_form = 'json.dumps(REGELN, ensure_ascii=False, indent=1)' in draht
+print('drahtwerk.py enthält „json.dumps(REGELN, ensure_ascii=False, indent=1)“:', anlegen_form)
+
+# 4. Fundorte §11
+gruppen = []
+for t in texte.values():
+    for zeile in t.split('\n'):
+        m = re.match(r'^\*\*(.+)\*\* · `([0-9a-f]{64})` · (\d+) Bytes · Fundorte: (\d+)$', zeile)
+        if m:
+            gruppen.append({'name': m.group(1), 'sha': m.group(2), 'soll': int(m.group(4)), 'pfade': []})
+            voll.add(m.group(2))
+            continue
+        m = re.match(r'^- `([^`]+)` \(\d\d\.\d\d\. \d\d:\d\d\)$', zeile)
+        if m and gruppen:
+            gruppen[-1]['pfade'].append(m.group(1).replace('{LAEUFE}', LAEUFE))
+n_f = ok_f = grp_ok = 0
+for g in gruppen:
+    grp_ok += len(g['pfade']) == g['soll']
+    for pf in g['pfade']:
+        n_f += 1
+        try:
+            gleich = sha(Path(pf).read_bytes()) == g['sha']
+        except OSError:
+            gleich = False
+        ok_f += gleich
+        if not gleich:
+            fehler.append(f'Fundort ungleich/fehlt: {pf.replace(LAEUFE, "{LAEUFE}")}')
+print(f'§11: {len(gruppen)} Gruppen, {n_f} Pfade, gleich {ok_f}; Anzahl je Gruppe = Angabe: {grp_ok} von {len(gruppen)}')
+
+# 3. Kurzformen der Übersichtstafel
+t1 = texte[teile[0]]
+tafel = t1.split('## 1. Übersichtstafel', 1)[1].split('\n## ', 1)[0]
+kurz = re.findall(r'`([0-9a-f]{16})`', tafel)
+ok_k = sum(any(v.startswith(k) for v in voll) for k in kurz)
+print(f'Übersichtstafel: {len(kurz)} Kurzformen, davon Anfang einer vollen SHA-256: {ok_k}')
+if ok_k != len(kurz):
+    fehler.append('Kurzform ohne volle SHA-256')
+
+# 5. Gegenproben
+kaputt = bytearray(erster[0])
+kaputt[len(kaputt) // 2] ^= 1
+g1 = sha(bytes(kaputt)) != erster[1]
+g2 = False
+if len(gruppen) >= 2 and gruppen[0]['pfade']:
+    g2 = sha(Path(gruppen[0]['pfade'][0]).read_bytes()) != gruppen[1]['sha']
+print('Gegenprobe Byte verändert:', 'angeschlagen' if g1 else 'NICHT angeschlagen')
+print('Gegenprobe Pfad in falscher Gruppe:', 'angeschlagen' if g2 else 'NICHT angeschlagen')
+
+rb = eigener_rohbeleg()
+ergebnis = (f'{ok_bl} von {n_bl} Wortlautblöcken: Inhalt gleich der Angabe (SHA-256 und Bytes) und Original neu gelesen '
+            f'gleich der Angabe; {ok_f} von {n_f} Fundorten aus §11 neu gehasht gleich der SHA-256 ihrer Gruppe, Anzahl je '
+            f'Gruppe gleich der Angabe: {grp_ok} von {len(gruppen)}; Kurzformen der Übersichtstafel: {ok_k} von {len(kurz)} '
+            f'Anfang einer vollen SHA-256; Teile mit höchstens 34.000 Bytes: {n_groesse} von {len(teile)}; '
+            f'Befunde (Schlüssel, lange Ziffernfolgen, offene Platzhalter, Ungleichheiten): {len(fehler)}; '
+            f'Gegenproben (ein Byte verändert; Pfad der falschen Gruppe zugeordnet): '
+            f'{"angeschlagen" if g1 else "NICHT angeschlagen"}, {"angeschlagen" if g2 else "NICHT angeschlagen"}.')
+for f in fehler:
+    print('BEFUND:', f)
+
+ziel = [p for p, t in texte.items() if '@@B9@@' in t]
+if len(ziel) != 1:
+    print('NICHT GESCHRIEBEN: Platzhalter @@B9@@ nicht genau einmal gefunden:', [p.name for p in ziel])
+else:
+    p = ziel[0]
+    neu = texte[p].replace('@@RB9@@', rb).replace('@@B9@@', ergebnis)
+    b = neu.encode('utf-8')
+    assert len(b) <= GRENZE and SCHLUESSEL not in neu and '@@' not in neu
+    p.write_bytes(b)
+    print('§12 eingetragen in', p.name, '· eigener Rohbeleg', rb)
+print('Ergebnis:', ergebnis)
+print('\n== Endstand der Teile')
+for p in teile:
+    b = p.read_bytes()
+    print(f'{p} | {len(b)} Bytes | SHA-256 {sha(b)}')
+--- Ende /root/sicherung/biotop-lage-01/entwurf/verfassungen/b9_rueckprobe.py ---
+Ausgabe (vollständig, stdout und stderr):
+Kammer-Sperre /tmp/biotop-kammer-exklusiv: nicht vorhanden
+VERFASSUNGEN-TEIL1.md: 28642 Bytes (vor dem Eintrag in §12)
+VERFASSUNGEN-TEIL2.md: 27834 Bytes (vor dem Eintrag in §12)
+VERFASSUNGEN-TEIL3.md: 7861 Bytes (vor dem Eintrag in §12)
+VERFASSUNGEN-TEIL4.md: 29334 Bytes (vor dem Eintrag in §12)
+  Block  1 VERFASSUNGEN-TEIL1.md: Inhalt=326e26163f74d982 Angabe=326e26163f74d982 Original=326e26163f74d982 Bytes 1506/1506 -> gleich
+  Block  2 VERFASSUNGEN-TEIL1.md: Inhalt=34d67f36719395b6 Angabe=34d67f36719395b6 Original=34d67f36719395b6 Bytes 806/806 -> gleich
+  Block  3 VERFASSUNGEN-TEIL1.md: Inhalt=74e9d337f7ecf17d Angabe=74e9d337f7ecf17d Original=74e9d337f7ecf17d Bytes 729/729 -> gleich
+  Block  4 VERFASSUNGEN-TEIL1.md: Inhalt=2639327bb1179d19 Angabe=2639327bb1179d19 Original=2639327bb1179d19 Bytes 1652/1652 -> gleich
+  Block  5 VERFASSUNGEN-TEIL1.md: Inhalt=0ce7f8651ae70ad0 Angabe=0ce7f8651ae70ad0 Original=0ce7f8651ae70ad0 Bytes 1841/1841 -> gleich
+  Block  6 VERFASSUNGEN-TEIL1.md: Inhalt=bce33200a57d77e5 Angabe=bce33200a57d77e5 Original=bce33200a57d77e5 Bytes 691/691 -> gleich
+  Block  7 VERFASSUNGEN-TEIL1.md: Inhalt=7d23f013a52700c3 Angabe=7d23f013a52700c3 Original=7d23f013a52700c3 Bytes 2262/2262 -> gleich
+  Block  8 VERFASSUNGEN-TEIL2.md: Inhalt=5ece12d93dc760d6 Angabe=5ece12d93dc760d6 Original=5ece12d93dc760d6 Bytes 4418/4418 -> gleich
+  Block  9 VERFASSUNGEN-TEIL2.md: Inhalt=e750eb4d5033442f Angabe=e750eb4d5033442f Original=e750eb4d5033442f Bytes 1398/1398 -> gleich
+  Block 10 VERFASSUNGEN-TEIL2.md: Inhalt=d048a77e9faf2e24 Angabe=d048a77e9faf2e24 Original=d048a77e9faf2e24 Bytes 2498/2498 -> gleich
+  Block 11 VERFASSUNGEN-TEIL2.md: Inhalt=13677832e59fcfef Angabe=13677832e59fcfef Original=13677832e59fcfef Bytes 520/520 -> gleich
+  Block 12 VERFASSUNGEN-TEIL2.md: Inhalt=1bb6f77ccf4da46a Angabe=1bb6f77ccf4da46a Original=1bb6f77ccf4da46a Bytes 340/340 -> gleich
+  Block 13 VERFASSUNGEN-TEIL2.md: Inhalt=4630f6e3d6661d35 Angabe=4630f6e3d6661d35 Original=4630f6e3d6661d35 Bytes 489/489 -> gleich
+drahtwerk.py enthält „json.dumps(REGELN, ensure_ascii=False, indent=1)“: True
+§11: 11 Gruppen, 317 Pfade, gleich 317; Anzahl je Gruppe = Angabe: 11 von 11
+Übersichtstafel: 10 Kurzformen, davon Anfang einer vollen SHA-256: 10
+Gegenprobe Byte verändert: angeschlagen
+Gegenprobe Pfad in falscher Gruppe: angeschlagen
+§12 eingetragen in VERFASSUNGEN-TEIL4.md · eigener Rohbeleg R137
+Ergebnis: 13 von 13 Wortlautblöcken: Inhalt gleich der Angabe (SHA-256 und Bytes) und Original neu gelesen gleich der Angabe; 317 von 317 Fundorten aus §11 neu gehasht gleich der SHA-256 ihrer Gruppe, Anzahl je Gruppe gleich der Angabe: 11 von 11; Kurzformen der Übersichtstafel: 10 von 10 Anfang einer vollen SHA-256; Teile mit höchstens 34.000 Bytes: 4 von 4; Befunde (Schlüssel, lange Ziffernfolgen, offene Platzhalter, Ungleichheiten): 0; Gegenproben (ein Byte verändert; Pfad der falschen Gruppe zugeordnet): angeschlagen, angeschlagen.
+
+== Endstand der Teile
+/root/sicherung/biotop-lage-01/entwurf/verfassungen/VERFASSUNGEN-TEIL1.md | 28642 Bytes | SHA-256 87a8670ae0fe8e93c5ad77aa2d674ed6afebcf8450baeb6902dca02d5814cd01
+/root/sicherung/biotop-lage-01/entwurf/verfassungen/VERFASSUNGEN-TEIL2.md | 27834 Bytes | SHA-256 0fd87be6b8ac6c6ce7220294ebbcb86d3f923c11a5a6c8dfbf30aefb06af8ea2
+/root/sicherung/biotop-lage-01/entwurf/verfassungen/VERFASSUNGEN-TEIL3.md | 7861 Bytes | SHA-256 24361557faaaf33dc2b45a1d4f071ebe4f01d5b97d796154b72fd401d40b3eb8
+/root/sicherung/biotop-lage-01/entwurf/verfassungen/VERFASSUNGEN-TEIL4.md | 29862 Bytes | SHA-256 7f36813d7c2ba6f0d91d3fd2ff1d29395205e79337659d28fcbc0f19d6bf91ca
+=== Ende R137 ===

@@ -1,0 +1,316 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 20 (Teile 4–165 dieses Stands) · enthält R29 bis R29
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R29 · Nachricht 1892, eingefügte Dokumente Chat-Claudes, genannte Dokumentnamen, Auftragsdateien auf der Platte (nur lesend)
+Beginn: 2026-09-25 15:48:13 CEST (UTC+0200)
+Ende:   2026-09-25 15:48:16 CEST (UTC+0200)
+Dauer:  3.2 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/f14_auftraege.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/f14_auftraege.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): (1) Nachricht 1892 (v1/v4-Teilstücke) einordnen; (2) Dokumente Chat-Claudes, die ohne
+Dokumentkopf eingefügt wurden („[Content of …]:"), und Nennungen weiterer Dokumentnamen (…_2026-09-2x.md) in
+Philipps Nachrichten; (3) Auftragsdateien auf der Platte nach Namensmuster (Pfad, Zeit, Größe, SHA-256)."""
+import datetime as dt
+import hashlib
+import re
+import sqlite3
+from pathlib import Path
+
+con = sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+print('== 1. Nachricht 1892: Rolle, Sitzung, Länge, erste 300 Zeichen, Dokumentköpfe')
+r = con.execute('SELECT role, session_id, timestamp, length(content), content FROM messages WHERE id=1892').fetchone()
+print(r[0], r[1], dt.datetime.fromtimestamp(r[2]), r[3])
+print(repr(r[4][:300]))
+print('Dokumentköpfe:', re.findall(r"\[The user sent a[^\]]{0,200}\]", r[4])[:5])
+print('Content-Marken:', re.findall(r"\[Content of [^\]]+\]", r[4])[:5])
+
+print('\n== 2. „[Content of …]" und genannte Dokumentnamen in Nachrichten der Rolle user (ab 18.09., ohne Dubletten)')
+ab = dt.datetime(2026, 9, 18).timestamp()
+inhalte, namen = {}, {}
+for mid, ts, c in con.execute("SELECT id, timestamp, content FROM messages WHERE role='user' AND timestamp>=? ORDER BY timestamp", (ab,)):
+    for m in re.finditer(r'\[Content of ([^\]]+)\]', c or ''):
+        inhalte.setdefault(m.group(1), (mid, dt.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')))
+    if (c or '').lstrip().startswith('['):
+        # System-/Dokumentnachrichten nur für Content-Marken auswerten
+        pass
+    for m in re.finditer(r'\b([A-Z][A-Za-z0-9-]*_[A-Za-z0-9_.-]*20\d\d-\d\d-\d\d\.md)\b', c or ''):
+        namen.setdefault(m.group(1), (mid, dt.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')))
+print('Content-Marken:', len(inhalte))
+for k, v in sorted(inhalte.items(), key=lambda x: x[1][1]):
+    print('  ', v[1], 'id', v[0], k)
+print('Genannte Dokumentnamen:', len(namen))
+for k, v in sorted(namen.items(), key=lambda x: x[1][1]):
+    print('  ', v[1], 'id', v[0], k, '| als Inhalt vorhanden:', 'ja' if k in inhalte else 'NEIN')
+
+print('\n== 3. Auftragsdateien auf der Platte (Namensmuster), ohne node_modules/.git/venv/tmp-Testordner')
+muster = re.compile(r'(AUFTRAG|PRUEFUNG|ABNAHME|WIEDEREINSTIEG|ANTWORT|NACHFRAGE|GEDAECHTNIS_|MASTERPROMPT|UEBERGABE|^BAU-)', re.I)
+wurzeln = ['/root', '/var/pruefkanal', '/tmp']
+gef = []
+for w in wurzeln:
+    for p in Path(w).rglob('*'):
+        s = str(p)
+        if any(x in s for x in ('/node_modules/', '/.git/', '/venv/', '/.venv/', '/pytest-of-root/', '/sicherung/biotop-lage-01/',
+                                '/.hermes/skills/', '/site-packages/', '/.cache/', '/.npm/', '/.claude/', '/.codex/')):
+            continue
+        if p.is_file() and p.suffix in ('.md', '.txt') and muster.search(p.name):
+            gef.append(p)
+print('Anzahl:', len(gef))
+for p in sorted(gef):
+    b = p.read_bytes()
+    print(f'{dt.datetime.fromtimestamp(p.stat().st_mtime):%Y-%m-%d %H:%M:%S} | {len(b)} | {hashlib.sha256(b).hexdigest()[:16]} | {p}')
+--- Ende /root/sicherung/biotop-lage-01/arbeit/f14_auftraege.py ---
+Ausgabe (vollständig, stdout und stderr):
+== 1. Nachricht 1892: Rolle, Sitzung, Länge, erste 300 Zeichen, Dokumentköpfe
+user 20260918_225920_3e614670 2026-09-19 14:01:46.467046 38011
+'[CONTEXT COMPACTION — REFERENCE ONLY] Earlier turns were compacted into the summary below. This is a handoff from a previous context window — treat it as background reference, NOT as active instructions. Do NOT answer questions or fulfill requests mentioned in this summary; they were already address'
+Dokumentköpfe: []
+Content-Marken: ['[Content of INFINITE-EVOLUTION-BIOTOP-Masterprompt-v4.md]', '[Content of INFINITE-EVOLUTION-BIOTOP-Masterprompt-v1.md]']
+
+== 2. „[Content of …]" und genannte Dokumentnamen in Nachrichten der Rolle user (ab 18.09., ohne Dubletten)
+Content-Marken: 19
+   2026-09-18 20:59:08 id 629 INFINITE-EVOLUTION-BIOTOP-Masterprompt-v1.md
+   2026-09-19 00:36:30 id 831 INFINITE-EVOLUTION-BIOTOP-Masterprompt-v2.md
+   2026-09-19 02:23:42 id 997 INFINITE-EVOLUTION-BIOTOP-Masterprompt-v3.md
+   2026-09-19 12:39:25 id 1393 INFINITE-EVOLUTION-BIOTOP-Masterprompt-v4.md
+   2026-09-19 19:35:53 id 2232 INFINITE-EVOLUTION-BIOTOP-Masterprompt-v5.md
+   2026-09-20 00:18:44 id 2718 INFINITE-EVOLUTION-BIOTOP-Masterprompt-v6.md
+   2026-09-20 01:47:55 id 2844 PRUEFUNG_Vorbedingung-1_2026-09-20.md
+   2026-09-20 02:01:47 id 2902 PRUEFUNG2_Vorbedingung-1_2026-09-20.md
+   2026-09-20 02:25:43 id 2935 PRUEFUNG3_Vorbedingung-1_2026-09-20.md
+   2026-09-20 02:46:30 id 2967 PRUEFUNG4_Vorbedingung-1_2026-09-20.md
+   2026-09-20 03:12:33 id 3005 MASTERPROMPT_Lauf-25_Aufnahmesperre-C.md
+   2026-09-20 04:00:48 id 3057 PRUEFUNG6_Lauf-25_2026-09-20.md
+   2026-09-20 04:50:16 id 3102 ABNAHME_Vorbedingung-1_2026-09-20.md
+   2026-09-20 04:54:01 id 3105 WIEDEREINSTIEG_Hermes_2026-09-20.md
+   2026-09-20 05:04:57 id 3159 ANTWORT_W1-W4_2026-09-20.md
+   2026-09-20 05:25:16 id 3217 PRUEFUNG_Wiedereinstieg_2026-09-20.md
+   2026-09-21 02:14:34 id 9105 INFINITE-EVOLUTION-BIOTOP-Masterprompt-v7.md
+   2026-09-23 15:53:53 id 13998 INFINITE-EVOLUTION-BIOTOP-Masterprompt-v8.md
+   2026-09-25 14:44:20 id 20987 BIOTOP-LAGE-01-Auftrag-v2.md
+Genannte Dokumentnamen: 10
+   2026-09-20 01:47:55 id 2844 PRUEFUNG_Vorbedingung-1_2026-09-20.md | als Inhalt vorhanden: ja
+   2026-09-20 02:01:47 id 2902 PRUEFUNG2_Vorbedingung-1_2026-09-20.md | als Inhalt vorhanden: ja
+   2026-09-20 02:25:43 id 2935 PRUEFUNG3_Vorbedingung-1_2026-09-20.md | als Inhalt vorhanden: ja
+   2026-09-20 02:46:30 id 2967 PRUEFUNG4_Vorbedingung-1_2026-09-20.md | als Inhalt vorhanden: ja
+   2026-09-20 04:00:48 id 3057 PRUEFUNG6_Lauf-25_2026-09-20.md | als Inhalt vorhanden: ja
+   2026-09-20 04:50:16 id 3102 ABNAHME_Vorbedingung-1_2026-09-20.md | als Inhalt vorhanden: ja
+   2026-09-20 04:54:01 id 3105 WIEDEREINSTIEG_Hermes_2026-09-20.md | als Inhalt vorhanden: ja
+   2026-09-20 05:01:19 id 3148 GEDAECHTNIS_Hermes_2026-09-20.md | als Inhalt vorhanden: NEIN
+   2026-09-20 05:04:57 id 3159 ANTWORT_W1-W4_2026-09-20.md | als Inhalt vorhanden: ja
+   2026-09-20 05:25:16 id 3217 PRUEFUNG_Wiedereinstieg_2026-09-20.md | als Inhalt vorhanden: ja
+
+== 3. Auftragsdateien auf der Platte (Namensmuster), ohne node_modules/.git/venv/tmp-Testordner
+Anzahl: 218
+2026-09-25 14:44:20 | 41239 | 58ba8834b8c3ec08 | /root/.hermes/cache/documents/doc_5bf902863a6d_BIOTOP-LAGE-01-Auftrag-v2.md
+2026-09-23 14:18:04 | 5947 | b18b60535d928281 | /root/biotop-t3/abschluss3/REVIEW-AUFTRAG-03.md
+2026-09-23 15:47:12 | 867 | 6976b427b89ef0cc | /root/biotop-t3/abschluss3/UEBERGABE.md
+2026-09-23 10:00:31 | 8649 | 8991dbd1cb8d4047 | /root/biotop-t3/abschluss3/lauf38/nachpruefung_head.txt
+2026-09-23 09:18:31 | 2109 | a138ca2bd23862c9 | /root/biotop-t3/abschluss3/lauf38/nachpruefung_s2_bindung.txt
+2026-09-21 03:26:46 | 98 | a120868bd3fc09d5 | /root/biotop-t3/fundpruefung-ts-gruen.txt
+2026-09-21 03:25:46 | 7957 | c712fd3edf97b73e | /root/biotop-t3/fundpruefung-ts-rot.txt
+2026-09-21 18:52:11 | 99 | a78a5a0de8e1e429 | /root/biotop-t3/grundpruefung.txt
+2026-09-23 17:15:58 | 3226 | 113f2eeaec2c33d1 | /root/biotop-vor-t4/REVIEW-AUFTRAG-VOR-T4.md
+2026-09-23 22:27:53 | 3240 | 4eeb0eb4eda98e1b | /root/biotop-vor-t4/UEBERGABE.md
+2026-09-24 00:31:07 | 5310 | 6c66cc130822f39e | /root/biotop-vor-t4-02/REVIEW-AUFTRAG.md
+2026-09-24 02:10:01 | 3156 | 80345cc98a470c92 | /root/biotop-vor-t4-02/SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md
+2026-09-24 02:10:01 | 3269 | fb9a9a3667befbf8 | /root/biotop-vor-t4-02/UEBERGABE.md
+2026-09-24 00:24:48 | 2821 | e913efaca617e448 | /root/biotop-vor-t4-02/bau/VORPRUEFUNG.txt
+2026-09-24 07:38:45 | 7650 | f9a080507a81e9e0 | /root/biotop-vor-t4-03/REVIEW-AUFTRAG.md
+2026-09-24 11:43:24 | 4248 | 4ce052612995d855 | /root/biotop-vor-t4-03/SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md
+2026-09-24 11:44:58 | 11029 | a2537809fc16a53f | /root/biotop-vor-t4-03/UEBERGABE.md
+2026-09-24 15:08:58 | 7046 | 147bf60c00cdfb88 | /root/biotop-vor-t4-04/REVIEW-AUFTRAG.md
+2026-09-24 17:19:43 | 3060 | b33a8637105303b4 | /root/biotop-vor-t4-04/SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md
+2026-09-24 16:10:25 | 11607 | bbdceb01116c5c80 | /root/biotop-vor-t4-04/UEBERGABE.md
+2026-09-24 16:09:35 | 2120 | aecca92f75c9a70a | /root/biotop-vor-t4-04/proben/LESEN-NACHFRAGEN.txt
+2026-09-24 19:48:28 | 7119 | c9487878650f6245 | /root/biotop-vor-t4-05/REVIEW-AUFTRAG.md
+2026-09-24 23:44:47 | 6682 | e8906c54ccc84efa | /root/biotop-vor-t4-05/SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md
+2026-09-24 21:50:20 | 9650 | 0f7c2d22d752e9ba | /root/biotop-vor-t4-05/UEBERGABE.md
+2026-09-24 18:29:23 | 8912 | 888ab89a27871f31 | /root/biotop-vor-t4-05/bau/MASTERPROMPT-V8-TOR4.txt
+2026-09-25 03:54:35 | 6107 | 4b49e45e1bb1def3 | /root/biotop-vor-t4-06/BAU-S1-FORTSETZUNG.md
+2026-09-25 00:22:51 | 12558 | 1ca56afa889ca453 | /root/biotop-vor-t4-06/BAU-S1-SONDE.md
+2026-09-25 08:44:43 | 9495 | 8fdac4b10952a5f7 | /root/biotop-vor-t4-06/BAU-S1B-M2B.md
+2026-09-25 12:51:30 | 10219 | 341e5869a1c3ef0d | /root/biotop-vor-t4-06/BAU-S1C-UNBEOBACHTET.md
+2026-09-25 00:17:54 | 8949 | 2bf51fa55f3d0106 | /root/biotop-vor-t4-06/BAU-S2-TOR4.md
+2026-09-25 00:17:54 | 5948 | 9dd730081a30224e | /root/biotop-vor-t4-06/BAU-S3-STUFE2.md
+2026-09-25 05:06:03 | 12420 | 741cdb0f5f8db88d | /root/biotop-vor-t4-06/BAU-S4-VERDRAHTUNG.md
+2026-09-25 12:52:04 | 24382 | 09e213d6d916c761 | /root/biotop-vor-t4-06/UEBERGABE.md
+2026-09-25 03:44:29 | 4069 | 9d85a47f2fab39cf | /root/biotop-vor-t4-06/bau/S1-UEBERGABE-LESEN.txt
+2026-09-25 12:15:45 | 2576 | 43b18de499bbc9c3 | /root/biotop-vor-t4-06/bau/S1B-TEILPRUEFUNG.txt
+2026-09-25 05:10:02 | 975 | 4dfec43fa0a7ff24 | /root/biotop-vor-t4-06/bau/TEILPRUEFUNG-S1-E1.txt
+2026-09-25 05:44:16 | 897 | f3e294ffd4272e92 | /root/biotop-vor-t4-06/bau/TEILPRUEFUNG-S1-E2.txt
+2026-09-25 08:14:41 | 254 | 56418215c1e3827f | /root/biotop-vor-t4-06/bau/TEILPRUEFUNG-S1-E2N.txt
+2026-09-25 06:24:37 | 1004 | 73c8d720399fc72d | /root/biotop-vor-t4-06/bau/TEILPRUEFUNG-S1-E3.txt
+2026-09-25 04:36:13 | 822 | e2087464f98d18c8 | /root/biotop-vor-t4-06/bau/TEILPRUEFUNG-S1-E7.txt
+2026-09-20 22:37:25 | 1018 | 825f361caf589ebe | /root/phase-4-vorbedingung-1/AUFTRAG-REGELN.md
+2026-09-20 22:48:41 | 32268 | 00a46e857745088b | /root/phase-4-vorbedingung-1/UEBERGABE-PHASE-4.md
+2026-09-20 22:37:26 | 1018 | 825f361caf589ebe | /root/phase-4-vorbedingung-1/abschluss-entwurf/AUFTRAG-REGELN.md
+2026-09-20 22:37:26 | 31533 | 55f7c5441c727863 | /root/phase-4-vorbedingung-1/abschluss-entwurf/UEBERGABE-PHASE-4.md
+2026-09-20 22:49:32 | 10696 | 202149ea99a319d0 | /root/phase-4-vorbedingung-1/belege/MASTERPROMPT-F6-AUSZUG.md
+2026-09-20 23:07:54 | 6526 | 3cdee2c0b12c6037 | /root/phase-4-vorbedingung-1/nachtrag-01/entwurf/REVIEW-AUFTRAG.md
+2026-09-20 23:11:05 | 1520 | 8e0656f4a050c2b5 | /root/phase-4-vorbedingung-1/nachtrag-01/entwurf/UEBERGABE-PHASE-4.md
+2026-09-20 23:07:54 | 6526 | 3cdee2c0b12c6037 | /root/phase-4-vorbedingung-1/nachtrag-01/review/PRUEFAUFTRAG.md
+2026-09-20 22:37:26 | 4982 | 3fafd0b4ee4fc90e | /root/phase-4-vorbedingung-1/review/PRUEFAUFTRAG.md
+2026-09-21 00:09:32 | 3588 | b71376b41f4528cd | /root/phase-4-vorbedingung-1/uebergabe-abnahme-01/UEBERGABE-PHASE-4.md
+2026-09-20 22:37:25 | 78969 | effefeec0fe2ea06 | /root/phase-4-vorbedingung-1/uebergabe-quellen/MASTERPROMPT-FASSUNG-6.md
+2026-09-20 17:26:27 | 0 | e3b0c44298fc1c14 | /root/reparatur-01/nachbesserung-01/vertrag/ausgaben/05-vertrag-abnahme.stderr.txt
+2026-09-20 17:27:53 | 6221 | acd44dc27f48f1ac | /root/reparatur-01/nachbesserung-01/vertrag/ausgaben/05-vertrag-abnahme.stdout.txt
+2026-09-20 17:26:27 | 0 | e3b0c44298fc1c14 | /root/reparatur-01/nachbesserung-01/vertrag/lieferung/ausgaben/05-vertrag-abnahme.stderr.txt
+2026-09-20 17:27:53 | 6221 | acd44dc27f48f1ac | /root/reparatur-01/nachbesserung-01/vertrag/lieferung/ausgaben/05-vertrag-abnahme.stdout.txt
+2026-09-20 18:24:41 | 1023 | 68d5c0f380479b54 | /root/reparatur-01/nachbesserung-02/messung/lieferung/auftrag/AUFTRAGGEBER-WORTLAUT.txt
+2026-09-20 18:24:41 | 1023 | 68d5c0f380479b54 | /root/reparatur-01/nachweis-leserpruefung-02/AUFTRAGGEBER-WORTLAUT.txt
+2026-09-20 18:07:23 | 1015 | ba2dc43ac778f112 | /root/reparatur-01/review-02/pruefer-kern/eingang/AUFTRAGGEBER-WORTLAUT.txt
+2026-09-20 18:07:23 | 2568 | c645ec16c661b831 | /root/reparatur-01/review-02/pruefer-kern/eingang/AUFTRAGSGRENZE.md
+2026-09-20 16:24:51 | 7384 | 4d431acb7f89a233 | /root/reparatur-01/teil-eichung/lieferung/ABNAHME.md
+2026-09-20 16:11:35 | 334 | a52264cdc12c772f | /root/reparatur-01/teil-historie/ZITATPRUEFUNG.txt
+2026-09-20 05:08:12 | 76 | 812e940d53f8afc9 | /root/wiedereinstieg-01/eichbelege/HTTP-ANTWORT-01.txt
+2026-09-20 05:08:50 | 185 | 8eb28dd956ac7b79 | /root/wiedereinstieg-01/traegernachweis/HTTP-ANTWORT-01.txt
+2026-09-21 02:00:18 | 78969 | effefeec0fe2ea06 | /tmp/biotop-phase4-lektuere-mm6_llag/Masterprompt-v6.md
+2026-09-21 02:00:18 | 3588 | b71376b41f4528cd | /tmp/biotop-phase4-lektuere-mm6_llag/UEBERGABE-PHASE-4.md
+2026-09-10 20:44:51 | 16267 | 710c4e778de1c169 | /tmp/paket-f3/FASSUNG-5/AUFTRAG-ASTRA-F5.md
+2026-09-10 20:44:51 | 1329 | cf1ce94553d0a95b | /tmp/paket-f3/FASSUNG-5/BELEGE/ASTRA-bau-f5.antwort.md
+2026-09-10 20:44:51 | 596 | 7d305549ce96ee93 | /tmp/paket-f3/selbstreparatur-20260910/BELEGE/PRUEFAUFTRAG-REPARATUREN-20260910.md
+2026-09-25 12:15:23 | 1803 | 5256eb22ac0f8246 | /tmp/r6-s1b/teilpruefung.txt
+2026-09-25 12:15:40 | 773 | 8d15558d842c3669 | /tmp/r6-s1b/teilpruefung_einordnung.txt
+2026-09-23 14:29:31 | 11344 | 531e40372caf9392 | /tmp/review03/db_pruefung.txt
+2026-09-23 14:35:36 | 10365 | a49f52e225ecce60 | /tmp/review03/db_pruefung2.txt
+2026-09-23 21:32:34 | 2591 | f3213dcea33e6bb5 | /tmp/waechter-nachspiel/akte/laeufe/biotop-vor-t4/zwischenbericht-20260923-160100-r1-verdichtung/UEBERGABE-1-UEBERGABE.md
+2026-09-23 21:32:57 | 2591 | f3213dcea33e6bb5 | /tmp/waechter-nachspiel/akte/laeufe/biotop-vor-t4/zwischenbericht-20260923-164800-r25-kontext80/UEBERGABE-1-UEBERGABE.md
+2026-09-23 21:33:51 | 2591 | f3213dcea33e6bb5 | /tmp/waechter-nachspiel/akte/laeufe/biotop-vor-t4/zwischenbericht-20260923-183400-r2-kontext80-verdichtung/UEBERGABE-1-UEBERGABE.md
+2026-09-23 21:34:08 | 2591 | f3213dcea33e6bb5 | /tmp/waechter-nachspiel/akte/laeufe/biotop-vor-t4/zwischenbericht-20260923-190800-r1-kontext80-verdichtung/UEBERGABE-1-UEBERGABE.md
+2026-09-23 21:34:12 | 2591 | f3213dcea33e6bb5 | /tmp/waechter-nachspiel/akte/laeufe/biotop-vor-t4/zwischenbericht-20260923-191600-r0-kontext80/UEBERGABE-1-UEBERGABE.md
+2026-09-23 21:34:17 | 2591 | f3213dcea33e6bb5 | /tmp/waechter-nachspiel/akte/laeufe/biotop-vor-t4/zwischenbericht-20260923-192500-r3-verdichtung/UEBERGABE-1-UEBERGABE.md
+2026-09-02 00:37:40 | 49987 | 4dc91e16fd8df190 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/aktuell/SCHLUSSPRUEFUNG-2.md
+2026-09-02 00:37:40 | 39899 | bcf358199b2b4560 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/aktuell/SCHLUSSPRUEFUNG.md
+2026-08-15 13:16:06 | 8935 | 64be155f2fb095c7 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/abnahmeliste/BERICHT-abnahmeliste.md
+2026-08-16 04:14:31 | 21080 | a0a752ac199bdc10 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/abschluss-vorhaben/belege-paketrest/milieulux-3b-17/ausgepackt/ABNAHME.md
+2026-08-14 11:45:20 | 49987 | 4dc91e16fd8df190 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/auftrag-gesamt/SCHLUSSPRUEFUNG-2.md
+2026-08-21 05:27:55 | 36582 | e2b9bd2b122e8a6e | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/ausrollen/ANTWORT-abbruchbedingung.md
+2026-08-21 05:27:55 | 30441 | 865164dfd2d2dba2 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/ausrollen/NACHTRAG-ANTWORT.md
+2026-08-21 05:27:55 | 8837 | 707a52d06bd0be9d | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/ausrollen/belege/KOPFREGELN-HANDPRUEFUNG.md
+2026-09-20 07:52:01 | 2091 | 4a1fe8dabf154cb3 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-gesamtstand/MASTERPROMPT-ABGLEICH-01.md
+2026-09-20 06:43:07 | 78969 | effefeec0fe2ea06 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-gesamtstand/quellen/MASTERPROMPT-FASSUNG-6.md
+2026-09-19 20:30:54 | 2412 | 3be9b7240049405b | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-phase-3-nachlauf/ausgaben/01-rauschregeln-selbstpruefung.txt
+2026-09-19 22:19:29 | 4285 | 6fbc0869aa8f17ac | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-phase-3-nachlauf/ausgaben/11-fundpruefung-organ.txt
+2026-09-20 22:49:32 | 1018 | 825f361caf589ebe | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-phase-4-vorbedingung-1/nach-reparatur-02/abschluss-01/AUFTRAG-REGELN.md
+2026-09-20 22:49:32 | 4982 | 3fafd0b4ee4fc90e | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-phase-4-vorbedingung-1/nach-reparatur-02/abschluss-01/REVIEW-AUFTRAG.md
+2026-09-20 22:49:32 | 32268 | 00a46e857745088b | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-phase-4-vorbedingung-1/nach-reparatur-02/abschluss-01/UEBERGABE-PHASE-4.md
+2026-09-20 23:07:54 | 6526 | 3cdee2c0b12c6037 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-phase-4-vorbedingung-1/nach-reparatur-02/abschluss-02/REVIEW-AUFTRAG.md
+2026-09-20 23:39:12 | 1507 | 10212164f24d9814 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-phase-4-vorbedingung-1/nach-reparatur-02/abschluss-02/UEBERGABE-PHASE-4.md
+2026-09-21 00:10:31 | 3588 | b71376b41f4528cd | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-phase-4-vorbedingung-1/nach-reparatur-02/uebergabe-abnahme-01/UEBERGABE-PHASE-4.md
+2026-09-20 15:31:24 | 1677 | 9a3dc946a8805986 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/AUFTRAG-01.md
+2026-09-20 17:40:52 | 1015 | ba2dc43ac778f112 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/auftragseingrenzung-01/AUFTRAGGEBER-WORTLAUT.txt
+2026-09-20 17:40:52 | 2568 | c645ec16c661b831 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/auftragseingrenzung-01/AUFTRAGSGRENZE.md
+2026-09-20 17:40:52 | 2467 | f2c64d216cfcf5ed | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/auftragseingrenzung-01/ausgaben/45-kernmass-pareto-auftragskern.txt
+2026-09-20 18:38:12 | 990 | 86385f6d457428a3 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/auftragseingrenzung-02/AUFTRAGGEBER-WORTLAUT.txt
+2026-09-20 18:30:28 | 1023 | 68d5c0f380479b54 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/auftragspraezisierung-02/AUFTRAGGEBER-WORTLAUT.txt
+2026-09-20 16:18:59 | 2214 | 703175dc607f2086 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/ausgaben/34-acb-bestandspruefung-integriert.txt
+2026-09-20 17:37:43 | 2467 | f2c64d216cfcf5ed | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/ausgaben/45-kernmass-pareto-auftragskern.txt
+2026-09-20 20:01:20 | 990 | 86385f6d457428a3 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/eskalation-runde-02/AUFTRAGGEBER-WORTLAUT.txt
+2026-09-20 20:01:20 | 437 | 6e1636911ef93c8c | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/eskalation-runde-02/MELDEREGEL-AUFTRAGGEBER.txt
+2026-09-20 20:01:19 | 1023 | 68d5c0f380479b54 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/eskalation-runde-02/lieferungen/messung/auftrag/AUFTRAGGEBER-WORTLAUT.txt
+2026-09-20 16:51:49 | 10993 | 26412d2923debfbe | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/zwischenstand-04/historische-referenzquellen/doc_f18e4c5d9f14_ABNAHME_Vorbedingung-1_2026-09-20.md
+2026-09-20 16:51:48 | 7384 | 4d431acb7f89a233 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/zwischenstand-04/teil-eichung/ABNAHME.md
+2026-09-20 16:51:48 | 334 | a52264cdc12c772f | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/zwischenstand-04/teil-historie/ZITATPRUEFUNG.txt
+2026-09-20 18:02:47 | 2568 | c645ec16c661b831 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/zwischenstand-06/AUFTRAGSGRENZE.md
+2026-09-20 18:02:47 | 0 | e3b0c44298fc1c14 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/zwischenstand-06/eich4-fix/ausgaben/05-vertrag-abnahme.stderr.txt
+2026-09-20 18:02:47 | 6221 | acd44dc27f48f1ac | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/zwischenstand-06/eich4-fix/ausgaben/05-vertrag-abnahme.stdout.txt
+2026-09-20 18:19:08 | 1015 | ba2dc43ac778f112 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/zwischenstand-07/AUFTRAGGEBER-WORTLAUT.txt
+2026-09-20 18:19:08 | 2568 | c645ec16c661b831 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/zwischenstand-07/AUFTRAGSGRENZE.md
+2026-09-20 18:19:08 | 1015 | ba2dc43ac778f112 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/zwischenstand-07/review-02/eingang/AUFTRAGGEBER-WORTLAUT.txt
+2026-09-20 18:19:08 | 2568 | c645ec16c661b831 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/zwischenstand-07/review-02/eingang/AUFTRAGSGRENZE.md
+2026-09-20 18:58:46 | 437 | 6e1636911ef93c8c | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/zwischenstand-08/MELDEREGEL-AUFTRAGGEBER.txt
+2026-09-20 18:58:46 | 990 | 86385f6d457428a3 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/zwischenstand-08/auftragseingrenzung-02/AUFTRAGGEBER-WORTLAUT.txt
+2026-09-20 19:08:40 | 437 | 6e1636911ef93c8c | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/zwischenstand-09/MELDEREGEL-AUFTRAGGEBER.txt
+2026-09-20 19:48:27 | 990 | 86385f6d457428a3 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/zwischenstand-10/AUFTRAGGEBER-WORTLAUT.txt
+2026-09-20 19:48:27 | 437 | 6e1636911ef93c8c | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/zwischenstand-10/MELDEREGEL-AUFTRAGGEBER.txt
+2026-09-20 19:48:26 | 1023 | 68d5c0f380479b54 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/zwischenstand-10/lieferungen/messung/auftrag/AUFTRAGGEBER-WORTLAUT.txt
+2026-09-20 19:52:37 | 990 | 86385f6d457428a3 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/zwischenstand-11/AUFTRAGGEBER-WORTLAUT.txt
+2026-09-20 19:52:37 | 437 | 6e1636911ef93c8c | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/zwischenstand-11/MELDEREGEL-AUFTRAGGEBER.txt
+2026-09-20 19:52:36 | 1023 | 68d5c0f380479b54 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/zwischenstand-11/lieferungen/messung/auftrag/AUFTRAGGEBER-WORTLAUT.txt
+2026-09-20 20:55:18 | 981 | 8de7e6ece5b4c13b | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-02/AUFTRAG.md
+2026-09-21 02:24:28 | 85729 | a3b3ac0c17371306 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-t3-typescript/MASTERPROMPT-v7.md
+2026-09-23 15:47:24 | 5947 | b18b60535d928281 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-t3-typescript/abschluss-03/REVIEW-AUFTRAG-03.md
+2026-09-23 15:47:24 | 867 | 6976b427b89ef0cc | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-t3-typescript/abschluss-03/UEBERGABE.md
+2026-09-23 15:24:32 | 2784 | e3981dd560055395 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-t3-typescript/zwischenbericht-20260923-152432-r9/UEBERGABE-1-UEBERGABE.md
+2026-09-23 22:27:41 | 3226 | 113f2eeaec2c33d1 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4/REVIEW-AUFTRAG-VOR-T4.md
+2026-09-23 22:27:41 | 3148 | 7c36255be16b7d32 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4/UEBERGABE.md
+2026-09-23 22:00:02 | 2645 | d025b36c129021d9 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4/zwischenbericht-20260923-220002-r110/UEBERGABE-1-UEBERGABE.md
+2026-09-24 02:10:06 | 5310 | 6c66cc130822f39e | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-02/REVIEW-AUFTRAG.md
+2026-09-24 02:10:06 | 3156 | 80345cc98a470c92 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-02/SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md
+2026-09-24 02:10:06 | 3269 | fb9a9a3667befbf8 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-02/UEBERGABE.md
+2026-09-24 02:10:06 | 2821 | e913efaca617e448 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-02/VORPRUEFUNG.txt
+2026-09-24 02:10:06 | 986 | a1ef197872bde6cb | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-02/skript_vorpruefung.sh.txt
+2026-09-23 22:54:16 | 2015 | 83b5e1c5baad5e92 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-02/zwischenbericht-20260923-225416-r13-verdichtung/UEBERGABE-1-UEBERGABE.md
+2026-09-24 00:48:48 | 3471 | 80dceb12f041a256 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-02/zwischenbericht-20260924-004847-r104-kontext80/UEBERGABE-1-UEBERGABE.md
+2026-09-24 01:08:53 | 3471 | 80dceb12f041a256 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-02/zwischenbericht-20260924-010853-r2-verdichtung/UEBERGABE-1-UEBERGABE.md
+2026-09-24 02:07:09 | 3445 | 6a74664282aa4c85 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-02/zwischenbericht-20260924-020708-r1-verdichtung/UEBERGABE-1-UEBERGABE.md
+2026-09-24 11:44:22 | 7650 | f9a080507a81e9e0 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-03/REVIEW-AUFTRAG.md
+2026-09-24 11:44:22 | 4248 | 4ce052612995d855 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-03/SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md
+2026-09-24 11:44:22 | 10583 | f4aa205c84f47b8b | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-03/UEBERGABE.md
+2026-09-24 05:11:05 | 3647 | 5eb78b8ac53be854 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-03/zwischenbericht-20260924-051104-r113/UEBERGABE-1-UEBERGABE.md
+2026-09-24 05:19:07 | 3647 | 5eb78b8ac53be854 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-03/zwischenbericht-20260924-051906-r141/UEBERGABE-1-UEBERGABE.md
+2026-09-24 11:56:57 | 11029 | a2537809fc16a53f | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-03/zwischenbericht-20260924-115656-r2-verdichtung/UEBERGABE-1-UEBERGABE.md
+2026-09-24 17:19:53 | 7046 | 147bf60c00cdfb88 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-04/REVIEW-AUFTRAG.md
+2026-09-24 17:19:53 | 3060 | b33a8637105303b4 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-04/SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md
+2026-09-24 17:19:53 | 11607 | bbdceb01116c5c80 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-04/UEBERGABE.md
+2026-09-24 14:17:38 | 8248 | c4049e31c917f346 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-04/zwischenbericht-20260924-141737-r103-kontext80/UEBERGABE-1-UEBERGABE.md
+2026-09-24 14:57:50 | 8248 | c4049e31c917f346 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-04/zwischenbericht-20260924-145749-r1-verdichtung/UEBERGABE-1-UEBERGABE.md
+2026-09-24 15:11:55 | 10412 | 3786716cecec0e18 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-04/zwischenbericht-20260924-151154-r22-kontext80/UEBERGABE-1-UEBERGABE.md
+2026-09-24 16:02:10 | 10412 | 3786716cecec0e18 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-04/zwischenbericht-20260924-160210-r0-kontext80-verdichtung/UEBERGABE-1-UEBERGABE.md
+2026-09-24 23:45:54 | 8912 | 888ab89a27871f31 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-05/MASTERPROMPT-V8-TOR4.txt
+2026-09-24 23:45:54 | 7119 | c9487878650f6245 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-05/REVIEW-AUFTRAG.md
+2026-09-24 23:45:54 | 6682 | e8906c54ccc84efa | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-05/SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md
+2026-09-24 23:45:54 | 9650 | 0f7c2d22d752e9ba | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-05/UEBERGABE.md
+2026-09-24 20:33:27 | 7559 | 28b5a1080d705204 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-05/zwischenbericht-20260924-203327-r1-verdichtung/UEBERGABE-1-UEBERGABE.md
+2026-09-24 20:39:29 | 7559 | 28b5a1080d705204 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-05/zwischenbericht-20260924-203928-r1-kontext80/UEBERGABE-1-UEBERGABE.md
+2026-09-24 21:01:36 | 7559 | 28b5a1080d705204 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-05/zwischenbericht-20260924-210135-r0-kontext80/UEBERGABE-1-UEBERGABE.md
+2026-09-24 21:41:48 | 8459 | 8430df03b5878315 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-05/zwischenbericht-20260924-214148-r2-verdichtung/UEBERGABE-1-UEBERGABE.md
+2026-09-25 00:06:24 | 7727 | 724ed0053fada518 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-06/zwischenbericht-20260925-000624-r29-verdichtung/UEBERGABE-1-UEBERGABE.md
+2026-09-25 00:28:24 | 9686 | 5124105d070c9d33 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-06/zwischenbericht-20260925-002824-r0-verdichtung/UEBERGABE-1-UEBERGABE.md
+2026-09-25 01:08:25 | 10969 | ea5394e0f09ff7f0 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-06/zwischenbericht-20260925-010825-r0-verdichtung/UEBERGABE-1-UEBERGABE.md
+2026-09-25 01:12:25 | 12946 | ebcf423d271f60da | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-vor-t4-06/zwischenbericht-20260925-011225-r12-verdichtung/UEBERGABE-1-UEBERGABE.md
+2026-09-20 05:01:44 | 78969 | effefeec0fe2ea06 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-wiedereinstieg-2026-09-20-01/INFINITE-EVOLUTION-BIOTOP-Masterprompt-v6-01.md
+2026-09-20 05:17:33 | 76 | 812e940d53f8afc9 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-wiedereinstieg-2026-09-20-01/gestellte-eichung/HTTP-ANTWORT-01.txt
+2026-09-20 05:17:33 | 8212 | 4920ade0d64feb24 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-wiedereinstieg-2026-09-20-01/quellen/doc_599e9e97ca3f_WIEDEREINSTIEG_Hermes_2026-09-20.md
+2026-09-20 05:17:33 | 6476 | 7151e454a18622e5 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-wiedereinstieg-2026-09-20-01/quellen/doc_c8bde0a20a81_GEDAECHTNIS_Hermes_2026-09-20.md
+2026-09-20 05:17:33 | 185 | 8eb28dd956ac7b79 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-wiedereinstieg-2026-09-20-01/traegernachweis/HTTP-ANTWORT-01.txt
+2026-08-27 13:17:25 | 532 | f733c9717347fcd6 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/block-1-schliessen/BELEGE-block-1-schliessen/SITEMAP/SITEMAP-NACHPRUEFUNG-11-33.txt
+2026-09-09 00:36:56 | 3673 | 7d38216753068726 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/hermes-instandsetzung-20260902/AUFTRAGSFORM.md
+2026-09-09 00:36:56 | 2887 | 5882599944ca20e7 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/hermes-instandsetzung-20260902/BELEGE/STAND-GELESEN-AUFTRAG-OPUS.txt
+2026-09-09 00:36:56 | 19211 | 8e9d488483ec05bd | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/hermes-instandsetzung-20260902/BELEGE/live-ausrollen.sh.vor-livepruefung-20260903.txt
+2026-09-09 01:01:38 | 63 | e64d4075ec495258 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/instanzname-ausgang-20260909/BELEGE/ANTWORT-VERSAND-20260906-kopie.txt
+2026-08-23 10:38:56 | 5594 | 59c4f0d255d108f2 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/lauf-1-nachgang/belege/ABSCHNITT-5-HANDPRUEFUNG.md
+2026-08-24 14:31:46 | 3080 | ce42d1121d7f9733 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/lauf-1-schliessen/BELEGE/ABNAHMELISTE-6.md
+2026-08-24 14:31:46 | 1662 | 69b5a327c3ae3432 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/lauf-1-schliessen/BELEGE/EICHUNG-PAKETPRUEFUNG.md
+2026-08-24 18:26:58 | 5481 | 6f6f21d03f884fb0 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/lauf-2-drei-sichtbare/UEBERGABE-LAUF-3.md
+2026-08-14 10:44:09 | 20 | 5a3f458b1db39fa2 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/lauf-3-nachgang/belege/lcp/E1/bau-kennung-ausgeliefert.txt
+2026-08-14 10:44:09 | 20 | 1629c31d96c55afa | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/lauf-3-nachgang/belege/lcp/E2/bau-kennung-ausgeliefert.txt
+2026-08-14 10:44:09 | 20 | 72a933069b5d201e | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/lauf-3-nachgang/belege/lcp/E3/bau-kennung-ausgeliefert.txt
+2026-08-14 10:44:09 | 20 | a8fa5de6ef7dee91 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/lauf-3-nachgang/belege/lcp/E4/bau-kennung-ausgeliefert.txt
+2026-08-14 10:44:09 | 20 | 067d553b3cd64d05 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/lauf-3-nachgang/belege/lcp/E5/bau-kennung-ausgeliefert.txt
+2026-08-14 10:44:09 | 20 | bef4b2e352065d0a | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/lauf-3-nachgang/belege/lcp/bestand/bau-kennung-ausgeliefert.txt
+2026-08-28 00:36:06 | 303 | 2965cea2b11654ec | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/lauf-4-drei-letzte-zeilen/BELEGE-lauf-4-drei-letzte-zeilen/FOTOS/BILDPRUEFUNG.txt
+2026-08-28 00:36:06 | 446 | 0d256d4469ca407f | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/lauf-4-drei-letzte-zeilen/BELEGE-lauf-4-drei-letzte-zeilen/SITEMAP/NACHPRUEFUNG-UEBERARBEITUNG.txt
+2026-08-14 10:45:50 | 14601 | df528bc0715e4f16 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/lauf-5/VOM-AUFTRAGGEBER-ZU-BESTAETIGEN.md
+2026-08-14 10:46:44 | 14601 | df528bc0715e4f16 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/lauf-5-nachgang/VOM-AUFTRAGGEBER-ZU-BESTAETIGEN.md
+2026-08-14 10:47:31 | 14601 | df528bc0715e4f16 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/lauf-6/VOM-AUFTRAGGEBER-ZU-BESTAETIGEN.md
+2026-08-14 10:49:48 | 49987 | 4dc91e16fd8df190 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/letzter-nachgang/SCHLUSSPRUEFUNG-2.md
+2026-08-15 15:36:35 | 11992 | cbe458ce23149cbe | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/nachbesserung-abnahmeliste/BERICHT-abnahmeliste.md
+2026-08-23 16:47:29 | 10376 | 5270a80971a46563 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/offene-zeilen/belege/HANDPRUEFUNG-DIE-34.md
+2026-08-14 11:44:30 | 20638 | 609038d75ea03487 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/schlusspruefung/BERICHT-schlusspruefung.md
+2026-08-14 11:44:30 | 39899 | bcf358199b2b4560 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/schlusspruefung/SCHLUSSPRUEFUNG.md
+2026-08-30 10:53:26 | 421 | e8a0dd848494047a | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/seo-2-seite/BELEGE/Z-final/PRUEFUNGEN.txt
+2026-08-30 10:53:26 | 1328 | 56d85d02485f3083 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/seo-2-seite/BELEGE/Z-schluss/PRUEFUNGEN.txt
+2026-09-01 23:41:39 | 885 | b613e922e6ecfe58 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/seo-4-abschluss/ABNAHME.md
+2026-09-09 02:51:56 | 3821 | 54379d820c993061 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/startkorrekturen-20260909/AUFTRAG.md
+2026-09-09 02:51:56 | 9780 | ef3fc058236adb76 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/startkorrekturen-20260909/BELEGE/AUFTRAG-VOLLTEXT-aus-drei-teilen.md
+2026-09-09 02:51:56 | 1916 | 253d0c256efee0b6 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/startkorrekturen-20260909/BELEGE/AUFTRAGSDATEI-FEHLT.txt
+2026-09-09 02:51:56 | 4592 | f1a2092363d0bf8c | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/startkorrekturen-20260909/BELEGE/DIENST-DIREKTANTWORTEN-NACH-NEUSTART.txt
+2026-09-09 02:51:56 | 9472 | 9c7c75afa1faeecd | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/startkorrekturen-20260909/ENTPACKT/hermes-vps/HERMES-Abschlussauftrag.md
+2026-09-09 00:40:12 | 910 | 97f181b5052151c4 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/system-schliessen-20260905/BELEGE/AUFTRAG-DREI-PUNKTE-20260906.md
+2026-09-09 00:40:12 | 8926 | 161cb3c251cfd61a | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/system-schliessen-20260905/BELEGE/UEBERGABE.md.fassung-1-20260905.txt

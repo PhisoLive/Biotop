@@ -1,0 +1,156 @@
+EB29 · Schritt 3: RUNDE6-DOKUMENTE-01 veröffentlichen (Geheimnissuche, exklusiv, Abruf)
+Beginn: 2026-09-26 00:27:55 CEST (UTC+0200)
+Ende:   2026-09-26 00:27:56 CEST (UTC+0200)
+Dauer:  0.6 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/biotop-einlagerung/arbeit/pk.py $(cd ausgabe && ls -d RUNDE6-DOKUMENTE-01/*)
+--- Inhalt von /root/biotop-einlagerung/arbeit/pk.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-EINLAGERUNG-01 · Prüfkanal-Werkzeug (Vorlage: BIOTOP-LAGE-01 arbeit/pk.py und pk_stand.py).
+Veröffentlicht Dateien aus <quelle> (Vorgabe /root/biotop-einlagerung/ausgabe) nach laeufe/<ordner>/ (Vorgabe
+biotop-einlagerung-01):
+1. Geheimnissuche (geheimnis.py: Muster und Werte aus .env ≥ 8 / auth.json ≥ 12 Zeichen) über genau diese Dateien;
+   bei einem Treffer: Abbruch, nichts veröffentlicht.
+2. exklusiv (O_EXCL): eine vorhandene Datei wird NIE überschrieben; höchstens 40.000 Bytes je Datei (vorab geprüft);
+   Unterordner im Namen erlaubt (z. B. RUNDE6-DOKUMENTE-01/x.md).
+3. Rechte root:caddy, Ordner 750, Dateien 640; danach Abruf jeder Datei über HTTPS, Vergleich Bytes und SHA-256.
+Aufruf: pk.py [--ordner <unterordner von laeufe>] [--quelle <dir>] <name> [<name> ...]
+        pk.py [--ordner …] --abruf <name> [...]   (nur abrufen und vergleichen)"""
+import grp
+import hashlib
+import os
+import subprocess
+import sys
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+GID = grp.getgrnam('caddy').gr_gid
+MAX = 40_000
+GEHEIMNIS = '/root/biotop-einlagerung/arbeit/geheimnis.py'
+
+args = sys.argv[1:]
+ordner, quelle, nur_abruf = 'biotop-einlagerung-01', Path('/root/biotop-einlagerung/ausgabe'), False
+while args and args[0].startswith('--'):
+    if args[0] == '--ordner':
+        ordner, args = args[1], args[2:]
+    elif args[0] == '--quelle':
+        quelle, args = Path(args[1]), args[2:]
+    elif args[0] == '--abruf':
+        nur_abruf, args = True, args[1:]
+    else:
+        sys.exit(f'unbekannt: {args[0]}')
+LAEUFE = Path(f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe')
+ZIEL = LAEUFE / ordner
+BASIS = f'https://milieulux-reinigung-muenchen.de/_akte/{K}/laeufe/{ordner}'
+
+
+def abrufen(name: str):
+    q = urllib.request.Request(f'{BASIS}/{name}', headers={'User-Agent': 'biotop-einlagerung-01-abruf'})
+    try:
+        with urllib.request.urlopen(q, timeout=60) as r:
+            return r.status, r.read()
+    except urllib.error.HTTPError as e:
+        return e.code, b''
+
+
+def pruefen(name: str, daten: bytes) -> bool:
+    h = hashlib.sha256(daten).hexdigest()
+    st, ab = abrufen(name)
+    gleich = st == 200 and hashlib.sha256(ab).hexdigest() == h
+    print(f'{name} | {len(daten)} Bytes | sha256 {h} | HTTP {st} | abgerufen {len(ab)} Bytes | gleich {"ja" if gleich else "NEIN"}')
+    print(f'  {BASIS}/{name}')
+    return gleich
+
+
+def main() -> None:
+    if not args:
+        sys.exit('keine Dateien genannt')
+    if nur_abruf:
+        ok = sum(pruefen(n, (ZIEL / n).read_bytes()) for n in args)
+        print(f'Ergebnis: {ok} von {len(args)} Dateien mit HTTP 200 und gleicher SHA-256')
+        sys.exit(0 if ok == len(args) else 1)
+    zu_gross = [(n, (quelle / n).stat().st_size) for n in args if (quelle / n).stat().st_size > MAX]
+    if zu_gross:
+        sys.exit(f'ABBRUCH: über {MAX} Bytes: {zu_gross} — nichts veröffentlicht')
+    vorhanden = [n for n in args if (ZIEL / n).exists()]
+    if vorhanden:
+        sys.exit(f'ABBRUCH: schon im Prüfkanal (nie überschreiben): {vorhanden} — nichts veröffentlicht')
+    g = subprocess.run([sys.executable, GEHEIMNIS] + [str(quelle / n) for n in args], capture_output=True, text=True)
+    zeile = [z for z in g.stdout.splitlines() if z.startswith('Durchsucht')]
+    print('Geheimnissuche: ' + (zeile[0] if zeile else 'KEINE ZÄHLZEILE') + f' · rc {g.returncode}')
+    for z in g.stdout.splitlines():
+        if z.startswith('TREFFER'):
+            print('  ' + z.replace(str(quelle) + '/', ''))
+    if g.returncode != 0 or not zeile or not zeile[0].endswith('Treffer: 0') or f'Durchsucht: {len(args)} Dateien' not in zeile[0]:
+        sys.exit('ABBRUCH: Geheimnissuche nicht sauber — nichts veröffentlicht')
+    for d in [ZIEL] + sorted({(ZIEL / n).parent for n in args} - {ZIEL}):
+        if not d.exists():
+            d.mkdir(mode=0o750, parents=False)
+            os.chown(d, 0, GID)
+            os.chmod(d, 0o750)
+            print(f'Ordner angelegt: {d.relative_to(LAEUFE)} (root:caddy 750)')
+    ok = 0
+    for n in args:
+        daten = (quelle / n).read_bytes()
+        z = ZIEL / n
+        fd = os.open(z, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o640)
+        with os.fdopen(fd, 'wb') as f:
+            f.write(daten)
+        os.chown(z, 0, GID)
+        os.chmod(z, 0o640)
+        ok += pruefen(n, daten)
+    print(f'Ergebnis: {ok} von {len(args)} Dateien mit HTTP 200 und gleicher SHA-256')
+    sys.exit(0 if ok == len(args) else 1)
+
+
+if __name__ == '__main__':
+    main()
+--- Ende /root/biotop-einlagerung/arbeit/pk.py ---
+Ausgabe (vollständig, stdout und stderr):
+Geheimnissuche: Durchsucht: 20 Dateien · Treffer: 0 · rc 0
+Ordner angelegt: biotop-einlagerung-01/RUNDE6-DOKUMENTE-01 (root:caddy 750)
+RUNDE6-DOKUMENTE-01/BAU-S1-FORTSETZUNG.md | 6107 Bytes | sha256 4b49e45e1bb1def3e544f879f870b711411aadb9fee41b560952f0f7187965b7 | HTTP 200 | abgerufen 6107 Bytes | gleich ja
+  https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-einlagerung-01/RUNDE6-DOKUMENTE-01/BAU-S1-FORTSETZUNG.md
+RUNDE6-DOKUMENTE-01/BAU-S1-SONDE.md | 12558 Bytes | sha256 1ca56afa889ca4538cf8c75561ce40f6cd5521e182e0131c358d2e1c13fddb4a | HTTP 200 | abgerufen 12558 Bytes | gleich ja
+  https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-einlagerung-01/RUNDE6-DOKUMENTE-01/BAU-S1-SONDE.md
+RUNDE6-DOKUMENTE-01/BAU-S1B-M2B.md | 9495 Bytes | sha256 8fdac4b10952a5f787adb5d31ebad0b413f52202e3e4123e15d54fd9bdfa747f | HTTP 200 | abgerufen 9495 Bytes | gleich ja
+  https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-einlagerung-01/RUNDE6-DOKUMENTE-01/BAU-S1B-M2B.md
+RUNDE6-DOKUMENTE-01/BAU-S1C-UNBEOBACHTET.md | 10219 Bytes | sha256 341e5869a1c3ef0da244eb8b0fadab87ccf9733d3112a51a95c5acabcf209a79 | HTTP 200 | abgerufen 10219 Bytes | gleich ja
+  https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-einlagerung-01/RUNDE6-DOKUMENTE-01/BAU-S1C-UNBEOBACHTET.md
+RUNDE6-DOKUMENTE-01/BAU-S2-TOR4.md | 8949 Bytes | sha256 2bf51fa55f3d0106181c1be9a05e47a02fd180220c32a3c7148215e7d666fa3c | HTTP 200 | abgerufen 8949 Bytes | gleich ja
+  https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-einlagerung-01/RUNDE6-DOKUMENTE-01/BAU-S2-TOR4.md
+RUNDE6-DOKUMENTE-01/BAU-S3-STUFE2.md | 5948 Bytes | sha256 9dd730081a30224e5a30f3aff5731bd1ee08959b261afd317ac85c42500ed7a0 | HTTP 200 | abgerufen 5948 Bytes | gleich ja
+  https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-einlagerung-01/RUNDE6-DOKUMENTE-01/BAU-S3-STUFE2.md
+RUNDE6-DOKUMENTE-01/BAU-S4-VERDRAHTUNG.md | 12420 Bytes | sha256 741cdb0f5f8db88d3d1b63b5947d488ea9e66532652389c004383a44925c3438 | HTTP 200 | abgerufen 12420 Bytes | gleich ja
+  https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-einlagerung-01/RUNDE6-DOKUMENTE-01/BAU-S4-VERDRAHTUNG.md
+RUNDE6-DOKUMENTE-01/BERICHT-S1c-deleg_c88798ee.txt | 11293 Bytes | sha256 8a1602433f2d77119d37cf05f3125a09172980f3002d0a25653495bb3e3e4382 | HTTP 200 | abgerufen 11293 Bytes | gleich ja
+  https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-einlagerung-01/RUNDE6-DOKUMENTE-01/BERICHT-S1c-deleg_c88798ee.txt
+RUNDE6-DOKUMENTE-01/R6-S4-SPEZIFIKATION.txt | 746 Bytes | sha256 ad9b752b64ae372e71046c611a6ef742cb624290f1e005633844ee7d1b5417b9 | HTTP 200 | abgerufen 746 Bytes | gleich ja
+  https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-einlagerung-01/RUNDE6-DOKUMENTE-01/R6-S4-SPEZIFIKATION.txt
+RUNDE6-DOKUMENTE-01/S1B-BAU-SPEZ.txt | 1337 Bytes | sha256 0c5ccb00866c1013ef7786a9ed48549593aa781a6ae2e97956594b82a5593b4d | HTTP 200 | abgerufen 1337 Bytes | gleich ja
+  https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-einlagerung-01/RUNDE6-DOKUMENTE-01/S1B-BAU-SPEZ.txt
+RUNDE6-DOKUMENTE-01/S1B-BAU-SPEZ2.txt | 1163 Bytes | sha256 742b7ff084d1755def5e04bf19e14eb14286589ae0c533ea6ead2cd2ceebe121 | HTTP 200 | abgerufen 1163 Bytes | gleich ja
+  https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-einlagerung-01/RUNDE6-DOKUMENTE-01/S1B-BAU-SPEZ2.txt
+RUNDE6-DOKUMENTE-01/S1B-BAU-SPEZ3.txt | 1163 Bytes | sha256 c1b1e903e8a92c0045a38caa7c1ac6de6375ceee01d617de16a8bc75f1c0ae17 | HTTP 200 | abgerufen 1163 Bytes | gleich ja
+  https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-einlagerung-01/RUNDE6-DOKUMENTE-01/S1B-BAU-SPEZ3.txt
+RUNDE6-DOKUMENTE-01/S1C-BAU-SPEZ.txt | 7895 Bytes | sha256 7e8a02f67c269d9c89ede6e7a6d0cb2046f5dbe6e8a5948affbbbe8fa4633ab8 | HTTP 200 | abgerufen 7895 Bytes | gleich ja
+  https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-einlagerung-01/RUNDE6-DOKUMENTE-01/S1C-BAU-SPEZ.txt
+RUNDE6-DOKUMENTE-01/S1C-PLAN.md | 29446 Bytes | sha256 84d07b9ed7e71dea46aac6ec6ad54b6c22b527c7aedb4d2a613186140ec6f5b5 | HTTP 200 | abgerufen 29446 Bytes | gleich ja
+  https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-einlagerung-01/RUNDE6-DOKUMENTE-01/S1C-PLAN.md
+RUNDE6-DOKUMENTE-01/SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md | 6682 Bytes | sha256 e8906c54ccc84efa7b910b8aec33cd07c260bebbef280911812f224d9d85f94d | HTTP 200 | abgerufen 6682 Bytes | gleich ja
+  https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-einlagerung-01/RUNDE6-DOKUMENTE-01/SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md
+RUNDE6-DOKUMENTE-01/UEBERGABE.md | 24382 Bytes | sha256 09e213d6d916c7610d910c4d0b5906df264d7ac87cca642e73942ebbf287d047 | HTTP 200 | abgerufen 24382 Bytes | gleich ja
+  https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-einlagerung-01/RUNDE6-DOKUMENTE-01/UEBERGABE.md
+RUNDE6-DOKUMENTE-01/VERZEICHNIS.md | 4904 Bytes | sha256 7c87826b819f81b93b7602b0e555d296996bbde93a81028ac09fdb06933034e9 | HTTP 200 | abgerufen 4904 Bytes | gleich ja
+  https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-einlagerung-01/RUNDE6-DOKUMENTE-01/VERZEICHNIS.md
+RUNDE6-DOKUMENTE-01/test_vor_t4_06-TEIL1.py.txt | 37996 Bytes | sha256 ad4a50a86b8a59921f5102958de124448b6667de9b154fb6de39fc3f61b5dd6f | HTTP 200 | abgerufen 37996 Bytes | gleich ja
+  https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-einlagerung-01/RUNDE6-DOKUMENTE-01/test_vor_t4_06-TEIL1.py.txt
+RUNDE6-DOKUMENTE-01/test_vor_t4_06-TEIL2.py.txt | 37943 Bytes | sha256 41ce3072d01a11bafe14eb3e6e05fdfa4e9f9bb430f0605bfb42a0610818cbc9 | HTTP 200 | abgerufen 37943 Bytes | gleich ja
+  https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-einlagerung-01/RUNDE6-DOKUMENTE-01/test_vor_t4_06-TEIL2.py.txt
+RUNDE6-DOKUMENTE-01/test_vor_t4_06-TEIL3.py.txt | 35351 Bytes | sha256 6e53fbf057dd334070b69c2cc51ea93c07fab459aee6f96cda8bde7a6eaf8645 | HTTP 200 | abgerufen 35351 Bytes | gleich ja
+  https://milieulux-reinigung-muenchen.de/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-einlagerung-01/RUNDE6-DOKUMENTE-01/test_vor_t4_06-TEIL3.py.txt
+Ergebnis: 20 von 20 Dateien mit HTTP 200 und gleicher SHA-256
+=== Ende EB29 ===

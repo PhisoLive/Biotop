@@ -1,0 +1,16 @@
+--- a/biotop/lauf.py
++++ b/biotop/lauf.py
+@@ -577,7 +577,12 @@
+                                 status=u2["status"], grund=u2["grund"][:300], vertrag_verletzt=u2.get("vertrag_verletzt"))
+             # Verhandlung bestanden (3.8 Schritt 2): das Paar verletzt keinen Vertrag und keine Pareto-Regel mehr.
+             # Ob das Paar dann auch einen Kernmaßgewinn hat (Annahme), entscheidet das Maß wie bei jedem Kandidaten.
+-            paar_ok = not u2.get("vertrag_verletzt") and not ((u2.get("mass") or {}).get("pareto_schlechter")) and not ((u2.get("mass") or {}).get("grenzen_gerissen"))
++            mass = u2.get("mass")
++            paar_ok = (isinstance(mass, dict) and type(mass.get("ok")) is bool
++                       and isinstance(mass.get("grund"), str) and bool(mass["grund"])
++                       and all(type(mass.get(k)) in (int, float) for k in ("kern_basis", "kern_kandidat", "zuwachs"))
++                       and u2.get("vertrag_verletzt") == []
++                       and mass.get("pareto_schlechter") == [] and mass.get("grenzen_gerissen") == [])
+             if paar_ok:
+                 extra.update(anp); anpassungen.append(aid)
+                 u = u2

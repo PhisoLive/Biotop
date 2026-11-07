@@ -1,0 +1,25 @@
+# Probensperre greift am gesetzten Merkmal `ist_probe`, nicht am Namen (Fassung 6)
+
+## Fall 1: NEUES Namensschema, das der Namensweg nicht kennt
+  (a) mit gesetztem Merkmal ist_probe=1
+    K2068: nische='eichung_vorspann_v2', bereich='preise', ist_probe=1 | ist_probe() sagt: True
+    projektgedaechtnis 495 → 495 (Zuwachs 0)
+  (b) dasselbe ohne Merkmal — so wäre es früher durchgerutscht
+    K2068: nische='eichung_vorspann_v2', bereich='preise', ist_probe=0 | ist_probe() sagt: False
+    projektgedaechtnis 495 → 496 (Zuwachs 1)
+  ERGEBNIS: mit Merkmal gesperrt (Zuwachs 0, gefordert 0); ohne Merkmal durchgerutscht (Zuwachs 1) — genau der Fall, den das Feld verhindert.
+
+## Fall 2: Altbestand ohne Merkmal — Namensweg fängt sie weiterhin
+  (c) nische='probe', ist_probe=0 (Altbestand)
+    K2069: nische='probe', bereich='bericht', ist_probe=0 | ist_probe() sagt: True
+    projektgedaechtnis 496 → 496 (Zuwachs 0)
+  ERGEBNIS: gesperrt über den zweiten Weg (Zuwachs 0, gefordert 0)
+
+## Fall 3: echter Kandidat (Gegenprobe)
+  (d) nische='sicher', ist_probe=0
+    K2070: nische='sicher', bereich='preise', ist_probe=0 | ist_probe() sagt: False
+    projektgedaechtnis 496 → 497 (Zuwachs 1)
+  ERGEBNIS: aufgenommen (Zuwachs 1, gefordert 1)
+
+(Prüfkandidaten K2068, K2069, K2070 wieder entfernt)
+Bestand: 29 Kandidaten mit ist_probe=1; Proben ohne Merkmal (Namensweg nötig): 0

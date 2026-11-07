@@ -1,0 +1,418 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 69 (Teile 4–165 dieses Stands) · enthält R64 bis R64
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R64 · Teil F: Kasse je Lauf ohne Doppelzählung, Budgetgruppen, Zeit-Splits, Budgetzeilen Masterprompts/Berichte, kasse.py-Stand (lesend)
+Beginn: 2026-09-25 16:21:33 CEST (UTC+0200)
+Ende:   2026-09-25 16:21:33 CEST (UTC+0200)
+Dauer:  0.2 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/chronik/f_kasse.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/chronik/f_kasse.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil F (nur lesend): Kasse je Lauf ohne Doppelzählung der Zweige, Budgetgruppen, Zeit-Splits,
+Verbrauch je Werk, Budgetzeilen aus Masterprompt-Fassungen und Prüfkanal-Berichten, Stand von kern/kasse.py.
+Zweige: STAMM /root/biotop/daten/biotop.db (nur mode=ro&immutable=1 und nur bei WAL = 0 Bytes),
+VB1 /root/phase-4-vorbedingung-1/privat/biotop.db, R02 /root/reparatur-02/privat-cli/privat.db, T3 /root/biotop-t3/t3.db
+(je mode=ro). Zuordnung ohne Doppelzählung (R25): STAMM Läufe 1–25; VB1 nur Lauf 26; R02 nur Lauf 26; T3 Läufe 26–38.
+Zeiten in der Kasse sind UTC; Ausgabe zusätzlich in CEST (UTC+2). Schreibt nichts."""
+import datetime as dt
+import hashlib
+import os
+import re
+import sqlite3
+import subprocess
+from pathlib import Path
+
+STAMM = '/root/biotop/daten/biotop.db'
+ZW = {'VB1': '/root/phase-4-vorbedingung-1/privat/biotop.db', 'R02': '/root/reparatur-02/privat-cli/privat.db',
+      'T3': '/root/biotop-t3/t3.db'}
+walgr = os.path.getsize(STAMM + '-wal') if os.path.exists(STAMM + '-wal') else -1
+print(f'== 0. WAL {STAMM}-wal: {walgr} Bytes (Öffnen nur bei 0)')
+con = {}
+if walgr == 0:
+    con['STAMM'] = sqlite3.connect(f'file:{STAMM}?mode=ro&immutable=1', uri=True)
+for k, v in ZW.items():
+    con[k] = sqlite3.connect(f'file:{v}?mode=ro', uri=True)
+QUELLE = [('STAMM', range(1, 26)), ('VB1', [26]), ('R02', [26]), ('T3', range(26, 39))]
+
+
+def cest(s):
+    if not s:
+        return '-'
+    t = dt.datetime.fromisoformat(s)
+    return (t + dt.timedelta(hours=2)).strftime('%d.%m. %H:%M:%S')
+
+
+rows = {}
+print('\n== 1. Läufe ohne Doppelzählung (Zweig, id, Werk, Laufbudget, Status, Beginn/Ende CEST, Buchungen, € 6 Stellen,'
+      ' erste/letzte Buchung CEST)')
+for zw, ids in QUELLE:
+    c = con[zw]
+    werke = dict(c.execute('SELECT id, name FROM werke'))
+    for i in ids:
+        r = c.execute('SELECT id, werk_id, budget_eur, status, begonnen_am, beendet_am FROM laeufe WHERE id=?',
+                      (i,)).fetchone()
+        n, s, a, b = c.execute('SELECT count(*), coalesce(sum(kosten_eur),0), min(zeit), max(zeit) FROM kasse '
+                               'WHERE lauf_id=?', (i,)).fetchone()
+        rows[(zw, i)] = (n, s)
+        print(f'{zw};{i};{r[1]}={werke.get(r[1], "-")};{r[2]};{r[3]};{cest(r[4])};{cest(r[5])};{n};{s:.6f};'
+              f'{cest(a)};{cest(b)}')
+
+
+def summe(zw, ids):
+    n = sum(rows[(zw, i)][0] for i in ids)
+    s = sum(rows[(zw, i)][1] for i in ids)
+    return n, s
+
+
+print('\n== 2. Budgetgruppen (Summe der Kassenzeilen je Lauf, gerechnet)')
+GR = [('Phase 1 (Läufe 1–5)', 'STAMM', range(1, 6)), ('Nachlauf Phase 1 (6–10)', 'STAMM', range(6, 11)),
+      ('Phase 2 (11–13)', 'STAMM', range(11, 14)), ('Phase 3 (14–20)', 'STAMM', range(14, 21)),
+      ('Nachlauf Phase 3 + VB1, Läufe 21–25 gesamt', 'STAMM', range(21, 26)),
+      ('VB1 Lesart A (22–25)', 'STAMM', range(22, 26)), ('Lauf 25', 'STAMM', [25]),
+      ('STAMM gesamt (1–25)', 'STAMM', range(1, 26)), ('VB1 Lauf 26', 'VB1', [26]), ('R02 Lauf 26', 'R02', [26]),
+      ('T3 (26–38)', 'T3', range(26, 39)), ('T3 Lauf 38', 'T3', [38]), ('T3 Läufe 26–37', 'T3', range(26, 38)),
+      ('T3 Läufe 31–38 (nach Einchecken 21.09.)', 'T3', range(31, 39))]
+for name, zw, ids in GR:
+    n, s = summe(zw, ids)
+    print(f'{name}: {n} Buchungen, {s:.6f} €')
+ges = summe('STAMM', range(1, 26))[1] + summe('VB1', [26])[1] + summe('R02', [26])[1] + summe('T3', range(26, 39))[1]
+print(f'Gesamt ohne Doppelzählung STAMM 1–25 + VB1 26 + R02 26 + T3 26–38: {ges:.6f} €')
+
+print('\n== 3. Zeit-Splits (Buchungen bis/nach Schnittzeit, UTC)')
+SPL = [('Lauf 11–13 bis Phase-2-Endmeldung', [11, 12, 13], '2026-09-19T03:37:13'),
+       ('Lauf 14–20 bis Phase-3-Endmeldung', list(range(14, 21)), '2026-09-19T16:37:34'),
+       ('Lauf 21–25 bis Nachlauf-3-Endmeldung', list(range(21, 26)), '2026-09-19T22:00:28'),
+       ('Lauf 21–25 bis VB1-Auftrag (00:55:54 CEST)', list(range(21, 26)), '2026-09-19T22:55:54'),
+       ('Lauf 21–25 bis VB1-Meldung 01:31:11 CEST', list(range(21, 26)), '2026-09-19T23:31:11')]
+if 'STAMM' in con:
+    for name, ids, t in SPL:
+        for i in ids:
+            v = con['STAMM'].execute('SELECT count(*), coalesce(sum(kosten_eur),0) FROM kasse WHERE lauf_id=? AND zeit<=?',
+                                     (i, t)).fetchone()
+            h = con['STAMM'].execute('SELECT count(*), coalesce(sum(kosten_eur),0) FROM kasse WHERE lauf_id=? AND zeit>?',
+                                     (i, t)).fetchone()
+            print(f'{name}: Lauf {i}: bis {v[0]} / {v[1]:.6f} €; danach {h[0]} / {h[1]:.6f} €')
+
+print('\n== 4. Verbrauch je Werk (Name ohne Laufsuffix), ohne Doppelzählung')
+je = {}
+for zw, ids in QUELLE:
+    c = con[zw]
+    werke = dict(c.execute('SELECT id, name FROM werke'))
+    for i in ids:
+        w = c.execute('SELECT werk_id FROM laeufe WHERE id=?', (i,)).fetchone()[0]
+        name = werke.get(w) or f'(kein Werk, Lauf {zw} {i})'
+        fam = re.split(r'-(?:kasse|nachlauf|p\d|ohne|zeile8|c-|vorbed|\d)', name)[0]
+        n, s = rows[(zw, i)]
+        e = je.setdefault(fam, [0, 0.0, []])
+        e[0] += n
+        e[1] += s
+        e[2].append(f'{zw}:{i}')
+for k, (n, s, l) in je.items():
+    print(f'{k}: {n} Buchungen, {s:.6f} €, Läufe {l}')
+print('VB1 werke:', con['VB1'].execute('SELECT id, name, pfad FROM werke WHERE id>=22').fetchall())
+print('R02 werke:', con['R02'].execute('SELECT id, name, pfad FROM werke WHERE id>=22').fetchall())
+
+print('\n== 5. Budgetzeilen in den Masterprompt-Fassungen (Zeilen mit „Budget" und „€")')
+D = Path('/root/sicherung/biotop-lage-01/arbeit/dokumente')
+for p in sorted(D.glob('*INFINITE-EVOLUTION-BIOTOP-Masterprompt-v*.md')):
+    t = p.read_text(errors='replace')
+    if len(t) < 10000:
+        continue
+    zz = [(j + 1, z.strip()) for j, z in enumerate(t.splitlines()) if re.search('budget', z, re.I) and '€' in z]
+    print(f'-- {p.name}: {len(zz)} Zeilen')
+    for j, z in zz[:40]:
+        print(f'   {j}: {z[:260]}')
+
+print('\n== 6. Budget-/Kostenzeilen in den Berichten des Prüfkanals (Ebene 1 und 2, ohne Code-/Werkkopien)')
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+L = Path(f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe')
+AUS = {'biotop', 'werk', 'ausgaben', 'quellen', 'pruefbestand', 'reviews', 'belege', 'skripte', 'gestellte-eichung',
+       'traegernachweis', 'bau'}
+MU = re.compile(r'Budget|budget|verbraucht|Modellgeld|€ von|EUR von|Restbudget')
+for o in sorted(L.iterdir()):
+    if not (o.is_dir() and o.name.startswith('biotop')) or o.name == 'biotop-lage-01':
+        continue
+    dateien = sorted(o.glob('*.md')) + sorted(p for p in o.glob('*/*.md') if p.parent.name not in AUS)
+    for p in dateien:
+        zz = [z.strip() for z in p.read_text(errors='replace').splitlines() if MU.search(z)]
+        if zz:
+            print(f'-- {p.relative_to(L)} ({len(zz)} Zeilen)')
+            for z in zz[:6]:
+                print('   ', z[:230])
+
+print('\n== 7. kern/kasse.py: Stand Arbeitsbaum gegen HEAD, Commits')
+f = Path('/root/biotop/biotop/kern/kasse.py')
+print('Arbeitsbaum sha256', hashlib.sha256(f.read_bytes()).hexdigest(), f.stat().st_size, 'Bytes')
+h = subprocess.run(['git', '-C', '/root/biotop', 'show', 'HEAD:biotop/kern/kasse.py'], capture_output=True).stdout
+print('HEAD      sha256', hashlib.sha256(h).hexdigest(), len(h), 'Bytes')
+print(subprocess.run(['git', '-C', '/root/biotop', 'log', '--date=format:%Y-%m-%d %H:%M:%S %z', '--format=%h | %ad | %s',
+                      '--', 'biotop/kern/kasse.py'], capture_output=True, text=True).stdout)
+--- Ende /root/sicherung/biotop-lage-01/entwurf/chronik/f_kasse.py ---
+Ausgabe (vollständig, stdout und stderr):
+== 0. WAL /root/biotop/daten/biotop.db-wal: 0 Bytes (Öffnen nur bei 0)
+
+== 1. Läufe ohne Doppelzählung (Zweig, id, Werk, Laufbudget, Status, Beginn/Ende CEST, Buchungen, € 6 Stellen, erste/letzte Buchung CEST)
+STAMM;1;1=lagerhaus;30.0;abgebrochen;18.09. 23:40:42;18.09. 23:44:34;27;0.024193;18.09. 23:40:44;18.09. 23:43:10
+STAMM;2;1=lagerhaus;30.0;bereit;18.09. 23:44:49;-;100;0.216594;18.09. 23:44:52;19.09. 00:02:53
+STAMM;3;None=-;1.0;gestoppt;19.09. 00:04:12;19.09. 00:04:14;1;0.000187;19.09. 00:04:14;19.09. 00:04:14
+STAMM;4;3=lagerhaus-kasse;0.1;abgebrochen;19.09. 00:04:51;-;62;0.094108;19.09. 00:04:53;19.09. 00:10:32
+STAMM;5;4=lagerhaus-kasse2;0.1;abgebrochen;19.09. 00:11:45;19.09. 00:16:27;46;0.067978;19.09. 00:11:48;19.09. 00:16:20
+STAMM;6;5=lagerhaus-nachlauf;5.0;abgebrochen;19.09. 00:48:35;19.09. 01:19:56;178;0.746327;19.09. 00:48:37;19.09. 01:17:47
+STAMM;7;6=lagerhaus-nachlauf2;3.0;abgebrochen;19.09. 01:20:20;19.09. 01:32:26;88;0.217395;19.09. 01:20:23;19.09. 01:31:20
+STAMM;8;7=lagerhaus-nachlauf8;2.0;abgebrochen;19.09. 01:33:13;19.09. 01:53:28;136;0.408594;19.09. 01:33:16;19.09. 01:52:18
+STAMM;9;8=lagerhaus-nachlauf9;2.0;beendet;19.09. 01:53:36;19.09. 02:08:53;108;0.323255;19.09. 01:53:38;19.09. 02:08:06
+STAMM;10;9=lagerhaus-kasse3;0.1;abgebrochen;19.09. 02:09:20;19.09. 02:12:40;32;0.094767;19.09. 02:09:22;19.09. 02:12:24
+STAMM;11;None=-;0.05;angelegt;19.09. 02:28:44;-;6;0.001257;19.09. 02:28:47;19.09. 02:28:57
+STAMM;12;10=lagerhaus-p2;10.0;abgebrochen;19.09. 02:41:55;19.09. 03:46:20;480;0.758462;19.09. 02:41:57;19.09. 03:44:46
+STAMM;13;11=lagerhaus-p2-13;8.0;beendet;19.09. 03:47:07;19.09. 05:25:10;713;1.146760;19.09. 03:47:13;19.09. 23:31:41
+STAMM;14;12=lagerhaus-p3-14;1.0;verworfen;19.09. 13:03:07;-;17;0.003546;19.09. 13:03:10;19.09. 13:03:25
+STAMM;15;13=lagerhaus-p3-15;1.0;verworfen;19.09. 13:09:10;-;28;0.011853;19.09. 13:09:13;19.09. 13:11:25
+STAMM;16;14=lagerhaus-p3-16;3.0;verworfen;19.09. 13:26:06;19.09. 16:40:29;264;0.596412;19.09. 13:26:09;19.09. 23:31:42
+STAMM;17;15=logmuehle-17;3.0;gesaettigt;19.09. 13:55:34;19.09. 15:54:24;315;0.995827;19.09. 13:55:36;19.09. 23:31:47
+STAMM;18;16=lagerhaus-p3-18;3.0;verworfen;19.09. 16:41:03;19.09. 17:05:45;156;0.340069;19.09. 16:41:06;19.09. 23:31:49
+STAMM;19;17=lagerhaus-p3-19;3.0;verworfen;19.09. 17:06:18;19.09. 17:39:39;221;0.457615;19.09. 17:06:22;19.09. 23:31:50
+STAMM;20;18=lagerhaus-p3-20;3.0;gesaettigt;19.09. 17:40:05;19.09. 18:23:54;244;0.437074;19.09. 17:40:08;19.09. 23:31:51
+STAMM;21;18=lagerhaus-p3-20;1.0;verworfen;19.09. 22:34:21;19.09. 22:34:21;0;0.000000;-;-
+STAMM;22;19=lagerhaus-p3-22;3.0;gesaettigt;19.09. 22:57:41;20.09. 00:50:08;233;0.516608;19.09. 22:57:43;20.09. 00:53:52
+STAMM;23;20=logmuehle-23;2.0;gesaettigt;19.09. 23:32:55;20.09. 00:39:48;239;0.393614;19.09. 23:32:58;20.09. 00:39:47
+STAMM;24;21=lagerhaus-zeile8-24;1.5;bereit;20.09. 00:57:49;-;193;0.396878;20.09. 00:57:52;20.09. 01:25:25
+STAMM;25;22=lagerhaus-c-25;0.8;bereit;20.09. 03:13:30;-;183;0.389929;20.09. 03:13:33;20.09. 03:43:33
+VB1;26;23=lagerhaus-vorbedingung1-26;3.0;gesaettigt;20.09. 21:31:54;20.09. 22:16:10;246;0.446792;20.09. 21:31:57;20.09. 22:16:10
+R02;26;22=lagerhaus-c-25;0.0;kartiert;20.09. 20:42:07;-;0;0.000000;-;-
+T3;26;23=versandwerk-t3-02;10.0;kartiert;21.09. 05:43:38;-;31;0.007099;21.09. 05:44:13;21.09. 05:46:21
+T3;27;23=versandwerk-t3-02;10.0;kartiert;21.09. 05:48:08;-;1;0.000137;21.09. 05:48:34;21.09. 05:48:34
+T3;28;23=versandwerk-t3-02;10.0;kartiert;21.09. 06:05:27;-;1;0.000138;21.09. 06:05:52;21.09. 06:05:52
+T3;29;23=versandwerk-t3-02;10.0;kartiert;21.09. 06:35:14;-;4;0.005917;21.09. 06:35:39;21.09. 07:29:28
+T3;30;23=versandwerk-t3-02;10.0;kartiert;21.09. 07:34:47;-;4;0.005989;21.09. 07:35:12;21.09. 12:09:59
+T3;31;23=versandwerk-t3-02;10.0;laeuft;21.09. 13:11:04;-;107;0.127728;21.09. 13:11:31;21.09. 15:09:26
+T3;32;23=versandwerk-t3-02;10.0;laeuft;21.09. 15:19:35;-;246;1.072688;21.09. 15:20:01;21.09. 18:16:39
+T3;33;23=versandwerk-t3-02;10.0;kartiert;21.09. 18:23:15;-;1;0.000136;21.09. 18:23:40;21.09. 18:23:40
+T3;34;23=versandwerk-t3-02;10.0;kartiert;21.09. 18:45:51;-;1;0.000141;21.09. 18:46:18;21.09. 18:46:18
+T3;35;23=versandwerk-t3-02;10.0;kartiert;21.09. 19:15:24;-;3;0.003841;21.09. 19:15:52;21.09. 20:07:39
+T3;36;23=versandwerk-t3-02;10.0;laeuft;21.09. 20:25:59;-;326;1.186430;21.09. 20:26:26;22.09. 00:12:45
+T3;37;23=versandwerk-t3-02;10.0;gesaettigt;22.09. 00:21:06;22.09. 06:29:03;895;3.066764;22.09. 00:21:34;22.09. 06:29:03
+T3;38;23=versandwerk-t3-02;10.0;bereit;22.09. 15:42:49;-;983;4.251629;22.09. 15:43:15;22.09. 21:26:08
+
+== 2. Budgetgruppen (Summe der Kassenzeilen je Lauf, gerechnet)
+Phase 1 (Läufe 1–5): 236 Buchungen, 0.403061 €
+Nachlauf Phase 1 (6–10): 542 Buchungen, 1.790338 €
+Phase 2 (11–13): 1199 Buchungen, 1.906480 €
+Phase 3 (14–20): 1245 Buchungen, 2.842396 €
+Nachlauf Phase 3 + VB1, Läufe 21–25 gesamt: 848 Buchungen, 1.697029 €
+VB1 Lesart A (22–25): 848 Buchungen, 1.697029 €
+Lauf 25: 183 Buchungen, 0.389929 €
+STAMM gesamt (1–25): 4070 Buchungen, 8.639305 €
+VB1 Lauf 26: 246 Buchungen, 0.446792 €
+R02 Lauf 26: 0 Buchungen, 0.000000 €
+T3 (26–38): 2603 Buchungen, 9.728638 €
+T3 Lauf 38: 983 Buchungen, 4.251629 €
+T3 Läufe 26–37: 1620 Buchungen, 5.477008 €
+T3 Läufe 31–38 (nach Einchecken 21.09.): 2562 Buchungen, 9.709357 €
+Gesamt ohne Doppelzählung STAMM 1–25 + VB1 26 + R02 26 + T3 26–38: 18.814735 €
+
+== 3. Zeit-Splits (Buchungen bis/nach Schnittzeit, UTC)
+Lauf 11–13 bis Phase-2-Endmeldung: Lauf 11: bis 6 / 0.001257 €; danach 0 / 0.000000 €
+Lauf 11–13 bis Phase-2-Endmeldung: Lauf 12: bis 480 / 0.758462 €; danach 0 / 0.000000 €
+Lauf 11–13 bis Phase-2-Endmeldung: Lauf 13: bis 704 / 1.145284 €; danach 9 / 0.001476 €
+Lauf 14–20 bis Phase-3-Endmeldung: Lauf 14: bis 17 / 0.003546 €; danach 0 / 0.000000 €
+Lauf 14–20 bis Phase-3-Endmeldung: Lauf 15: bis 28 / 0.011853 €; danach 0 / 0.000000 €
+Lauf 14–20 bis Phase-3-Endmeldung: Lauf 16: bis 263 / 0.596283 €; danach 1 / 0.000128 €
+Lauf 14–20 bis Phase-3-Endmeldung: Lauf 17: bis 310 / 0.994877 €; danach 5 / 0.000950 €
+Lauf 14–20 bis Phase-3-Endmeldung: Lauf 18: bis 154 / 0.339812 €; danach 2 / 0.000258 €
+Lauf 14–20 bis Phase-3-Endmeldung: Lauf 19: bis 220 / 0.457494 €; danach 1 / 0.000121 €
+Lauf 14–20 bis Phase-3-Endmeldung: Lauf 20: bis 233 / 0.423058 €; danach 11 / 0.014016 €
+Lauf 21–25 bis Nachlauf-3-Endmeldung: Lauf 21: bis 0 / 0.000000 €; danach 0 / 0.000000 €
+Lauf 21–25 bis Nachlauf-3-Endmeldung: Lauf 22: bis 189 / 0.397763 €; danach 44 / 0.118845 €
+Lauf 21–25 bis Nachlauf-3-Endmeldung: Lauf 23: bis 18 / 0.038938 €; danach 221 / 0.354676 €
+Lauf 21–25 bis Nachlauf-3-Endmeldung: Lauf 24: bis 0 / 0.000000 €; danach 193 / 0.396878 €
+Lauf 21–25 bis Nachlauf-3-Endmeldung: Lauf 25: bis 0 / 0.000000 €; danach 183 / 0.389929 €
+Lauf 21–25 bis VB1-Auftrag (00:55:54 CEST): Lauf 21: bis 0 / 0.000000 €; danach 0 / 0.000000 €
+Lauf 21–25 bis VB1-Auftrag (00:55:54 CEST): Lauf 22: bis 233 / 0.516608 €; danach 0 / 0.000000 €
+Lauf 21–25 bis VB1-Auftrag (00:55:54 CEST): Lauf 23: bis 239 / 0.393614 €; danach 0 / 0.000000 €
+Lauf 21–25 bis VB1-Auftrag (00:55:54 CEST): Lauf 24: bis 0 / 0.000000 €; danach 193 / 0.396878 €
+Lauf 21–25 bis VB1-Auftrag (00:55:54 CEST): Lauf 25: bis 0 / 0.000000 €; danach 183 / 0.389929 €
+Lauf 21–25 bis VB1-Meldung 01:31:11 CEST: Lauf 21: bis 0 / 0.000000 €; danach 0 / 0.000000 €
+Lauf 21–25 bis VB1-Meldung 01:31:11 CEST: Lauf 22: bis 233 / 0.516608 €; danach 0 / 0.000000 €
+Lauf 21–25 bis VB1-Meldung 01:31:11 CEST: Lauf 23: bis 239 / 0.393614 €; danach 0 / 0.000000 €
+Lauf 21–25 bis VB1-Meldung 01:31:11 CEST: Lauf 24: bis 193 / 0.396878 €; danach 0 / 0.000000 €
+Lauf 21–25 bis VB1-Meldung 01:31:11 CEST: Lauf 25: bis 0 / 0.000000 €; danach 183 / 0.389929 €
+
+== 4. Verbrauch je Werk (Name ohne Laufsuffix), ohne Doppelzählung
+lagerhaus: 3755 Buchungen, 7.695211 €, Läufe ['STAMM:1', 'STAMM:2', 'STAMM:4', 'STAMM:5', 'STAMM:6', 'STAMM:7', 'STAMM:8', 'STAMM:9', 'STAMM:10', 'STAMM:12', 'STAMM:13', 'STAMM:14', 'STAMM:15', 'STAMM:16', 'STAMM:18', 'STAMM:19', 'STAMM:20', 'STAMM:21', 'STAMM:22', 'STAMM:24', 'STAMM:25', 'VB1:26', 'R02:26']
+(kein Werk, Lauf STAMM 3): 1 Buchungen, 0.000187 €, Läufe ['STAMM:3']
+(kein Werk, Lauf STAMM 11): 6 Buchungen, 0.001257 €, Läufe ['STAMM:11']
+logmuehle: 554 Buchungen, 1.389441 €, Läufe ['STAMM:17', 'STAMM:23']
+versandwerk-t3: 2603 Buchungen, 9.728638 €, Läufe ['T3:26', 'T3:27', 'T3:28', 'T3:29', 'T3:30', 'T3:31', 'T3:32', 'T3:33', 'T3:34', 'T3:35', 'T3:36', 'T3:37', 'T3:38']
+VB1 werke: [(22, 'lagerhaus-c-25', '/root/biotop/daten/werke/lagerhaus-c-25'), (23, 'lagerhaus-vorbedingung1-26', '/root/phase-4-vorbedingung-1/privat/werke/lagerhaus-vorbedingung1-26')]
+R02 werke: [(22, 'lagerhaus-c-25', '/root/reparatur-02/privat-cli/werk')]
+
+== 5. Budgetzeilen in den Masterprompt-Fassungen (Zeilen mit „Budget" und „€")
+-- 2026-09-18_205908_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v1.md: 2 Zeilen
+   227: - Kasse: Budget auf 0,10 € gesetzt → Abbruch mit Meldung **vor** dem ersten Modellaufruf der nächsten Generation (Protokollzeile beigefügt).
+   279: - Budget je Lauf (Vorschlag für Phasen 1–3 zusammen: 150 €; Phase 4 gesondert nach Kostenvoranschlag der Kasse).
+-- 2026-09-19_003630_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v2.md: 4 Zeilen
+   247: - Kasse: Budget auf 0,10 € gesetzt → Abbruch mit Meldung **vor** dem ersten Modellaufruf der nächsten Generation (Protokollzeile beigefügt).
+   259: - Abschlussordner unter `laeufe/biotop-phase-1-nachlauf/`, gleiche Struktur wie Abschnitt 9. Budget 5 €, hart.
+   308: - Budget je Lauf (Vorschlag für Phasen 1–3 zusammen: 150 €; Phase 4 gesondert nach Kostenvoranschlag der Kasse).
+   331: Lies INFINITE-EVOLUTION-BIOTOP-Masterprompt-v2.md vollständig; Fassung 1 ist ersetzt, das Änderungsverzeichnis oben nennt alle sieben Punkte. Wertung Chat-Claude zu Lauf 2: Tor 1 steht bei 7 von 9, S1 ist nicht behoben — eval mit geleerten Builtins lässt 162 K
+-- 2026-09-19_022342_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v3.md: 6 Zeilen
+   13: - 8, Phase 1: **bestanden, 9 von 9** (Lauf 9, 19.09.2026, 02:20). Phase 2 freigegeben; Tor 2 um Regressionsprobe, Norm-Probe, S2 und Doppelungsanteil ergänzt; Budget 10 €.
+   221: - Übungswerk, Phase 2 (vier Nischen, voller Ankläger, Generation 0): Schätzung 2–8 € je Lauf; Budget Phase 2 gesamt 10 €, hart.
+   262: - Kasse: Budget auf 0,10 € gesetzt → Abbruch mit Meldung **vor** dem ersten Modellaufruf der nächsten Generation (Protokollzeile beigefügt).
+   274: **Budget:** 10 €, hart.
+   324: - Budget je Lauf (Vorschlag für Phasen 1–3 zusammen: 150 €; Phase 4 gesondert nach Kostenvoranschlag der Kasse).
+   347: Tor 1 ist mit 9 von 9 abgenommen, Phase 1 abgeschlossen — lies INFINITE-EVOLUTION-BIOTOP-Masterprompt-v3.md vollständig, Fassung 2 ist ersetzt; das Änderungsverzeichnis oben nimmt deine drei Funde aus den Läufen 6 und 7 auf (Pareto je Test, Angriffstests sind 
+-- 2026-09-19_123925_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v4.md: 9 Zeilen
+   15: - 8, Phase 3: Tor 3 überarbeitet — zweites Übungswerk für das Artgedächtnis; Geschmacksgedächtnis mechanisch mit versiegelter Regel geprüft (Philipps echte Entscheidungen erst ab Phase 4); Oberfläche als Web-Oberfläche mit Anmeldung; Sättigungsmeldung am gesät
+   25: - 8, Phase 1: **bestanden, 9 von 9** (Lauf 9, 19.09.2026, 02:20). Phase 2 freigegeben; Tor 2 um Regressionsprobe, Norm-Probe, S2 und Doppelungsanteil ergänzt; Budget 10 €.
+   236: - Phase 3 (zwei Übungswerke, Mentor, Jury, Sättigung, Oberfläche): Schätzung 3–10 €; Budget 15 €, hart.
+   277: - Kasse: Budget auf 0,10 € gesetzt → Abbruch mit Meldung **vor** dem ersten Modellaufruf der nächsten Generation (Protokollzeile beigefügt).
+   289: **Budget:** 10 €, hart.
+   304: **Nachprobe zu Zeile 7 (Vorbedingung für den Bau von Phase 3):** Vertragsprobe nach der präzisierten Zeile — ein Paar aus Vertragsänderung und dadurch ermöglichter Fehlerbehebung, Kernmaß > 0, angenommen und im Werk; Gegenfall ohne Nachbar abgelehnt. Ausgang: 
+   309: **Budget:** 15 €, hart, einschließlich Nachprobe.
+   351: - Budget je Lauf (Vorschlag für Phasen 1–3 zusammen: 150 €; Phase 4 gesondert nach Kostenvoranschlag der Kasse).
+   374: Phase 2 ist mit 10 von 11 gewertet — Zeile 7 verlangt „angenommen und im Werk", das Probenpaar K1157/K1158 kam nie ins Werk; lies INFINITE-EVOLUTION-BIOTOP-Masterprompt-v4.md vollständig, Fassung 3 ist ersetzt, das Änderungsverzeichnis oben nimmt deine drei Fu
+-- 2026-09-19_193553_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v5.md: 10 Zeilen
+   30: - 8, Phase 3: Tor 3 überarbeitet — zweites Übungswerk für das Artgedächtnis; Geschmacksgedächtnis mechanisch mit versiegelter Regel geprüft (Philipps echte Entscheidungen erst ab Phase 4); Oberfläche als Web-Oberfläche mit Anmeldung; Sättigungsmeldung am gesät
+   40: - 8, Phase 1: **bestanden, 9 von 9** (Lauf 9, 19.09.2026, 02:20). Phase 2 freigegeben; Tor 2 um Regressionsprobe, Norm-Probe, S2 und Doppelungsanteil ergänzt; Budget 10 €.
+   257: - Phase 4 (Handelssystem, ~237.000 Zeilen, 17 Dienste): Schätzung 50–300 € je Lauf, dominiert von Generation 0 und von schweren Ankläger-Aufrufen bei Sicherheitsbefunden. Budget je Lauf vor dem Start durch Philipp.
+   298: - Kasse: Budget auf 0,10 € gesetzt → Abbruch mit Meldung **vor** dem ersten Modellaufruf der nächsten Generation (Protokollzeile beigefügt).
+   310: **Budget:** 10 €, hart.
+   325: **Nachprobe zu Zeile 7 (Vorbedingung für den Bau von Phase 3):** Vertragsprobe nach der präzisierten Zeile — ein Paar aus Vertragsänderung und dadurch ermöglichter Fehlerbehebung, Kernmaß > 0, angenommen und im Werk; Gegenfall ohne Nachbar abgelehnt. Ausgang: 
+   330: **Budget:** 15 €, hart, einschließlich Nachprobe.
+   352: - Budget 10 €, hart. Abschlussordner `laeufe/biotop-phase-3-nachlauf/`.
+   383: - Budget je Lauf (Vorschlag für Phasen 1–3 zusammen: 150 €; Phase 4 gesondert nach Kostenvoranschlag der Kasse).
+   406: Phase 3 ist mit 7 von 11 abgenommen, deine Wertung war richtig — lies INFINITE-EVOLUTION-BIOTOP-Masterprompt-v5.md vollständig, Fassung 4 ist ersetzt. Deine sechs Vorschläge sind drin, drei anders gelöst: Das Artgedächtnis wird auf Muster umgestellt statt die 
+-- 2026-09-20_001844_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v6.md: 11 Zeilen
+   43: - 8, Phase 3: Tor 3 überarbeitet — zweites Übungswerk für das Artgedächtnis; Geschmacksgedächtnis mechanisch mit versiegelter Regel geprüft (Philipps echte Entscheidungen erst ab Phase 4); Oberfläche als Web-Oberfläche mit Anmeldung; Sättigungsmeldung am gesät
+   53: - 8, Phase 1: **bestanden, 9 von 9** (Lauf 9, 19.09.2026, 02:20). Phase 2 freigegeben; Tor 2 um Regressionsprobe, Norm-Probe, S2 und Doppelungsanteil ergänzt; Budget 10 €.
+   298: - Phase 4 (Handelssystem, ~237.000 Zeilen, 17 Dienste): Schätzung 50–300 € je Hebungslauf, dominiert von Generation 0 und von schweren Ankläger-Aufrufen bei Sicherheitsbefunden. Die Vorbedingungen haben eigene Budgets (Abschnitt 8): Bauteile 3 €, Aufnahme und 
+   339: - Kasse: Budget auf 0,10 € gesetzt → Abbruch mit Meldung **vor** dem ersten Modellaufruf der nächsten Generation (Protokollzeile beigefügt).
+   351: **Budget:** 10 €, hart.
+   366: **Nachprobe zu Zeile 7 (Vorbedingung für den Bau von Phase 3):** Vertragsprobe nach der präzisierten Zeile — ein Paar aus Vertragsänderung und dadurch ermöglichter Fehlerbehebung, Kernmaß > 0, angenommen und im Werk; Gegenfall ohne Nachbar abgelehnt. Ausgang: 
+   371: **Budget:** 15 €, hart, einschließlich Nachprobe.
+   393: 1. **Zwei offene Bauteile aus Fassung 6 fertigstellen:** Ankläger nennt Behauptung vorab (3.7) und Mindestanteil des werkübergreifenden Blocks (3.12). Beide am Übungswerk messen, bevor das echte Werk angefasst wird: Tor 2 Zeile 8 unter 20 %, und ein `lagerhaus
+   395: 3. **Aufnahme und Landkarte** als eigener Abschnitt mit eigenem Bericht, bevor eine Generation läuft: Bauen, Testlauf, Zoomstufen 0–3, Straßen, abgeleitete Verträge, ethische Prüfung. Hier zeigt sich zuerst, ob die Landkarte bei 237.000 Zeilen trägt — das ist 
+   396: 4. **Generation minus eins am echten Werk**: Rauschmessung über alle 17 Dienste, bereichsweise Sperren ausgewiesen, vier Proben am versiegelten Eichgegenstand, Fund-Neubewertung. Die Dauer wird hier gemessen, nicht hochgerechnet (3.5). Budget 5 €.
+   432: - Budget je Lauf (Vorschlag für Phasen 1–3 zusammen: 150 €; Phase 4 gesondert nach Kostenvoranschlag der Kasse).
+-- 2026-09-21_021434_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v7.md: 8 Zeilen
+   51: - 8, Phase 3: Tor 3 überarbeitet — zweites Übungswerk für das Artgedächtnis; Geschmacksgedächtnis mechanisch mit versiegelter Regel geprüft (Philipps echte Entscheidungen erst ab Phase 4); Oberfläche als Web-Oberfläche mit Anmeldung; Sättigungsmeldung am gesät
+   61: - 8, Phase 1: **bestanden, 9 von 9** (Lauf 9, 19.09.2026, 02:20). Phase 2 freigegeben; Tor 2 um Regressionsprobe, Norm-Probe, S2 und Doppelungsanteil ergänzt; Budget 10 €.
+   352: - Kasse: Budget auf 0,10 € gesetzt → Abbruch mit Meldung **vor** dem ersten Modellaufruf der nächsten Generation (Protokollzeile beigefügt).
+   364: **Budget:** 10 €, hart.
+   379: **Nachprobe zu Zeile 7 (Vorbedingung für den Bau von Phase 3):** Vertragsprobe nach der präzisierten Zeile — ein Paar aus Vertragsänderung und dadurch ermöglichter Fehlerbehebung, Kernmaß > 0, angenommen und im Werk; Gegenfall ohne Nachbar abgelehnt. Ausgang: 
+   384: **Budget:** 15 €, hart, einschließlich Nachprobe.
+   437: **Budget:** je Testwerk 10 €, hart. Schätzung nach den bisherigen Messungen: T3 und T5 je 1–4 €, T4 5–15 € wegen Größe und Generation 0, T6 2–6 €. Alle Zahlen sind Schätzungen und werden am Werk gemessen; die bisherigen Schätzungen von Chat-Claude lagen durchw
+   474: - Budget je Lauf (Vorschlag für Phasen 1–3 zusammen: 150 €; Phase 4 gesondert nach Kostenvoranschlag der Kasse).
+-- 2026-09-23_155353_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v8.md: 8 Zeilen
+   58: - 8, Phase 3: Tor 3 überarbeitet — zweites Übungswerk für das Artgedächtnis; Geschmacksgedächtnis mechanisch mit versiegelter Regel geprüft (Philipps echte Entscheidungen erst ab Phase 4); Oberfläche als Web-Oberfläche mit Anmeldung; Sättigungsmeldung am gesät
+   68: - 8, Phase 1: **bestanden, 9 von 9** (Lauf 9, 19.09.2026, 02:20). Phase 2 freigegeben; Tor 2 um Regressionsprobe, Norm-Probe, S2 und Doppelungsanteil ergänzt; Budget 10 €.
+   365: - Kasse: Budget auf 0,10 € gesetzt → Abbruch mit Meldung **vor** dem ersten Modellaufruf der nächsten Generation (Protokollzeile beigefügt).
+   377: **Budget:** 10 €, hart.
+   392: **Nachprobe zu Zeile 7 (Vorbedingung für den Bau von Phase 3):** Vertragsprobe nach der präzisierten Zeile — ein Paar aus Vertragsänderung und dadurch ermöglichter Fehlerbehebung, Kernmaß > 0, angenommen und im Werk; Gegenfall ohne Nachbar abgelehnt. Ausgang: 
+   397: **Budget:** 15 €, hart, einschließlich Nachprobe.
+   454: **Budget:** je Testwerk 10 €, hart. Schätzung nach den bisherigen Messungen: T3 und T5 je 1–4 €, T4 5–15 € wegen Größe und Generation 0, T6 2–6 €. Alle Zahlen sind Schätzungen und werden am Werk gemessen; die bisherigen Schätzungen von Chat-Claude lagen durchw
+   513: - Budget je Lauf (Vorschlag für Phasen 1–3 zusammen: 150 €; Phase 4 gesondert nach Kostenvoranschlag der Kasse).
+
+== 6. Budget-/Kostenzeilen in den Berichten des Prüfkanals (Ebene 1 und 2, ohne Code-/Werkkopien)
+-- biotop-gesamtstand/ABWEICHUNGEN-01.md (4 Zeilen)
+    ### A22 — Budgetvorprüfung ist keine obere Kostengrenze und reserviert keine parallelen Aufrufe
+    **A22: Budgetvorprüfung ist keine obere Kostengrenze und reserviert keine parallelen Aufrufe**
+    **Grenze:** Kein Tokenvergleich, kein Parallelversuch und keine Überschreitung gemessen. Daher ausdrücklich Risiko statt behaupteter tatsächlicher Budgetverletzung.
+    abbrechen ändert Lauf-/Generationsstatus und protokolliert, sendet jedoch kein Stoppsignal. generation prüft den Status nur am Einstieg; ihr laufender Körper und die Anbieter-Vorprüfung lesen später kein Abbruchmerkmal. Ein andere
+-- biotop-gesamtstand/BERICHT.md (1 Zeilen)
+    **Kosten:** 0 neue Biotop-Kassenbuchungen / 0,00 € zusätzliche Biotop-Modellkosten von 1,00 € Budget. Drei Hermes-Prüfsitzungen laut `state.db` im Abo enthalten, keine bekannte Einzelrechnung; Details und Abfrageschnitt in `KASSE.
+-- biotop-gesamtstand/KASSE.md (2 Zeilen)
+    Budget: **1,00 €**. Stand aus Datenbanken: **2026-09-20T05:52:01.964233+00:00**.
+    - **0 neue Biotop-Kassenbuchungen**, Stand vorher/nachher **4070 / 4070**; gespeicherte Summe unverändert **8.639304768518517895207 €**. Damit **0,00 € neue tokenabgerechnete Biotop-Aufrufe von 1,00 € Budget**. Kein Lauf angelegt;
+-- biotop-gesamtstand/LAEUFE-01.md (1 Zeilen)
+    Die späteren Mengen sind nach IDs vollständig in `13-spaetere-buchungen.json` aufgeführt. Gründe: Nachabstraktion auf alten Lauf-IDs (u. a. Lauf 13), nachträgliche Prüf-/Anklägeraufrufe auf Lauf 20, Fortsetzungen der Läufe 22 und 
+-- biotop-gesamtstand/OFFENE-PUNKTE-01.md (1 Zeilen)
+    **Entscheidung erforderlich:** eigener Reparaturauftrag mit klarer Eingrenzung und Budget; anschließend neuer Lauf vom dokumentierten Ausgang und unverändertem Messgerät. Die vorhandene Tool-Sperre für die Gegenfall-Wiederholung w
+-- biotop-gesamtstand/ORGANBETRIEB-01.md (1 Zeilen)
+    | 3.14 Kasse | `kern/kasse.py; anbieter/__init__.py` | `modell.antwort`: 4070 von 16030 Protokollzeilen, #3–#16003 | Historisch zentral benutzt; Token-Kosten gespeichert. Budgetautomat in Fehlerpfaden unvollständig, Kontingent und
+-- biotop-gesamtstand/ZWISCHENBERICHT.md (1 Zeilen)
+    Stand 2026-09-20T05:52:01.964233+00:00. Die fünf Auftragsteile liegen in `BERICHT.md` und seinen Fachdateien vor. Kein Biotop-Lauf, keine Reparatur. Datenbank: 4070 von 4070 vorherigen Buchungen unverändert, 0 neue Buchungen, kein
+-- biotop-phase-1/BERICHT.md (3 Zeilen)
+    | 6 | Kasse: Budget 0,10 € → Abbruch **vor** dem ersten Modellaufruf der nächsten Generation | **bestanden** (2. Messung) | Lauf 5: Abbruch vor Generation 3, Protokoll #800, 0 Buchungen und 0 `modell.aufruf`-Zeilen danach; ausgege
+    **Kosten Hauptlauf 2:** 0,2166 € in 100 Aufrufen (Budget 30 €). **Alle Läufe zusammen:** 236 Aufrufe, 0,4031 € nach Preistabelle; OpenRouter-Konto meldet 0,4316 USD = 0,3996 € (`ausgaben/49-openrouter-gegenprobe.txt`; Abweichung 0
+    6. **Kassenprobe zweimal gemessen** (`44a`, `44`): Messung 1 zeigte, dass die Vorprüfung je Aufruf zwar vor dem überschreitenden Aufruf abbrach (kein Cent über Budget), aber erst mitten in Generation 4. Die Torzeile verlangt Abbru
+-- biotop-phase-1/KASSE.md (2 Zeilen)
+    | Lauf | Zweck | Budget € | Aufrufe | Token ein | Token aus | Kosten € | Status |
+    **Gesamt: 236 Aufrufe, 616892 Eingabe-Token, 112097 Ausgabe-Token, 0.4031 € (Budget Phase 1: 30,00 €)**
+-- biotop-phase-1-nachlauf/BERICHT.md (3 Zeilen)
+    **Auftraggeber:** Philipp Zöllisch · **Ausführung:** Hermes · **Prüfer:** Chat-Claude · **Budget:** 5 € hart
+    | 6 | Kasse 0,10 € → Abbruch vor der nächsten Generation | **neu gemessen, bestanden** | `kasse.py` geändert (Preistabelle + claude-sonnet-4.5; Diff in `50-…`). Lauf 10: Abbruch vor Generation 2, Protokoll #2623, 0 Buchungen und 0
+    Kandidaten Lauf 9: 48 — angenommen 7, überlebt-nicht-gewählt 3, leer („KEIN VORSCHLAG") 3, abgelehnt 35 (Kernmaß unverändert 14, Grenzmaß gerissen 11, Pareto verletzt 8, Diff nicht anwendbar 1, Verfassung 1). Endwerk: 75 von 75 Te
+-- biotop-phase-1-nachlauf/KASSE.md (2 Zeilen)
+    | Lauf | Zweck | Budget € | Aufrufe | Token ein | Token aus | Kosten € | davon schwer € | Status |
+    **Gesamt Nachlauf: 542 Aufrufe, 1939239 Eingabe-Token, 310137 Ausgabe-Token, 1.7903 € (Auftragsbudget 5,00 €)**
+-- biotop-phase-2/BERICHT.md (3 Zeilen)
+    **Budget:** 10 € hart (Auftragsbudget über alle Phase-2-Läufe, `kasse.AUFTRAG_BUDGET_EUR`) · **Zeitraum:** 19.09.2026 03:30 – 05:35 CEST
+    Rauchtest-Fund: deepseek und qwen liefern bei `max_tokens=200` leere/abgeschnittene Antworten, weil eingebautes Denken das Budget füllt → `reasoning: {enabled: false}` für alle Nicht-Anthropic-Modelle; gemini-3.x lehnt das ab („Re
+    | Auftragsbudget | 10 € hart über alle Läufe der Phase, Vorprüfung vor jedem Aufruf zusätzlich zum Laufbudget | `kasse.vorpruefung`, `AUFTRAG_BUDGET_EUR` |
+-- biotop-phase-2/KASSE.md (3 Zeilen)
+    Stand: 2026-09-19T03:28:22Z. Preise USD/Mio Token (OpenRouter-Katalog 19.09.2026, biotop/kern/kasse.py PREISE_USD_JE_MIO), Kurs 1,08 USD/EUR fest. Token aus der usage-Antwort. Auftragsbudget 10,00 € hart über alle Läufe ab 11 (kas
+    | Lauf | Zweck | Budget € | Aufrufe | Token ein | Token aus | Kosten € | Status |
+    **Gesamt Phase 2: 1190 Aufrufe, 6978165 Eingabe-Token, 502389 Ausgabe-Token, 1.9050 € (Auftragsbudget 10,00 €)**
+-- biotop-phase-3/BERICHT.md (2 Zeilen)
+    **Budget:** 15 € hart · **verbraucht: 2,83 € (1.225 Modellaufrufe)** — Bezugsgröße: alle Läufe ab 14, gezählt in `kasse`
+    Budget 15 € — **18,8 % verbraucht**. Schwere Aufrufe (`anthropic/claude-sonnet-5`): 24 Aufrufe, 0,739 €. Davon
+-- biotop-phase-3/KASSE.md (2 Zeilen)
+    # Kassenblatt Phase 3 (alle Laeufe ab 14, Budget 15 EUR hart)
+    Gesamt: 1225 Aufrufe, 2.8269 EUR von 15 EUR (18.8 %)
+-- biotop-phase-3-nachlauf/BERICHT.md (3 Zeilen)
+    **Budget:** 10 € hart · **verbraucht: 0,44 € (207 Modellaufrufe)** — Bezugsgröße: alle Läufe ab 21
+    danach **0** Kandidaten im Projektgedächtnis; zweiter Abbruch → keine Ausnahme, protokolliert; `art='budget'`
+    Budget 10 € — **4,4 % verbraucht**. Größter Posten: `schwer.mentor` 3 Aufrufe, 0,0957 €.
+-- biotop-phase-3-nachlauf/KASSE.md (2 Zeilen)
+    # Kassenblatt Nachlauf Phase 3 (Laeufe ab 21, Budget 10 EUR hart)
+    Gesamt: 207 Aufrufe, 0.4367 EUR von 10 EUR (4.4 %)
+-- biotop-phase-4-einstieg-20260921-01/KASSE.md (4 Zeilen)
+    - Zusatz im Privatbestand: 246 Buchungen, 0,446792 EUR (Lauf 26; damaliges Budget 3 EUR).
+    - Nachtrag historisch: 0 neue Biotop-Modellbuchungen, 0 EUR (damaliges Budget 2 EUR).
+    - Dieser Einstieg: keine Biotop-Modell-/Kammer-/Generationsaufrufe; DB-Inhalte im gemessenen Vorher/Nachher-Fenster unverändert. Kein neues Budget freigegeben.
+    Die ausführende Hermes-/MoA-Unterhaltung verbraucht Trägerkontingent. Dessen monetäre Kosten sowie Host-/Reviewkosten wurden nicht bestimmt. Keine Nullkostenbehauptung über den Gesamtauftrag. Decimal-Summen dienen der reproduzierb
+-- biotop-phase-4-einstieg-20260921-01/ZWISCHENBERICHT.md (3 Zeilen)
+    - Zusätzlicher natürlicher Lauf 26: 246 von 246 Buchungen (IDs 4071–4316), 0,446792 EUR von damals 3,00 EUR. Status gesaettigt, beendet nach Generation 5.
+    - Nachtrag laut gebundener Kasse: keine neuen Biotop-Modellbuchungen, 0,00 EUR von damals 2,00 EUR. Die aktuell gelesenen Zähler entsprechen diesem Schlussstand.
+    - Keine neue Budgetfreigabe. Träger-, Review-, Host- und Abonnementkosten dieses Einstiegs monetär nicht ermittelt; nicht als null ausgewiesen.
+-- biotop-phase-4-vorbedingung-1/BERICHT.md (2 Zeilen)
+    **Budget:** 3 € hart · **verbraucht: 0,91 €** (283 + 193 Aufrufe)
+    Budget 3 € — **30 % verbraucht**, 2,09 € frei. Ansagen insgesamt: 65 Aufrufe, 0,0504 €.
+-- biotop-phase-4-vorbedingung-1/KASSE-05.md (2 Zeilen)
+    Budget dieses Laufs: 0,80 EUR hart
+    Vorbedingung 1 gesamt (Laeufe 22-25): 848 Aufrufe, 1.6970 EUR von 3 EUR
+-- biotop-phase-4-vorbedingung-1/KASSE-06.md (2 Zeilen)
+    Lesart A (Lauf 22 vollstaendig):              1.6970 EUR von 3 EUR, frei 1.3030
+    Lesart B (nur Fortsetzung Lauf 22, 0,1190):   1.2994 EUR von 3 EUR, frei 1.7006
+-- biotop-phase-4-vorbedingung-1/KASSE.md (2 Zeilen)
+    # Kassenblatt Phase 4, Vorbedingung 1 (Budget 3 EUR hart)
+    SUMME                                                 476          0.9095 EUR von 3 EUR (30 %)
+-- biotop-phase-4-vorbedingung-1/NACHGANG-03.md (2 Zeilen)
+    **Budget:** 3 € hart · **verbraucht: 0,91 €** (unverändert — der Nachgang kostete **0 Modellaufrufe**)
+    Der Nachgang kostete **0 Modellaufrufe**. Stand unverändert: **0,9095 € von 3 €** (476 Aufrufe), 2,09 € frei.
+-- biotop-phase-4-vorbedingung-1/NACHGANG-04.md (1 Zeilen)
+    **Kosten:** 0 Modellaufrufe. Gesamtstand Vorbedingung 1 unverändert **0,91 € von 3 €**.
+-- biotop-phase-4-vorbedingung-1/NACHGANG-05.md (2 Zeilen)
+    **Budget:** 0,80 € hart · **verbraucht: 0,39 €** (183 Aufrufe)
+    Kein Abbruch wegen Budget. Keine abgewiesenen Aufrufe (alle `.err` leer).
+-- biotop-phase-4-vorbedingung-1/NACHGANG-06.md (3 Zeilen)
+    - **Lesart A** (Lauf 22 vollständig): 848 Aufrufe, **1,6970 € von 3 €** — 57 %, frei 1,3030 €
+    - **Lesart B** (nur die Fortsetzung, 44 Aufrufe): **1,2994 € von 3 €** — frei 1,7006 €
+    Phase-3-Nachlauf abgerechnet). In beiden Fällen ist das Budget gehalten.
+-- biotop-phase-4-vorbedingung-1/NACHGANG.md (2 Zeilen)
+    **Budget:** 3 € hart · **verbraucht: 0,91 €** (unverändert — der Nachgang kostete **0 Modellaufrufe**)
+    Der Nachgang kostete **0 Modellaufrufe**. Stand unverändert: **0,9095 € von 3 €** (476 Aufrufe), 2,09 € frei.
+-- biotop-phase-4-vorbedingung-1/nach-reparatur-02/KASSE.md (1 Zeilen)
+    DB-Abfrage 2026-09-20T19:56:26.323048+00:00 (UTC). 149 neue Buchungen, 0.256982 EUR von 3,00 EUR. Alle Vorstufen enthalten. Native Budgetabbrüche: 0, zusätzliche Reservierungsstopps: 0. Messprozess aktiv: True. Noch keine Schlussk
+-- biotop-phase-4-vorbedingung-1/nach-reparatur-02/MESSPLAN.md (2 Zeilen)
+    Budget 3,00 EUR hart für alle neuen Biotop-Aufrufe dieses Auftrags; frische private DB-Kopie, neues lagerhaus-Werk und neuer Lauf. Kein Fortsetzen von Lauf 24/25. Produktionsdatenbank, ursprüngliche Werkquelle und echtes Handelssy
+    - Genau ein Messlauf bis zur natürlichen Sättigung, Budget-/Infrastrukturabbruch oder höchstens sechs Generationen. Kein Abbruch beim ersten günstigen Prozentwert, keine Auswahl einer günstigen Teilmenge, kein Neustart zur Ergebni
+-- biotop-phase-4-vorbedingung-1/nach-reparatur-02/ZWISCHENBERICHT.md (2 Zeilen)
+    Messprozess tatsächlich vorhanden: True. Native Budgetabbruchereignisse: 0; Stopps der zusätzlichen Reservierungswache: 0. Letztes DB-Ereignis: #16624 / 2026-09-20T19:56:16.964+00:00 / modell.aufruf.
+    Kosten zum Abfragezeitpunkt: 0.256982 EUR von 3,00 EUR, 149 neue Buchungen. Alle Vorstufen enthalten. Träger-/Hostkosten nicht monetär ermittelt. Solange der Messprozess aktiv ist, ist dies kein Schlusskostenstand.

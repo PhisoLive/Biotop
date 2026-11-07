@@ -1,0 +1,87 @@
+// Deterministische Referenzlast, ZWEITE STUFE (Behebungsrunde 4 vor T4, Entscheidung Chat-Claude 1, 24.09.2026).
+// Dieselben Bereichslasten wie versandwerk-t3-02.mjs (Stufe 1, unverändert — T3s Ergebnisse bleiben unverändert),
+// aber mit ZEHNFACHER EINGABEGRÖSSE je Bereich; die Wiederholungszahlen W sind dieselben wie in Stufe 1.
+// An dieser Stufe misst die Nische „schnell“ den Gewinn und jede Nische ihre Laufzeitgrenze (gepaarte Messung,
+// Nachmessungen, Rauschmessung der Stufe 2). Ein Kammerlauf der Laufzeitmessung muss unter einer Minute bleiben
+// (gemessen: proben/STUFE2-ZEITEN.txt; der Vorspann verweigert einen Lauf, dessen Stufe-2-Kammerlauf länger dauert).
+// Nur Laufzeitlast: das Verhaltensraster beobachten() bleibt in Stufe 1.
+import { pruefen } from './dist/eingang/pruefer.js';
+import { statistik } from './dist/eingang/stapel.js';
+import { skalar, mengenpreis } from './dist/tarife/preise.js';
+import { ausdruck } from './dist/tarife/ausdruck.js';
+import { planen } from './dist/planung/plan.js';
+import { zusammenfassen } from './dist/bericht/zusammenfassung.js';
+import { textbericht } from './dist/bericht/formate.js';
+import { verteilen, prozent } from './dist/zahlen/geld.js';
+import { quantil, mittelwert } from './dist/zahlen/statistik.js';
+
+function sendungen(anzahl) {
+  return Array.from({ length: anzahl }, (_, i) => ({
+    kennung: `S${String(i).padStart(4, '0')}`,
+    zone: ['nah', 'fern', 'insel'][i % 3],
+    gewicht: 100 + (i % 19) * 75,
+    kanten: { laenge: 200 + i % 30, breite: 150, hoehe: 100 },
+    prioritaet: i % 7 === 0 ? 'eilig' : 'normal',
+    zerbrechlich: i % 5 === 0,
+  }));
+}
+
+// Wiederholungen je Bereich wie Stufe 1; die Eingaben sind zehnmal so groß — zehnmal so viele Elemente je Aufruf,
+// die Werte bleiben im gültigen Wertebereich der Stufe 1 (erste Fassung mit skalar(i * 100) bis 150.000 warf
+// „RangeError: Gewicht ausserhalb 0..30000“ an beiden Ständen: proben/STUFE2-ZEITEN-erste-fassung.txt). Die
+// Kapazitäten der Planung bleiben wie in Stufe 1: zehnmal so viele Sendungen ergeben zehnmal so viele Bündel.
+const W = { eingang: 60, tarife: 25, planung: 30, bericht: 40, zahlen: 400 };
+
+export function last_eingang() {
+  const daten = sendungen(900);
+  let gueltig = 0;
+  let letzte = null;
+  for (let w = 0; w < W.eingang; w++) {
+    const ergebnisse = daten.map(pruefen);
+    gueltig = ergebnisse.filter(e => e.gueltig).length;
+    letzte = statistik(daten);
+  }
+  return { gueltig, statistik: letzte };
+}
+
+export function last_tarife() {
+  let gesamt = 0;
+  for (let w = 0; w < W.tarife; w++) {
+    gesamt = 0;
+    for (let i = 0; i < 1500; i++) {
+      const j = i % 150;
+      gesamt += skalar(j * 100);
+      gesamt += mengenpreis(1000 + j, 11);
+      gesamt += ausdruck('grund + gewicht * 2', { gewicht: j, grund: 250 });
+    }
+  }
+  return gesamt;
+}
+
+export function last_planung() {
+  const daten = sendungen(900);
+  let plan = null;
+  for (let w = 0; w < W.planung; w++) plan = planen(daten, { gewicht: 10000, anzahl: 12 });
+  return { anzahl: plan.anzahl, buendel: plan.buendel.length, gewicht: plan.gewicht, gesamt: plan.gesamt };
+}
+
+export function last_bericht() {
+  const daten = sendungen(330);
+  let zus = null;
+  let text = null;
+  for (let w = 0; w < W.bericht; w++) {
+    const plan = planen(daten, { gewicht: 8000, anzahl: 8 });
+    zus = zusammenfassen(plan);
+    text = textbericht(plan);
+  }
+  return { zusammenfassung: zus, text };
+}
+
+export function last_zahlen() {
+  const werte = Array.from({ length: 1000 }, (_, i) => i * 3);
+  let r = null;
+  for (let w = 0; w < W.zahlen; w++) {
+    r = { mittel: mittelwert(werte), q75: quantil(werte, 0.75), verteilung: verteilen(1001, [1, 2, 3]), rabatt: prozent(1337, 12.5) };
+  }
+  return r;
+}

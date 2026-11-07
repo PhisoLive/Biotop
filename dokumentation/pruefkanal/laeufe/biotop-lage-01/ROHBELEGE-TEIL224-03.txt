@@ -1,0 +1,369 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 03 · Teil 224 (Teile 166–239 dieses Stands) · enthält R214 bis R217
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R214 · Zählungen für VOLLSTAENDIGKEIT: Werkzeugaufrufe ohne Rohbeleg seit 14:44:20 (state.db, nur lesend); Glossarprüfung als Näherung (LAGE-TEIL2..6, TORE-TEIL1..4)
+Beginn: 2026-09-25 20:28:09 CEST (UTC+0200)
+Ende:   2026-09-25 20:28:09 CEST (UTC+0200)
+Dauer:  0.5 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/n20_zaehlungen.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/n20_zaehlungen.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Zählungen für VOLLSTAENDIGKEIT.
+(1) Befehle ohne Rohbeleg: alle Werkzeugaufrufe in Sitzungen dieses Auftrags ab 25.09.2026 14:44:20 CEST (Hauptsitzung
+    und Subagenten-Sitzungen, die danach begonnen haben), aus /root/.hermes/state.db (Hermes' eigene Datenbank, mode=ro).
+    Terminalaufrufe mit bzw. ohne arbeit/rb.py; übrige Werkzeuge nach Name. Abschriften durch Verdichtung sind nicht
+    entfernt (Hinweis). Ausgegeben werden nur Zählungen und die Befehle ohne rb.py gekürzt auf 110 Zeichen.
+(2) Glossarprüfung (Näherung, Auslegung Hermes): Kandidaten = Ausdrücke in `…` oder **…** aus LAGE-TEIL1..6 und
+    TORE-TEIL1..4 (1–4 Wörter, nur Buchstaben, Bindestrich, Leerzeichen, ≥ 4 Zeichen, kein Pfad, keine Ziffer). Ein
+    Kandidat gilt als im GLOSSAR, wenn er (ohne Groß/Klein) als Begriff oder als Teil eines Begriffs oder einer Erklärung
+    in GLOSSAR-TEIL1-01.md vorkommt."""
+import collections
+import datetime as dt
+import json
+import re
+import sqlite3
+from pathlib import Path
+
+W = Path('/root/sicherung/biotop-lage-01')
+AB = dt.datetime(2026, 9, 25, 14, 44, 20).timestamp()
+c = sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+spalten = [r[1] for r in c.execute('PRAGMA table_info(messages)')]
+s_spalten = [r[1] for r in c.execute('PRAGMA table_info(sessions)')]
+zeit = 'timestamp' if 'timestamp' in spalten else 'created_at'
+print(f'messages-Spalten: {spalten}')
+s_start = 'started_at' if 'started_at' in s_spalten else s_spalten[2]
+sitzungen = [r[0] for r in c.execute(f'SELECT id FROM sessions WHERE {s_start} >= ? OR id = ?',
+                                     (AB, '20260924_203120_e6c401'))]
+print(f'Sitzungen ab Auftragsbeginn (inkl. Hauptsitzung): {len(sitzungen)}')
+zaehl, ohne = collections.Counter(), []
+for sid in sitzungen:
+    for (tc,) in c.execute(f'SELECT tool_calls FROM messages WHERE session_id=? AND role="assistant" AND {zeit} >= ? '
+                           'AND tool_calls IS NOT NULL', (sid, AB)):
+        try:
+            calls = json.loads(tc)
+        except (TypeError, ValueError):
+            continue
+        for call in calls or []:
+            f = call.get('function', call)
+            name = f.get('name', '?')
+            try:
+                args = json.loads(f.get('arguments') or '{}')
+            except (TypeError, ValueError):
+                args = {}
+            haupt = 'Haupt' if sid == '20260924_203120_e6c401' else 'Subagent'
+            if name == 'terminal':
+                cmd = args.get('command', '')
+                mit = 'arbeit/rb.py' in cmd
+                zaehl[(haupt, 'terminal mit rb.py' if mit else 'terminal OHNE rb.py')] += 1
+                if not mit:
+                    ohne.append(f'{haupt} {sid[-6:]}: {cmd[:110]!r}')
+            else:
+                zaehl[(haupt, name)] += 1
+print('== (1) Werkzeugaufrufe ab 14:44:20 nach Sitzungsart und Werkzeug')
+for (h, n), k in sorted(zaehl.items()):
+    print(f'  {h:8s} · {n:28s} · {k}')
+print(f'Terminal ohne rb.py: {len(ohne)} (Liste gekürzt)')
+for o in ohne[:60]:
+    print('  ' + o)
+if len(ohne) > 60:
+    print(f'  … {len(ohne) - 60} weitere')
+
+print('== (2) Glossarprüfung (Näherung)')
+A = W / 'ausgabe'
+glossar = (A / 'GLOSSAR-TEIL1-01.md').read_text(encoding='utf-8').lower()
+texte = ''.join((A / f'LAGE-TEIL{k}-01.md').read_text(encoding='utf-8') for k in range(1, 7)
+                if (A / f'LAGE-TEIL{k}-01.md').exists())
+texte += ''.join((A / f'TORE-TEIL{k}-01.md').read_text(encoding='utf-8') for k in range(1, 5))
+kand = set()
+for m in re.findall(r'`([^`\n]{4,40})`|\*\*([^*\n]{4,40})\*\*', texte):
+    t = (m[0] or m[1]).strip().strip(':.,')
+    if re.fullmatch(r'[A-Za-zÄÖÜäöüß„“\- ]{4,40}', t) and len(t.split()) <= 4 and '/' not in t:
+        kand.add(t)
+drin = sorted(k for k in kand if k.lower().strip('„“') in glossar)
+fehlt = sorted(k for k in kand if k.lower().strip('„“') not in glossar)
+print(f'Kandidaten: {len(kand)} · im GLOSSAR: {len(drin)} · nicht im GLOSSAR: {len(fehlt)}')
+print('nicht im GLOSSAR: ' + ' | '.join(fehlt))
+--- Ende /root/sicherung/biotop-lage-01/arbeit/n20_zaehlungen.py ---
+Ausgabe (vollständig, stdout und stderr):
+messages-Spalten: ['id', 'session_id', 'role', 'content', 'tool_call_id', 'tool_calls', 'tool_name', 'effect_disposition', 'timestamp', 'token_count', 'finish_reason', 'reasoning', 'reasoning_content', 'reasoning_details', 'codex_reasoning_items', 'codex_message_items', 'platform_message_id', 'observed', '_compressed_summary', 'active', 'compacted', 'api_content', 'display_kind', 'display_metadata', 'display_identity', 'display_order']
+Sitzungen ab Auftragsbeginn (inkl. Hauptsitzung): 10
+== (1) Werkzeugaufrufe ab 14:44:20 nach Sitzungsart und Werkzeug
+  Haupt    · delegate_task                · 39
+  Haupt    · patch                        · 81
+  Haupt    · read_file                    · 123
+  Haupt    · search_files                 · 135
+  Haupt    · skill_manage                 · 1
+  Haupt    · skill_view                   · 6
+  Haupt    · terminal OHNE rb.py          · 100
+  Haupt    · terminal mit rb.py           · 172
+  Haupt    · tool_call                    · 13
+  Haupt    · tool_describe                · 5
+  Haupt    · write_file                   · 243
+  Subagent · execute_code                 · 16
+  Subagent · patch                        · 205
+  Subagent · read_file                    · 823
+  Subagent · search_files                 · 780
+  Subagent · skill_view                   · 20
+  Subagent · terminal OHNE rb.py          · 126
+  Subagent · terminal mit rb.py           · 142
+  Subagent · write_file                   · 191
+Terminal ohne rb.py: 226 (Liste gekürzt)
+  Subagent 69477c: 'cd /root/sicherung/biotop-lage-01/entwurf/inventar && timeout 380 python3 inventar.py --stich jetzt --aus /roo'
+  Subagent 69477c: 'cd /root/sicherung/biotop-lage-01/entwurf/inventar && timeout 380 python3 inventar.py --stich jetzt --aus /roo'
+  Subagent 69477c: "ls -la /tmp/biotop-kammer-exklusiv 2>&1; stat -c '%s %n' /root/biotop/daten/biotop.db-wal 2>&1; ls /root/siche"
+  Subagent 69477c: "cd /root/sicherung/biotop-lage-01/entwurf/inventar && ls -la lauf-gegenprobe && python3 - <<'EOF'\n# Geheimnisp"
+  Subagent 69477c: 'cd /root/sicherung/biotop-lage-01/entwurf/inventar && timeout 380 python3 inventar.py --stich jetzt --aus /roo'
+  Subagent 69477c: 'cd /root/sicherung/biotop-lage-01/entwurf/inventar && for f in STAND.md inventar.py i0_erkunden.py i0_diagnose'
+  Subagent 23e44b: 'wc -c /root/sicherung/biotop-lage-01/rohbelege/R00*.txt; head -c 1500 /root/sicherung/biotop-lage-01/rohbelege'
+  Subagent 23e44b: 'wc -c -l /root/sicherung/biotop-lage-01/arbeit/lesen/*.md; ls -la /tmp/biotop-kammer-exklusiv 2>&1 | head -2'
+  Subagent 23e44b: "date -d @1790344506 '+%Y-%m-%d %H:%M:%S %Z'; date -d @1789872898 '+%Y-%m-%d %H:%M:%S %Z'; date -d @1789869913 "
+  Subagent 23e44b: "date -d @1790344506 '+%Y-%m-%d %H:%M:%S %Z'; date -d @1789872898 '+%Y-%m-%d %H:%M:%S %Z'; date -d @1789869913 "
+  Subagent 23e44b: "date '+%Y-%m-%d %H:%M:%S %Z'; ls -la /tmp/biotop-kammer-exklusiv 2>&1 | head -1"
+  Subagent b6f209: "date '+%Y-%m-%d %H:%M:%S %Z'; ls -la /tmp/biotop-kammer-exklusiv 2>&1; ls -la /root/sicherung/biotop-lage-01/e"
+  Subagent b6f209: 'cd /root/sicherung/biotop-lage-01 && wc -c rohbelege/*.txt && for f in rohbelege/*.txt; do echo "== $f: $(head'
+  Subagent b6f209: 'ls -la /root/biotop-vor-t4-05/ /root/biotop-vor-t4-06/ | head -150; ls /root/ '
+  Subagent b6f209: "grep -n '^#' /root/biotop-vor-t4-05/BERICHT.md; grep -n '^#' /root/biotop-vor-t4-06/BAU-S1C-UNBEOBACHTET.md"
+  Subagent b6f209: "grep -n '^#' /root/biotop-vor-t4-05/BERICHT.md; grep -n '^#' /root/biotop-vor-t4-06/BAU-S1C-UNBEOBACHTET.md"
+  Subagent b6f209: 'for d in /root/biotop-vor-t4 /root/biotop-vor-t4-02 /root/biotop-vor-t4-03 /root/biotop-vor-t4-04; do echo "=='
+  Subagent b6f209: 'for d in /root/biotop-vor-t4 /root/biotop-vor-t4-02 /root/biotop-vor-t4-03 /root/biotop-vor-t4-04; do echo "=='
+  Subagent b6f209: 'cd /root/sicherung/biotop-lage-01/arbeit/lesen && head -c 3000 philipp-ab-2026-09-18.md; echo; echo ====; grep'
+  Subagent b6f209: 'cd /root/sicherung/biotop-lage-01/arbeit/lesen && head -c 3000 philipp-ab-2026-09-18.md; echo; echo ====; grep'
+  Subagent b6f209: "cd /root/sicherung/biotop-lage-01 && grep -n '^== \\|^--- \\|^R31\\|^#' rohbelege/R0031.txt | head -80"
+  Subagent b6f209: "cd /root/sicherung/biotop-lage-01 && grep -n '^== \\|^--- \\|^R31\\|^#' rohbelege/R0031.txt | head -80"
+  Subagent b6f209: "K=$(cat /etc/pruefkanal/schluessel); L=/var/pruefkanal/oeffentlich/_akte/$K/laeufe; grep -n '^#' $L/biotop-t3-"
+  Subagent b6f209: "K=$(cat /etc/pruefkanal/schluessel); L=/var/pruefkanal/oeffentlich/_akte/$K/laeufe; grep -n '^#' $L/biotop-t3-"
+  Subagent b6f209: "grep -n -e 'id 1739 ' -e 'id 1741 ' -e 'id 2901 ' -e 'id 10719 ' -e 'id 16498 ' -e 'id 12293 ' -e 'id 3215 ' /"
+  Subagent b6f209: "grep -rn -i 'iolo' /root/sicherung/biotop-lage-01/arbeit/lesen/ /root/biotop-vor-t4-06/UEBERGABE.md /root/sich"
+  Subagent b6f209: "grep -n -e 'id 1739 ' -e 'id 1741 ' -e 'id 2901 ' -e 'id 10719 ' -e 'id 16498 ' -e 'id 12293 ' -e 'id 3215 ' /"
+  Subagent b6f209: "grep -rn -i 'iolo' /root/sicherung/biotop-lage-01/arbeit/lesen/ /root/biotop-vor-t4-06/UEBERGABE.md /root/sich"
+  Subagent b6f209: "ls -la /tmp/review-vor-t4-04/ 2>&1 | head -8; ls -la /tmp/review-vor-t4-05/ 2>&1 | head -5; grep -n -i 'REVIEW"
+  Subagent b6f209: "ls -la /tmp/review-vor-t4-04/ 2>&1 | head -8; ls -la /tmp/review-vor-t4-05/ 2>&1 | head -5; grep -n -i 'REVIEW"
+  Subagent b6f209: "grep -rln 'REVIEW-B' /root/biotop-vor-t4-04 /root/biotop-vor-t4-05 /root/biotop-vor-t4-06 --include=*.md 2>/de"
+  Subagent b6f209: "grep -rln 'REVIEW-B' /root/biotop-vor-t4-04 /root/biotop-vor-t4-05 /root/biotop-vor-t4-06 --include=*.md 2>/de"
+  Subagent b6f209: "cd /root/sicherung/biotop-lage-01/arbeit/lesen; grep -n 'REVIEW-B\\|Fassung B\\|x4probe\\|Probe x4' subagent-beri"
+  Subagent b6f209: "cd /root/sicherung/biotop-lage-01/arbeit/lesen; grep -n 'REVIEW-B\\|Fassung B\\|x4probe\\|Probe x4' subagent-beri"
+  Subagent b6f209: "grep -rn '40 Zeichen\\|ab 40\\|X4PROBE\\|x4probe\\|Randwerte tragen' /root/biotop-vor-t4-04/*.md /root/biotop-vor-"
+  Subagent b6f209: "grep -rn '40 Zeichen\\|ab 40\\|X4PROBE\\|x4probe\\|Randwerte tragen' /root/biotop-vor-t4-04/*.md /root/biotop-vor-"
+  Subagent b6f209: "cd /root/sicherung/biotop-lage-01/arbeit/lesen; grep -n '^## 2026-09-24 1[6-9]\\|^## 2026-09-24 20' hermes-an-p"
+  Subagent b6f209: "cd /root/sicherung/biotop-lage-01/arbeit/lesen; grep -n '^## 2026-09-24 1[6-9]\\|^## 2026-09-24 20' hermes-an-p"
+  Subagent b6f209: "grep -n -i 'zweite Instanz\\|zweiten Durchgang\\|zwei Durchg\\|zwei Review\\|Instanz' /root/biotop-vor-t4-04/BERIC"
+  Subagent b6f209: "grep -n -i 'zweite Instanz\\|zweiten Durchgang\\|zwei Durchg\\|zwei Review\\|Instanz' /root/biotop-vor-t4-04/BERIC"
+  Subagent b6f209: "grep -n -w 'x4' /root/biotop-vor-t4-05/REVIEW.md /root/biotop-vor-t4-05/REVIEW-verworfen-erster-durchgang.md /"
+  Subagent b6f209: "grep -n -w 'x4' /root/biotop-vor-t4-05/REVIEW.md /root/biotop-vor-t4-05/REVIEW-verworfen-erster-durchgang.md /"
+  Subagent b6f209: "grep -n '16285\\|16712\\|16482\\|16769' /root/sicherung/biotop-lage-01/rohbelege/R0022.txt /root/sicherung/biotop"
+  Subagent b6f209: "grep -n '16285\\|16712\\|16482\\|16769' /root/sicherung/biotop-lage-01/rohbelege/R0022.txt /root/sicherung/biotop"
+  Subagent b6f209: 'sha256sum /tmp/review-vor-t4-04/REVIEW-B.md /tmp/review-vor-t4-05/REVIEW.md /root/biotop-vor-t4-05/REVIEW.md /'
+  Subagent b6f209: 'sha256sum /tmp/review-vor-t4-04/REVIEW-B.md /tmp/review-vor-t4-05/REVIEW.md /root/biotop-vor-t4-05/REVIEW.md /'
+  Subagent b6f209: "date '+%Y-%m-%d %H:%M:%S %Z'; ls -la /tmp/biotop-kammer-exklusiv 2>&1; ls /root/sicherung/biotop-lage-01/arbei"
+  Subagent b6f209: "date '+%Y-%m-%d %H:%M:%S %Z'; ls -la /tmp/review-vor-t4-04/ 2>&1 | head -8; cd /root/biotop && git rev-parse -"
+  Subagent b6f209: "date '+%Y-%m-%d %H:%M:%S %Z'; wc -c /root/sicherung/biotop-lage-01/entwurf/lage-offen/LAGE-BAUSTEINE-H-TEIL1.m"
+  Subagent b6f209: 'df -h /root/sicherung /var/pruefkanal /tmp | cat; findmnt -n -o SOURCE,FSTYPE --target /tmp; findmnt -n -o SOU'
+  Subagent b6f209: "date '+%Y-%m-%d %H:%M:%S %Z'; git -C /root/biotop log -4 --date=format:'%Y-%m-%d %H:%M:%S %z' --format='%h | %"
+  Subagent b6f209: 'cd /root/sicherung/biotop-lage-01/entwurf/lage-offen && wc -c LAGE-BAUSTEINE-H-TEIL*.md && sha256sum LAGE-BAUS'
+  Subagent b6f209: 'cd /root/sicherung/biotop-lage-01/entwurf/lage-offen && wc -c LAGE-BAUSTEINE-H-TEIL*.md STAND.md && sha256sum '
+  Subagent d126b7: 'mkdir -p /root/sicherung/biotop-lage-01/entwurf/lage-werke && ls -la /root/sicherung/biotop-lage-01/ /root/sic'
+  Subagent d126b7: 'cd /root/sicherung/biotop-lage-01/entwurf && for f in AUFTRAG-A-ENTSCHEIDUNGEN.md AUFTRAG-B-VERFASSUNGEN.md AU'
+  Subagent d126b7: 'cd /root/sicherung/biotop-lage-01/arbeit/lesen && head -c 3000 philipp-ab-2026-09-18.md; echo; echo ----; grep'
+  Subagent d126b7: 'L=/var/pruefkanal/oeffentlich/_akte/$(cat /etc/pruefkanal/schluessel)/laeufe; ls -la $L/biotop-t3-typescript/ '
+  Subagent d126b7: 'L=/var/pruefkanal/oeffentlich/_akte/$(cat /etc/pruefkanal/schluessel)/laeufe/biotop-t3-typescript; grep -n -F '
+  Subagent d126b7: 'ls -la /root/ | head -80; echo ----; ls -la /root/biotop/daten/werke/ | head -40; echo ----; ls /root/biotop-v'
+  Subagent d126b7: 'grep -rIl --include=*.py -i "drahtwerk" /root/biotop/biotop /root/biotop/tests /root/biotop/pruefung 2>/dev/nu'
+  … 166 weitere
+== (2) Glossarprüfung (Näherung)
+Kandidaten: 265 · im GLOSSAR: 82 · nicht im GLOSSAR: 183
+nicht im GLOSSAR: Abfragen | Abgrenzung | Abschluss des Breitentests | Abwehr für wirksam erklärt | Allgemeine Entscheidungen Philipps | An Chat-Claude | An Hermes | Anmeldungen am Server | Arbeitsregel | Archivierung | Art und neue Art | Auf wessen Anweisung | Auffälligkeit | Aufteilung | Auftrag dazu | Auslegungen | Ausnahme für Abbrüche | Ausnahme im Skill gestrichen | Begriff „neuer Messgerätfehler“ | Behebungsrunden | CHRONIK | Commit-Autoren | Commit-Nachrichten mit Rückbau-Wörtern | Dateibesitzer | Datenbankzugriff | Datenbankzweige | Datum in den Fassungen | Der Prüfkanal ist öffentlich | Die Abnahme gilt eng | Echtheit der Doppelung | Eigener Auftrag zur Ansageabweichung | Einhaltung | Einschränkung | Einschränkungen | Einträge je Werk | Einzelstand | Erfundene Mentor-Verweise | Erfundene Verweise | Ergebnis je Lauf | Erkennen und nicht halluzinieren | Erklärung des Medians | Erster Durchgang | Fehler von Chat-Claude | Freigaben ausschließlich durch Philipp | Früher genannt | GILT sinngemäß | Gedächtnis gegen Dateien | Gedächtnis gegen geltende Regeln | Gedächtnis veraltet | Geheimnisse in der Sitzungsdatenbank | Grenze dieser Liste | Grundlage | INVENTAR | In den Nachrichten | Kasse im Gedächtnis | Kennungsvergabe | Kurzantwort | Kurzfassung | Letzter Lauf | Letzter Nachweis | Läufe im Stamm | Läufe in anderen Zweigen | Läufe ohne Abnahme | Maßeichung am sauberen Vergleichsbereich | Maßstab | Meldungen von Hermes | Nebenbefund | Neuer Stand | Nicht gemessen | None | Norm-Zeile und Eichproben | Parallele Instanzen | Philipp direkt | Philipp entscheidet | Praxis | Quelle der Wortlaute | Quellen | Quellen dieses Auftrags | Reflog | Reihenfolge | Reparaturauftrag eingegrenzt | Rest | Rohbelege dieses Teils | Rollen | RuntimeError | Schwarm selbst | Selbstevolution | Sitzungen | Spalten der Tafeln | Speicherwerk | Später | Stand des Lesens | Stand je Kennung | Streuung statt Wirkung | Titel eines Nachlaufberichts | Tor n | UNBEKANNT | Umfang | Umfang am Ausgang | Umfang am letzten Stand | Umgang mit einer Sperre | VERALTET | Verdichtung | Verdichtung im Gateway | Verworfene Kandidaten ohne Kammerlauf | Vor dem Breitentest | Vorbehalt | Vorgeschichte der Wertung | Was sie ist | Was sie sind | Werkordner auf der Platte | Werktabellen | Widerspruch | Wiederherstellbar | Zahlen | Zeiten | Zielbild | Zusammengezählt | Zwei Hermes-Instanzen gleichzeitig | Zwei Reviewdurchgänge | Zwei echte Normtests | Zweiter Durchgang | Zwischenschritte | Zählweise | abgenommen | abgeschlossen und gewertet | angenommen und im Werk | anwenden | anzahl | ausgefuehrt | basicauth | bereit | beta | blockierend | coverage | detect-object-injection | df -h | dist | eng abgenommen | entfallen | eval | filtern | findmnt | formeln | gesaettigt | git log | git show --stat | gross | grosswerk | hermes config set | id n | if gefunden | immutable | je Art ausgewiesen | je Maßfeld einschließlich Laufzeit | kein Abnahmewort | kein Messwert | laeuft | lagerhaus-ohne-tests | leert | measurement-harness-discipline | natürlichen Betrieb | nicht abgenommen | nicht begonnen | nie überschrieben | nummerierten | ohne vorhandene Testsammlung | planung | preise | probewerk | rückwirkend gerissen | tarife | telegram | und im Werk | ungemessen | von Chat-Claude bestätigt | wtmp | zaehlen | zahlen | Änderungszeiten | Überschneidung | „Blockiert nicht“ im Wortlaut | „Blockiert“
+=== Ende R214 ===
+
+
+R215 · GLOSSAR: Begriffsliste und Prüfliste von Fachbegriffen aus LAGE und TORE
+Beginn: 2026-09-25 20:35:20 CEST (UTC+0200)
+Ende:   2026-09-25 20:35:21 CEST (UTC+0200)
+Dauer:  0.3 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/glossar_liste.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/glossar_liste.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): (1) Begriffe des GLOSSAR (erste Tabellenzelle oder fetter Zeilenanfang), gezählt und
+aufgelistet; (2) Prüfliste von Fachbegriffen aus LAGE und TORE (Auswahl Hermes aus R214 und aus dem Stand der Runde 6):
+je Begriff vorhanden ja/nein (ohne Groß/Klein, auch als Teil eines Begriffs), und Fundstellen in LAGE/TORE (Anzahl)."""
+import re
+from pathlib import Path
+
+A = Path('/root/sicherung/biotop-lage-01/ausgabe')
+g = [z for p in sorted(A.glob('GLOSSAR-TEIL*-01.md')) for z in p.read_text(encoding='utf-8').splitlines()]
+begriffe = []
+for z in g:
+    m = re.match(r'\|\s*\*{0,2}([^|*]+?)\*{0,2}\s*\|', z) or re.match(r'[-*]\s+\*\*([^*]+)\*\*', z)
+    if m and not re.fullmatch(r'-+|Begriff|Bedeutung', m.group(1).strip()):
+        begriffe.append(m.group(1).strip())
+print(f'GLOSSAR-Begriffe: {len(begriffe)}')
+print(' | '.join(begriffe))
+glos = '\n'.join(g).lower()
+texte = ''.join(p.read_text(encoding='utf-8') for p in sorted(A.glob('LAGE-TEIL*-01.md')) + sorted(A.glob('TORE-TEIL*-01.md')))
+PRUEF = ['Behebungsrunde', 'Speicherwerk', 'Großwerk', 'grosswerk', 'Probewerk', 'Drahtwerk', 'Verdichtung', 'Selbstevolution',
+         'Zielbild', 'eng abgenommen', 'Maßeichung', 'Zweig', 'STAMM', 'VB1', 'R02', 'Stichzeitpunkt', 'Rohbeleg', 'Prüfkanal',
+         'stiller Durchlass', 'Enthaltung', 'tragfähig', 'Sonde', 'Verhaltensvergleich', 'Kammer', 'Vorspann', 'Stufe 2',
+         'Eichphase', 'Gegenzeuge', 'Laufweg', 'Teillauf', 'rote Spezifikation', 'Startregel', 'Vollmacht', 'Auftragsgrenze',
+         'Laufbudget', 'Lazarus', 'Landkarte', 'Aktenschrank', 'Geschmacksgedächtnis', 'Ansage', 'Abweichungsquote',
+         'Neutralrückgabe', 'Typsieb', 'Inhaltsbefund', 'Referenzlast', 'Aufwärmung', 'Verbundausfall', 'Höchstfall',
+         'Verfälschungskappe', 'Formvariante', 'Weißraum', 'Nachspiel', 'Zwischenbericht', 'Wächter', 'Gedächtnis (Hermes)',
+         'Breitentest', 'Übergabe', 'Abschlussordner', 'Kernstand', 'Harness', 'detect-object-injection', 'Fehlalarm',
+         'Vorbedingung', 'Reparatur', 'Bestandsaufnahme', 'Befundklasse', 'Messgrenze', 'M2(b)', 'Befund G', 'Vorentscheidung',
+         'Delegation', 'Subagent', 'Review', 'Regression', 'Verdrahtungstest', 'Kontingent', 'Sättigung', 'Kandidat']
+fehlt = []
+for b in PRUEF:
+    da = b.lower() in glos
+    n = len(re.findall(re.escape(b), texte, re.I))
+    if not da:
+        fehlt.append(f'{b} ({n})')
+print(f'Prüfliste: {len(PRUEF)} · im GLOSSAR: {len(PRUEF) - len(fehlt)} · fehlen: {len(fehlt)}')
+print('fehlen (Treffer in LAGE+TORE): ' + ' | '.join(fehlt))
+--- Ende /root/sicherung/biotop-lage-01/arbeit/glossar_liste.py ---
+Ausgabe (vollständig, stdout und stderr):
+GLOSSAR-Begriffe: 172
+Inhalt: | Stichzeitpunkt: | Verfasser: | Quelle: | Prüfung durch Hermes und Rohbelege je Datei: | Nachtrag Hermes: | Je Begriff: | Begriffe aus LAGE und TORE | Auslegung Hermes: | MP v8 | Code | R5 | Abschlussordner: | Aegis: | Aktenschrank: | Altlast: | Angriffstest: | Ankläger: | Ansage: | Äquivalenter Mutant: | Artgedächtnis: | Aufnahme: | Aufnahmesperre C: | Auftragsbudget (Auftragsgrenze): | Ausfallklärung: | Bandit: | Bauteil A / B / C: | Befundklasse: | Behauptung: | Behebungsrunde: | behoben heißt verschwunden: | Bereich: | Bestwert des Laufs: | blinder Fleck: | Breitentest: | Deckung: | Doppelgänger: | Doppelung: | Doppelungsanteil: | Doppelungsschlüssel: | Drahtwerk: | Eichfall: | Eichgegenstand: | Eichkosten: | Eichphase: | Eichprobe: | Elite: | Enthaltung: | Entropie: | Formvariante: | Freigabe: | Freigabe-Gate: | Fund: | Fund-Neubewertung: | geeichtes Maß: | Gegenprobe: | Gegenzeuge: | Generalprobe: | Generation: | Generation 0: | Generation minus eins: | Genesis: | Geschmacksgedächtnis: | Gewinnschwelle (Gewinnband): | Grenzmaß: | Grundsatz: | Halluzinationsprobe: | harte Maße / weiche Maße: | Hersteller: | Immunisierung: | Immunsystem: | Immuntest: | Jury: | Kammer (Ausführungskammer): | Kandidat: | Kante: | Kappe: | Kasse: | KEIN ANGRIFF: | „KEIN VORSCHLAG“: | Kernmaß F1: | Kernmaß F2: | Kernstand: | Klassenmaß: | Kontingent: | Landkarte: | Lauf: | Laufzeitriss: | laut scheitern: | Lazarus: | Maß (eingefroren): | Masse (Modellrolle): | Maßeichung: | Mechanikprüfung: | Mentor: | Messgerät: | Messgerätausfall: | Messgerätfehler: | Mutant: | Nachgang: | Nachlauf: | Nachspiel: | Nebenwirkungsprobe: | Neutralzähler: | Nexus: | Nische: | Nischenmaß: | Norm-Probe: | Norm-Regel: | Oberfläche: | Organ: | Pareto je Test: | Pareto-Maße: | Phase: | Probe (`ist_probe`): | Projektgedächtnis: | Protokoll: | Prüfkanal: | Rauschmessung: | Rauschtoleranz: | Referenzlast: | Register: | Regressionsprobe: | Review: | Richtung: | S1–S4 (Bauaufträge Runde 6): | S1–S5 (Schwächen): | Sättigung: | Sättigungsregel: | sauberer Vergleichsbereich: | Schnappschuss: | Schwarm: | schwerer Aufruf: | Sonde: | Spezifikation (rote): | Startregel (T4): | stiller Durchlass: | Straße: | Stufe 0–3 (Landkarte): | Stufe-2-Last: | Summenpflicht: | T3–T6: | Tauschregel: | Teillauf: | Testwerk: | Tor: | Tor-4-Skript: | Torzeile: | Typsieb: | Übungswerk: | unantastbarer Kern: | Verbundausfall: | Verdrahtungstest: | Verfälschung (typtreu): | Verfassung: | Verhaltensvergleich: | Verhandlung: | Verlaufskurve: | Vertrag: | Vertragsprobe: | Vollmacht: | Vorbedingung: | Vorlage: | Vorspann: | Werk: | Werkklasse: | werkübergreifender Block: | Wirkungskreis: | zurückgestellt: | Zwangsbefund: | Zweck-Präfix: | Zwischenbericht:
+Prüfliste: 78 · im GLOSSAR: 46 · fehlen: 32
+fehlen (Treffer in LAGE+TORE): Speicherwerk (5) | Großwerk (0) | grosswerk (2) | Probewerk (6) | Verdichtung (24) | Selbstevolution (4) | Zielbild (3) | eng abgenommen (2) | Zweig (19) | STAMM (46) | VB1 (57) | R02 (7) | Laufweg (15) | rote Spezifikation (5) | Laufbudget (0) | Abweichungsquote (10) | Neutralrückgabe (2) | Inhaltsbefund (2) | Aufwärmung (3) | Höchstfall (0) | Verfälschungskappe (0) | Weißraum (3) | Wächter (8) | Gedächtnis (Hermes) (0) | Übergabe (8) | Harness (3) | detect-object-injection (2) | Fehlalarm (15) | Bestandsaufnahme (8) | Messgrenze (3) | M2(b) (10) | Vorentscheidung (3)
+=== Ende R215 ===
+
+
+R216 · GLOSSAR nach Nachtrag TEIL2: Prüfliste (71 Begriffe, ohne die 0-Treffer-Begriffe; Synonyme auf die TEIL1-Namen gestellt) gegen GLOSSAR-TEIL1+2
+Beginn: 2026-09-25 20:36:26 CEST (UTC+0200)
+Ende:   2026-09-25 20:36:26 CEST (UTC+0200)
+Dauer:  0.3 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/glossar_liste.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/glossar_liste.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): (1) Begriffe des GLOSSAR (erste Tabellenzelle oder fetter Zeilenanfang), gezählt und
+aufgelistet; (2) Prüfliste von Fachbegriffen aus LAGE und TORE (Auswahl Hermes aus R214 und aus dem Stand der Runde 6):
+je Begriff vorhanden ja/nein (ohne Groß/Klein, auch als Teil eines Begriffs), und Fundstellen in LAGE/TORE (Anzahl)."""
+import re
+from pathlib import Path
+
+A = Path('/root/sicherung/biotop-lage-01/ausgabe')
+g = [z for p in sorted(A.glob('GLOSSAR-TEIL*-01.md')) for z in p.read_text(encoding='utf-8').splitlines()]
+begriffe = []
+for z in g:
+    m = re.match(r'\|\s*\*{0,2}([^|*]+?)\*{0,2}\s*\|', z) or re.match(r'[-*]\s+\*\*([^*]+)\*\*', z)
+    if m and not re.fullmatch(r'-+|Begriff|Bedeutung', m.group(1).strip()):
+        begriffe.append(m.group(1).strip())
+print(f'GLOSSAR-Begriffe: {len(begriffe)}')
+print(' | '.join(begriffe))
+glos = '\n'.join(g).lower()
+texte = ''.join(p.read_text(encoding='utf-8') for p in sorted(A.glob('LAGE-TEIL*-01.md')) + sorted(A.glob('TORE-TEIL*-01.md')))
+PRUEF = ['Behebungsrunde', 'Speicherwerk', 'Grosswerk', 'Probewerk', 'Drahtwerk', 'Verdichtung', 'Selbstevolution',
+         'Zielbild', 'eng abgenommen', 'Maßeichung', 'Zweig', 'STAMM', 'VB1', 'R02', 'Stichzeitpunkt', 'Rohbeleg', 'Prüfkanal',
+         'stiller Durchlass', 'Enthaltung', 'tragfähig', 'Sonde', 'Verhaltensvergleich', 'Kammer', 'Vorspann', 'Stufe',
+         'Eichphase', 'Gegenzeuge', 'Laufweg', 'Teillauf', 'Spezifikation', 'Startregel', 'Vollmacht', 'Auftragsgrenze',
+         'Lazarus', 'Landkarte', 'Aktenschrank', 'Geschmacksgedächtnis', 'Ansage', 'Abweichungsquote',
+         'Neutralzähler', 'Typsieb', 'Inhaltsbefund', 'Referenzlast', 'Aufwärmung', 'Verbundausfall',
+         'Formvariante', 'Weißraum', 'Nachspiel', 'Zwischenbericht', 'Wächter', 'Gedächtnis (Hermes)',
+         'Breitentest', 'Übergabe', 'Abschlussordner', 'Kernstand', 'Harness', 'detect-object-injection', 'Fehlalarm',
+         'Vorbedingung', 'Bestandsaufnahme', 'Befundklasse', 'Messgrenze', 'M2(b)', 'Befund G', 'Vorentscheidung',
+         'Review', 'Verdrahtungstest', 'Kontingent', 'Sättigung', 'Kandidat', 'Nachsteuerung']
+fehlt = []
+for b in PRUEF:
+    da = b.lower() in glos
+    n = len(re.findall(re.escape(b), texte, re.I))
+    if not da:
+        fehlt.append(f'{b} ({n})')
+print(f'Prüfliste: {len(PRUEF)} · im GLOSSAR: {len(PRUEF) - len(fehlt)} · fehlen: {len(fehlt)}')
+print('fehlen (Treffer in LAGE+TORE): ' + ' | '.join(fehlt))
+--- Ende /root/sicherung/biotop-lage-01/arbeit/glossar_liste.py ---
+Ausgabe (vollständig, stdout und stderr):
+GLOSSAR-Begriffe: 206
+Inhalt: | Stichzeitpunkt: | Verfasser: | Quelle: | Prüfung durch Hermes und Rohbelege je Datei: | Nachtrag Hermes: | Je Begriff: | Begriffe aus LAGE und TORE | Auslegung Hermes: | MP v8 | Code | R5 | Abschlussordner: | Aegis: | Aktenschrank: | Altlast: | Angriffstest: | Ankläger: | Ansage: | Äquivalenter Mutant: | Artgedächtnis: | Aufnahme: | Aufnahmesperre C: | Auftragsbudget (Auftragsgrenze): | Ausfallklärung: | Bandit: | Bauteil A / B / C: | Befundklasse: | Behauptung: | Behebungsrunde: | behoben heißt verschwunden: | Bereich: | Bestwert des Laufs: | blinder Fleck: | Breitentest: | Deckung: | Doppelgänger: | Doppelung: | Doppelungsanteil: | Doppelungsschlüssel: | Drahtwerk: | Eichfall: | Eichgegenstand: | Eichkosten: | Eichphase: | Eichprobe: | Elite: | Enthaltung: | Entropie: | Formvariante: | Freigabe: | Freigabe-Gate: | Fund: | Fund-Neubewertung: | geeichtes Maß: | Gegenprobe: | Gegenzeuge: | Generalprobe: | Generation: | Generation 0: | Generation minus eins: | Genesis: | Geschmacksgedächtnis: | Gewinnschwelle (Gewinnband): | Grenzmaß: | Grundsatz: | Halluzinationsprobe: | harte Maße / weiche Maße: | Hersteller: | Immunisierung: | Immunsystem: | Immuntest: | Jury: | Kammer (Ausführungskammer): | Kandidat: | Kante: | Kappe: | Kasse: | KEIN ANGRIFF: | „KEIN VORSCHLAG“: | Kernmaß F1: | Kernmaß F2: | Kernstand: | Klassenmaß: | Kontingent: | Landkarte: | Lauf: | Laufzeitriss: | laut scheitern: | Lazarus: | Maß (eingefroren): | Masse (Modellrolle): | Maßeichung: | Mechanikprüfung: | Mentor: | Messgerät: | Messgerätausfall: | Messgerätfehler: | Mutant: | Nachgang: | Nachlauf: | Nachspiel: | Nebenwirkungsprobe: | Neutralzähler: | Nexus: | Nische: | Nischenmaß: | Norm-Probe: | Norm-Regel: | Oberfläche: | Organ: | Pareto je Test: | Pareto-Maße: | Phase: | Probe (`ist_probe`): | Projektgedächtnis: | Protokoll: | Prüfkanal: | Rauschmessung: | Rauschtoleranz: | Referenzlast: | Register: | Regressionsprobe: | Review: | Richtung: | S1–S4 (Bauaufträge Runde 6): | S1–S5 (Schwächen): | Sättigung: | Sättigungsregel: | sauberer Vergleichsbereich: | Schnappschuss: | Schwarm: | schwerer Aufruf: | Sonde: | Spezifikation (rote): | Startregel (T4): | stiller Durchlass: | Straße: | Stufe 0–3 (Landkarte): | Stufe-2-Last: | Summenpflicht: | T3–T6: | Tauschregel: | Teillauf: | Testwerk: | Tor: | Tor-4-Skript: | Torzeile: | Typsieb: | Übungswerk: | unantastbarer Kern: | Verbundausfall: | Verdrahtungstest: | Verfälschung (typtreu): | Verfassung: | Verhaltensvergleich: | Verhandlung: | Verlaufskurve: | Vertrag: | Vertragsprobe: | Vollmacht: | Vorbedingung: | Vorlage: | Vorspann: | Werk: | Werkklasse: | werkübergreifender Block: | Wirkungskreis: | zurückgestellt: | Zwangsbefund: | Zweck-Präfix: | Zwischenbericht: | Stichzeitpunkt: | Warum dieser Nachtrag: | Kennzeichnung: | Glossar Teil 1: | Abweichungsquote (Ansage↔Ausführung) | Aufwärmung | Befund G | Bestandsaufnahme | eng abgenommen | Fehlalarm | `detect-object-injection` | Gedächtnis (Hermes) | Grosswerk | Harness | Inhaltsbefund (als Absturz) | Laufweg | M2(b) | Messgrenze | Nachsteuerung | Probewerk | R02 | Rohbeleg | Selbstevolution | Speicherwerk | STAMM | Stichzeitpunkt | Übergabe | VB1 | Verdichtung | Vorentscheidung | Wächter (Zwischenbericht-Wächter) | Weißraum | Zielbild | Zweig (Kassenzweig)
+Prüfliste: 71 · im GLOSSAR: 71 · fehlen: 0
+fehlen (Treffer in LAGE+TORE): 
+=== Ende R216 ===
+
+
+R217 · Stichproben gegen die eingesetzten Entwürfe: Verfassungs-Fundorte (SHA-256 neu gerechnet), KASSE-Summen gegen CHRONIK, REGRESSION-Zeile, SOLL-IST-Zählung
+Beginn: 2026-09-25 20:39:01 CEST (UTC+0200)
+Ende:   2026-09-25 20:39:01 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/stichproben.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/stichproben.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Stichproben gegen die eingesetzten Entwürfe (VOLLSTAENDIGKEIT „Prüfung der Entwürfe“).
+(a) VERFASSUNGEN-TEIL4 §11: jede Zeile mit SHA-256 (64 hex) und Pfad; jede 10. solche Zeile wird neu gerechnet
+    (Prüfkanal-Adressen auf den Plattenpfad abgebildet); gleich/verschieden/fehlt gezählt.
+(b) KASSE: Summe kosten_eur aller entdoppelten Buchungen (KASSE-TEIL2..27) gegen CHRONIK „6.919 Buchungen, 18,814735 €“;
+    je Lauf (KASSE-TEIL1): Summe der T3-Läufe 26–38 gegen CHRONIK B14 „2.603, 9,728638 €“.
+(c) AUFBAU FK35 „598 bestanden, 2 übersprungen, 93 abgewählt, 2458 s“ gegen /root/biotop-vor-t4-05/REGRESSION.txt.
+(d) SOLL-IST: Zählzeile 117+37+2+24+0+1+15 = 196 nachgerechnet."""
+import csv
+import hashlib
+import io
+import re
+from pathlib import Path
+
+A = Path('/root/sicherung/biotop-lage-01/ausgabe')
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+URL = f'https://milieulux-reinigung-muenchen.de/_akte/{K}/laeufe/'
+PK = f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe/'
+print('== (a) VERFASSUNGEN-TEIL4: SHA-256 je Fundort neu gerechnet (jede 10. Zeile)')
+zeilen = []
+for z in (A / 'VERFASSUNGEN-TEIL4-01.md').read_text(encoding='utf-8').splitlines():
+    h = re.search(r'\b([0-9a-f]{64})\b', z)
+    p = re.search(r'(https://\S+?|/root/[^\s`|]+|/tmp/[^\s`|]+)(?=[`\s|]|$)', z)
+    if h and p:
+        zeilen.append((h.group(1), p.group(1).replace(URL, PK)))
+gleich = verschieden = fehlt = 0
+for h, p in zeilen[::10]:
+    q = Path(p)
+    if not q.is_file():
+        fehlt += 1; print(f'  fehlt: {p}'); continue
+    ok = hashlib.sha256(q.read_bytes()).hexdigest() == h
+    gleich += ok; verschieden += not ok
+    if not ok:
+        print(f'  VERSCHIEDEN: {p}')
+print(f'  Zeilen mit SHA und Pfad: {len(zeilen)} · geprüft {len(zeilen[::10])}: gleich {gleich}, verschieden {verschieden}, fehlt {fehlt}')
+print('== (b) KASSE')
+def lese(n):
+    return list(csv.reader(io.StringIO((A / f'KASSE-TEIL{n}-01.csv').read_text(encoding='utf-8')), delimiter=';'))
+t1 = lese(1)
+print(f'  KASSE-TEIL1 Kopf: {t1[0]}')
+t2 = lese(2)
+print(f'  KASSE-TEIL2 Kopf: {t2[0]}')
+kopf = t2[0]
+ik = next(i for i, s in enumerate(kopf) if s.startswith('kosten_eur'))
+summe, n = 0.0, 0
+for k in range(2, 28):
+    rows = lese(k)
+    start = 1 if rows and rows[0] == kopf else 0
+    for r in rows[start:]:
+        if len(r) > ik and r[ik] not in ('', 'kosten_eur'):
+            summe += float(r[ik]); n += 1
+print(f'  Buchungen TEIL2–27: {n} · Summe kosten_eur {summe:.6f} € · CHRONIK: 6.919 · 18,814735 €')
+ilauf = next(i for i, s in enumerate(t1[0]) if 'lauf' in s.lower())
+ikos = next(i for i, s in enumerate(t1[0]) if 'kosten' in s.lower() or 'summe' in s.lower())
+ibu = next((i for i, s in enumerate(t1[0]) if 'buchung' in s.lower() or 'anzahl' in s.lower()), None)
+t3 = [r for r in t1[1:] if r and r[ilauf].startswith('T3/') and 26 <= int(re.sub(r'\D', '', r[ilauf].split('/')[-1]) or 0) <= 38]
+print(f'  T3-Läufe 26–38 in TEIL1: {len(t3)} · Summe {sum(float(r[ikos]) for r in t3):.6f} €'
+      + (f' · Buchungen {sum(int(float(r[ibu])) for r in t3)}' if ibu is not None else '') + ' · CHRONIK B14: 2.603 · 9,728638 €')
+print('== (c) REGRESSION.txt')
+print('  ' + [z for z in Path('/root/biotop-vor-t4-05/REGRESSION.txt').read_text().splitlines() if 'passed' in z][-1])
+print('== (d) SOLL-IST-Zählung: 117+37+2+24+0+1+15 =', 117 + 37 + 2 + 24 + 0 + 1 + 15)
+--- Ende /root/sicherung/biotop-lage-01/arbeit/stichproben.py ---
+Ausgabe (vollständig, stdout und stderr):
+== (a) VERFASSUNGEN-TEIL4: SHA-256 je Fundort neu gerechnet (jede 10. Zeile)
+  Zeilen mit SHA und Pfad: 1 · geprüft 1: gleich 1, verschieden 0, fehlt 0
+== (b) KASSE
+  KASSE-TEIL1 Kopf: ['lauf', 'nr', 'zweige', 'begonnen_am', 'beendet_am', 'status', 'werk', 'budget_eur', 'buchungen', 'kosten_eur', 'erste_buchung', 'letzte_buchung']
+  KASSE-TEIL2 Kopf: ['lauf', 'zweige', 'id', 'lauf_id', 'zeit', 'anbieter', 'modell', 'tokens_ein', 'tokens_aus', 'kosten_eur', 'zweck', 'kontingent', 'protokoll_nr']
+  Buchungen TEIL2–27: 6919 · Summe kosten_eur 18.814735 € · CHRONIK: 6.919 · 18,814735 €
+  T3-Läufe 26–38 in TEIL1: 13 · Summe 9.728637 € · Buchungen 2603 · CHRONIK B14: 2.603 · 9,728638 €
+== (c) REGRESSION.txt
+  598 passed, 2 skipped, 93 deselected in 2457.93s (0:40:57)
+== (d) SOLL-IST-Zählung: 117+37+2+24+0+1+15 = 196
+=== Ende R217 ===

@@ -1,0 +1,79 @@
+INTENTIONAL_RUNTIME_MUTATION self_announcement_not_exempt
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_____ test_erster_neuer_test_wird_nicht_von_eigener_ansage_gesperrt[fund] ______
+
+con = <sqlite3.Connection object at 0x7c02b52ae110>
+tmp_path = PosixPath('/root/reparatur-01/review-01/pruefer-mass/tmp-unit/self_announcement_not_exempt/test_erster_neuer_test_wird_ni0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7c02b52d67e0>
+art = 'fund'
+
+    @pytest.mark.parametrize("art", ["fund", "norm"])
+    def test_erster_neuer_test_wird_nicht_von_eigener_ansage_gesperrt(con, tmp_path, monkeypatch, art):
+        """Echte _angriff→Ansage→pruefen→Fund/Norm-Aufnahme, nur Außenwirkungen ersetzt."""
+        p = tmp_path / "paket" / "bereich" / "quelle.py"
+        p.parent.mkdir(parents=True)
+        p.write_text("def wert():\n    return 1\n")
+        diff = "--- a/paket/bereich/quelle.py\n+++ b/paket/bereich/quelle.py\n@@ -1,2 +1,2 @@\n def wert():\n-    return 1\n+    return 2\n"
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'bereich','test','erzeugt',?)", (diff,))
+        code = "from paket.bereich.quelle import wert\ndef test_neu():\n    assert wert() == 3\n"
+        replies = iter(["wert|Eq:zahl", f"```python\n{code}```"])
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text=next(replies)))
+    
+        def junit(werk, paket, dateien, testdateien):
+            return {f"{t}::test_neu": {"ok": False, "bestaetigt": True,
+                    "ort": "paket/bereich/quelle.py" if art == "fund" else "",
+                    "meldung": "ValueError" if art == "fund" else "AssertionError"} for t in testdateien}
+    
+        monkeypatch.setattr(aegis, "junit_lauf", junit)
+        # Endpunkt nach Aufnahme; keine Kammer, kein Messgerät-/Modellaufruf.
+        monkeypatch.setattr(aegis.messgeraet, "messen", lambda *a, **k: {"gueltig": False, "grund": "Test-Endpunkt"})
+        aegis.pruefen(con, 1, 1, 7, tmp_path, "paket", ["bereich"], [],
+                      {"bereiche": {"bereich": {}}}, {}, None, None)
+        rows = list(con.execute("SELECT name,status,ursprung FROM immunsystem"))
+>       assert len(rows) == 1, "Die aktuelle eigene Ansage darf den ersten neuen Test nicht sperren"
+E       AssertionError: Die aktuelle eigene Ansage darf den ersten neuen Test nicht sperren
+E       assert 0 == 1
+E        +  where 0 = len([])
+
+tests/test_ansage_aufnahme.py:43: AssertionError
+_____ test_erster_neuer_test_wird_nicht_von_eigener_ansage_gesperrt[norm] ______
+
+con = <sqlite3.Connection object at 0x7c02b52ae3e0>
+tmp_path = PosixPath('/root/reparatur-01/review-01/pruefer-mass/tmp-unit/self_announcement_not_exempt/test_erster_neuer_test_wird_ni1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7c02b52d5cd0>
+art = 'norm'
+
+    @pytest.mark.parametrize("art", ["fund", "norm"])
+    def test_erster_neuer_test_wird_nicht_von_eigener_ansage_gesperrt(con, tmp_path, monkeypatch, art):
+        """Echte _angriff→Ansage→pruefen→Fund/Norm-Aufnahme, nur Außenwirkungen ersetzt."""
+        p = tmp_path / "paket" / "bereich" / "quelle.py"
+        p.parent.mkdir(parents=True)
+        p.write_text("def wert():\n    return 1\n")
+        diff = "--- a/paket/bereich/quelle.py\n+++ b/paket/bereich/quelle.py\n@@ -1,2 +1,2 @@\n def wert():\n-    return 1\n+    return 2\n"
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'bereich','test','erzeugt',?)", (diff,))
+        code = "from paket.bereich.quelle import wert\ndef test_neu():\n    assert wert() == 3\n"
+        replies = iter(["wert|Eq:zahl", f"```python\n{code}```"])
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text=next(replies)))
+    
+        def junit(werk, paket, dateien, testdateien):
+            return {f"{t}::test_neu": {"ok": False, "bestaetigt": True,
+                    "ort": "paket/bereich/quelle.py" if art == "fund" else "",
+                    "meldung": "ValueError" if art == "fund" else "AssertionError"} for t in testdateien}
+    
+        monkeypatch.setattr(aegis, "junit_lauf", junit)
+        # Endpunkt nach Aufnahme; keine Kammer, kein Messgerät-/Modellaufruf.
+        monkeypatch.setattr(aegis.messgeraet, "messen", lambda *a, **k: {"gueltig": False, "grund": "Test-Endpunkt"})
+        aegis.pruefen(con, 1, 1, 7, tmp_path, "paket", ["bereich"], [],
+                      {"bereiche": {"bereich": {}}}, {}, None, None)
+        rows = list(con.execute("SELECT name,status,ursprung FROM immunsystem"))
+>       assert len(rows) == 1, "Die aktuelle eigene Ansage darf den ersten neuen Test nicht sperren"
+E       AssertionError: Die aktuelle eigene Ansage darf den ersten neuen Test nicht sperren
+E       assert 0 == 1
+E        +  where 0 = len([])
+
+tests/test_ansage_aufnahme.py:43: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_ansage_aufnahme.py::test_erster_neuer_test_wird_nicht_von_eigener_ansage_gesperrt[fund]
+FAILED tests/test_ansage_aufnahme.py::test_erster_neuer_test_wird_nicht_von_eigener_ansage_gesperrt[norm]
+2 failed in 0.07s

@@ -1,0 +1,482 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 03 · Teil 185 (Teile 166–239 dieses Stands) · enthält R196 bis R196
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+[R196 · Fortsetzung, Stück 3 von 22]
+ausgang = {'gueltig': False, 'rc': 1, 'stdout': '', 'stderr': 'failed to connect to the docker API at unix:///var/run/docker.soc...th is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n', ...}
+referenzlast = None, tausch = {}, extra_code = None, probe_ohne_modell = True
+probe_angriff = None, vv_optionen = None, referenzlast_laufzeit = None
+
+    def pruefen(con: sqlite3.Connection, lauf_id: int, werk_id: int, kandidat_id: int, werk: Path, paket: str,
+                bereiche: list[str], bstrassen: list[tuple[str, str]], basis: dict, ausgang: dict,
+                referenzlast: str | None, tausch: dict | None, extra_code: dict[str, str] | None = None,
+                *, probe_ohne_modell: bool = False, probe_angriff: str | None = None,
+                vv_optionen: dict | None = None, referenzlast_laufzeit: str | None = None) -> dict:
+        """extra_code: zusätzliche Dateien (z. B. Anpassung des Nachbarn bei Verhandlung), die zusammen mit dem
+        Kandidaten gemessen werden. `vv_optionen`: nur für Nachspiele (getrennte Messung K2868, Behebungsrunde 3) —
+        korpus_erweitert / deckungsregel des Verhaltensvergleichs; der Lauf übergibt nichts (Vorgabe)."""
+        """Vollständige Anklage (F2). Rückgabe: Urteil mit Belegen; Status in der DB gesetzt."""
+        k = con.execute("SELECT * FROM kandidaten WHERE id=?", (kandidat_id,)).fetchone()
+        # Nur markierte Eichkandidaten dürfen mechanische Angriffe ohne Modell nutzen.
+        if (probe_ohne_modell or probe_angriff is not None) and not (
+                probe_ohne_modell and "ist_probe" in k.keys() and k["ist_probe"] == 1):
+            raise ValueError("Reine Probeoption verlangt probe_ohne_modell=True und ist_probe=1")
+        bereich = k["bereich"]
+        urteil = {"kandidat": kandidat_id, "bereich": bereich, "status": "abgelehnt", "grund": "", "wirkungskreis": [],
+                  "immun": [], "tests_neu": [], "tests_verworfen": [], "immun_bestanden": [], "befundklassen": [],
+                  "verfassung_verstoesse": [], "angriff": None, "mass": None, "tests_offen": [], "norm": [], "doppelungen": [],
+                  "vertrag_verletzt": [], "vertraege_benannt": (k["vertraege"] if "vertraege" in k.keys() else "") or ""}
+    
+        def fertig(status, grund, masse=None, dateien_final=None, basis_paar=None):
+            urteil["status"], urteil["grund"] = status, grund
+            if masse is not None:
+                masse = {**masse, "_dateien": dateien_final or {}, "_basis_paar": basis_paar, "_urteil_f2": urteil["mass"],
+                         "laufzeit_stufe": urteil.get("laufzeit_stufe")}
+            with transaktion(con):
+                con.execute("UPDATE kandidaten SET status=?, grund=?, masse=?, wirkungskreis=? WHERE id=?",
+                            (status, grund, j(masse) if masse else None, j(urteil["wirkungskreis"]), kandidat_id))
+            protokoll.schreiben(con, "aegis.urteil", lauf_id=lauf_id, kandidat=kandidat_id, bereich=bereich, status=status,
+                                grund=grund[:500], wirkungskreis=urteil["wirkungskreis"], immun=urteil["immun"],
+                                tests_neu=urteil["tests_neu"], tests_verworfen=urteil["tests_verworfen"],
+                                immun_bestanden=urteil["immun_bestanden"], befundklassen=urteil["befundklassen"],
+                                verfassung=urteil["verfassung_verstoesse"], angriff=urteil["angriff"], mass=urteil["mass"], tests_offen=urteil["tests_offen"],
+                                norm=urteil["norm"], doppelungen=urteil["doppelungen"], vertrag_verletzt=urteil["vertrag_verletzt"], nische=k["nische"],
+                                # Tor 2 Zeile 8 braucht die GESCHRIEBENEN Behauptungen je erzeugtem
+                                # Angriffstest. Ohne sie ist der Doppelungsanteil nachtraeglich nicht
+                                # rekonstruierbar — gemessen in Lauf 37: 0 von 210 Urteilen trugen sie,
+                                # obwohl 42 Angriffe liefen.
+                                behauptungen=urteil.get("behauptungen") or {},
+                                behauptungen_treffer=urteil.get("behauptungen_treffer") or [],
+                                aufnahmesperre=urteil.get("aufnahmesperre") or {},
+                                # Verhaltensvergleich und Maßeichung stehen im Protokoll, damit jede Annahme
+                                # zeigt, ob das Verhalten verglichen und welche Regeln nicht gezählt wurden.
+                                verhalten=urteil.get("verhalten"),
+                                laufzeit_nachmessung=urteil.get("laufzeit_nachmessung"),
+                                laufzeit_stufe=urteil.get("laufzeit_stufe"),
+                                gewinn_nachmessung=urteil.get("gewinn_nachmessung"),
+                                masseichung_stillgelegt=((tausch or {}).get("_masseichung") or {}).get("stillgelegt") or [])
+            return urteil
+    
+        if k["status"] != "erzeugt":
+            return fertig(k["status"], k["grund"] or "nicht geprüft")
+    
+        # Schritt 1: Wirkungskreis
+        urteil["wirkungskreis"] = landkarte.wirkungskreis(bereich, bstrassen)
+    
+        dateien = kandidat_dateien(werk, k["diff"])
+        if dateien is None:
+            return fertig("abgelehnt", "Diff nicht anwendbar: " + (diff_grund(werk, k["diff"]) or "kein Inhalt"))
+        code = {p: (i if i is not None else "") for p, i in dateien.items() if not p.startswith("tests/")}
+        code.update(extra_code or {})
+        urteil["wirkungskreis"] = wirkungskreis_dateien(bereich, {**dateien, **(extra_code or {})}, paket, bstrassen)
+        tests_kandidat = {p: i for p, i in dateien.items() if p.startswith("tests/") and i is not None and not p.startswith("tests/vertraege/")}
+        vertrag_dateien_kandidat = {p: i for p, i in dateien.items() if p.startswith("tests/vertraege/") and i is not None}
+        if not code and not tests_kandidat:
+            return fertig("abgelehnt", "Diff ändert nichts")
+    
+        # Schritt 2: explizite Verträge — Vertragsdateien des Kandidaten nur, wenn er den Vertrag unter VERTRÄGE benannt hat
+        if vertrag_dateien_kandidat and urteil["vertraege_benannt"].strip().lower() in ("", "keine"):
+            return fertig("abgelehnt", f"ändert Vertragsdatei {sorted(vertrag_dateien_kandidat)} ohne den Vertrag unter VERTRÄGE zu benennen (3.8 Schritt 2)")
+        urteil["vertrag_dateien"] = sorted(vertrag_dateien_kandidat)  # Anhang A Satz 4: geänderte Vertragsdatei ⇒ Verhandlung (lauf.py)
+    
+        # Schritt 3: Verfassung (mechanisch prüfbare Sätze)
+        verf = verfassung.lesen(con, werk_id)
+        urteil["verfassung_verstoesse"] = verfassung.mechanisch_pruefen(verf, k["diff"], dateien, paket, bereich)
+        if urteil["verfassung_verstoesse"]:
+            return fertig("abgelehnt", "Verfassung verletzt: " + "; ".join(urteil["verfassung_verstoesse"]))
+    
+        # Testbestand des Kandidaten aufbauen
+        testbestand: dict[str, str] = {}
+        # a) Befundklassen-Immuntests (Bereich trägt in der Vorgeneration einen statischen Befund). Entscheidung
+        #    Chat-Claude (Fassung 8, Grundsatz 10): Schwarm und Ankläger lesen das GEEICHTE Maß — eine stillgelegte Regel
+        #    löst weder Befundklassen-Tests noch das schwere Angriffsmodell aus.
+        basis_g = masseichung.anwenden(basis, (tausch or {}).get("_masseichung"))
+        # Befundklassen-Immuntests für JEDEN Bereich, dessen Quelltext der Kandidat ändert — auch über `extra_code`
+        # (Anpassung des Nachbarn in der Verhandlung). Befund vor T4: Die S1-Behebung K2867+K2868 kam über den Nachbarn
+        # `tarife` ins Werk, geprüft wurden nur die Befundklassen von `zahlen`; die Randfälle des Verhaltensvergleichs
+        # zeigten die beabsichtigte Verhaltensänderung von `ausdruck`, und kein Test deckte sie.
+        bk = {}
+        for b_ in sorted({bereich} | {p.split("/")[1] for p in code if p.startswith(paket + "/") and p.count("/") >= 2}):
+>           if b_ in basis_g["bereiche"]:
+                     ^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'bereiche'
+
+biotop/organe/aegis.py:887: KeyError
+___________ test_vier_paare_ohne_freeze_und_ohne_spuren_im_original ____________
+
+paar = (<sqlite3.Connection object at 0x7240c0b9c130>, PosixPath('/tmp/pytest-of-root/pytest-0/test_vier_paare_ohne_freeze_un...reich': 'abnehmer', 'nach_bereich': 'lieferant', 'vertrag_pfad': 'tests/vertraege/test_vertrag_abnehmer_lieferant.py'})
+
+    def test_vier_paare_ohne_freeze_und_ohne_spuren_im_original(paar):
+        con, werk, bereiche, basis, _ = paar
+        vor_db = list(con.iterdump())
+        vor_werk = {p.relative_to(werk).as_posix(): p.read_bytes() for p in werk.rglob("*") if p.is_file()}
+        with kammer.zaehlung() as zaehler:
+>           e = eichproben.proben(con, 1, 1, werk, "beispiel", bereiche, [], basis, basis, REF_PAAR, {})
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_eichproben.py:203: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/eichproben.py:592: in proben
+    ziel[name] = _einzelprobe(db, lauf_id, werk_id, werk, paket, bereiche, bstrassen,
+biotop/organe/eichproben.py:526: in _einzelprobe
+    u = aegis.pruefen(db, lauf_id, werk_id, kid, werk, paket, bereiche, bstrassen, basis, ausgang, ref, tausch,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+con = <sqlite3.Connection object at 0x7240c0b9c6d0>, lauf_id = 1, werk_id = 1
+kandidat_id = 1, werk = PosixPath('/tmp/eichprobe-lnwcpn_q/werk')
+paket = 'beispiel', bereiche = ['abnehmer', 'lieferant'], bstrassen = []
+basis = {'gueltig': False, 'rc': 1, 'stdout': '', 'stderr': 'failed to connect to the docker API at unix:///var/run/docker.soc...th is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n', ...}
+ausgang = {'gueltig': False, 'rc': 1, 'stdout': '', 'stderr': 'failed to connect to the docker API at unix:///var/run/docker.soc...th is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n', ...}
+referenzlast = "import sys\nsys.path.insert(0, '/werk')\n\ndef last_abnehmer():\n    from beispiel.abnehmer import bericht\n    s = 0...        wert(float(i))\n\ndef beobachten():\n    from beispiel.lieferant import wert\n    return {'wert': wert(2.0)}\n"
+tausch = {}, extra_code = None, probe_ohne_modell = True, probe_angriff = None
+vv_optionen = None, referenzlast_laufzeit = None
+
+    def pruefen(con: sqlite3.Connection, lauf_id: int, werk_id: int, kandidat_id: int, werk: Path, paket: str,
+                bereiche: list[str], bstrassen: list[tuple[str, str]], basis: dict, ausgang: dict,
+                referenzlast: str | None, tausch: dict | None, extra_code: dict[str, str] | None = None,
+                *, probe_ohne_modell: bool = False, probe_angriff: str | None = None,
+                vv_optionen: dict | None = None, referenzlast_laufzeit: str | None = None) -> dict:
+        """extra_code: zusätzliche Dateien (z. B. Anpassung des Nachbarn bei Verhandlung), die zusammen mit dem
+        Kandidaten gemessen werden. `vv_optionen`: nur für Nachspiele (getrennte Messung K2868, Behebungsrunde 3) —
+        korpus_erweitert / deckungsregel des Verhaltensvergleichs; der Lauf übergibt nichts (Vorgabe)."""
+        """Vollständige Anklage (F2). Rückgabe: Urteil mit Belegen; Status in der DB gesetzt."""
+        k = con.execute("SELECT * FROM kandidaten WHERE id=?", (kandidat_id,)).fetchone()
+        # Nur markierte Eichkandidaten dürfen mechanische Angriffe ohne Modell nutzen.
+        if (probe_ohne_modell or probe_angriff is not None) and not (
+                probe_ohne_modell and "ist_probe" in k.keys() and k["ist_probe"] == 1):
+            raise ValueError("Reine Probeoption verlangt probe_ohne_modell=True und ist_probe=1")
+        bereich = k["bereich"]
+        urteil = {"kandidat": kandidat_id, "bereich": bereich, "status": "abgelehnt", "grund": "", "wirkungskreis": [],
+                  "immun": [], "tests_neu": [], "tests_verworfen": [], "immun_bestanden": [], "befundklassen": [],
+                  "verfassung_verstoesse": [], "angriff": None, "mass": None, "tests_offen": [], "norm": [], "doppelungen": [],
+                  "vertrag_verletzt": [], "vertraege_benannt": (k["vertraege"] if "vertraege" in k.keys() else "") or ""}
+    
+        def fertig(status, grund, masse=None, dateien_final=None, basis_paar=None):
+            urteil["status"], urteil["grund"] = status, grund
+            if masse is not None:
+                masse = {**masse, "_dateien": dateien_final or {}, "_basis_paar": basis_paar, "_urteil_f2": urteil["mass"],
+                         "laufzeit_stufe": urteil.get("laufzeit_stufe")}
+            with transaktion(con):
+                con.execute("UPDATE kandidaten SET status=?, grund=?, masse=?, wirkungskreis=? WHERE id=?",
+                            (status, grund, j(masse) if masse else None, j(urteil["wirkungskreis"]), kandidat_id))
+            protokoll.schreiben(con, "aegis.urteil", lauf_id=lauf_id, kandidat=kandidat_id, bereich=bereich, status=status,
+                                grund=grund[:500], wirkungskreis=urteil["wirkungskreis"], immun=urteil["immun"],
+                                tests_neu=urteil["tests_neu"], tests_verworfen=urteil["tests_verworfen"],
+                                immun_bestanden=urteil["immun_bestanden"], befundklassen=urteil["befundklassen"],
+                                verfassung=urteil["verfassung_verstoesse"], angriff=urteil["angriff"], mass=urteil["mass"], tests_offen=urteil["tests_offen"],
+                                norm=urteil["norm"], doppelungen=urteil["doppelungen"], vertrag_verletzt=urteil["vertrag_verletzt"], nische=k["nische"],
+                                # Tor 2 Zeile 8 braucht die GESCHRIEBENEN Behauptungen je erzeugtem
+                                # Angriffstest. Ohne sie ist der Doppelungsanteil nachtraeglich nicht
+                                # rekonstruierbar — gemessen in Lauf 37: 0 von 210 Urteilen trugen sie,
+                                # obwohl 42 Angriffe liefen.
+                                behauptungen=urteil.get("behauptungen") or {},
+                                behauptungen_treffer=urteil.get("behauptungen_treffer") or [],
+                                aufnahmesperre=urteil.get("aufnahmesperre") or {},
+                                # Verhaltensvergleich und Maßeichung stehen im Protokoll, damit jede Annahme
+                                # zeigt, ob das Verhalten verglichen und welche Regeln nicht gezählt wurden.
+                                verhalten=urteil.get("verhalten"),
+                                laufzeit_nachmessung=urteil.get("laufzeit_nachmessung"),
+                                laufzeit_stufe=urteil.get("laufzeit_stufe"),
+                                gewinn_nachmessung=urteil.get("gewinn_nachmessung"),
+                                masseichung_stillgelegt=((tausch or {}).get("_masseichung") or {}).get("stillgelegt") or [])
+            return urteil
+    
+        if k["status"] != "erzeugt":
+            return fertig(k["status"], k["grund"] or "nicht geprüft")
+    
+        # Schritt 1: Wirkungskreis
+        urteil["wirkungskreis"] = landkarte.wirkungskreis(bereich, bstrassen)
+    
+        dateien = kandidat_dateien(werk, k["diff"])
+        if dateien is None:
+            return fertig("abgelehnt", "Diff nicht anwendbar: " + (diff_grund(werk, k["diff"]) or "kein Inhalt"))
+        code = {p: (i if i is not None else "") for p, i in dateien.items() if not p.startswith("tests/")}
+        code.update(extra_code or {})
+        urteil["wirkungskreis"] = wirkungskreis_dateien(bereich, {**dateien, **(extra_code or {})}, paket, bstrassen)
+        tests_kandidat = {p: i for p, i in dateien.items() if p.startswith("tests/") and i is not None and not p.startswith("tests/vertraege/")}
+        vertrag_dateien_kandidat = {p: i for p, i in dateien.items() if p.startswith("tests/vertraege/") and i is not None}
+        if not code and not tests_kandidat:
+            return fertig("abgelehnt", "Diff ändert nichts")
+    
+        # Schritt 2: explizite Verträge — Vertragsdateien des Kandidaten nur, wenn er den Vertrag unter VERTRÄGE benannt hat
+        if vertrag_dateien_kandidat and urteil["vertraege_benannt"].strip().lower() in ("", "keine"):
+            return fertig("abgelehnt", f"ändert Vertragsdatei {sorted(vertrag_dateien_kandidat)} ohne den Vertrag unter VERTRÄGE zu benennen (3.8 Schritt 2)")
+        urteil["vertrag_dateien"] = sorted(vertrag_dateien_kandidat)  # Anhang A Satz 4: geänderte Vertragsdatei ⇒ Verhandlung (lauf.py)
+    
+        # Schritt 3: Verfassung (mechanisch prüfbare Sätze)
+        verf = verfassung.lesen(con, werk_id)
+        urteil["verfassung_verstoesse"] = verfassung.mechanisch_pruefen(verf, k["diff"], dateien, paket, bereich)
+        if urteil["verfassung_verstoesse"]:
+            return fertig("abgelehnt", "Verfassung verletzt: " + "; ".join(urteil["verfassung_verstoesse"]))
+    
+        # Testbestand des Kandidaten aufbauen
+        testbestand: dict[str, str] = {}
+        # a) Befundklassen-Immuntests (Bereich trägt in der Vorgeneration einen statischen Befund). Entscheidung
+        #    Chat-Claude (Fassung 8, Grundsatz 10): Schwarm und Ankläger lesen das GEEICHTE Maß — eine stillgelegte Regel
+        #    löst weder Befundklassen-Tests noch das schwere Angriffsmodell aus.
+        basis_g = masseichung.anwenden(basis, (tausch or {}).get("_masseichung"))
+        # Befundklassen-Immuntests für JEDEN Bereich, dessen Quelltext der Kandidat ändert — auch über `extra_code`
+        # (Anpassung des Nachbarn in der Verhandlung). Befund vor T4: Die S1-Behebung K2867+K2868 kam über den Nachbarn
+        # `tarife` ins Werk, geprüft wurden nur die Befundklassen von `zahlen`; die Randfälle des Verhaltensvergleichs
+        # zeigten die beabsichtigte Verhaltensänderung von `ausdruck`, und kein Test deckte sie.
+        bk = {}
+        for b_ in sorted({bereich} | {p.split("/")[1] for p in code if p.startswith(paket + "/") and p.count("/") >= 2}):
+>           if b_ in basis_g["bereiche"]:
+                     ^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'bereiche'
+
+biotop/organe/aegis.py:887: KeyError
+_____ test_s10_vertragsprobe_waehlt_die_von_der_last_unerreichte_funktion ______
+
+paar = (<sqlite3.Connection object at 0x7240c0b9cb80>, PosixPath('/tmp/pytest-of-root/pytest-0/test_s10_vertragsprobe_waehlt_...reich': 'abnehmer', 'nach_bereich': 'lieferant', 'vertrag_pfad': 'tests/vertraege/test_vertrag_abnehmer_lieferant.py'})
+
+    def test_s10_vertragsprobe_waehlt_die_von_der_last_unerreichte_funktion(paar):
+        """S-10: die Last ruft `bericht` (erste Funktion von A); die Zusicherung sitzt in `kurzbericht`, die Probe ist
+        prüfbar und besteht, ihre Gegenprobe ist prüfbar und besteht nicht."""
+        con, werk, bereiche, basis, g = paar
+        for gegenprobe in (False, True):
+>           e = eichproben._einzelprobe(con, 1, 1, werk, "beispiel", bereiche, [], basis, basis, REF_PAAR, {}, 0,
+                                       g, "vertrag", gegenprobe)
+
+tests/test_eichproben.py:231: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/eichproben.py:514: in _einzelprobe
+    diff, beschreibung, belege, angriff = _vertrag_vorbereiten(
+biotop/organe/eichproben.py:425: in _vertrag_vorbereiten
+    (datei, fn), ziel_beleg = _vertragsziel(werk, paket, a, ref)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/organe/eichproben.py:411: in _vertragsziel
+    erreicht = verhaltensvergleich.erreicht(werk, ref, module, [a])
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/eichprobe-lrs7npvs/werk')
+referenzlast = "import sys\nsys.path.insert(0, '/werk')\n\ndef last_abnehmer():\n    from beispiel.abnehmer import bericht\n    s = 0...        wert(float(i))\n\ndef beobachten():\n    from beispiel.lieferant import wert\n    return {'wert': wert(2.0)}\n"
+module = ['beispiel.abnehmer.ausgabe'], bereiche = ['abnehmer']
+
+    def erreicht(werk: Path, referenzlast: str, module: list[str], bereiche: list[str]) -> dict[str, int]:
+        """Welche öffentlichen Funktionen der Module erreicht die Referenzlast (auch über andere Module)? Ein Kammerlauf der
+        Sonde an der Vorgeneration; Rückgabe {'modul:funktion': Aufrufe}. Für die Vertragsprobe der Eichproben (S-10)."""
+        from ..kern import sprachprofil
+        if sprachprofil.ist_typescript(Path(werk)):
+            d = beobachten(werk, {}, referenzlast, module, bereiche)
+            schluessel = "aufgerufen"
+        else:
+            d = _python_sonde(Path(werk), {}, {**_fristen(), "modus": "erreichbarkeit", "module": module,
+                                               "bereiche": list(bereiche)},
+                              referenzlast)
+            schluessel = "erreicht"
+        if not d.get("gueltig"):
+>           raise SondeAusgefallen(f"Sonde (Erreichbarkeit) ausgefallen: {str(d.get('grund'))[:300]}")
+E           biotop.organe.verhaltensvergleich.SondeAusgefallen: Sonde (Erreichbarkeit) ausgefallen: Python-Sonde ohne Ergebnis (rc=1): failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory
+
+biotop/organe/verhaltensvergleich.py:582: SondeAusgefallen
+______ test_s10_vertragsprobe_ohne_unerreichte_funktion_ist_nicht_baubar _______
+
+paar = (<sqlite3.Connection object at 0x7240bff223e0>, PosixPath('/tmp/pytest-of-root/pytest-0/test_s10_vertragsprobe_ohne_un...reich': 'abnehmer', 'nach_bereich': 'lieferant', 'vertrag_pfad': 'tests/vertraege/test_vertrag_abnehmer_lieferant.py'})
+
+    def test_s10_vertragsprobe_ohne_unerreichte_funktion_ist_nicht_baubar(paar):
+        """Gegenprobe: erreicht die Last auch `kurzbericht`, gibt es keine Stelle ohne Messausfall — die Probe ist ein
+        benannter Prüffehler (nicht prüfbar), keine stille Ersatzwahl und kein „bestanden“."""
+        con, werk, bereiche, basis, g = paar
+        ref = REF_PAAR.replace("s += bericht(float(i % 7))", "s += bericht(float(i % 7))\n        kurzbericht(1.0)").replace(
+            "from beispiel.abnehmer import bericht", "from beispiel.abnehmer import bericht\n    from beispiel.abnehmer.ausgabe import kurzbericht")
+        assert ref != REF_PAAR
+        # _vertragsziel meldet es als RuntimeError; eichproben.proben fängt ihn und führt die Probe als benannten Prüffehler
+        # (nicht prüfbar) — kein stilles Ausweichen auf eine erreichte Funktion.
+>       with pytest.raises(RuntimeError, match="erreicht alle 2 Funktionen von abnehmer"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'erreicht alle 2 Funktionen von abnehmer'
+E         Actual message: 'Sonde (Erreichbarkeit) ausgefallen: Python-Sonde ohne Ergebnis (rc=1): failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n'
+
+tests/test_eichproben.py:248: AssertionError
+________ test_unbaubare_probe_bleibt_ungeprueft_statt_erwuenscht_falsch ________
+
+paar = (<sqlite3.Connection object at 0x7240bff225c0>, PosixPath('/tmp/pytest-of-root/pytest-0/test_unbaubare_probe_bleibt_un...reich': 'abnehmer', 'nach_bereich': 'lieferant', 'vertrag_pfad': 'tests/vertraege/test_vertrag_abnehmer_lieferant.py'})
+
+    def test_unbaubare_probe_bleibt_ungeprueft_statt_erwuenscht_falsch(paar):
+        con, werk, bereiche, basis, _ = paar
+        p = werk / "beispiel/lieferant/rechnung.py"
+        p.write_text(p.read_text().replace("zahl: float", "zahl: object"))
+        vor_db = list(con.iterdump())
+        with kammer.zaehlung() as zaehler:
+>           e = eichproben.proben(con, 1, 1, werk, "beispiel", bereiche, [], basis, basis, None, {})
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_eichproben.py:260: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/eichproben.py:592: in proben
+    ziel[name] = _einzelprobe(db, lauf_id, werk_id, werk, paket, bereiche, bstrassen,
+biotop/organe/eichproben.py:526: in _einzelprobe
+    u = aegis.pruefen(db, lauf_id, werk_id, kid, werk, paket, bereiche, bstrassen, basis, ausgang, ref, tausch,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+con = <sqlite3.Connection object at 0x7240bff23970>, lauf_id = 1, werk_id = 1
+kandidat_id = 1, werk = PosixPath('/tmp/eichprobe-fv444t18/werk')
+paket = 'beispiel', bereiche = ['abnehmer', 'lieferant'], bstrassen = []
+basis = {'gueltig': False, 'rc': 1, 'stdout': '', 'stderr': 'failed to connect to the docker API at unix:///var/run/docker.soc...th is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n', ...}
+ausgang = {'gueltig': False, 'rc': 1, 'stdout': '', 'stderr': 'failed to connect to the docker API at unix:///var/run/docker.soc...th is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n', ...}
+referenzlast = None, tausch = {}, extra_code = None, probe_ohne_modell = True
+probe_angriff = None, vv_optionen = None, referenzlast_laufzeit = None
+
+    def pruefen(con: sqlite3.Connection, lauf_id: int, werk_id: int, kandidat_id: int, werk: Path, paket: str,
+                bereiche: list[str], bstrassen: list[tuple[str, str]], basis: dict, ausgang: dict,
+                referenzlast: str | None, tausch: dict | None, extra_code: dict[str, str] | None = None,
+                *, probe_ohne_modell: bool = False, probe_angriff: str | None = None,
+                vv_optionen: dict | None = None, referenzlast_laufzeit: str | None = None) -> dict:
+        """extra_code: zusätzliche Dateien (z. B. Anpassung des Nachbarn bei Verhandlung), die zusammen mit dem
+        Kandidaten gemessen werden. `vv_optionen`: nur für Nachspiele (getrennte Messung K2868, Behebungsrunde 3) —
+        korpus_erweitert / deckungsregel des Verhaltensvergleichs; der Lauf übergibt nichts (Vorgabe)."""
+        """Vollständige Anklage (F2). Rückgabe: Urteil mit Belegen; Status in der DB gesetzt."""
+        k = con.execute("SELECT * FROM kandidaten WHERE id=?", (kandidat_id,)).fetchone()
+        # Nur markierte Eichkandidaten dürfen mechanische Angriffe ohne Modell nutzen.
+        if (probe_ohne_modell or probe_angriff is not None) and not (
+                probe_ohne_modell and "ist_probe" in k.keys() and k["ist_probe"] == 1):
+            raise ValueError("Reine Probeoption verlangt probe_ohne_modell=True und ist_probe=1")
+        bereich = k["bereich"]
+        urteil = {"kandidat": kandidat_id, "bereich": bereich, "status": "abgelehnt", "grund": "", "wirkungskreis": [],
+                  "immun": [], "tests_neu": [], "tests_verworfen": [], "immun_bestanden": [], "befundklassen": [],
+                  "verfassung_verstoesse": [], "angriff": None, "mass": None, "tests_offen": [], "norm": [], "doppelungen": [],
+                  "vertrag_verletzt": [], "vertraege_benannt": (k["vertraege"] if "vertraege" in k.keys() else "") or ""}
+    
+        def fertig(status, grund, masse=None, dateien_final=None, basis_paar=None):
+            urteil["status"], urteil["grund"] = status, grund
+            if masse is not None:
+                masse = {**masse, "_dateien": dateien_final or {}, "_basis_paar": basis_paar, "_urteil_f2": urteil["mass"],
+                         "laufzeit_stufe": urteil.get("laufzeit_stufe")}
+            with transaktion(con):
+                con.execute("UPDATE kandidaten SET status=?, grund=?, masse=?, wirkungskreis=? WHERE id=?",
+                            (status, grund, j(masse) if masse else None, j(urteil["wirkungskreis"]), kandidat_id))
+            protokoll.schreiben(con, "aegis.urteil", lauf_id=lauf_id, kandidat=kandidat_id, bereich=bereich, status=status,
+                                grund=grund[:500], wirkungskreis=urteil["wirkungskreis"], immun=urteil["immun"],
+                                tests_neu=urteil["tests_neu"], tests_verworfen=urteil["tests_verworfen"],
+                                immun_bestanden=urteil["immun_bestanden"], befundklassen=urteil["befundklassen"],
+                                verfassung=urteil["verfassung_verstoesse"], angriff=urteil["angriff"], mass=urteil["mass"], tests_offen=urteil["tests_offen"],
+                                norm=urteil["norm"], doppelungen=urteil["doppelungen"], vertrag_verletzt=urteil["vertrag_verletzt"], nische=k["nische"],
+                                # Tor 2 Zeile 8 braucht die GESCHRIEBENEN Behauptungen je erzeugtem
+                                # Angriffstest. Ohne sie ist der Doppelungsanteil nachtraeglich nicht
+                                # rekonstruierbar — gemessen in Lauf 37: 0 von 210 Urteilen trugen sie,
+                                # obwohl 42 Angriffe liefen.
+                                behauptungen=urteil.get("behauptungen") or {},
+                                behauptungen_treffer=urteil.get("behauptungen_treffer") or [],
+                                aufnahmesperre=urteil.get("aufnahmesperre") or {},
+                                # Verhaltensvergleich und Maßeichung stehen im Protokoll, damit jede Annahme
+                                # zeigt, ob das Verhalten verglichen und welche Regeln nicht gezählt wurden.
+                                verhalten=urteil.get("verhalten"),
+                                laufzeit_nachmessung=urteil.get("laufzeit_nachmessung"),
+                                laufzeit_stufe=urteil.get("laufzeit_stufe"),
+                                gewinn_nachmessung=urteil.get("gewinn_nachmessung"),
+                                masseichung_stillgelegt=((tausch or {}).get("_masseichung") or {}).get("stillgelegt") or [])
+            return urteil
+    
+        if k["status"] != "erzeugt":
+            return fertig(k["status"], k["grund"] or "nicht geprüft")
+    
+        # Schritt 1: Wirkungskreis
+        urteil["wirkungskreis"] = landkarte.wirkungskreis(bereich, bstrassen)
+    
+        dateien = kandidat_dateien(werk, k["diff"])
+        if dateien is None:
+            return fertig("abgelehnt", "Diff nicht anwendbar: " + (diff_grund(werk, k["diff"]) or "kein Inhalt"))
+        code = {p: (i if i is not None else "") for p, i in dateien.items() if not p.startswith("tests/")}
+        code.update(extra_code or {})
+        urteil["wirkungskreis"] = wirkungskreis_dateien(bereich, {**dateien, **(extra_code or {})}, paket, bstrassen)
+        tests_kandidat = {p: i for p, i in dateien.items() if p.startswith("tests/") and i is not None and not p.startswith("tests/vertraege/")}
+        vertrag_dateien_kandidat = {p: i for p, i in dateien.items() if p.startswith("tests/vertraege/") and i is not None}
+        if not code and not tests_kandidat:
+            return fertig("abgelehnt", "Diff ändert nichts")
+    
+        # Schritt 2: explizite Verträge — Vertragsdateien des Kandidaten nur, wenn er den Vertrag unter VERTRÄGE benannt hat
+        if vertrag_dateien_kandidat and urteil["vertraege_benannt"].strip().lower() in ("", "keine"):
+            return fertig("abgelehnt", f"ändert Vertragsdatei {sorted(vertrag_dateien_kandidat)} ohne den Vertrag unter VERTRÄGE zu benennen (3.8 Schritt 2)")
+        urteil["vertrag_dateien"] = sorted(vertrag_dateien_kandidat)  # Anhang A Satz 4: geänderte Vertragsdatei ⇒ Verhandlung (lauf.py)
+    
+        # Schritt 3: Verfassung (mechanisch prüfbare Sätze)
+        verf = verfassung.lesen(con, werk_id)
+        urteil["verfassung_verstoesse"] = verfassung.mechanisch_pruefen(verf, k["diff"], dateien, paket, bereich)
+        if urteil["verfassung_verstoesse"]:
+            return fertig("abgelehnt", "Verfassung verletzt: " + "; ".join(urteil["verfassung_verstoesse"]))
+    
+        # Testbestand des Kandidaten aufbauen
+        testbestand: dict[str, str] = {}
+        # a) Befundklassen-Immuntests (Bereich trägt in der Vorgeneration einen statischen Befund). Entscheidung
+        #    Chat-Claude (Fassung 8, Grundsatz 10): Schwarm und Ankläger lesen das GEEICHTE Maß — eine stillgelegte Regel
+        #    löst weder Befundklassen-Tests noch das schwere Angriffsmodell aus.
+        basis_g = masseichung.anwenden(basis, (tausch or {}).get("_masseichung"))
+        # Befundklassen-Immuntests für JEDEN Bereich, dessen Quelltext der Kandidat ändert — auch über `extra_code`
+        # (Anpassung des Nachbarn in der Verhandlung). Befund vor T4: Die S1-Behebung K2867+K2868 kam über den Nachbarn
+        # `tarife` ins Werk, geprüft wurden nur die Befundklassen von `zahlen`; die Randfälle des Verhaltensvergleichs
+        # zeigten die beabsichtigte Verhaltensänderung von `ausdruck`, und kein Test deckte sie.
+        bk = {}
+        for b_ in sorted({bereich} | {p.split("/")[1] for p in code if p.startswith(paket + "/") and p.count("/") >= 2}):
+>           if b_ in basis_g["bereiche"]:
+                     ^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'bereiche'
+
+biotop/organe/aegis.py:887: KeyError
+___________ test_norm_aendert_vorhandene_funktion_statt_importfehler ___________
+
+werk = PosixPath('/tmp/pytest-of-root/pytest-0/test_norm_aendert_vorhandene_f0/werk')
+
+    def test_norm_aendert_vorhandene_funktion_statt_importfehler(werk):
+        diff, rel_test, _ = eichproben._normtest(werk, "beispiel", "lieferant")
+        dateien = aegis.kandidat_dateien(werk, diff)
+        assert dateien is not None
+        basis = aegis.junit_lauf(werk, "beispiel", {rel_test: dateien[rel_test]}, [rel_test])
+        kandidat = aegis.junit_lauf(werk, "beispiel", dateien, [rel_test])
+        print("NORM BASIS", basis, "NORM KANDIDAT", kandidat)
+        echte_tests = [x for n, x in basis.items() if not n.endswith("::*")]
+>       assert len(echte_tests) == 1
+E       assert 0 == 1
+E        +  where 0 = len([])
+
+tests/test_eichproben.py:338: AssertionError
+----------------------------- Captured stdout call -----------------------------
+NORM BASIS {'tests/test_lieferant_eichprobe_norm.py::*': {'ok': False, 'bestaetigt': False, 'meldung': 'Sammelfehler/Kammerabbruch/Zeitlimit (rc=1): failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n'}} NORM KANDIDAT {'tests/test_lieferant_eichprobe_norm.py::*': {'ok': False, 'bestaetigt': False, 'meldung': 'Sammelfehler/Kammerabbruch/Zeitlimit (rc=1): failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n'}}
+__ test_normmechanik_bleibt_getrennt_vom_tatsaechlichen_laufzeitbefund[False] __
+
+werk = PosixPath('/tmp/pytest-of-root/pytest-0/test_normmechanik_bleibt_getre0/werk')
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_normmechanik_bleibt_getre0')
+gegenprobe = False
+
+    @pytest.mark.parametrize("gegenprobe", [False, True])
+    def test_normmechanik_bleibt_getrennt_vom_tatsaechlichen_laufzeitbefund(werk, tmp_path, gegenprobe):
+        con = datenbank.verbinden(tmp_path / "normzeit.db")
+        ref = ("import sys, time\nsys.path.insert(0, '/werk')\nfrom beispiel.lieferant import wert\n"
+               "def last_lieferant():\n"
+               "    time.sleep(0.04 if wert(137.125) == 'eichprobe_norm_neu' else 0.01)\n")
+        basis = messgeraet.messen(werk, ["lieferant"], "beispiel", ref)
+>       e = eichproben._einzelprobe(con, 1, 1, werk, "beispiel", ["lieferant"], [], basis, basis, ref, {}, 0,
+                                   {"von_bereich": "abnehmer", "nach_bereich": "lieferant"}, "norm", gegenprobe)
+
+tests/test_eichproben.py:354: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/eichproben.py:526: in _einzelprobe
+    u = aegis.pruefen(db, lauf_id, werk_id, kid, werk, paket, bereiche, bstrassen, basis, ausgang, ref, tausch,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+con = <sqlite3.Connection object at 0x7240c0b9c400>, lauf_id = 1, werk_id = 1
+kandidat_id = 1, werk = PosixPath('/tmp/eichprobe-t57fhjgi/werk')
+paket = 'beispiel', bereiche = ['lieferant'], bstrassen = []
+basis = {'gueltig': False, 'rc': 1, 'stdout': '', 'stderr': 'failed to connect to the docker API at unix:///var/run/docker.soc...th is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n', ...}
+ausgang = {'gueltig': False, 'rc': 1, 'stdout': '', 'stderr': 'failed to connect to the docker API at unix:///var/run/docker.soc...th is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n', ...}
+referenzlast = "import sys, time\nsys.path.insert(0, '/werk')\nfrom beispiel.lieferant import wert\ndef last_lieferant():\n    time.sleep(0.04 if wert(137.125) == 'eichprobe_norm_neu' else 0.01)\n"
+tausch = {}, extra_code = None, probe_ohne_modell = True
+probe_angriff = "from beispiel.lieferant.rechnung import wert\n\ndef test_lieferant_eichprobe_norm():\n    assert wert(137.125) == 'eichprobe_norm_neu'\n"
+vv_optionen = None, referenzlast_laufzeit = None
+
+    def pruefen(con: sqlite3.Connection, lauf_id: int, werk_id: int, kandidat_id: int, werk: Path, paket: str,
+                bereiche: list[str], bstrassen: list[tuple[str, str]], basis: dict, ausgang: dict,
+                referenzlast: str | None, tausch: dict | None, extra_code: dict[str, str] | None = None,
+                *, probe_ohne_modell: bool = False, probe_angriff: str | None = None,
+                vv_optionen: dict | None = None, referenzlast_laufzeit: str | None = None) -> dict:
+        """extra_code: zusätzliche Dateien (z. B. Anpassung des Nachbarn bei Verhandlung), die zusammen mit dem
+        Kandidaten gemessen werden. `vv_optionen`: nur für Nachspiele (getrennte Messung K2868, Behebungsrunde 3) —
+        korpus_erweitert / deckungsregel des Verhaltensvergleichs; der Lauf übergibt nichts (Vorgabe)."""
+        """Vollständige Anklage (F2). Rückgabe: Urteil mit Belegen; Status in der DB gesetzt."""
+        k = con.execute("SELECT * FROM kandidaten WHERE id=?", (kandidat_id,)).fetchone()
+        # Nur markierte Eichkandidaten dürfen mechanische Angriffe ohne Modell nutzen.
+        if (probe_ohne_modell or probe_angriff is not None) and not (
+                probe_ohne_modell and "ist_probe" in k.keys() and k["ist_probe"] == 1):
+            raise ValueError("Reine Probeoption verlangt probe_ohne_modell=True und ist_probe=1")

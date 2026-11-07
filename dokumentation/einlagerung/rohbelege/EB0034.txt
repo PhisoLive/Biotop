@@ -1,0 +1,63 @@
+EB34 · Geheimnissuche: Einordnung der Muster-Treffer in native-mcp.md und der credential_pool-Quellen
+Beginn: 2026-09-26 00:33:04 CEST (UTC+0200)
+Ende:   2026-09-26 00:33:05 CEST (UTC+0200)
+Dauer:  0.8 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/biotop-einlagerung/arbeit/g_muster.py
+--- Inhalt von /root/biotop-einlagerung/arbeit/g_muster.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-EINLAGERUNG-01 (nur lesend): Einordnung der Muster-Treffer „sk-Schlüssel allgemein“ und „Bearer-Token“ in
+biotop-t3-typescript/*/skills/hermes-agent/references/native-mcp.md (EB31). Ausgegeben wird je Treffer NUR: Länge,
+Zahl verschiedener Zeichen, ob Platzhalterzeichen vorkommen (x, X, *, ., <, >, _ als Füllung, „your“/„example“/„…“),
+und ob derselbe Text wörtlich in einer Datei des öffentlichen Hermes-Pakets (/usr/local/lib/hermes-agent, Dokumentation
+der Fähigkeiten) steht — dann ist es Beispieltext der Dokumentation, kein Zugangswert. Kein Wert wird ausgegeben.
+Dazu die zwei auth.json-Werte „credential_pool.*.source“: ob sie die Form „<art>:<NAME>“ ohne Geheimnisanteil haben."""
+import json
+import os
+import re
+import sys
+from pathlib import Path
+
+sys.path.insert(0, '/root/biotop-einlagerung/arbeit')
+import geheimnis  # noqa: E402
+
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+L = Path(f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe/biotop-t3-typescript')
+dateien = sorted(L.glob('*/skills/hermes-agent/references/native-mcp.md'))
+paket = []
+for d, ds, fs in os.walk('/usr/local/lib/hermes-agent'):
+    ds[:] = [x for x in ds if x not in ('node_modules', '__pycache__', '.git', 'venv')]
+    paket += [Path(d) / f for f in fs if f.endswith('.md')]
+paket_text = {p: p.read_text(errors='replace') for p in paket if p.stat().st_size < 2_000_000}
+print(f'Dateien: {len(dateien)} · Markdown-Dateien im Hermes-Paket durchsucht: {len(paket_text)}')
+for f in dateien:
+    t = f.read_text()
+    for name in ('sk-Schlüssel allgemein', 'Bearer-Token'):
+        for m in re.finditer(geheimnis.MUSTER[name], t):
+            s = m.group(0)
+            platz = bool(re.search(r'(x{4,}|X{4,}|\*{3,}|\.{3,}|<|>|your|example|YOUR|EXAMPLE|…|_{4,})', s))
+            im_paket = [str(p) for p, pt in paket_text.items() if s in pt][:2]
+            print(f'{f.relative_to(L)} · {name} · Länge {len(s)} · verschiedene Zeichen {len(set(s))} · '
+                  f'Platzhalterzeichen {platz} · wörtlich im Hermes-Paket: {im_paket or "nein"}')
+a = json.loads(Path('/root/.hermes/auth.json').read_text())
+for pool, liste in (a.get('credential_pool') or {}).items():
+    for i, e in enumerate(liste):
+        s = e.get('source')
+        if isinstance(s, str) and len(s) >= 12:
+            print(f'credential_pool.{pool}[{i}].source · Länge {len(s)} · Form „art:NAME“ nur aus Buchstaben/Ziffern/_: '
+                  f'{bool(re.fullmatch(r"[a-z_]+:[A-Z0-9_]+", s))} · Art-Teil: {s.split(":")[0] if ":" in s else "?"}')
+--- Ende /root/biotop-einlagerung/arbeit/g_muster.py ---
+Ausgabe (vollständig, stdout und stderr):
+Dateien: 2 · Markdown-Dateien im Hermes-Paket durchsucht: 1614
+abschluss-01/skills/hermes-agent/references/native-mcp.md · sk-Schlüssel allgemein · Länge 23 · verschiedene Zeichen 4 · Platzhalterzeichen True · wörtlich im Hermes-Paket: ['/usr/local/lib/hermes-agent/skills/autonomous-ai-agents/hermes-agent/references/native-mcp.md']
+abschluss-01/skills/hermes-agent/references/native-mcp.md · sk-Schlüssel allgemein · Länge 23 · verschiedene Zeichen 4 · Platzhalterzeichen True · wörtlich im Hermes-Paket: ['/usr/local/lib/hermes-agent/skills/autonomous-ai-agents/hermes-agent/references/native-mcp.md']
+abschluss-01/skills/hermes-agent/references/native-mcp.md · Bearer-Token · Länge 30 · verschiedene Zeichen 9 · Platzhalterzeichen True · wörtlich im Hermes-Paket: ['/usr/local/lib/hermes-agent/skills/autonomous-ai-agents/hermes-agent/references/native-mcp.md']
+abschluss-01/skills/hermes-agent/references/native-mcp.md · Bearer-Token · Länge 30 · verschiedene Zeichen 9 · Platzhalterzeichen True · wörtlich im Hermes-Paket: ['/usr/local/lib/hermes-agent/skills/autonomous-ai-agents/hermes-agent/references/native-mcp.md']
+uebernahme-01/skills/hermes-agent/references/native-mcp.md · sk-Schlüssel allgemein · Länge 23 · verschiedene Zeichen 4 · Platzhalterzeichen True · wörtlich im Hermes-Paket: ['/usr/local/lib/hermes-agent/skills/autonomous-ai-agents/hermes-agent/references/native-mcp.md']
+uebernahme-01/skills/hermes-agent/references/native-mcp.md · sk-Schlüssel allgemein · Länge 23 · verschiedene Zeichen 4 · Platzhalterzeichen True · wörtlich im Hermes-Paket: ['/usr/local/lib/hermes-agent/skills/autonomous-ai-agents/hermes-agent/references/native-mcp.md']
+uebernahme-01/skills/hermes-agent/references/native-mcp.md · Bearer-Token · Länge 30 · verschiedene Zeichen 9 · Platzhalterzeichen True · wörtlich im Hermes-Paket: ['/usr/local/lib/hermes-agent/skills/autonomous-ai-agents/hermes-agent/references/native-mcp.md']
+uebernahme-01/skills/hermes-agent/references/native-mcp.md · Bearer-Token · Länge 30 · verschiedene Zeichen 9 · Platzhalterzeichen True · wörtlich im Hermes-Paket: ['/usr/local/lib/hermes-agent/skills/autonomous-ai-agents/hermes-agent/references/native-mcp.md']
+credential_pool.anthropic[1].source · Länge 21 · Form „art:NAME“ nur aus Buchstaben/Ziffern/_: True · Art-Teil: env
+credential_pool.openrouter[0].source · Länge 22 · Form „art:NAME“ nur aus Buchstaben/Ziffern/_: True · Art-Teil: env
+=== Ende EB34 ===

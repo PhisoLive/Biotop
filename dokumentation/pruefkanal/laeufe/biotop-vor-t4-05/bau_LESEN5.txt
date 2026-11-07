@@ -1,0 +1,964 @@
+=== eichung.py 126-245
+
+
+def rauschmessung(con: sqlite3.Connection, lauf_id: int, werk_id: int, pfad: Path, bereiche: list[str],
+                  paket: str, ref: str, messen_einmal=None) -> dict:
+    """Fünf Messungen am UNVERÄNDERTEN Werk; je Bereich Toleranz, Sperre und Vorgeschichte.
+    Rückgabe: {"toleranz": {bereich: faktor}, "gesperrt": [...], "bereiche": {...}, "lauf_startet": bool}."""
+    _tabelle(con)
+    import time
+    t0 = time.time()
+    kammerlaeufe = 0
+    # Behebungsrunde 4: `messen_einmal` (Vorgabe: volle Messung wie bisher; Vorspann: laufzeit_einmal an Stufe 2) und die
+    # Dauer jedes Kammerlaufs — der Vorspann verlangt an Stufe 2 unter 60 s je Kammerlauf (Entscheidung Chat-Claude 1).
+    einmal = messen_einmal or _messen_einmal
+    dauer_s: list[float] = []
+    roh: dict[str, list[float]] = {b: [] for b in bereiche}
+    for _ in range(messgeraet.RAUSCH_MESSUNGEN):
+        kammerlaeufe += 1
+        t_k = time.monotonic()
+        werte_k = einmal(pfad, bereiche, paket, ref)
+        dauer_s.append(round(time.monotonic() - t_k, 2))
+        for b, v in werte_k.items():
+            if v is not None:
+                roh[b].append(float(v))
+
+    ergebnis, toleranz, gesperrt = {}, {}, []
+    for b in bereiche:
+        e = messgeraet.rauschtoleranz_aus_werten(roh[b])
+        # Aussetzer: einmal nachmessen, damit wieder fünf brauchbare Werte vorliegen (Fassung 6).
+        if e.get("nachmessen") and e.get("aussetzer"):
+            fehlend = messgeraet.RAUSCH_MESSUNGEN - len([w for w in roh[b] if w not in e["aussetzer"]])
+            nach = []
+            for _ in range(max(0, fehlend)):
+                kammerlaeufe += 1
+                t_k = time.monotonic()
+                v = einmal(pfad, [b], paket, ref).get(b)
+                dauer_s.append(round(time.monotonic() - t_k, 2))
+                if v is not None:
+                    nach.append(float(v))
+            protokoll.schreiben(con, "eichung.aussetzer", lauf_id=lauf_id, bereich=b, verworfen=e["aussetzer"],
+                                nachgemessen=[round(x, 2) for x in nach],
+                                regel="Einzelwert über dem Fünffachen des Medians ist ein Maschinenaussetzer (Fassung 6)")
+            behalten = [w for w in roh[b] if w not in e["aussetzer"]] + nach
+            e = messgeraet.rauschtoleranz_aus_werten(behalten)
+            e["nachgemessen"] = True
+        if e.get("nachmessen") and not e.get("meldung"):
+            e["meldung"] = "Rauschmessung nach einmaligem Nachmessen weiterhin unvollständig oder mit Aussetzer — Bereich gesperrt"
+
+        # Vorgeschichte: wie oft hat dieser Bereich UNMITTELBAR zuvor hintereinander gemeldet — und wann?
+        # Der Zeitraum gehört zum Befund: drei Meldungen in einer Sitzung deuten auf die Maschine (fremde Last,
+        # Container-Hänger), drei an verschiedenen Tagen auf die Referenzlast selbst (Festlegung Chat-Claude, F6).
+        vorher = [dict(z) for z in con.execute(
+            "SELECT gesperrt, erstellt_am FROM eichung WHERE werk_id=? AND bereich=? ORDER BY id DESC LIMIT 10",
+            (werk_id, b))]
+        serie_vorher, zeiten = 0, []
+        for x in vorher:                       # jüngste zuerst; beim ersten nicht gesperrten Lauf endet die Serie
+            if not x["gesperrt"]:
+                break
+            serie_vorher += 1
+            zeiten.append(x["erstellt_am"])
+        jetzt = protokoll.jetzt()
+        serie = serie_vorher + 1 if e.get("meldung") else 0
+        e["serie"] = serie
+        e["serie_zeitraum"] = [min(zeiten + [jetzt]), max(zeiten + [jetzt])] if e.get("meldung") else None
+        e["befund_referenzlast"] = bool(e.get("meldung")) and serie >= SPERR_MELDUNGEN_BIS_BEFUND
+        if e["befund_referenzlast"]:
+            von, bis = e["serie_zeitraum"]
+            tage = len({t[:10] for t in zeiten + [jetzt]})
+            spanne_min = _minuten(von, bis)
+            if tage >= 2:
+                deutung = (f"an {tage} verschiedenen Tagen ({von[:16]} bis {bis[:16]}) — das deutet auf die "
+                           f"REFERENZLAST von `{b}`: sie misst etwas Unstetes, unabhängig vom Zustand der Maschine")
+            else:
+                deutung = (f"innerhalb einer Sitzung ({von[:16]} bis {bis[:16]}, {spanne_min:.0f} Minuten) — das deutet "
+                           f"eher auf die MASCHINE (fremde Last, Container-Hänger) als auf die Referenzlast; "
+                           f"vor einem Befund über `{b}` an einem anderen Tag nachmessen. "
+                           f"VORBEHALT: Eine unruhige Maschine verfälscht JEDE Laufzeitmessung dieses Zeitraums — "
+                           f"alle Grenzmaßzahlen, die zwischen {von[:16]} und {bis[:16]} entstanden sind, stehen unter "
+                           f"Vorbehalt, nicht nur die des gesperrten Bereichs `{b}`; der Bericht muss das aussprechen.")
+            e["serie_deutung"] = "referenzlast" if tage >= 2 else "maschine"
+            if e["serie_deutung"] == "maschine":
+                e["vorbehalt_zeitraum"] = {
+                    "von": von, "bis": bis,
+                    "gilt_fuer": "alle Laufzeitmessungen dieses Zeitraums, nicht nur den gesperrten Bereich",
+                    "satz": (f"Vorbehalt: Zwischen {von[:16]} und {bis[:16]} war die Maschine unruhig ({serie} Sperrmeldungen "
+                             f"in Folge in einer Sitzung). Jede Laufzeit- und Grenzmaßzahl aus diesem Zeitraum steht unter "
+                             f"Vorbehalt — auch die der nicht gesperrten Bereiche.")}
+            e["meldung"] += f" — {serie}. Meldung dieses Bereichs in Folge, {deutung}."
+        e["gesperrt"] = bool(e.get("meldung"))
+        if e["gesperrt"]:
+            gesperrt.append(b)
+        else:
+            toleranz[b] = e["toleranz"]
+        ergebnis[b] = e
+        with transaktion(con):
+            con.execute("INSERT INTO eichung(lauf_id, werk_id, bereich, toleranz, spannweite, median, werte, aussetzer,"
+                        " nachgemessen, gesperrt, meldung, erstellt_am) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                        (lauf_id, werk_id, b, e["toleranz"], e.get("spannweite"), e.get("median"),
+                         str(e.get("werte")), str(e.get("aussetzer")), int(bool(e.get("nachgemessen"))),
+                         int(e["gesperrt"]), e.get("meldung"), protokoll.jetzt()))
+
+    startet = len(gesperrt) < len(bereiche)
+    kosten_buchen(con, lauf_id, werk_id, "rauschmessung", kammerlaeufe, time.time() - t0)
+    protokoll.schreiben(con, "eichung.rauschmessung", lauf_id=lauf_id, werk_id=werk_id,
+                        toleranz=toleranz, gesperrt=gesperrt, lauf_startet=startet,
+                        bereiche={b: {k: ergebnis[b].get(k) for k in ("toleranz", "spannweite", "median", "werte",
+                                                                      "aussetzer", "serie", "befund_referenzlast")}
+                                  for b in bereiche},
+                        # Liste nach T3: die Einzelwerte ungerundet, in Messreihenfolge — die gerundeten, sortierten
+                        # `werte` ließen Drift (bericht, Lauf 28) nicht von Aufwärmung unterscheiden.
+                        rohwerte={b: roh[b] for b in bereiche},
+                        regel="Fassung 6: 5 Werte, getrimmte Spannweite, Deckel 2,0, Meldeschwelle 1,5, "
+                              "Aussetzer über 5x Median verworfen und einmal nachgemessen; Sperre bereichsweise")
+    if not startet:
+        protokoll.schreiben(con, "eichung.lauf_startet_nicht", lauf_id=lauf_id,
+                            grund=f"alle {len(bereiche)} Bereiche melden ein Messproblem — kein Bereich hat eine "
+                                  f"brauchbare Rauschtoleranz (Satz 6: laut scheitern, nie still)")
+    return {"toleranz": toleranz, "gesperrt": gesperrt, "bereiche": ergebnis, "lauf_startet": startet,
+            "bezugsgroesse": f"{len(gesperrt)} von {len(bereiche)} Bereichen gesperrt",
+            # Behebungsrunde 4: Dauer jedes Kammerlaufs der Rauschmessung (Stufe 2: Grenze 60 s, Vorspann)
+            "kammerlauf_s": dauer_s}
+=== eichproben.py 496-600
+def _einzelprobe(con, lauf_id, werk_id, pfad, paket, bereiche, bstrassen, basis, ausgang, ref, tausch,
+                 generation, gegenstand, name, gegenprobe=False):
+    """Eine vollständig ausgeführte Positiv- oder Gegenprobe an isoliertem Bestand."""
+    t0 = time.monotonic()
+    with _privat(con, pfad) as (db, werk), kammer.zaehlung() as aufrufe:
+        n0, c0 = _kassenstand(db, lauf_id)
+        a, b = gegenstand["von_bereich"], gegenstand["nach_bereich"]
+        if name == "norm":
+            bereich = b
+            diff, beschreibung, belege, angriff = _norm_vorbereiten(db, werk, werk_id, paket, b, gegenprobe)
+        elif name == "nebenwirkung":
+            bereich = a
+            diff, beschreibung, belege, angriff = _nebenwirkung_vorbereiten(werk, paket, a, b, gegenprobe)
+        elif name == "regression":
+            bereich = a
+            diff, beschreibung, belege, angriff = _regression_vorbereiten(werk, paket, a, b, gegenprobe)
+        elif name == "vertrag":
+            bereich = a
+            diff, beschreibung, belege, angriff = _vertrag_vorbereiten(
+                werk, paket, a, b, gegenstand["vertrag_pfad"], gegenprobe, ref)
+        else:
+            raise ValueError(f"Noch keine Probe gebaut: {name}")
+        dateien = aegis.kandidat_dateien(werk, diff)
+        if not dateien:
+            raise RuntimeError(aegis.diff_grund(werk, diff) or "kein anwendbarer Probediff")
+        kid = _einschleusen(db, lauf_id, generation, bereich, diff, beschreibung,
+                           gegenstand["vertrag_pfad"] if name == "vertrag" else "keine", name)
+        belege["zielpruefsummen"] = {p: hashlib.sha256((werk / p).read_bytes()).hexdigest()
+                                     for p in dateien if (werk / p).exists()}
+        u = aegis.pruefen(db, lauf_id, werk_id, kid, werk, paket, bereiche, bstrassen, basis, ausgang, ref, tausch,
+                          probe_ohne_modell=True, probe_angriff=angriff)
+        messung = lj(db.execute("SELECT masse FROM kandidaten WHERE id=?", (kid,)).fetchone()[0]) or {}
+        belege.update(urteil=u, messung=messung)
+        if name == "norm":
+            belege.update(werk_test_vorhanden=(werk / belege["testpfad"]).exists(),
+                          normeintraege=[dict(z) for z in db.execute(
+                              "SELECT name,status,code,ursprung FROM immunsystem WHERE name=?",
+                              (f"norm_k{kid}_{bereich}",))])
+        n1, c1 = _kassenstand(db, lauf_id)
+        pruefbar = bool(messung.get("gueltig") and (messung.get("_basis_paar") or {}).get("gueltig"))
+        if name == "vertrag":
+            pruefbar = pruefbar and _vertrag_pruefbar(belege, gegenprobe)
+        elif name == "norm":
+            # Die Gegenprobe misst ohne Normtest; dessen JUnit-Paar bleibt Pflicht.
+            n = f"{belege['testpfad']}::{belege['testname']}"
+            vorher, nachher = belege["basis_tests"].get(n, {}), belege["kandidat_tests"].get(n, {})
+            pruefbar = bool(pruefbar and vorher.get("ok") is False and vorher.get("bestaetigt") is True
+                            and vorher.get("meldung", "").startswith(("AssertionError", "assert"))
+                            and nachher.get("ok") is True)
+        return {"kandidat": kid, "ausgefuehrt": bool(aufrufe), "pruefbar": pruefbar,
+                "bestanden": _bestanden(name, belege), "belege": belege, "status": u["status"],
+                "grund": u["grund"], "befund": beschreibung, "gegenprobe": gegenprobe, "diff": diff,
+                "modellaufrufe": n1 - n0, "kosten_eur": round(c1 - c0, 6),
+                "kammerlaeufe": len(aufrufe), "kammer": list(aufrufe),
+                "dauer_s": round(time.monotonic() - t0, 3)}
+
+
+def _leer(grund):
+    return {"kandidat": None, "ausgefuehrt": False, "pruefbar": False, "bestanden": False,
+            "grund": grund, "befund": grund, "belege": {}, "modellaufrufe": 0,
+            "kosten_eur": 0.0, "kammerlaeufe": 0, "dauer_s": 0.0}
+
+
+def _vollstaendig(positive, gegenproben):
+    return (set(positive) == set(gegenproben) == set(PROBEN)
+            and all(p.get("ausgefuehrt") is True and p.get("pruefbar") is True
+                    and p.get("bestanden") is True for p in positive.values())
+            and all(p.get("ausgefuehrt") is True and p.get("pruefbar") is True
+                    and p.get("bestanden") is False for p in gegenproben.values()))
+
+
+def proben(con: sqlite3.Connection, lauf_id: int, werk_id: int, pfad: Path, paket: str, bereiche: list[str],
+           bstrassen, basis: dict, ausgang: dict, ref: str | None, tausch: dict, generation: int = 0) -> dict:
+    """Vier Paare, ohne Modelle, ohne vorausgesetzten Freeze und ohne Rückschreiben.
+
+    `basis`/`ausgang` sind explizite Messungen; laeufe.mass darf NULL sein. Die
+    Rückgabe ist der Beleg für den Aufrufer, kein selbst erteiltes Startrecht.
+    Sämtliche Versiegelungs-, Anklage-, Immun- und Kostenwrites bleiben privat.
+    """
+    with _privat(con, pfad) as (db, werk):
+        gegenstand = eichgegenstand.sichern(db, werk_id, lauf_id, werk)
+        g = gegenstand.get("gegenstand")
+        if not g:
+            grund = gegenstand.get("befund") or "kein Eichgegenstand"
+            return {"bestanden": False, "grund": grund, "gegenstand": None, "lauf_startet": False,
+                    "proben": {n: _leer(grund) for n in PROBEN},
+                    "gegenproben": {n: _leer(grund) for n in PROBEN},
+                    "kosten": {"kammerlaeufe": 0, "modellaufrufe": 0, "kosten_eur": 0.0, "dauer_s": 0.0}}
+        positive, negative = {}, {}
+        for name in PROBEN:
+            for ist_gegenprobe, ziel in ((False, positive), (True, negative)):
+                t0 = time.monotonic()
+                with kammer.zaehlung() as aufrufe:
+                    try:
+                        ziel[name] = _einzelprobe(db, lauf_id, werk_id, werk, paket, bereiche, bstrassen,
+                                                 basis, ausgang, ref, tausch, generation, g, name, ist_gegenprobe)
+                    except (RuntimeError, ValueError, StopIteration, OSError, sqlite3.Error) as fehler:
+                        # Kein ausgeführtes Gegenprädikat: ein ausdrücklich
+                        # ungeprüfter Infrastruktur-/Fixturebefund sperrt Gesamtgrün.
+                        ziel[name] = {**_leer(str(fehler) or type(fehler).__name__),
+                                      "fehlerart": type(fehler).__name__, "status": "prueffehler",
+                                      "kammerlaeufe": len(aufrufe), "kammer": list(aufrufe),
+                                      "dauer_s": round(time.monotonic() - t0, 3)}
+        alle = list(positive.values()) + list(negative.values())
+        kosten = {k: sum(p[k] for p in alle) for k in ("kammerlaeufe", "modellaufrufe", "kosten_eur", "dauer_s")}
+=== test_vorspann.py 1-60
+"""Sperren müssen vor jeder Übergabe an die nächste Stufe wirken."""
+import pytest
+from biotop.organe import generation0 as G0
+from biotop import lauf as L
+from biotop.organe import vorspann as V, eichung, eichgegenstand, eichproben, fundpruefung, verfassung, vertraege
+from biotop.kern.datenbank import j, lj
+from pathlib import Path
+import copy
+import hashlib
+
+
+@pytest.fixture
+def unit_vorspann(db_lauf, monkeypatch, messung):
+    """Gate-UNIT-Test: Messung/Proben kontrolliert ersetzt, KEINE echte Eichung."""
+    monkeypatch.setattr(V, '_infrastruktur', lambda: {'image':'unit:1','image_id':'sha256:' + 'a'*64}, raising=False)
+    con = db_lauf
+    con.execute("DELETE FROM generationen")
+    con.execute("UPDATE laeufe SET mass=NULL, status='kartiert'")
+    pfad = Path(L._werk(con, 1)['pfad'])
+    (pfad / 'paket' / 'beta').mkdir()
+    (pfad / 'paket' / 'beta' / '__init__.py').write_text('')
+    verfassung.einlegen(con, 1, 'alpha nutzt beta; Satz 2: Messgerät bleibt fest.',
+                       {'uebungswerk': True, 'tragender_pfad': [['alpha','beta']]}, 'Unit-Verfassung', 'Eigen-Test')
+    vertraege.einlegen(con, 1, pfad, {('alpha','beta'): 'def test_vertrag():\n    assert True\n'}, 'Unit-Vertrag')
+    con.execute("INSERT INTO landkarte(werk_id,stufe,schluessel,inhalt) VALUES(1,1,'unit','{}')")
+    reihenfolge = []
+    raw = {
+        'rauschen': {'toleranz': {'alpha':1.2,'beta':1.3}, 'gesperrt': [], 'lauf_startet':True,
+                     'bereiche': {b:{'toleranz':t, 'gesperrt':False, 'werte':[100,100,100,110,120], 'meldung':None}
+                                  for b,t in [('alpha',1.2),('beta',1.3)]}},
+        'funde': {'geprueft':0, 'geaendert':0, 'kammerlaeufe':0, 'ergebnisse':[], 'bezugsgroesse':'0 von 0'},
+        'proben': {'bestanden':True,
+                   'proben': {n:{'ausgefuehrt':True, 'pruefbar':True, 'bestanden':True, 'grund':'Unit-Positivkontrolle', 'kammerlaeufe':2, 'modellaufrufe':0, 'kosten_eur':0.0, 'dauer_s':0.1} for n in eichproben.PROBEN},
+                   'gegenproben': {n:{'ausgefuehrt':True, 'pruefbar':True, 'bestanden':False, 'grund':'Unit-Negativkontrolle', 'kammerlaeufe':3, 'modellaufrufe':0, 'kosten_eur':0.0, 'dauer_s':0.1} for n in eichproben.PROBEN}},
+        'reihenfolge': reihenfolge, 'probe_aufrufe': [],
+    }
+    def rauschen(*a, **kw):
+        reihenfolge.append('rauschen')
+        return copy.deepcopy(raw['rauschen'])
+    sichern = eichgegenstand.sichern
+    def gegenstand(*a, **kw):
+        reihenfolge.append('gegenstand')
+        return sichern(*a, **kw)
+    def funde(*a, **kw):
+        reihenfolge.append('funde')
+        return copy.deepcopy(raw['funde'])
+    def proben(*a, **kw):
+        reihenfolge.append('proben')
+        raw['probe_aufrufe'].append((a, kw))
+        return dict(copy.deepcopy(raw['proben']), gegenstand=eichgegenstand.lesen(con, 1))
+    monkeypatch.setattr(eichung, 'rauschmessung', rauschen)
+    monkeypatch.setattr(eichgegenstand, 'sichern', gegenstand)
+    monkeypatch.setattr(fundpruefung, 'bewerten', funde)
+    monkeypatch.setattr(eichproben, 'proben', proben)
+    monkeypatch.setattr(L, '_referenzlast', lambda *a: '# Unit-Referenzlast')
+    monkeypatch.setattr(L.messgeraet, 'messen', lambda *a, **kw: messung())
+    return con, raw
+
+
+def test_unit_erfolgreicher_vorspann_vor_gen0_und_mass(unit_vorspann):
+=== messgeraet.py 20-75
+  Bereich ein Sicherheitsbefund verschwindet): laufzeit_ms, groesste_funktion,
+  bauzeit_ms, zyklen. Speicher: nicht gemessen (Liste für danach).
+Kernmaß FASSUNG 1 (nur noch zur Nachrechnung der Kurve von Lauf 2):
+  kern = tests_bestanden − tests_fehlgeschlagen − 3·sicherheit_punkte − tote_funktionen.
+
+Pareto-Vergleich (`vergleichen`): ein Maß gilt als gesunken, wenn es sich in
+der schlechten Richtung ändert; für laufzeit_ms erst ab +15 % (Messrauschen der
+Kammer; als gestiegen gilt es erst ab −15 %). Alle anderen Maße: jede Änderung
+zählt.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+from pathlib import Path
+
+from ..organe import kammer
+
+RICHTUNG = {
+    "tests_bestanden": +1, "tests_fehlgeschlagen": -1, "sicherheit_punkte": -1,
+    "tote_funktionen": -1, "laufzeit_ms": -1, "groesste_funktion": -1,
+    "zyklen": -1, "bauzeit_ms": -1,
+}
+TOLERANZ = {"laufzeit_ms": 0.15, "bauzeit_ms": 0.50, "groesste_funktion": 0.25}
+BANDIT_GEWICHT = {"HIGH": 10, "MEDIUM": 3, "LOW": 1}
+
+MESSSKRIPT = r'''
+import ast, json, os, subprocess, sys, time, importlib, io, contextlib
+werk = "/werk"
+bereiche = json.loads(sys.argv[1])
+paket = sys.argv[2]
+ref_pfad = sys.argv[3] if len(sys.argv) > 3 else ""
+ergebnis = {"bereiche": {}, "werk": {}}
+
+def lauf(cmd, timeout=100):
+    p = subprocess.run(cmd, capture_output=True, text=True, cwd=werk, timeout=timeout)
+    return p.returncode, p.stdout, p.stderr
+
+# --- Bauzeit (Import aller Bereiche) ---
+t0 = time.monotonic()
+rc, out, err = lauf([sys.executable, "-c", "import " + ",".join(paket + "." + b for b in bereiche)])
+ergebnis["werk"]["bauzeit_ms"] = round((time.monotonic() - t0) * 1000, 1)
+ergebnis["werk"]["baut"] = (rc == 0)
+ergebnis["werk"]["bau_fehler"] = err[-2000:] if rc != 0 else ""
+
+# --- Tests je Bereich (Datei-Zuordnung über Namen) ---
+tests_dir = os.path.join(werk, "tests")
+testdateien = sorted(f for f in os.listdir(tests_dir) if f.startswith("test_") and f.endswith(".py")) if os.path.isdir(tests_dir) else []
+erwartete_testdateien = {os.path.relpath(os.path.join(w, f), werk)
+    for w, _, dateien in os.walk(tests_dir) for f in dateien if f.startswith("test_") and f.endswith(".py")}
+def zuordnung(f):
+    # Vertragstests (tests/vertraege/test_vertrag_<konsument>_<lieferant>.py) zaehlen beim Lieferanten
+    if f.startswith("test_vertrag_"):
+        t = f[:-3].split("_")
+        return t[-1] if t[-1] in bereiche else None
+=== messgeraet.py 240-300
+        stapel = [start]; gesehen = set()
+        while stapel:
+            k = stapel.pop()
+            for n in adj.get(k, ()):
+                if n == start: z += 1; stapel = []; break
+                if n not in gesehen: gesehen.add(n); stapel.append(n)
+    return z
+ergebnis["werk"]["zyklen"] = zyklen()
+ergebnis["werk"]["kanten"] = sorted(kanten)
+print("@@MESSUNG@@" + json.dumps(ergebnis) + "@@ENDE@@")
+'''
+
+
+def messen(werk: Path, bereiche: list[str], paket: str, referenzlast: str | None,
+           dateien: dict[str, str] | None = None, zeitlimit_s: int = 150) -> dict:
+    """Misst alle harten Maße in der Kammer. Rückgabe: Messung (dict) inkl. Rohausgabe."""
+    from . import sprachprofil
+    if sprachprofil.ist_typescript(werk):
+        from . import typescript
+        return typescript.messen(werk, bereiche, paket, referenzlast, dateien, zeitlimit_s)
+    extra = {"_messgeraet/messen.py": MESSSKRIPT}
+    if referenzlast:
+        extra["_messgeraet/referenzlast.py"] = referenzlast
+    extra.update(dateien or {})
+    e = kammer.ausfuehren(
+        werk, ["python", "_messgeraet/messen.py", json.dumps(bereiche), paket,
+               "_messgeraet/referenzlast.py" if referenzlast else ""],
+        zeitlimit_s=zeitlimit_s, dateien=extra,
+    )
+    m = re.search(r"@@MESSUNG@@(.*)@@ENDE@@", e.stdout, re.S)
+    ungueltig = {"gueltig": False, "rc": e.rc, "stdout": e.stdout[-4000:],
+                 "stderr": e.stderr[-4000:], "dauer_s": e.dauer_s}
+    if e.zeitlimit or e.rc != 0 or not m:
+        ungueltig["grund"] = "Zeitlimit" if e.zeitlimit else (f"Kammer abgebrochen (rc={e.rc})" if e.rc != 0 else "keine Messausgabe")
+        return ungueltig
+    try:
+        d = json.loads(m.group(1))
+        if not bereiche or set(d["bereiche"]) != set(bereiche):
+            raise ValueError("angeforderte Bereiche fehlen in der Messausgabe")
+        w = d["werk"]
+        for k in ("baut", "pytest_rc", "tests_fehlgeschlagen_liste", "tests_fehlgeschlagen_ids", "zyklen", "bauzeit_ms"):
+            if k not in w or w[k] is None:
+                raise ValueError("Werk-Pflichtnachweis fehlt: " + k)
+        if (w["pytest_rc"] not in (0, 1) or not isinstance(w["tests_fehlgeschlagen_liste"], list)
+                or not isinstance(w["tests_fehlgeschlagen_ids"], list)):
+            raise ValueError("pytest-/Einzeltestnachweis unbrauchbar")
+        if referenzlast:
+            for b in bereiche:
+                if d["bereiche"][b].get("laufzeit_ms") is None:
+                    raise ValueError("angeforderter Laufzeitnachweis fehlt/abgebrochen: " + b)
+        d["kernmass"] = kernmass(d)
+    except (ValueError, KeyError, TypeError) as exc:
+        ungueltig["grund"] = "unvollständige Messausgabe: " + str(exc)
+        return ungueltig
+    d["gueltig"] = True
+    d["dauer_s"] = round(e.dauer_s, 2)
+    return d
+
+
+def kernmass(m: dict) -> int:
+    k = 0
+=== nachspiel.py 124-210
+def vorbereiten(quelle_db: Path, kandidat_id: int, arbeit: Path, *, urteil_nr: int | None = None,
+                partner_id: int | None = None, masseichung_an: bool = True, rauschen_stufe2: bool = True) -> dict:
+    """Stellt den Zustand her, in dem der Lauf über den Kandidaten entschied. Rückgabe: Fall mit allen Eingaben."""
+    arbeit.mkdir(parents=True, exist_ok=True)
+    con = _kopie(Path(quelle_db), arbeit / "nachspiel.db")
+    k = con.execute("SELECT * FROM kandidaten WHERE id=?", (kandidat_id,)).fetchone()
+    if k is None:
+        raise NachspielFehler(f"Kandidat {kandidat_id} fehlt in {quelle_db}")
+    lauf_id, gen = k["lauf_id"], k["generation"]
+    urteile = _urteile(con, kandidat_id)
+    if not urteile:
+        raise NachspielFehler(f"K{kandidat_id}: kein aufgezeichnetes Urteil")
+    if urteil_nr is None:
+        urteil_nr, urteil = urteile[-1]
+    else:
+        urteil = dict(urteile)[urteil_nr]
+    ansage = _ansage_vor(con, kandidat_id, urteil_nr)
+    lauf = L._lauf(con, lauf_id)
+    werk = L._werk(con, lauf["werk_id"])
+    mass = lj(lauf["mass"])
+    paket, bereiche = mass["paket"], mass["bereiche"]
+    with transaktion(con):
+        con.execute(f"UPDATE generationen SET status='{AUSGESCHALTET}' WHERE lauf_id=? AND nummer>=?", (lauf_id, gen))
+    basis_gen = L.letzte_angenommene(con, lauf_id)
+    ziel = arbeit / "werk"
+    r = lazarus.rueckkehr(con, lauf_id, basis_gen["nummer"], Path(werk["pfad"]), ziel)
+    if not r["stimmt"]:
+        raise NachspielFehler(f"Lazarus Lauf {lauf_id} Gen {basis_gen['nummer']}: Prüfsumme weicht ab "
+                              f"({r['pruefsumme_gemessen']} statt {r['pruefsumme_erwartet']})")
+    z = con.execute("SELECT ergebnis, nachweis_sha256 FROM vorspann_nachweise WHERE lauf_id=?", (lauf_id,)).fetchone()
+    nachweis = dict(lj(z["ergebnis"]), nachweis_sha256=z["nachweis_sha256"])
+    verf = verfassung.lesen(con, werk["id"])
+    if "masseichung" in nachweis:
+        eichung, herkunft = nachweis["masseichung"], "aus dem versiegelten Vorspann-Nachweis"
+    else:
+        eichung = masseichung.eichen(nachweis["basis"], masseichung.sauberer_bereich(verf))
+        herkunft = ("im Nachspiel gebildet: masseichung.eichen(nachweis.basis, sauberer_bereich(verfassung)) — "
+                    "der Lauf lag vor dem Einbau, sein Nachweis trägt keine Eichung")
+    if not masseichung_an:
+        eichung, herkunft = None, "GEGENPROBE: Maßeichung abgeklemmt (Zustand der Läufe 37/38)"
+    tausch = L.annahme_tausch(mass, {**nachweis, "masseichung": eichung})
+    ref = L._referenzlast(werk["name"], paket)
+    # Behebungsrunde 4 vor T4: dieselbe Vergleichslast Stufe 2 wie generation() (lauf.py setzt sie in `tausch`).
+    tausch["_referenzlast_laufzeit"] = L._referenzlast(werk["name"], paket, 2)
+    rauschen_herkunft = "aus dem versiegelten Vorspann-Nachweis (Stufe 1)"
+    if tausch["_referenzlast_laufzeit"] and rauschen_stufe2:
+        # Der Lauf lag vor der Stufe 2; sein Vorspann trägt die Rauschmessung der Stufe 1. Wie ein Lauf mit dem neuen
+        # Instrument (vorspann: Rauschmessung an Stufe 2) wird die Toleranz hier an Stufe 2 gemessen — an der
+        # Vorgeneration, fünf Kammerläufe, dieselbe Regel (eichung.rauschmessung, vorspann._rauschwerte).
+        # eigener Name: `eichung` ist in dieser Funktion die Maßeichung des Falls (Fehler in 1d9a5aa: der Import
+        # überschrieb sie, alle Nachspiele D1–D3 brachen ab)
+        from .organe import eichung as eichung_organ, vorspann
+        r2 = eichung_organ.rauschmessung(con, lauf_id, werk["id"], ziel, bereiche, paket, tausch["_referenzlast_laufzeit"],
+                                         eichung_organ.laufzeit_einmal)
+        tausch.update(vorspann._rauschwerte(r2, bereiche))
+        tausch["_rauschbelege"] = r2["bereiche"]
+        rauschen_herkunft = (f"im Nachspiel an Stufe 2 gemessen (Vorgeneration, {len(r2.get('kammerlauf_s') or [])} "
+                             f"Kammerläufe, längster {max(r2.get('kammerlauf_s') or [0]):.1f} s)")
+    import hashlib
+    ref_sha = hashlib.sha256(ref.encode()).hexdigest() if ref else None
+    kanten = [(x["von"], x["nach"], x["art"]) for x in con.execute("SELECT von, nach, art FROM strassen WHERE werk_id=?", (werk["id"],))]
+    vorgelegt = _vorgelegte_immuntests(urteil, kandidat_id)
+    with transaktion(con):
+        con.execute(f"UPDATE immunsystem SET status='{AUSGESCHALTET}' WHERE werk_id=? AND bereich=? AND status IN ('gefunden','offen')",
+                    (werk["id"], k["bereich"]))
+        for n in vorgelegt:
+            con.execute("UPDATE immunsystem SET status='offen' WHERE werk_id=? AND name=?", (werk["id"], n))
+        con.execute("UPDATE kandidaten SET status='erzeugt', grund='', masse=NULL WHERE id=?", (kandidat_id,))
+    extra = None
+    if partner_id is not None:
+        pd = con.execute("SELECT diff FROM kandidaten WHERE id=?", (partner_id,)).fetchone()["diff"]
+        d = aegis.kandidat_dateien(ziel, pd)
+        if not d:
+            raise NachspielFehler(f"Partner K{partner_id}: Diff an der Vorgeneration nicht anwendbar")
+        extra = {p: (i if i is not None else "") for p, i in d.items()}
+    return {"con": con, "kandidat": kandidat_id, "partner": partner_id, "lauf_id": lauf_id, "generation": gen,
+            "werk_id": werk["id"], "werk": ziel, "paket": paket, "bereiche": bereiche,
+            "bstrassen": landkarte.bereichs_strassen(kanten, paket), "basis": lj(basis_gen["masse"]),
+            "basis_generation": basis_gen["nummer"], "ausgang": L.bestwert_des_laufs(con, lauf_id, bereiche),
+            "ref": ref, "ref_sha256": ref_sha,
+            "ref_wie_im_lauf": ref_sha == ((nachweis.get("quellen") or {}).get("referenzlast") or {}).get("sha256"),
+            "tausch": tausch, "eichung": eichung, "eichung_herkunft": herkunft, "extra": extra,
+            "rauschen_herkunft": rauschen_herkunft,
+            "urteil_nr": urteil_nr, "urteil_aufgezeichnet": urteil, "ansage_aufgezeichnet": ansage,
+            "immun_vorgelegt": vorgelegt, "lazarus": {k2: r[k2] for k2 in ("tag", "pruefsumme_erwartet", "pruefsumme_gemessen", "stimmt", "dateien")}}
+
+
+=== nachspiel.py 228-296
+def spielen(fall: dict, *, verhaltensvergleich_an: bool = True, vv_optionen: dict | None = None) -> dict:
+    """Ruft `aegis.pruefen` — die Funktion, die ein Lauf zur Annahme ruft — mit dem hergestellten Zustand.
+    `vv_optionen` (Behebungsrunde 3, getrennte Messung K2868): korpus_erweitert / deckungsregel des Verhaltensvergleichs."""
+    con = fall["con"]
+    kein_angriff = bool(fall["ansage_aufgezeichnet"]) and fall["ansage_aufgezeichnet"].get("behauptung") is None \
+        and "KEIN ANGRIFF" in str(fall["ansage_aufgezeichnet"].get("grund"))
+    g = AufgezeichneteGrenze(kein_angriff)
+    aegis.zaehlkontext_setzen(con, fall["lauf_id"])
+    nz0 = con.execute("SELECT COALESCE(MAX(id),0) FROM neutralzaehler").fetchone()[0] if con.execute(
+        "SELECT name FROM sqlite_master WHERE name='neutralzaehler'").fetchone() else 0
+    abgeklemmt = None
+    if not verhaltensvergleich_an:
+        # GEGENPROBE: der Zustand von Lauf 38 — das Organ existiert, der Annahmepfad ruft es nicht.
+        abgeklemmt = aegis.verhaltensvergleich.pruefen
+        aegis.verhaltensvergleich.pruefen = lambda *a, **k: {"ausgefuehrt": False, "geurteilt": False, "tragfaehig": True,
+                                                             "grund_art": "gegenprobe_abgeklemmt",
+                                                             "grund": "GEGENPROBE: Verhaltensvergleich abgeklemmt"}
+    try:
+        with _grenze(g), kammer.zaehlung() as kammerlaeufe:
+            u = aegis.pruefen(con, fall["lauf_id"], fall["werk_id"], fall["kandidat"], fall["werk"], fall["paket"],
+                              fall["bereiche"], fall["bstrassen"], fall["basis"], fall["ausgang"], fall["ref"],
+                              fall["tausch"], extra_code=fall["extra"], vv_optionen=vv_optionen,
+                              referenzlast_laufzeit=fall["tausch"].get("_referenzlast_laufzeit"))
+    finally:
+        if abgeklemmt is not None:
+            aegis.verhaltensvergleich.pruefen = abgeklemmt
+        aegis.zaehlkontext_setzen(None, None)
+    kz = con.execute("SELECT status, grund, masse FROM kandidaten WHERE id=?", (fall["kandidat"],)).fetchone()
+    masse = lj(kz["masse"]) or {}
+    bp = masse.get("_basis_paar") or {}
+    laufzeit = {b: {"bestwert": ((fall["ausgang"].get("bereiche") or {}).get(b) or {}).get("laufzeit_ms"),
+                    "vorgeneration": ((bp.get("bereiche") or {}).get(b) or {}).get("laufzeit_ms"),
+                    "kandidat": ((masse.get("bereiche") or {}).get(b) or {}).get("laufzeit_ms")}
+                for b in fall["bereiche"]}
+    zaehler = [dict(z) for z in con.execute("SELECT organ, art, grund, einzelheit FROM neutralzaehler WHERE id>?", (nz0,))]
+    beleg = {"kandidat": fall["kandidat"], "partner": fall["partner"], "lauf": fall["lauf_id"], "generation": fall["generation"],
+             "vorgeneration": fall["basis_generation"], "lazarus": fall["lazarus"],
+             "verhaltensvergleich_an": verhaltensvergleich_an, "masseichung_an": fall["eichung"] is not None,
+             "eichung_herkunft": fall["eichung_herkunft"],
+             "stillgelegt": (fall["eichung"] or {}).get("stillgelegt") or [],
+             "status": u["status"], "grund": u["grund"],
+             "status_aufgezeichnet": fall["urteil_aufgezeichnet"].get("status"),
+             "grund_aufgezeichnet": fall["urteil_aufgezeichnet"].get("grund"),
+             "mass": {k2: (u.get("mass") or {}).get(k2) for k2 in ("ok", "kern_basis", "kern_kandidat", "zuwachs",
+                                                                  "pareto_besser", "pareto_schlechter", "grenzen_gerissen",
+                                                                  "laufzeit_gewinne")},
+             "verhalten": u.get("verhalten"),
+             "laufzeit_ms": laufzeit,
+             "laufzeit_gepaart": u.get("laufzeit_gepaart"),
+             # Review 02 Nr. 13: Nachmessungen vor Ablehnung (Riss) und an der Gewinnschwelle gehören in den Beleg.
+             "laufzeit_nachmessung": u.get("laufzeit_nachmessung"),
+             "gewinn_nachmessung": u.get("gewinn_nachmessung"),
+             "laufzeit_stufe": u.get("laufzeit_stufe"),
+             "rauschen_herkunft": fall.get("rauschen_herkunft"),
+             "rauschtoleranz": (fall.get("tausch") or {}).get("_rauschtoleranz"),
+             "gesperrte_bereiche": (fall.get("tausch") or {}).get("_gesperrte_bereiche"),
+             "vv_optionen": vv_optionen or {},
+             "laufzeit_bezug": (u.get("mass") or {}).get("laufzeit_bezug"),
+             "behauptungen": u.get("behauptungen"),
+             "kernmass_kandidat": _kernmass_beleg(masse, fall["eichung"]) if masse.get("bereiche") else None,
+             "kernmass_vorgeneration": _kernmass_beleg(masse.get("_basis_paar") or {}, fall["eichung"])
+             if (masse.get("_basis_paar") or {}).get("bereiche") else None,
+             "neutralzaehler": zaehler, "anbietergrenze": g.anfragen, "anbietergrenze_kennung": KENNUNG,
+             "ansage_aufgezeichnet": fall["ansage_aufgezeichnet"], "urteil_nr_aufgezeichnet": fall["urteil_nr"],
+             "immun_vorgelegt": fall["immun_vorgelegt"], "tests_offen": u.get("tests_offen"),
+             "referenzlast_sha256": fall["ref_sha256"], "referenzlast_wie_im_lauf": fall["ref_wie_im_lauf"],
+             "kammerlaeufe": len(kammerlaeufe),
+             "modellaufrufe_echt": 0}
+    return json.loads(json.dumps(beleg, ensure_ascii=False, default=str))
+=== runner muster 156-300
+    const zusatz = k => {
+      argtext[k] = eingabeText(args);
+      const vorher = schnappschuss(args), vl = vorlage(args);
+      const r = knapp(wert(() => call(...args), name).text);
+      beob[k] = r;
+      zustandObs(k, args);
+      zuruecksetzen(vorher);
+      kopieVergleich(k, vl, call, r);
+      zuruecksetzen(vorher);
+    };
+    zusatz(`${schluessel}@alias`);
+    zuruecksetzen(stand);
+    if (mutieren(args) > 0) {
+      zusatz(`${schluessel}@mutation`);
+      zuruecksetzen(stand);
+      zusatz(`${schluessel}@nach_ruecksetzung`);
+      zuruecksetzen(stand);
+    }
+    return erst;
+  } finally {
+    tiefe--;
+  }
+}
+
+// --- Beispiele und Randfälle (Fassung 8): packbare Kopien von Argumenten, damit die Kandidatenseite dieselben
+// Aufrufe bekommt wie die Vorgeneration (Beispiele reisen über Python zurück in die zweite Kammer).
+function pack(x, t = 0) {
+  if (t > 6 || x === undefined) return {__u: 1};
+  if (x === null || typeof x === 'string' || typeof x === 'boolean') return x;
+  if (typeof x === 'number') return Number.isFinite(x) ? x : {__num: String(x)};
+  if (typeof x === 'bigint') return {__big: String(x)};
+  if (typeof x === 'function' || typeof x === 'symbol') throw Error('nicht packbar');
+  if (Array.isArray(x)) return x.slice(0, 20).map(v => pack(v, t + 1));
+  if (x instanceof Map) return {__map: [...x.entries()].slice(0, 20).map(([k, v]) => [pack(k, t + 1), pack(v, t + 1)])};
+  if (x instanceof Set) return {__set: [...x.values()].slice(0, 20).map(v => pack(v, t + 1))};
+  if (x instanceof Date) return {__date: x.getTime()};
+  const proto = Object.getPrototypeOf(x);
+  if (proto !== Object.prototype && proto !== null) throw Error('Klasseninstanz nicht packbar');
+  const o = {};
+  for (const k of Object.keys(x)) o[k] = pack(x[k], t + 1);
+  return {__obj: o};
+}
+function unpack(x) {
+  if (x === null || typeof x !== 'object') return x;
+  if (Array.isArray(x)) return x.map(unpack);
+  if ('__u' in x) return undefined;
+  if ('__num' in x) return Number(x.__num);
+  if ('__big' in x) return BigInt(x.__big);
+  if ('__map' in x) return new Map(x.__map.map(([k, v]) => [unpack(k), unpack(v)]));
+  if ('__set' in x) return new Set(x.__set.map(unpack));
+  if ('__date' in x) return new Date(x.__date);
+  if ('__obj' in x) { const o = {}; for (const k of Object.keys(x.__obj)) o[k] = unpack(x.__obj[k]); return o; }
+  return x;
+}
+function blaetter(p, f) {             // packierte Struktur, Blätter umschreiben
+  if (Array.isArray(p)) return p.map(v => blaetter(v, f));
+  if (p && typeof p === 'object' && '__obj' in p) { const o = {}; for (const k of Object.keys(p.__obj)) o[k] = blaetter(p.__obj[k], f); return {__obj: o}; }
+  return f(p);
+}
+function schrumpfen(p) {            // leer, einzeln, doppelt, Grenzwerte — aus einem beobachteten Wert
+  const out = [p];
+  if (Array.isArray(p)) {
+    out.push([]);
+    if (p.length) { out.push([p[0]], [p[0], p[0]], [blaetter(p[0], v => typeof v === 'number' ? 0 : typeof v === 'string' ? '' : v)]); }
+  } else if (p && typeof p === 'object' && '__obj' in p) {
+    out.push(blaetter(p, v => typeof v === 'number' ? 0 : v), blaetter(p, v => typeof v === 'string' ? '' : v),
+             blaetter(p, v => typeof v === 'number' ? -1 : v));
+  } else if (typeof p === 'number') out.push(0, -1, 1);
+  else if (typeof p === 'string') out.push('', ' ', ...(ERWEITERT ? ['a b'] : []));
+  return out;
+}
+function teilen(t, zeichen) {         // Aufteilen auf oberster Klammerebene
+  const teile = []; let tiefe_ = 0, start = 0;
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if ('<([{'.includes(c)) tiefe_++;
+    else if ('>)]}'.includes(c)) tiefe_--;
+    else if (c === zeichen && tiefe_ === 0) { teile.push(t.slice(start, i).trim()); start = i + 1; }
+  }
+  teile.push(t.slice(start).trim());
+  return teile.filter(Boolean);
+}
+function umschlossen(t) {            // '(…)' und die erste Klammer schließt erst am Ende
+  if (!t.startsWith('(') || !t.endsWith(')')) return false;
+  let tiefe_ = 0;
+  for (let i = 0; i < t.length; i++) {
+    if (t[i] === '(') tiefe_++;
+    else if (t[i] === ')') { tiefe_--; if (tiefe_ === 0 && i < t.length - 1) return false; }
+  }
+  return true;
+}
+function typKandidaten(t, b, stufe = 0) {
+  if (!t || stufe > 3) return [];
+  t = t.trim();
+  for (let alt = ''; alt !== t;) {            // readonly und umschließende Klammern abwechselnd abstreifen
+    alt = t;
+    while (t.startsWith('readonly ')) t = t.slice(9).trim();
+    if (umschlossen(t)) t = t.slice(1, -1).trim();
+  }
+  const teile = teilen(t, '|');
+  if (teile.length > 1) {
+    const ohne = teile.filter(s => s !== 'undefined' && s !== 'null');
+    const lit = ohne.filter(s => /^(['"]).*\1$/.test(s)).map(s => s.slice(1, -1));
+    const rest = ohne.filter(s => !/^(['"]).*\1$/.test(s)).flatMap(s => typKandidaten(s, b, stufe + 1)).slice(0, 6);
+    return [...lit, ...rest, ...(teile.includes('undefined') ? [{__u: 1}] : [])];
+  }
+  if (t === 'number') return [0, 1, -1, 2, 0.5, 100];
+  if (t === 'string') return ERWEITERT ? ['', 'a', ' ', 'a b', 'Ä-1', 'x'.repeat(40)] : ['', 'a', ' ', 'Ä-1', 'x'.repeat(40)];
+  if (t === 'boolean') return [false, true];
+  let m = t.match(/^(.+)\[\]$/), innen = m ? m[1] : null;
+  if (innen === null) { m = t.match(/^(?:Readonly)?Array<(.+)>$/); innen = m ? m[1] : null; }
+  if (innen !== null) {
+    const eb = Array.isArray(b) && b.length ? b[0] : undefined;
+    let e = typKandidaten(innen, eb, stufe + 1);
+    if (!e.length && eb !== undefined) e = schrumpfen(eb);
+    const out = [[]];
+    if (e.length) {
+      out.push([e[0]], [e[0], e[0]]);
+      for (const v of e.slice(1, 4)) out.push([v]);
+      if (e.length >= 3) out.push([e[0], e[1], e[2]]);
+    }
+    if (Array.isArray(b)) out.push(b.slice(0, 20));
+    return out;
+  }
+  if (/^(['"]).*\1$/.test(t)) return [t.slice(1, -1)];
+  if (/^-?\d+(\.\d+)?$/.test(t)) return [Number(t)];
+  return b !== undefined ? schrumpfen(b) : [];
+}
+// Dieselbe Eingabe in anderer Form: Weißraum (Tab, Zeilenumbruch, doppelt, CRLF, NBSP, am Rand), Groß/Klein,
+// Zahlform im Text (führende Null, nachgestellte Null), Schlüsselfolge und Textfelder von Objekten.
+// Rückgabe [[wert, art]] — die Art ist das Muster der Formvariante (Deckung je Muster).
+function textFormen(s) {
+  const out = [];
+  if (s.includes(' ')) for (const [r, a] of [['\t', 'tab'], ['\n', 'zeilenumbruch'], ['  ', 'doppelleer'], ['\r\n', 'crlf'], ['\u00a0', 'nbsp']]) out.push([s.split(' ').join(r), a]);
+  out.push([' ' + s, 'rand_vorn'], [s + ' ', 'rand_hinten'], ['\t' + s + '\n', 'rand_tab_zeilenumbruch']);
+  if (s.toUpperCase() !== s) out.push([s.toUpperCase(), 'gross']);
+  if (s.toLowerCase() !== s) out.push([s.toLowerCase(), 'klein']);
+  const m = s.match(/\d+(?:\.\d+)?/);
+  if (m) { const z = m[0], a = s.slice(0, m.index), e = s.slice(m.index + z.length); out.push([a + '0' + z + e, 'zahlform'], [a + z + (z.includes('.') ? '0' : '.0') + e, 'zahlform']); }
+  return out;
+}
+function formWerte(p) {
+  const out = [];
+  if (typeof p === 'string' && p.length) out.push(...textFormen(p));
+  else if (p && typeof p === 'object' && '__obj' in p) {
+=== lauf.py 196-232
+        raise LaufFehler(f"Generation {offen['nummer']} wartet auf Freigabe durch Philipp")
+    werk = _werk(con, lauf["werk_id"])
+    mass = lj(lauf["mass"])
+    paket, bereiche = mass["paket"], mass["bereiche"]
+    pfad = Path(werk["pfad"])
+    ref = _referenzlast(werk["name"], paket)
+    basis_gen = letzte_angenommene(con, lauf_id)
+    basis = lj(basis_gen["masse"])
+    nummer = con.execute("SELECT COALESCE(MAX(nummer),0)+1 FROM generationen WHERE lauf_id=?", (lauf_id,)).fetchone()[0]
+    kanten = [(z["von"], z["nach"], z["art"]) for z in con.execute("SELECT von, nach, art FROM strassen WHERE werk_id=?", (werk["id"],))]
+    bstrassen = landkarte.bereichs_strassen(kanten, paket)
+    # Kassen-Vorprüfung auf Generationsebene: Kostenvoranschlag = teuerste bisherige Generation dieses Laufs.
+    # Reicht das Budget dafür nicht, wird die Generation gar nicht erst begonnen (kein einziger Modellaufruf).
+    rausch = nachweis["rauschen"]
+    gesperrt = rausch["gesperrt"]
+    for b in gesperrt:
+        protokoll.schreiben(con, "generation.bereich_uebersprungen", lauf_id=lauf_id, generation=nummer,
+                            bereich=b, toleranz=rausch["bereiche"][b]["toleranz"],
+                            grund=rausch["bereiche"][b].get("meldung"), nachweis_sha256=nachweis["nachweis_sha256"])
+    if not set(bereiche) - set(gesperrt):
+        raise LaufFehler("Vorspann: alle Bereiche gesperrt — kein Kandidat wird erzeugt")
+    kasse.generation_vorpruefung(con, lauf_id, nummer)
+    with transaktion(con):
+        con.execute("UPDATE laeufe SET status='laeuft' WHERE id=?", (lauf_id,))
+        con.execute("INSERT INTO generationen(lauf_id, nummer, status, erstellt_am) VALUES (?,?,?,?)", (lauf_id, nummer, "laeuft", protokoll.jetzt()))
+    protokoll.schreiben(con, "generation.begonnen", lauf_id=lauf_id, nummer=nummer, basis=basis_gen["nummer"], kasse=kasse.stand(con, lauf_id))
+    ausgang = bestwert_des_laufs(con, lauf_id, bereiche)  # F4: Grenzmaße gegen den Bestwert aller angenommenen Generationen
+    tausch = annahme_tausch(mass, nachweis)
+    tausch["_referenzlast_laufzeit"] = _referenzlast(werk["name"], paket, 2)
+    try:
+        return _generation_koerper(con, lauf_id, nummer, werk, mass, paket, bereiche, pfad, ref, basis, bstrassen, ausgang, tausch, einschleusen)
+    except kasse.BudgetErschoepft:
+        with transaktion(con):
+            con.execute("UPDATE generationen SET status='abgebrochen', grund='Budget erschöpft während der Generation' WHERE lauf_id=? AND nummer=?", (lauf_id, nummer))
+        raise
+
+
+=== lauf.py 420-470
+    mess["_basis_paar"] = {"kernmass_f2": messgeraet.kernmass_f2(basis_paar), "bereiche": {b: messgeraet.bereich_masse(basis_paar, b) for b in bereiche}}
+    mess["_testbestand"] = sorted(testbestand)
+
+    # 6. Pareto + Grenzen + Zuwachs (F2)
+    u = messgeraet.urteil_f2(basis_paar, mess, ausgang, bereiche, wirkungskreis, tausch, laufzeit_pruefen=lz is not None,
+                             laufzeit_ausnehmen=(nachmessung or {}).get("nicht_bestaetigt") or ())
+    # Nischenmaß auf Werkebene: Gesamtkandidat mit reinem Laufzeitgewinn (Kernmaß gleich) ist zulässig
+    if not u["ok"] and u["grund"].startswith("Kernmaß unverändert"):
+        lz_kreis = [b for b in wirkungskreis if b not in tausch.get('_gesperrte_bereiche', [])]
+        gew = [f"{b}: {basis_paar['bereiche'][b]['laufzeit_ms']} → {mess['bereiche'][b]['laufzeit_ms']}" for b in lz_kreis
+               if basis_paar["bereiche"][b].get("laufzeit_ms") and mess["bereiche"][b].get("laufzeit_ms") and mess["bereiche"][b]["laufzeit_ms"] <= basis_paar["bereiche"][b]["laufzeit_ms"] * messgeraet.GEWINN_SCHWELLE]
+        if lz is not None:
+            # Entscheidung Chat-Claude 2 (24.09.): Gewinn in der Rauschtoleranz um die Schwelle in beiden Richtungen
+            # nachmessen — dieselbe Regel wie im Ankläger (aegis.pruefen).
+            g = messgeraet.gewinn_bestaetigen(pfad, lz_kreis, paket, ref_lz, {}, lz_code, basis_paar, mess,
+                                              tausch.get("_rauschtoleranz"))
+            zusammenfassung["_gewinn_nachmessung"] = g
+            if g["ergebnis"] == "ungueltig":
+                grund = "Generalprobe: Messgerätausfall (Gewinn-Nachmessung) — " + g["grund"]
+                with transaktion(con):
+                    for b, kid in gewaehlt.items():
+                        con.execute("UPDATE kandidaten SET status=?, grund=? WHERE id=?", (aegis.ZURUECKGESTELLT, grund[:300], kid))
+                return _messgeraet_ausfall(con, lauf_id, nummer, abschluss, zusammenfassung, grund, mess)
+            if g["ergebnis"] == "gepoolt":
+                basis_paar, mess = messgeraet.laufzeit_einsetzen(basis_paar, mess, g["einsetzen"])
+                gew = [f"{b}: {basis_paar['bereiche'][b]['laufzeit_ms']} → {mess['bereiche'][b]['laufzeit_ms']} (gepoolt)"
+                       for b in g["nachgemessen"] if mess["bereiche"][b]["laufzeit_ms"] <= basis_paar["bereiche"][b]["laufzeit_ms"] * messgeraet.GEWINN_SCHWELLE]
+            if not g["gewinn"]:
+                gew = []
+            elif g["ergebnis"] in ("klar", "bestaetigt"):
+                # Behebungsrunde 4 (Review 03 Nr. 11): nur bestätigte Gewinnbereiche im Annahmegrund.
+                gew = [x for x in gew if x.split(":")[0] in set(g.get("bestaetigte_bereiche") or [])] or gew
+        if gew:
+            u = {**u, "ok": True, "grund": "Laufzeit gesunken (Nischenmaß), Kernmaß unverändert: " + "; ".join(gew), "laufzeit_gewinne": gew}
+    vv = vertraege.verletzt(set(basis_paar["werk"]["tests_fehlgeschlagen_liste"]), set(mess["werk"]["tests_fehlgeschlagen_liste"]))
+    if vv:
+        u = {**u, "ok": False, "grund": "Generalprobe: Vertrag verletzt " + ", ".join(vv)}
+    mess["_urteil_f2"] = u
+    zusammenfassung["_generalprobe"] = u
+    if not u["ok"]:
+        for b, kid in gewaehlt.items():
+            with transaktion(con):
+                con.execute("UPDATE kandidaten SET status='abgelehnt', grund=? WHERE id=?", ("Generalprobe: " + u["grund"], kid))
+        return abschluss("abgelehnt", "Generalprobe: " + u["grund"], mess, zusammenfassung)
+    gestiegen = u["pareto_besser"] or u.get("laufzeit_gewinne") or []
+
+    # 7. In das Werk schreiben + Schnappschuss (die Freigabe entscheidet, ob es bleibt)
+    for p, inhalt in dateien.items():
+        f = pfad / p
+        f.parent.mkdir(parents=True, exist_ok=True)
+        if inhalt == "" and f.exists() and not p.endswith(".py"):
+=== __main__ 66-140
+    con = verbinden()
+    try:
+        if a.cmd == "lauf":
+            _p({"lauf": L.anlegen(con, a.budget), "budget_eur": a.budget})
+        elif a.cmd == "einlegen":
+            _p(L.einlegen(con, a.lauf, a.name, a.quelle))
+        elif a.cmd == "kartieren":
+            _p(L.kartieren(con, a.lauf))
+        elif a.cmd == "vorspann":
+            _p(L.vorspann.ausfuehren(con, a.lauf))
+        elif a.cmd == "mass":
+            r = L.mass_einfrieren(con, a.lauf, a.bestaetigt_von)
+            _p({"mass": r["mass"], "kernmass": r["messung"]["kernmass"], "bereiche": {b: {k: v for k, v in m.items() if not isinstance(v, (list, dict))} for b, m in r["messung"]["bereiche"].items()}, "schnappschuss": r["schnappschuss"]})
+        elif a.cmd == "generation":
+            ein = json.loads(Path(a.einschleusen).read_text()) if a.einschleusen else None
+            r = L.generation(con, a.lauf, einschleusen=ein)
+            m = r.get("messung")
+            _p({"nummer": r["nummer"], "status": r["status"], "grund": r["grund"], "kandidaten": r["kandidaten"],
+                "kernmass": m["kernmass"] if m else None, "schnappschuss": r.get("schnappschuss"), "kasse": kasse.stand(con, a.lauf)})
+        elif a.cmd == "abbrechen":
+            _p(L.abbrechen(con, a.lauf, a.grund, a.von, a.art))
+        elif a.cmd == "freigabe":
+            _p(L.freigabe(con, a.lauf, a.nummer, a.entscheidung, a.grund, a.von))
+        elif a.cmd == "lazarus":
+            if a.aktion == "liste":
+                _p(lazarus.liste(con, a.lauf))
+            else:
+                werk = L._werk(con, L._lauf(con, a.lauf)["werk_id"])
+                _p(lazarus.rueckkehr(con, a.lauf, a.nummer, Path(werk["pfad"]), Path(a.ziel) if a.ziel else None))
+        elif a.cmd == "kasse":
+            if a.lauf:
+                _p(kasse.stand(con, a.lauf))
+            print(kasse.bericht_md(con, a.lauf))
+        elif a.cmd == "protokoll":
+            for z in protokoll.lesen(con, a.ab, a.art, a.limit):
+                print(f"#{z['nr']} {z['zeit']} {z['art']} {z['inhalt']}")
+        elif a.cmd == "protokoll-pruefen":
+            ok, n = protokoll.pruefen(con)
+            _p({"kette_in_ordnung": ok, "geprueft": n})
+        elif a.cmd == "verfassung":
+            from .organe import verfassung as V
+            lauf = L._lauf(con, a.lauf)
+            V.einlegen(con, lauf["werk_id"], Path(a.text_md).read_text(), json.loads(Path(a.regeln_json).read_text()), f"{a.text_md} + {a.regeln_json}", a.von)
+            _p({"werk_id": lauf["werk_id"], "eingelegt": True})
+        elif a.cmd == "gen0":
+            _p(L.generation0(con, a.lauf, a.mutanten, a.ziel))
+        elif a.cmd == "vertraege":
+            from .organe import vertraege as VT
+            lauf = L._lauf(con, a.lauf); werk = L._werk(con, lauf["werk_id"])
+            vs = {}
+            from .kern import sprachprofil
+            endung = sprachprofil.testendung(Path(werk["pfad"]))
+            for f in sorted(Path(a.verzeichnis).glob("test_vertrag_*" + endung)):
+                a_, b_ = sprachprofil.testname_ohne_endung(f.name).replace("test_vertrag_", "").split("_", 1)
+                vs[(a_, b_)] = f.read_text()
+            _p({"eingelegt": VT.einlegen(con, werk["id"], Path(werk["pfad"]), vs, f"{a.verzeichnis} ({a.von})")})
+        elif a.cmd == "kurve":
+            _p(L.kurve_nachrechnen(con, a.lauf, a.testbestand_von_lauf))
+        elif a.cmd == "mentor":
+            from .organe import mentor as M
+            _p(M.richtungen(con, a.lauf))
+        elif a.cmd == "richtung":
+            from .organe import mentor as M
+            _p(M.waehlen(con, a.lauf, a.name, a.von))
+        elif a.cmd == "gedaechtnis":
+            from .organe import gedaechtnis as G
+            if a.aktion == "import":
+                werk = L._werk(con, L._lauf(con, a.lauf)["werk_id"])
+                _p({"lauf": a.lauf, "projekt_importiert": G.projekt_import(con, a.lauf, Path(werk["pfad"])), "art_importiert": G.art_import(con, a.lauf)})
+            elif a.aktion == "art":
+                _p(G.art_zusammenfassung(con))
+            elif a.aktion == "projekt":
+                werk = L._werk(con, L._lauf(con, a.lauf)["werk_id"])
+                _p(G.gescheiterte_wege(con, werk["id"], a.bereich, 200) if a.bereich else [dict(z) for z in con.execute("SELECT werk, bereich, grundklasse, COUNT(*) n FROM projektgedaechtnis GROUP BY werk, bereich, grundklasse")])
+            else:
+=== test_vor_t4_03 _pruefen 149-200
+def _diff(alt: str, neu: str, rel: str = "probewerk/werk/kern.py", tests: dict | None = None) -> str:
+    import difflib
+    d = "".join(difflib.unified_diff(alt.splitlines(True), neu.splitlines(True), f"a/{rel}", f"b/{rel}"))
+    for p, t in (tests or {}).items():
+        d += "".join(difflib.unified_diff([], t.splitlines(True), "/dev/null", f"b/{p}"))
+    return d
+
+
+def _ersetzen(alt: str, neu: str) -> str:
+    assert QUELLE.count(alt) == 1, alt
+    return QUELLE.replace(alt, neu)
+
+
+def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+    monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+    w = tmp_path / "werk"
+    _anlegen(w, werk_extra)
+    con = sqlite3.connect(":memory:", isolation_level=None)
+    con.row_factory = sqlite3.Row
+    con.executescript(datenbank.SCHEMA)
+    con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                (nische, diff))
+    monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+    basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+    assert basis["gueltig"], basis.get("grund")
+
+    def laufzeit(werk, bereiche, paket, ref, dateien=None, zeitlimit_s=150):
+        return {"gueltig": True, "grund": "", "bereiche": {b: {"laufzeit_ms": 4.0 if dateien else 5.0} for b in bereiche}}
+    monkeypatch.setattr(messgeraet, "laufzeit_messen", laufzeit)
+    u = aegis.pruefen(con, 1, 1, 7, w, PAKET, ["werk"], [], basis, basis, REFERENZLAST, {"_rauschtoleranz": {"werk": 1.2}})
+    z = con.execute("SELECT inhalt FROM protokoll WHERE art='aegis.urteil' ORDER BY nr DESC LIMIT 1").fetchone()
+    return u, json.loads(z[0]).get("verhalten") or {}
+
+
+# ---------------------------------------------------------------- A1 Generator
+def test_a1_generator_ausgabe_geaendert_wird_abgelehnt(tmp_path, monkeypatch):
+    """Review 02 Nr. 1 (p1): an 6243377 0 Abweichungen, „beobachtet“, tragfähig. Die Änderung wirkt erst ab n = 5: der
+    Werkstest (zahlen(3)) sieht sie nicht — nur die Sonde kann sie finden (Last: zahlen(5))."""
+    neu = _ersetzen("    yield from range(n)\n", "    yield from (range(n) if n < 5 else range(1, n + 1))\n")
+    u, v = _pruefen(tmp_path, monkeypatch, _diff(QUELLE, neu))
+    assert u["status"] == "abgelehnt" and u["grund"].startswith("Verhaltensvergleich:"), u["grund"]
+    assert any(k.startswith("probewerk.werk.kern:zahlen#") for k in v["ungedeckt"]), v
+
+
+def test_a1_gegenprobe_generator_gleiche_ausgabe_ueberlebt(tmp_path, monkeypatch):
+    neu = _ersetzen("    yield from range(n)\n", "    for i in range(n):\n        yield i\n")
+    u, v = _pruefen(tmp_path, monkeypatch, _diff(QUELLE, neu))
+    assert u["status"] == "ueberlebt" and v["anzahl_abweichungen"] == 0, (u["grund"], v)
+
+
+# ---------------------------------------------------------------- A2 Nebenwirkung an der Eingabe
+def test_a2_inplace_sortierung_umgedreht_wird_abgelehnt(tmp_path, monkeypatch):
+=== test_vor_t4_02 _deckungswerk
+259:def _deckungswerk(tmp_path, sprache):
+260-    w = tmp_path / f"werk_{sprache}"
+261-    if sprache == "ts":
+262-        (w / "src" / "m").mkdir(parents=True)
+263-        (w / "tests").mkdir()
+264-        (w / "package.json").write_text('{"type":"module"}')
+265-        (w / "src" / "m" / "a.ts").write_text(TS_QUELLE)
+266-        ref = "import { f } from './dist/m/a.js';\nexport function last_m() { for (let i = 0; i < 100; i++) f('z'); }\n"
+267-        return w, {"src/m/a.ts": TS_NEU}, {"tests/test_m_deckung.test.ts": TS_TEST}, ref, "biotop-kammer:ts1"
+268-    for d in ("paket/m", "tests"):
+269-        (w / d).mkdir(parents=True)
+270-    (w / "paket" / "__init__.py").write_text("")
+271-    (w / "paket" / "m" / "__init__.py").write_text("")
+272-    (w / "paket" / "m" / "a.py").write_text(PY_QUELLE)
+273-    ref = "import sys\nsys.path.insert(0, '/werk')\n\ndef last_m():\n    from paket.m.a import f\n    for _ in range(100):\n        f('z')\n"
+274-    return w, {"paket/m/a.py": PY_NEU}, {"tests/test_m_deckung.py": PY_TEST}, ref, "biotop-kammer:1"
+275-
+276-
+277-@pytest.mark.parametrize("mit_test", [True, False])
+278-@pytest.mark.parametrize("sprache", ["ts", "py"])
+279-def test_deckungsaufzeichner_in_der_kammer_je_abweichung(tmp_path, monkeypatch, sprache, mit_test, ts_kammer):
+280-    w, code, tests, ref, image = _deckungswerk(tmp_path, sprache)
+281-    monkeypatch.setattr(kammer, "IMAGE", image)
+282-    behoben = {("test_m_deckung.test.ts" if sprache == "ts" else "test_m_deckung.py") + "::test_m_deckt_a"} if mit_test else set()
+283-    r = vv.pruefen(w, code, ref, ["m"], lambda abw: vv.deckende_aufrufe(w, code, tests, behoben))
+284-    gedeckt = sorted((r.get("gedeckt") or {}))
+285-    y = r["anzahl_abweichungen"]
+286-    assert r["geurteilt"] is True and r["tragfaehig"] is False and y > 2, r      # 'x'×40, Formvarianten u. a. bleiben ungedeckt
+287-    # `ungedeckt` im Urteil ist auf 20 gekürzt; die Zahl steht vollständig im Grund („x von y Abweichung(en) ungedeckt“).
+288-    if mit_test:
+289-        # Geändert in Runde 3 (Deckung je Muster): der Test `f('a') == 'A'` deckt jede Abweichung, deren Muster in den
+=== sprachweichen/register-Tests
+tests/test_junit_zeugen.py

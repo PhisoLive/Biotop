@@ -1,0 +1,7 @@
+**Änderungen gegenüber Fassung 6** (aus der Abnahme von Vorbedingung 1 und Philipps Richtungsentscheidung vom 21.09.2026):
+- **Phase 4 ist neu gefasst: Breitentest an mehreren Testwerken statt einem großen echten Werk.** Grund: Philipps Entscheidung — das Biotop soll für jeden Anwendungszweck taugen und dafür in allen Bereichen geprüft sein. Das Handelssystem stand in den Fassungen 1 bis 6 als Phase-4-Werk, war aber eine nie bestätigte Vorentscheidung von Chat-Claude; alle darauf bezogenen Bezugsgrößen (237.000 Zeilen, 17 Dienste, 135 Testfehlschläge) sind gestrichen. **Fehler von Chat-Claude:** eine Vorentscheidung sechs Fassungen lang wie eine Entscheidung geführt.
+- **Phase 5 neu: erstes echtes Werk**, ohne benanntes Werk — die Wahl trifft Philipp nach dem Breitentest, nach den Kriterien in Abschnitt 8.
+- 2a: Zwei Grundsätze ergänzt (7: Ein Nachweis zählt nur, wenn er ausgeführt wurde. 8: Jede Probe braucht eine Gegenprobe, die fehlschlagen muss) und einer (9: Der Prüfaufwand muss zum Gegenstand passen).
+- 3.6: Ausfall eines Verbundmitglieds zählt nie als Beitrag — mit Torzeile, weil die Regel noch nicht nachgewiesen ist (Opus hat eine große Eingabe mit `stop_reason: refusal`, Kategorie `cyber`, abgelehnt; HTTP 200 ohne Ausgabetext).
+- 8: Vorbedingung 1 **abgenommen** (21.09.2026): Tor 2 Zeile 8 erfüllt mit 9,09 %, Artgedächtnis 3 von 5 Richtungen mit werkübergreifendem Verweis.
+- 6: Kassenstand aus der Datenbank 8,64 € statt der aus Berichten summierten 7,82 € — die Datenbank ist die gültige Quelle.

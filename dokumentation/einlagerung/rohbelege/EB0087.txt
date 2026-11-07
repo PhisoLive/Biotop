@@ -1,0 +1,129 @@
+EB87 · Schritt 6.6: Schreibt die Regression in den Baum? wa_vergleich entpackt nach der Regression
+Beginn: 2026-09-26 03:13:16 CEST (UTC+0200)
+Ende:   2026-09-26 03:13:18 CEST (UTC+0200)
+Dauer:  1.8 s
+Exit-Code: 1
+Befehl (wörtlich):
+python3 /root/biotop-einlagerung/arbeit/wa_vergleich.py /root/biotop /root/biotop-einlagerung/paket/MANIFEST-KOMPLETT.tsv --wurzel /root/biotop-einlagerung/probe/entpackt
+--- Inhalt von /root/biotop-einlagerung/arbeit/wa_vergleich.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-EINLAGERUNG-01 · Werkzeug für die Wiederaufnahme (Weg A und B, WIEDEREINSTIEG Punkt 6.2/7): vergleicht einen
+Ordner mit dem Einlagerungsmanifest MANIFEST-KOMPLETT.tsv. Liest nur.
+
+Aufruf: wa_vergleich.py <ordner> [<manifest>] [--wurzel <pfad>]
+  <ordner>    z. B. /root/biotop (absoluter Pfad des Originals)
+  <manifest>  Vorgabe: /root/biotop-einlagerung/paket/MANIFEST-KOMPLETT.tsv, sonst /MANIFEST-KOMPLETT.tsv
+  --wurzel    Wurzel, unter der <ordner> liegt (Vorgabe /). Für einen entpackten Stand z. B. --wurzel /pfad/entpackt.
+Regeln: Abhängigkeits- und Zwischenspeicherordner (node_modules, venv, .venv, __pycache__, .pytest_cache, .mypy_cache,
+.ruff_cache) und Geheimnisdateien (.env*, auth.json*, *.pem, *.key, id_*) sind nicht im Manifest und werden hier
+übergangen (gezählt). Datenbankbegleiter (-wal, -shm, -journal) ebenso. SQLite-Datenbanken werden nicht bytegleich
+verglichen (das Paket enthält Backup-Kopien, deren Bytes sich vom Original unterscheiden dürfen), sondern mit
+PRAGMA integrity_check (nur lesend, immutable) am Original geprüft.
+Ausgabe: Anzahl je Seite, nur im Ordner, nur im Manifest, verschieden; ERGEBNIS-Zeile. Exit 0 nur bei leerem Unterschied.
+"""
+import hashlib
+import os
+import sqlite3
+import stat
+import sys
+from pathlib import Path
+
+AUS_ORDNER = {'node_modules', 'venv', '.venv', '__pycache__', '.pytest_cache', '.mypy_cache', '.ruff_cache'}
+
+
+def geheim(n):
+    return (n in ('.env', 'auth.json') or n.startswith(('.env', 'auth.json')) or n.endswith(('.pem', '.key'))
+            or n.startswith(('id_rsa', 'id_ed25519', 'id_ecdsa', 'id_dsa')))
+
+
+def sha(p):
+    h = hashlib.sha256()
+    with open(p, 'rb') as f:
+        for b in iter(lambda: f.read(1 << 20), b''):
+            h.update(b)
+    return h.hexdigest()
+
+
+def ist_sqlite(p):
+    try:
+        with open(p, 'rb') as h:
+            return os.path.getsize(p) >= 100 and h.read(16) == b'SQLite format 3\x00'
+    except OSError:
+        return False
+
+
+args = [a for a in sys.argv[1:]]
+wurzel = '/'
+if '--wurzel' in args:
+    i = args.index('--wurzel')
+    wurzel = args[i + 1]
+    del args[i:i + 2]
+ordner = args[0].rstrip('/')
+mani = Path(args[1]) if len(args) > 1 else next(
+    (p for p in (Path('/root/biotop-einlagerung/paket/MANIFEST-KOMPLETT.tsv'), Path('/MANIFEST-KOMPLETT.tsv')) if p.exists()), None)
+if mani is None:
+    raise SystemExit('Manifest nicht gefunden')
+praefix = ordner.lstrip('/') + '/'
+soll = {}
+for z in mani.read_text(errors='surrogateescape').splitlines():
+    a, x, y, rel = z.split('\t')
+    if rel.startswith(praefix) and a != 'D':
+        soll[rel] = (a, x, y)
+basis = Path(wurzel) / ordner.lstrip('/')
+ist, uebergangen, dbs = {}, 0, []
+for d, ds, fs in os.walk(basis):
+    for x in list(ds):
+        if os.path.islink(os.path.join(d, x)):
+            fs.append(x)
+            ds.remove(x)
+        elif x in AUS_ORDNER:
+            ds.remove(x)
+            uebergangen += 1
+    for f in fs:
+        p = os.path.join(d, f)
+        rel = praefix + os.path.relpath(p, basis)
+        if geheim(f) or f.endswith(('-wal', '-shm', '-journal')):
+            uebergangen += 1
+            continue
+        st = os.lstat(p)
+        if stat.S_ISLNK(st.st_mode):
+            ist[rel] = ('L', os.readlink(p), '')
+        elif stat.S_ISREG(st.st_mode):
+            if ist_sqlite(p):
+                dbs.append((rel, p))
+                ist[rel] = ('DB', '', '')
+            else:
+                ist[rel] = ('F', sha(p), str(st.st_size))
+nur_ist = sorted(set(ist) - set(soll))
+nur_soll = sorted(set(soll) - set(ist))
+anders = sorted(k for k in set(ist) & set(soll) if ist[k][0] != 'DB' and ist[k] != soll[k])
+db_schlecht = []
+for rel, p in dbs:
+    c = sqlite3.connect(f'file:{p}?mode=ro&immutable=1', uri=True)
+    r = [x[0] for x in c.execute('PRAGMA integrity_check').fetchall()]
+    c.close()
+    if r != ['ok']:
+        db_schlecht.append((rel, r[:3]))
+print(f'Manifest {mani} · Ordner {basis}')
+print(f'Einträge: Manifest {len(soll)} · Ordner {len(ist)} (davon Datenbanken {len(dbs)}, integrity_check ok: '
+      f'{len(dbs) - len(db_schlecht)} von {len(dbs)}) · übergangen (Abhängigkeiten, Geheimnisse, DB-Begleiter): {uebergangen}')
+print(f'nur im Ordner: {len(nur_ist)} · nur im Manifest: {len(nur_soll)} · verschieden: {len(anders)}')
+for k in nur_ist[:40]:
+    print(f'  NUR ORDNER: {k}')
+for k in nur_soll[:40]:
+    print(f'  NUR MANIFEST: {k}')
+for k in anders[:40]:
+    print(f'  VERSCHIEDEN: {k}')
+for k, r in db_schlecht:
+    print(f'  DATENBANK NICHT OK: {k} {r}')
+leer = not (nur_ist or nur_soll or anders or db_schlecht)
+print('ERGEBNIS: Unterschied leer' if leer else 'ERGEBNIS: Unterschied NICHT leer')
+sys.exit(0 if leer else 1)
+--- Ende /root/biotop-einlagerung/arbeit/wa_vergleich.py ---
+Ausgabe (vollständig, stdout und stderr):
+Manifest /root/biotop-einlagerung/paket/MANIFEST-KOMPLETT.tsv · Ordner /root/biotop-einlagerung/probe/entpackt/root/biotop
+Einträge: Manifest 3959 · Ordner 3959 (davon Datenbanken 1, integrity_check ok: 1 von 1) · übergangen (Abhängigkeiten, Geheimnisse, DB-Begleiter): 0
+nur im Ordner: 0 · nur im Manifest: 0 · verschieden: 1
+  VERSCHIEDEN: root/biotop/.git/index
+ERGEBNIS: Unterschied NICHT leer
+=== Ende EB87 ===

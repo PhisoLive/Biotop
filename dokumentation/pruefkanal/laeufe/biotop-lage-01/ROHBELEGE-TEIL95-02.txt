@@ -1,0 +1,836 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 95 (Teile 4–165 dieses Stands) · enthält R124 bis R124
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R124 · Teil I: Gegenprobe inventar.py (Abgleich 9: erfundener Lauf 999 und Ordner laeufe/biotop-erfunden-99/ in einer Kopie im Speicher), nur lesend
+Beginn: 2026-09-25 17:28:58 CEST (UTC+0200)
+Ende:   2026-09-25 17:29:05 CEST (UTC+0200)
+Dauer:  6.7 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/inventar/inventar.py --gegenprobe --stich jetzt --aus /root/sicherung/biotop-lage-01/entwurf/inventar/lauf-gegenprobe --verlauf v2
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/inventar/inventar.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Fassung 2 · Teil I · inventar.py — Bestandsaufnahme und Abgleich nach Abschnitt 5 des Auftrags.
+
+NUR LESEN. Das Skript schreibt ausschließlich Dateien in den Ordner --aus (unter entwurf/inventar/), jede exklusiv
+(nie überschreiben). Es führt keinen Biotop-Code aus und importiert keinen, ruft kein Modell und kein Netz auf und
+startet keine Hintergrundprozesse. git nur lesend (git log, git rev-parse; --no-optional-locks); kein git status —
+den Arbeitsstand übergibt Hermes mit --git-status <datei>. Datenbanken: /root/biotop/daten/biotop.db nur mit
+?mode=ro&immutable=1 und nur bei 0 Bytes -wal; die anderen Zweige mit immutable=1, wenn ihre -wal fehlt oder leer ist,
+sonst ?mode=ro. /root/.hermes/state.db wird nicht geöffnet: Nachrichten kommen aus arbeit/verlauf/<v>/nachrichten.jsonl
+und wortlaut.jsonl (geschwärzt, nur intern geöffnet). Besteht /tmp/biotop-kammer-exklusiv (Zeitmessung), bricht es ab.
+
+Aufruf:
+  python3 inventar.py --stich 2026-09-25T18:00:00+02:00 --aus <ordner> [--verlauf v2] [--git-status <datei>]
+  python3 inventar.py --gegenprobe --stich <zeit> --aus <ordner>
+  --stich jetzt  nimmt die Uhrzeit des Aufrufs.
+Ausgaben: INVENTAR.md oder INVENTAR-TEIL<k>.md (je ≤ 34.000 Bytes), KASSE-TEIL<k>.csv und LISTEN-TEIL<k>.txt
+(je ≤ 38.000 Bytes, Kopfzeile in jedem CSV-Teil); mit --gegenprobe nur GEGENPROBE.md.
+"""
+import argparse
+import ast
+import csv
+import datetime as dt
+import hashlib
+import io
+import json
+import os
+import re
+import sqlite3
+import subprocess
+import sys
+import time
+import traceback
+from collections import Counter, defaultdict
+from pathlib import Path
+
+sys.dont_write_bytecode = True
+T0 = time.time()
+try:
+    from zoneinfo import ZoneInfo
+    TZ = ZoneInfo('Europe/Berlin')
+except Exception:  # pragma: no cover
+    TZ = dt.timezone(dt.timedelta(hours=2), 'CEST')
+UTC = dt.timezone.utc
+
+W = Path('/root/sicherung/biotop-lage-01')
+ARBEIT = W / 'arbeit'
+INV = W / 'entwurf' / 'inventar'
+BIOTOP = Path('/root/biotop')
+KAMMER = Path('/tmp/biotop-kammer-exklusiv')
+KASSE_PY = BIOTOP / 'biotop' / 'kern' / 'kasse.py'
+ZWEIGE = [('STAMM', 'S', Path('/root/biotop/daten/biotop.db')),
+          ('VB1', 'V', Path('/root/phase-4-vorbedingung-1/privat/biotop.db')),
+          ('R02', 'R', Path('/root/reparatur-02/privat-cli/privat.db')),
+          ('T3', 'T', Path('/root/biotop-t3/t3.db'))]
+MAX_MD, MAX_ROH = 34000, 38000
+AB18 = dt.datetime(2026, 9, 18, tzinfo=TZ)
+AB21 = dt.datetime(2026, 9, 21, tzinfo=TZ)
+AUSLASSEN = {'.git', '__pycache__', 'node_modules'}
+AUSLASSEN_I4 = AUSLASSEN | {'venv', '.venv', 'site-packages', '.pytest_cache', '.mypy_cache', 'dist', 'coverage'}
+ERF_LAUF, ERF_ORDNER = 999, 'biotop-erfunden-99'
+
+sys.path.insert(0, str(ARBEIT))
+import geheimnis  # noqa: E402  (nur Muster; eigene Arbeitsdatei von BIOTOP-LAGE-01, kein Biotop-Code)
+
+
+# ----------------------------------------------------------------------------------------------- Hilfen
+def jetzt():
+    return dt.datetime.now(TZ)
+
+
+def zeit(s):
+    """ISO-Zeit → datetime mit Zone. Zeiten ohne Zone gelten als UTC (so führt die Kasse sie)."""
+    if s is None or s == '':
+        return None
+    if isinstance(s, (int, float)):
+        return dt.datetime.fromtimestamp(float(s), TZ)
+    s = str(s).strip()
+    if re.match(r'\d{4}-\d\d-\d\d \d', s):
+        s = s.replace(' ', 'T', 1)
+    s = re.sub(r'([+-]\d\d)(\d\d)$', r'\1:\2', s)
+    if s.endswith('Z'):
+        s = s[:-1] + '+00:00'
+    try:
+        d = dt.datetime.fromisoformat(s)
+    except ValueError:
+        return None
+    return d if d.tzinfo else d.replace(tzinfo=UTC)
+
+
+def z(d, kurz=False):
+    if d is None:
+        return '—'
+    return d.astimezone(TZ).strftime('%d.%m. %H:%M' if kurz else '%Y-%m-%d %H:%M:%S')
+
+
+def tag(d):
+    return d.astimezone(TZ).strftime('%Y-%m-%d')
+
+
+def sha_datei(p):
+    h = hashlib.sha256()
+    with open(p, 'rb') as f:
+        for b in iter(lambda: f.read(1 << 20), b''):
+            h.update(b)
+    return h.hexdigest()
+
+
+def zelle(x):
+    return ('' if x is None else str(x)).replace('|', '\\|').replace('\n', ' ')
+
+
+def tabelle(kopf, zeilen):
+    out = ['| ' + ' | '.join(kopf) + ' |', '|' + '---|' * len(kopf)]
+    out += ['| ' + ' | '.join(zelle(c) for c in r) + ' |' for r in zeilen]
+    return out
+
+
+def zahl(x):
+    """Zahl mit Dezimalpunkt, ohne Exponentenschreibweise."""
+    if isinstance(x, float):
+        s = f'{x:.12f}'.rstrip('0').rstrip('.')
+        return s if s not in ('', '-0') else '0'
+    return '' if x is None else str(x)
+
+
+def eur(x):
+    return f'{x:.4f}'
+
+
+def lese_jsonl(p):
+    out = []
+    with open(p, encoding='utf-8') as f:
+        for zl in f:
+            if zl.strip():
+                out.append(json.loads(zl))
+    return out
+
+
+def git(*args):
+    env = dict(os.environ, GIT_OPTIONAL_LOCKS='0', GIT_PAGER='cat', LC_ALL='C.UTF-8')
+    r = subprocess.run(['git', '--no-optional-locks', '-C', str(BIOTOP)] + list(args), capture_output=True,
+                       text=True, env=env, timeout=120)
+    return r.returncode, r.stdout, r.stderr
+
+
+def wal_groesse(p):
+    w = Path(str(p) + '-wal')
+    return w.stat().st_size if w.exists() else None
+
+
+def db_oeffnen(p, stamm):
+    if not p.exists():
+        return None, 'NICHT GEFUNDEN'
+    wal = wal_groesse(p)
+    if wal in (None, 0):
+        return sqlite3.connect(f'file:{p}?mode=ro&immutable=1', uri=True), 'mode=ro&immutable=1'
+    if stamm:
+        return None, f'NICHT GEÖFFNET: -wal {wal} Bytes (Regel: STAMM nur bei 0 Bytes)'
+    return sqlite3.connect(f'file:{p}?mode=ro', uri=True), 'mode=ro'
+
+
+LAUF_EIN = re.compile(r'(?i)\blauf[-_ ]?(\d{1,3})\b')
+LAUF_MEHR = re.compile(r'(?i)\bl(?:ä|ae)ufen?\s+(\d{1,3})\b(?:\s*(?:–|—|-|bis)\s*(\d{1,3})\b)?'
+                       r'((?:\s*(?:,|und|sowie)\s*\d{1,3}\b)*)')
+FASSUNG_RE = re.compile(r'(?i)masterprompt[^\n]{0,25}?(?:\bv|fassung[\s-]*)(\d{1,2})\b')
+HEX_RE = re.compile(r'\b[0-9a-f]{7,40}\b')
+
+
+def laufnummern(t):
+    s = {int(m.group(1)) for m in LAUF_EIN.finditer(t)}
+    for m in LAUF_MEHR.finditer(t):
+        a = int(m.group(1))
+        s.add(a)
+        if m.group(2):
+            b = int(m.group(2))
+            s.update(range(a, b + 1) if a < b <= a + 60 else [b])
+        s.update(int(x) for x in re.findall(r'\d{1,3}', m.group(3) or ''))
+    return s
+
+
+def namens_re(name):
+    if name == 'gedaechtnis':
+        return re.compile(r'laeufe/gedaechtnis(?![\w-])')
+    return re.compile(r'(?<![\w-])' + re.escape(name) + r'(?![\w-])')
+
+
+# ----------------------------------------------------------------------------------------------- Art (I2)
+DOK_RE = re.compile(r'^\s*\[(The user sent a (?:text )?document|Content of )')
+REPLY_RE = re.compile(r'^\s*\[Replying to: ".*?"\]\s*', re.S)
+ART_REGEL = ('Auslegung Hermes (mechanische Regel für „Art“): System-* und Subagent-Schlussberichte = Meldung; '
+             'Hermes-/Subagent-Zwischentexte = Zwischentext (nur gezählt); Hermes→Subagent = Auftrag; Hermes an '
+             'Philipp = Frage, wenn die letzte nicht leere Zeile mit „?“ endet, sonst Meldung; Philipp = Auftrag, '
+             'wenn die Nachricht ein Dokument trägt („[The user sent a … document“ / „[Content of …]“) oder ohne '
+             'vorangestellte Herkunftsdaten („Gateway message origin …“) und ohne Antwortzitat („[Replying to: …]“) '
+             'mindestens 1.500 Bytes lang ist, sonst Frage (letzte Zeile endet mit „?“) oder Anweisung; '
+             'CLI-Probe = Anweisung.')
+
+
+def kern_text(t):
+    """Nachrichtentext ohne vorangestellte Herkunftsdaten (JSON-Block) und ohne Antwortzitat."""
+    t = t or ''
+    m = re.match(r'\s*Gateway message origin[^\n]*\n', t)
+    if m:
+        rest, tiefe = t[m.end():], 0
+        for i, ch in enumerate(rest):
+            if ch == '{':
+                tiefe += 1
+            elif ch == '}':
+                tiefe -= 1
+                if tiefe == 0:
+                    t = rest[i + 1:]
+                    break
+    return REPLY_RE.sub('', t.lstrip(), count=1)
+
+
+def art_von(e, text):
+    a = e.get('absender', '')
+    if a.startswith('System'):
+        return 'Meldung'
+    if a.endswith('Zwischentext'):
+        return 'Zwischentext'
+    if a == 'Hermes→Subagent':
+        return 'Auftrag'
+    if a == 'Subagent':
+        return 'Meldung'
+    if a == 'CLI-Probe':
+        return 'Anweisung'
+    kern = kern_text(text)
+    letzte = next((x.strip() for x in reversed(kern.strip().splitlines()) if x.strip()), '')
+    frage = letzte.endswith('?')
+    if a == 'Hermes':
+        return 'Frage' if frage else 'Meldung'
+    if a == 'Philipp':
+        if DOK_RE.search(kern) or '[Content of ' in (text or '') or '[The user sent a' in (text or ''):
+            return 'Auftrag'
+        if len(kern.encode()) >= 1500:
+            return 'Auftrag'
+        return 'Frage' if frage else 'Anweisung'
+    return 'UNBEKANNT'
+
+
+# ----------------------------------------------------------------------------------------------- I4 Typen
+TYPREGELN = [
+    ('Masterprompt', re.compile(r'(?i)masterprompt')),
+    ('Spezifikation nächster Auftrag', re.compile(r'(?i)spezifikationen-naechster-auftrag')),
+    ('Bauauftrag', re.compile(r'^BAU-.*')),
+    ('Reviewauftrag', re.compile(r'(?i)^(review-auftrag|pruefauftrag)')),
+    ('Auftraggeber-Wortlaut', re.compile(r'(?i)^auftraggeber-wortlaut')),
+    ('Auftrag', re.compile(r'(?i)((^|[-_])(teil)?auftrag([-_.]|$)|auftrags(grenze|form|regeln|praezisierung))')),
+    ('Dokument Chat-Claude/Philipp', re.compile(r'^(doc_[0-9a-f]+_)?(\d{4}-\d\d-\d\d_\d{6}_)?(PRUEFUNG\d?_|ABNAHME_|'
+                                                r'WIEDEREINSTIEG_|ANTWORT_W|GEDAECHTNIS_Hermes)')),
+    ('Nachfrage/Antwort', re.compile(r'^(NACHFRAGE|ANTWORT)-\d+')),
+    ('Übergabe', re.compile(r'(?i)uebergabe')),
+]
+AUFTRAGSTYPEN = {'Auftrag', 'Bauauftrag', 'Reviewauftrag', 'Auftraggeber-Wortlaut', 'Masterprompt-Fassung',
+                 'Masterprompt-Auftrag/Auszug', 'Dokument Chat-Claude/Philipp', 'Nachfrage/Antwort'}
+
+
+def typ_von_name(name):
+    for t, r in TYPREGELN:
+        if r.search(name):
+            return t
+    return None
+
+
+# ----------------------------------------------------------------------------------------------- Sammler
+class Bericht:
+    def __init__(self):
+        self.abschnitte = []
+        self.lv = []
+        self.wid = []
+        self.fehler = []
+
+    def ab(self, titel, zeilen):
+        self.abschnitte.append((titel, zeilen))
+
+    def luecke(self, was, warum, schliessen, wer):
+        self.lv.append((was, warum, schliessen, wer))
+
+    def widerspruch(self, was, beleg1, beleg2):
+        self.wid.append((was, beleg1, beleg2))
+
+
+# ----------------------------------------------------------------------------------------------- Laden
+def lade_zweige():
+    Z = {}
+    for name, kz, pfad in ZWEIGE:
+        info = {'name': name, 'kz': kz, 'pfad': pfad, 'wal_vorher': wal_groesse(pfad),
+                'mtime': dt.datetime.fromtimestamp(pfad.stat().st_mtime, TZ) if pfad.exists() else None}
+        con, modus = db_oeffnen(pfad, name == 'STAMM')
+        info['modus'] = modus
+        info['gelesen'] = jetzt()
+        if con is None:
+            Z[name] = info
+            continue
+        info['laeufe'] = con.execute('SELECT id, werk_id, budget_eur, status, begonnen_am, beendet_am, grund, mass, '
+                                     'richtung, freigabe FROM laeufe ORDER BY id').fetchall()
+        cur = con.execute('SELECT * FROM kasse ORDER BY id')
+        info['kasse_sp'] = [d[0] for d in cur.description]
+        info['kasse'] = cur.fetchall()
+        info['werke'] = con.execute('SELECT id, name, pfad, quelle, aufgenommen_am, sprache, status FROM werke '
+                                    'ORDER BY id').fetchall()
+        cur = con.execute('SELECT * FROM eichkosten ORDER BY id')
+        info['eich_sp'] = [d[0] for d in cur.description]
+        info['eich'] = cur.fetchall()
+        info['prot'] = con.execute("SELECT nr, zeit, art, json_extract(inhalt,'$.lauf_id'), substr(inhalt,1,240), "
+                                   "hash FROM protokoll WHERE art LIKE 'lauf.%' ORDER BY nr").fetchall()
+        info['prot_gesamt'] = con.execute('SELECT count(*), min(zeit), max(zeit) FROM protokoll').fetchone()
+        con.close()
+        info['wal_nachher'] = wal_groesse(pfad)
+        Z[name] = info
+    return Z
+
+
+def lade_ordner(L, eigener, commit_kurz):
+    erg, andere = [], 0
+    for o in sorted(L.iterdir()):
+        if not o.is_dir():
+            continue
+        if not (o.name.startswith('biotop') or o.name == 'gedaechtnis'):
+            andere += 1
+            continue
+        dateien, zeiten, laeufe, commits, fass = 0, [], set(), set(), Counter()
+        einstieg, oben, texte_bytes = [], [], 0
+        for wurzel, dirs, files in os.walk(o):
+            for f in files:
+                p = Path(wurzel) / f
+                try:
+                    st = p.lstat()
+                except OSError:
+                    continue
+                dateien += 1
+                zeiten.append(st.st_mtime)
+                rel = p.relative_to(o).as_posix()
+                laeufe |= laufnummern(rel)
+                if p.parent == o:
+                    oben.append(f)
+                if p.suffix == '.md' and rel.count('/') <= 1 and any(
+                        f.startswith(x) for x in ('BERICHT', 'START', 'ZWISCHENBERICHT', 'ABSCHLUSS', 'NACHGANG',
+                                                  'UEBERGABE')):
+                    einstieg.append(rel)
+                if p.suffix in ('.md', '.txt') and st.st_size <= 1_000_000:
+                    try:
+                        t = p.read_text(errors='replace')
+                    except OSError:
+                        continue
+                    texte_bytes += len(t)
+                    laeufe |= laufnummern(t)
+                    commits |= {h[:7] for h in HEX_RE.findall(t)} & commit_kurz
+                    fass.update(int(x) for x in FASSUNG_RE.findall(t))
+        zt = zeiten or [o.stat().st_mtime]
+        erg.append({'name': o.name, 'dateien': dateien, 'aelteste': dt.datetime.fromtimestamp(min(zt), TZ),
+                    'juengste': dt.datetime.fromtimestamp(max(zt), TZ), 'einstieg': sorted(einstieg),
+                    'oben': len(oben), 'laeufe_genannt': laeufe, 'commits_genannt': commits, 'fassungen': fass,
+                    'texte_bytes': texte_bytes, 'eigener': o.name == eigener, 'erfunden': False})
+    return erg, andere
+
+
+def i4_wurzeln(L, eigener='biotop-lage-01'):
+    r = [BIOTOP]
+    for p in sorted(Path('/root').iterdir()):
+        if p.is_dir() and p.name != 'biotop' and re.match(
+                r'(biotop|phase-4|reparatur-0|wiedereinstieg|gesamtstand|uebungswerk|versandwerk)', p.name):
+            r.append(p)
+    r += [W / 'auftrag', ARBEIT / 'dokumente', Path('/root/.hermes/cache/documents')]
+    r += [p for p in sorted(L.iterdir()) if p.is_dir() and p.name != eigener
+          and (p.name.startswith('biotop') or p.name == 'gedaechtnis')]
+    r += [p for p in sorted(Path('/tmp').iterdir())
+          if p.is_dir() and re.search(r'(biotop|r6-|review0|waechter|vor-t4|t3)', p.name)]
+    return [p for p in r if p.exists()]
+
+
+def lade_i4(L, eigener='biotop-lage-01'):
+    gef, gesehen, fremd = [], 0, 0
+    for w in i4_wurzeln(L, eigener):
+        for wurzel, dirs, files in os.walk(w):
+            dirs[:] = [d for d in dirs if d not in AUSLASSEN_I4]
+            for f in files:
+                if not f.endswith(('.md', '.txt')):
+                    continue
+                p = Path(wurzel) / f
+                gesehen += 1
+                typ = typ_von_name(f)
+                try:
+                    with open(p, 'rb') as h:
+                        kopf = h.read(400)
+                    if typ is None:
+                        ersteZeile = kopf.split(b'\n', 1)[0]
+                        if ersteZeile.startswith(b'# INFINITE EVOLUTION') or \
+                                ersteZeile.startswith(b'# INFINITE-EVOLUTION'):
+                            typ = 'Masterprompt'
+                        elif re.match(rb'#\s.*\b(Auftrag|Teilauftrag|Bauauftrag|Pr\xc3\xbcfauftrag|Reviewauftrag)\b',
+                                      ersteZeile):
+                            typ = 'Auftrag'
+                    if typ is None:
+                        continue
+                    if str(p).startswith(('/root/.hermes/cache/documents', str(ARBEIT / 'dokumente'))):
+                        t = p.read_text(errors='replace')
+                        if 'biotop' not in t.lower():
+                            fremd += 1
+                            continue
+                    st = p.stat()
+                    text = p.read_text(errors='replace') if st.st_size <= 1_000_000 else ''
+                    gef.append({'pfad': p, 'typ': typ, 'bytes': st.st_size,
+                                'mtime': dt.datetime.fromtimestamp(st.st_mtime, TZ), 'sha': sha_datei(p),
+                                'text': text, 'nach_name': typ_von_name(f) is not None})
+                except OSError:
+                    continue
+    return gef, gesehen, fremd
+
+
+def lade_dokumente():
+    """Fassungen v1..v8 und weitere Dokumente aus arbeit/dokumente (Wortlaut aus der Sitzungsdatenbank)."""
+    out = []
+    for p in sorted((ARBEIT / 'dokumente').glob('*')):
+        m = re.match(r'(\d{4})-(\d\d)-(\d\d)_(\d\d)(\d\d)(\d\d)_(.+)$', p.name)
+        b = p.read_bytes()
+        v = re.search(r'Masterprompt-v(\d+)', p.name)
+        out.append({'pfad': p, 'name': m.group(7) if m else p.name,
+                    'zeit': dt.datetime(*map(int, m.groups()[:6]), tzinfo=TZ) if m else None,
+                    'version': int(v.group(1)) if v else None, 'bytes': len(b),
+                    'sha': hashlib.sha256(b).hexdigest(), 'sha_nl': hashlib.sha256(b + b'\n').hexdigest(),
+                    'bruchstueck': bool(v) and len(b) < 10000,
+                    'stand': next((x for x in b.decode('utf-8', 'replace').splitlines()[:12]
+                                   if x.startswith('Stand')), '')})
+    return out
+
+
+def lade_chronik(ordner):
+    dateien = sorted(Path(ordner).glob('CHRONIK*.md')) if Path(ordner).is_dir() else []
+    if not dateien:
+        return None, []
+    zeilen = []
+    for d in dateien:
+        for x in d.read_text(errors='replace').splitlines():
+            m = re.search(r'\b(C\d{3})\b', x)
+            if not m or not x.lstrip().startswith('|'):
+                continue
+            st = re.findall(r'(?i)\b(erledigt|teilweise|offen|zurückgezogen|ersetzt|abgebrochen|läuft|laeuft)\b', x)
+            zt = None
+            m2 = re.search(r'(2026)-(\d\d)-(\d\d)[ T](\d\d):(\d\d)', x) or None
+            if m2:
+                zt = dt.datetime(int(m2.group(1)), int(m2.group(2)), int(m2.group(3)), int(m2.group(4)),
+                                 int(m2.group(5)), tzinfo=TZ)
+            else:
+                m3 = re.search(r'\b(\d{1,2})\.(\d{1,2})\.(?:2026)?,?\s+(\d{1,2}):(\d\d)', x)
+                if m3:
+                    zt = dt.datetime(2026, int(m3.group(2)), int(m3.group(1)), int(m3.group(3)), int(m3.group(4)),
+                                     tzinfo=TZ)
+            zeilen.append({'id': m.group(1), 'laeufe': laufnummern(x), 'status': st[-1].lower() if st else None,
+                           'ordner': set(re.findall(r'\{LAEUFE\}/([\w.-]+)', x)) | set(re.findall(r'\b(biotop-[\w.-]*\w)', x)),
+                           'zeit': zt, 'ids': {int(i) for i in re.findall(r'\bid\s*(\d{3,6})\b', x)}})
+    return dateien, zeilen
+
+
+def lade_r12_r14():
+    sitz, verd = {}, []
+    p = W / 'rohbelege' / 'R0012.txt'
+    if p.exists():
+        for x in p.read_text(errors='replace').splitlines():
+            m = re.match(r'^(\d{8}_\d{6}_[0-9a-f]+) \| (\S+ \S+) – (\S+ \S+) \| (\d+) Nachrichten, davon user (\d+) \| '
+                         r'(\{.*\})$', x)
+            if m:
+                try:
+                    d = ast.literal_eval(m.group(6))
+                except (ValueError, SyntaxError):
+                    d = {}
+                sitz[m.group(1)] = {'end_reason': d.get('end_reason'), 'source': d.get('source'),
+                                    'ended_at': d.get('ended_at')}
+    p = W / 'rohbelege' / 'R0014.txt'
+    if p.exists():
+        for x in p.read_text(errors='replace').splitlines():
+            m = re.match(r'^\s+active (\d) compacted (\d) Anzahl (\d+)$', x)
+            if m:
+                verd.append(tuple(map(int, m.groups())))
+    return sitz, verd
+
+
+# ----------------------------------------------------------------------------------------------- Abgleich 1
+def abgleich1(laeufe, ordner, chronik, nennung_ordner):
+    """Lauf → Ordner und Ordner → Lauf/Auftrag. Gibt (offene Läufe, offene Ordner) als Mengen von Kennungen."""
+    ords = [o for o in ordner if not o['eigener'] and o['name'] != 'gedaechtnis']
+    zweig_dir = {n: p.parts[2] for n, _, p in ZWEIGE if n != 'STAMM'}
+    for l in laeufe:
+        kand = [o for o in ords if l['nr'] in o['laeufe_genannt']]
+        zo = None
+        if 'S' not in l['zweige'] and not l.get('erfunden'):
+            d = zweig_dir.get(l['herkunft'])
+            treffer = [o for o in ords if d and d in o['name']]
+            if len(treffer) == 1:
+                zo = treffer[0]
+        if zo:
+            l['ort'], l['ort_art'] = zo['name'], 'Zweig-Arbeitsordner' + (' + Nennung' if zo in kand else '')
+        elif kand:
+            b = l['beginn']
+            drin = [o for o in kand if o['aelteste'] <= b <= o['juengste']]
+            if drin:
+                o = min(drin, key=lambda x: x['juengste'] - x['aelteste'])
+                art = 'Nennung + Zeitfenster'
+            else:
+                spaeter = [o for o in kand if o['aelteste'] >= b]
+                if spaeter:
+                    o, art = min(spaeter, key=lambda x: x['aelteste']), 'Nennung, nächster Ordner danach'
+                else:
+                    o, art = max(kand, key=lambda x: x['aelteste']), 'Nennung, letzter Ordner davor'
+            l['ort'], l['ort_art'] = o['name'], art
+        else:
+            cz = [c for c in (chronik or []) if l['nr'] in c['laeufe'] and c['ordner']]
+            if cz and not l.get('erfunden'):
+                l['ort'], l['ort_art'] = sorted(cz[0]['ordner'])[0], f'Chronik {cz[0]["id"]}'
+            else:
+                l['ort'], l['ort_art'] = None, 'offen'
+        l['chronik'] = sorted({c['id'] for c in (chronik or []) if l['nr'] in c['laeufe']})
+    offen_l = {l['schluessel'] for l in laeufe if l['ort'] is None}
+    offen_o = set()
+    for o in ordner:
+        hier = [l['schluessel'] for l in laeufe if l.get('ort') == o['name']]
+        n = nennung_ordner.get(o['name'], [])
+        chron = sorted({c['id'] for c in (chronik or []) if o['name'] in c['ordner']})
+        o['laeufe_hier'] = hier
+        o['nennung'] = n[:1]
+        o['chronik'] = chron
+        if hier:
+            o['zuordnung'] = f'Lauf ({len(hier)})'
+        elif n or chron:
+            o['zuordnung'] = 'Auftrag (Nennung)'
+        else:
+            o['zuordnung'] = 'offen'
+            offen_o.add(o['name'])
+    return offen_l, offen_o
+
+
+# ----------------------------------------------------------------------------------------------- Hauptteil
+def main():
+    ap = argparse.ArgumentParser(description='BIOTOP-LAGE-01 Teil I: Inventare I1–I8 und Abgleiche 1–9 (nur lesend)')
+    ap.add_argument('--stich', required=True)
+    ap.add_argument('--aus', required=True)
+    ap.add_argument('--verlauf', default='v2')
+    ap.add_argument('--git-status', default=None)
+    ap.add_argument('--chronik', default=str(W / 'entwurf' / 'chronik'))
+    ap.add_argument('--auftrag-beginn', default=None)
+    ap.add_argument('--eigener-ordner', default='biotop-lage-01')
+    ap.add_argument('--gegenprobe', action='store_true')
+    a = ap.parse_args()
+    aufruf = 'python3 ' + ' '.join([str(Path(sys.argv[0]).resolve())] + sys.argv[1:])
+    if KAMMER.exists():
+        print(f'ABBRUCH: {KAMMER} besteht (Zeitmessung läuft) — nichts gelesen, nichts geschrieben')
+        sys.exit(3)
+    beginn = jetzt()
+    stich = beginn if a.stich.strip().lower() == 'jetzt' else zeit(a.stich)
+    if stich is None:
+        print('ABBRUCH: --stich nicht lesbar')
+        sys.exit(2)
+    aus = Path(a.aus).resolve()
+    if not str(aus).startswith(str(INV) + '/'):
+        print(f'ABBRUCH: --aus muss unter {INV}/ liegen')
+        sys.exit(2)
+    aus.mkdir(parents=False, exist_ok=True)
+    B = Bericht()
+    K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+    L = Path(f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe')
+    lese = {}
+
+    # ---- Nachrichten (I2)
+    vpfad = Path(a.verlauf) if a.verlauf.startswith('/') else ARBEIT / 'verlauf' / a.verlauf
+    nach = lese_jsonl(vpfad / 'nachrichten.jsonl')
+    wort = {}
+    if (vpfad / 'wortlaut.jsonl').exists():
+        with open(vpfad / 'wortlaut.jsonl', encoding='utf-8') as f:
+            for zl in f:
+                if zl.strip():
+                    e = json.loads(zl)
+                    wort[e['id']] = e.get('text') or ''
+    v_mtime = dt.datetime.fromtimestamp((vpfad / 'nachrichten.jsonl').stat().st_mtime, TZ)
+    lese['verlauf'] = jetzt()
+    for e in nach:
+        e['dt'] = dt.datetime.fromtimestamp(e['ts'], TZ)
+        e['art'] = art_von(e, wort.get(e['id'], ''))
+    nach_stich = [e for e in nach if e['dt'] <= stich]
+    nach_danach = len(nach) - len(nach_stich)
+    if a.auftrag_beginn:
+        abeginn = zeit(a.auftrag_beginn)
+    else:
+        kand = [e['dt'] for e in nach if 'BIOTOP-LAGE-01' in wort.get(e['id'], '')]
+        abeginn = min(kand) if kand else None
+    grenze_beleg = min(stich, abeginn) if abeginn else stich
+    beleg_nachr = [(e, wort.get(e['id'], '')) for e in nach if e['biotop'] == 'ja' and e['dt'] <= grenze_beleg]
+
+    # ---- git (I6)
+    rc, out, err = git('log', '--all', '--since=2026-09-18T00:00:00+02:00',
+                       '--format=%H%x1f%aI%x1f%cI%x1f%an%x1f%ae%x1f%s')
+    commits = []
+    for x in out.splitlines():
+        p = x.split('\x1f')
+        if len(p) == 6:
+            c = {'hash': p[0], 'kurz': p[0][:7], 'autor_zeit': zeit(p[1]), 'zeit': zeit(p[2]), 'autor': p[3],
+                 'mail': p[4], 'nachricht': p[5]}
+            if c['zeit'] <= stich:
+                commits.append(c)
+    commits.sort(key=lambda c: c['zeit'])
+    rc2, refs_out, _ = git('log', '--all', '--no-walk', '--format=%H%x1f%D')
+    rc3, head, _ = git('rev-parse', 'HEAD')
+    rc4, refnamen, _ = git('rev-parse', '--symbolic-full-name', '--all')
+    rc5, namen_out, _ = git('log', '--all', '--since=2026-09-21T00:00:00+02:00', '--name-only',
+                            '--format=@@%H%x1f%cI')
+    lese['git'] = jetzt()
+    commit_kurz = {c['kurz'] for c in commits}
+    datei_commits = defaultdict(list)
+    akt = None
+    for x in namen_out.splitlines():
+        if x.startswith('@@'):
+            h, t = x[2:].split('\x1f')
+            akt = (zeit(t), h[:7])
+        elif x.strip() and akt:
+            datei_commits[x.strip()].append(akt)
+
+    # ---- Datenbanken (I1, I5, I8)
+    Z = lade_zweige()
+    lese['kasse'] = jetzt()
+
+    # ---- Prüfkanal (I3, I7)
+    ordner, andere_ordner = lade_ordner(L, a.eigener_ordner, commit_kurz)
+    lese['pruefkanal'] = jetzt()
+
+    # ---- I4 und Dokumente
+    i4, i4_gesehen, i4_fremd = lade_i4(L, a.eigener_ordner)
+    doks = lade_dokumente()
+    lese['i4'] = jetzt()
+    fass = [d for d in doks if d['version'] and not d['bruchstueck']]
+    bruch = [d for d in doks if d['version'] and d['bruchstueck']]
+    kopien = defaultdict(list)
+    for f in i4:
+        for d in fass:
+            if f['sha'] in (d['sha'], d['sha_nl']):
+                f['typ'], f['fassung'] = 'Masterprompt-Fassung', d['version']
+                if str(ARBEIT / 'dokumente') not in str(f['pfad']):
+                    kopien[d['version']].append(str(f['pfad']).replace(str(L), '{LAEUFE}'))
+        for d in bruch:
+            if f['sha'] in (d['sha'], d['sha_nl']):
+                f['typ'] = 'Masterprompt-Bruchstück'
+        if f['typ'] == 'Masterprompt':
+            f['typ'] = 'Masterprompt-Auftrag/Auszug'
+
+    # ---- Chronik, R12/R14, OpenRouter, Kurs
+    chronik_dateien, chronik = lade_chronik(a.chronik)
+    r12, r14 = lade_r12_r14()
+    orp = ARBEIT / 'OR-STAND.jsonl'
+    or_stand = lese_jsonl(orp) if orp.exists() else []
+    kurs, kurs_q = None, 'NICHT GEFUNDEN'
+    if KASSE_PY.exists():
+        t = KASSE_PY.read_text()
+        m = re.search(r'^USD_JE_EUR\s*=\s*([0-9.]+)', t, re.M)
+        if m:
+            kurs, kurs_q = float(m.group(1)), f'{KASSE_PY} Zeile {t[:m.start()].count(chr(10)) + 1}'
+
+    # ---- geänderte Dateien seit 21.09. (I6)
+    geaendert, nach_stich_geaendert = [], []
+    for wurzel, dirs, files in os.walk(BIOTOP):
+        dirs[:] = [d for d in dirs if d not in AUSLASSEN]
+        for f in files:
+            p = Path(wurzel) / f
+            try:
+                st = p.lstat()
+            except OSError:
+                continue
+            m_ = dt.datetime.fromtimestamp(st.st_mtime, TZ)
+            if m_ >= AB21:
+                e = {'pfad': p.relative_to(BIOTOP).as_posix(), 'mtime': m_, 'bytes': st.st_size}
+                (geaendert if m_ <= stich else nach_stich_geaendert).append(e)
+    geaendert.sort(key=lambda e: (e['mtime'], e['pfad']))
+    lese['dateien'] = jetzt()
+    gstatus = None
+    if a.git_status:
+        gstatus = [x for x in Path(a.git_status).read_text(errors='replace').splitlines() if x.strip()]
+
+    # =========================================================================================== I1 Läufe
+    laeufe, schluessel_je = {}, {}
+    for name, kz, _ in ZWEIGE:
+        info = Z[name]
+        schluessel_je[name] = {}
+        werknamen = {w[0]: w[1] for w in info.get('werke', [])}
+        for (lid, werk_id, budget, status, beg, end, grund, mass, richtung, freigabe) in info.get('laeufe', []):
+            key = (lid, beg)
+            e = laeufe.setdefault(key, {'nr': lid, 'beginn_roh': beg, 'zweige': [], 'varianten': {},
+                                        'herkunft': name, 'erfunden': False})
+            e['zweige'].append(kz)
+            h = lambda x: hashlib.sha256(str(x).encode()).hexdigest()[:10]  # noqa: E731
+            e['varianten'][name] = {'werk_id': werk_id, 'werk': werknamen.get(werk_id), 'budget': budget,
+                                    'status': status, 'ende': end, 'grund': grund, 'mass': h(mass),
+                                    'richtung': h(richtung), 'freigabe': h(freigabe)}
+            schluessel_je[name][lid] = key
+    # Kasse entdoppeln: gleiche Zeile (alle Spalten) in mehreren Zweigen zählt einmal
+    kasse, konflikte, gleiche_id_anders = {}, 0, Counter()
+    for name, kz, _ in ZWEIGE:
+        info = Z[name]
+        sp = info.get('kasse_sp', [])
+        for r in info.get('kasse', []):
+            d = dict(zip(sp, r))
+            e = kasse.setdefault(tuple(r), {'row': d, 'zweige': [], 'laeufe': set()})
+            e['zweige'].append(kz)
+            e['laeufe'].add(schluessel_je[name].get(d['lauf_id']))
+    for e in kasse.values():
+        if len(e['laeufe']) > 1:
+            konflikte += 1
+        e['lauf'] = sorted(e['laeufe'], key=str)[0]
+        e['zeit'] = zeit(e['row']['zeit'])
+    ids = {name: {r[0]: tuple(r) for r in Z[name].get('kasse', [])} for name, _, _ in ZWEIGE}
+    namen_z = [n for n, _, _ in ZWEIGE]
+    for i, n1 in enumerate(namen_z):
+        for n2 in namen_z[i + 1:]:
+            gemeinsam = set(ids[n1]) & set(ids[n2])
+            gleiche_id_anders[(n1, n2)] = (sum(1 for k in gemeinsam if ids[n1][k] != ids[n2][k]), len(gemeinsam))
+    kasse_je_lauf = defaultdict(list)
+    for e in kasse.values():
+        kasse_je_lauf[e['lauf']].append(e)
+    # Protokoll entdoppeln (Hash-Kette), Laufereignisse
+    prot, prot_je_lauf = {}, defaultdict(list)
+    for name, kz, _ in ZWEIGE:
+        for (nr, zt, art, lid, inhalt, hsh) in Z[name].get('prot', []):
+            k = hsh or (zt, art, inhalt)
+            if k in prot:
+                continue
+            prot[k] = 1
+            key = schluessel_je[name].get(lid) if lid is not None else None
+            prot_je_lauf[key].append((zeit(zt), art, inhalt))
+    L1 = []
+    for key, e in sorted(laeufe.items(), key=lambda kv: (zeit(kv[1]['beginn_roh']) or AB18, kv[1]['nr'])):
+        v = e['varianten'][e['herkunft']]
+        buch = kasse_je_lauf.get(key, [])
+        zt = [b['zeit'] for b in buch if b['zeit']]
+        diffs = sorted({f for n1 in e['varianten'] for n2 in e['varianten'] for f in v
+                        if e['varianten'][n1][f] != e['varianten'][n2][f]})
+        L1.append({'schluessel': f'{e["herkunft"]}/{e["nr"]}', 'key': key, 'nr': e['nr'],
+                   'zweige': ''.join(e['zweige']), 'herkunft': e['herkunft'], 'beginn': zeit(e['beginn_roh']),
+                   'ende': zeit(v['ende']), 'status': v['status'], 'werk': v['werk'], 'budget': v['budget'],
+                   'grund': v['grund'] or '', 'buchungen': len(buch),
+                   'kosten': sum(b['row']['kosten_eur'] or 0 for b in buch), 'erste': min(zt) if zt else None,
+                   'letzte': max(zt) if zt else None, 'abweichend': diffs,
+                   'prot': sorted({x[1] for x in prot_je_lauf.get(key, [])}), 'erfunden': False})
+    for l in L1:
+        l['bis'] = l['ende'] or l['letzte'] or l['beginn']
+
+    # =========================================================================================== Nennungen
+    nennung_ordner = defaultdict(list)
+    alle_namen = [o['name'] for o in ordner] + [ERF_ORDNER]
+    muster = {n: namens_re(n) for n in alle_namen}
+    for e, t in beleg_nachr:
+        if not t:
+            continue
+        for n, r in muster.items():
+            if r.search(t):
+                nennung_ordner[n].append(('Nachricht', e['id'], e['absender'], e['dt']))
+    for f in i4:
+        if f['typ'] not in AUFTRAGSTYPEN | {'Übergabe', 'Spezifikation nächster Auftrag'} or not f['text']:
+            continue
+        s = str(f['pfad'])
+        if f'/laeufe/{a.eigener_ordner}/' in s:
+            continue
+        for n, r in muster.items():
+            if f'/laeufe/{n}/' in s:
+                continue
+            if r.search(f['text']):
+                nennung_ordner[n].append(('Datei', str(f['pfad']).replace(str(L), '{LAEUFE}'), f['typ'], f['mtime']))
+    for n in nennung_ordner:
+        nennung_ordner[n].sort(key=lambda x: x[3])
+
+    # =========================================================================================== Abgleich 1
+    offen_l, offen_o = abgleich1(L1, ordner, chronik, nennung_ordner)
+
+    # =========================================================================================== Abgleich 9
+    kopie_l = [dict(l) for l in L1]
+    kopie_o = [dict(o) for o in ordner]
+    fb = dt.datetime(2026, 9, 22, 12, 0, tzinfo=TZ)
+    kopie_l.append({'schluessel': f'ERFUNDEN/{ERF_LAUF}', 'key': (ERF_LAUF, 'erfunden'), 'nr': ERF_LAUF,
+                    'zweige': 'E', 'herkunft': 'ERFUNDEN', 'beginn': fb, 'ende': fb + dt.timedelta(hours=1),
+                    'status': 'beendet', 'werk': 'erfunden', 'budget': 1.0, 'grund': '', 'buchungen': 0,
+                    'kosten': 0.0, 'erste': None, 'letzte': None, 'abweichend': [], 'prot': [], 'erfunden': True,
+                    'bis': fb + dt.timedelta(hours=1)})
+    kopie_o.append({'name': ERF_ORDNER, 'dateien': 3, 'aelteste': fb + dt.timedelta(minutes=30),
+                    'juengste': fb + dt.timedelta(hours=1), 'einstieg': ['BERICHT.md'], 'oben': 3,
+                    'laeufe_genannt': set(), 'commits_genannt': set(), 'fassungen': Counter(), 'texte_bytes': 0,
+                    'eigener': False, 'erfunden': True})
+    g_l, g_o = abgleich1(kopie_l, kopie_o, chronik, nennung_ordner)
+    neu = sorted((g_l - offen_l) | (g_o - offen_o))
+    weg = sorted((offen_l - g_l) | (offen_o - g_o))
+    erwartet = sorted({f'ERFUNDEN/{ERF_LAUF}', ERF_ORDNER})
+    angeschlagen = neu == erwartet and not weg
+    genau = angeschlagen and not offen_l and not offen_o
+    gp = [f'- Kopie der Inventare im Speicher: I1 {len(L1)} → {len(kopie_l)} Läufe (+ `ERFUNDEN/{ERF_LAUF}`, Beginn '
+          f'{z(fb)} CEST), I3 {len(ordner)} → {len(kopie_o)} Ordner (+ `laeufe/{ERF_ORDNER}/`, 3 Dateien). *gerechnet*',
+          f'- Abgleich 1 am Original: unzugeordnet {len(offen_l)} Läufe, {len(offen_o)} Ordner: '
+          f'{sorted(offen_l | offen_o) or "keine"}.',
+          f'- Abgleich 1 an der Kopie: unzugeordnet {len(g_l)} Läufe, {len(g_o)} Ordner: {sorted(g_l | g_o)}.',
+          f'- Neu unzugeordnet (Kopie − Original): {neu}; weggefallen (Original − Kopie): {weg or "keine"}.',
+          f'- **Gegenprobe angeschlagen: {"ja" if angeschlagen else "NEIN"}** — Bedingung: neu unzugeordnet sind genau '
+          f'{erwartet} und nichts fällt weg. Genau diese beiden und sonst nichts unzugeordnet: '
+          f'{"ja" if genau else "nein (die im Original offenen stehen in Abgleich 1)"}.',
+          '- Regel: Zuordnung nur mit Beleg (Nennung im Ordnertext, Zweig-Arbeitsordner, Chronikzeile, Nennung des '
+          f'Ordnernamens in einer Biotop-Nachricht bis {z(grenze_beleg)} CEST oder in einer Auftragsdatei); der eigene '
+          f'Ordner `{a.eigener_ordner}` zählt nicht als Beleg.']
+    if a.gegenprobe:
+        text = ['# GEGENPROBE — Abgleich 9 (BIOTOP-LAGE-01 Fassung 2, Abschnitt 5)', '',
+                f'Aufruf: `{aufruf}` · Lesezeitpunkt {z(beginn)} CEST · Stichzeitpunkt {z(stich)} CEST · Laufzeit '
+                f'{time.time() - T0:.1f} s', ''] + gp + ['']
+        schreibe(aus, 'GEGENPROBE.md', '\n'.join(text), K, L)
+        print('\n'.join(gp))
+        print(f'Laufzeit {time.time() - T0:.1f} s')
+        return
+
+    # =========================================================================================== Ausgabe aufbauen
+    def fn(pfad):
+        return str(pfad).replace(str(L), '{LAEUFE}')
+
+    kopf = ['# INVENTAR — Bestandsaufnahme und Abgleich (BIOTOP-LAGE-01 Fassung 2, Abschnitt 5)', '',
+            f'Entwurf Teil I. Erzeugt von `{fn(Path(sys.argv[0]).resolve())}` (SHA-256 '
+            f'`{sha_datei(Path(sys.argv[0]).resolve())}`), Aufruf `{aufruf}`.',
+            f'Lesebeginn {z(beginn)} CEST · Stichzeitpunkt {z(stich)} CEST · alle Zeiten CEST (UTC+2), Rohzeiten der '
+            'Kasse in UTC. Jede Zahl ist *abgelesen* (Quelle genannt) oder *gerechnet* (Rechenweg genannt). Adressen im '
+            'Prüfkanal: `{LAEUFE}/<ordner>/`. Kosten je Lauf stehen nur in `KASSE`, Budgets in `CHRONIK` (FK20), Umfang '
+            'je Werk in `LAGE` (FK25), Torzeilen in `TORE`, Fassungen in `ENTSCHEIDUNGEN` (FK15).', '']
+
+    # ---- 1. Quellen und Quellenabdeckung
+    q = []

@@ -1,0 +1,29 @@
+BEFEHL: /root/reparatur-01/venv/bin/python -m pytest tests/test_rauschmessung.py -q --junitxml=/var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/ausgaben/18-aussetzer-rot.xml
+ARBEITSVERZEICHNIS: /root/biotop
+............F                                                            [100%]
+=================================== FAILURES ===================================
+__________ test_aussetzer_wird_ungekuerzt_entfernt_und_einmal_ersetzt __________
+
+db_lauf = <sqlite3.Connection object at 0x79dc89b694e0>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x79dc89b9bb60>
+
+    def test_aussetzer_wird_ungekuerzt_entfernt_und_einmal_ersetzt(db_lauf, monkeypatch):
+        werte = iter([1., 1., 1., 1., 9.8765, 1.])
+        aufrufe = []
+        def messen(*args):
+            aufrufe.append(True)
+            return {"alpha": next(werte)}
+        monkeypatch.setattr(eichung, "_messen_einmal", messen)
+        r = eichung.rauschmessung(db_lauf, 1, 1, Path("."), ["alpha"], "paket", "# Last")
+>       assert len(aufrufe) == 6
+E       assert 5 == 6
+E        +  where 5 = len([True, True, True, True, True])
+
+tests/test_rauschmessung.py:29: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_rauschmessung.py::test_aussetzer_wird_ungekuerzt_entfernt_und_einmal_ersetzt
+1 failed, 12 passed in 0.10s
+
+STDERR:
+
+RUECKGABEWERT: 1

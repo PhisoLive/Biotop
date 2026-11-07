@@ -1,0 +1,49 @@
+#!/bin/bash
+# Vorprobe E2b (Behebungsrunde 5, nach der Kette): Meldung der Absturzstelle bei umgeschriebenen asserts OHNE einfache
+# Anführungszeichen — pytest kürzt dann „AssertionError: “ weg (ExceptionInfo._striptext, wenn repr mit
+# "AssertionError('assert " beginnt). Befund aus T4-DIAGNOSE: Zahlen-/Listen-Tests halten nichts fest.
+set -u
+D=/tmp/r5-vorprobe-e2b
+rm -rf $D && mkdir -p $D/tests
+cat > $D/werk.py <<'EOF'
+class V:
+    def __eq__(self, o):
+        return False
+
+    def __repr__(self):
+        return '<verfälscht>'
+
+
+def f(x):
+    return V()
+EOF
+cat > $D/conftest.py <<'EOF'
+import os
+import sys
+sys.path.insert(0, os.path.dirname(__file__))
+
+
+def pytest_runtest_logreport(report):
+    if report.when == 'call' and report.outcome == 'failed':
+        c = report.longrepr.reprcrash
+        print(f"\n@@ {report.nodeid.split('::')[-1]} | path={os.path.basename(str(c.path))} | msg={str(c.message)[:60]!r}")
+EOF
+cat > $D/tests/test_arten.py <<'EOF'
+from werk import f
+
+
+def test_zahl():
+    assert f(1) == 3
+
+
+def test_liste():
+    assert f(1) == [3, 2, 1]
+
+
+def test_text():
+    assert f(1) == 'a_b'
+EOF
+echo "== lokal ($(/root/biotop-t3/venv/bin/python -m pytest --version 2>&1 | head -1))"
+cd $D && /root/biotop-t3/venv/bin/python -m pytest -q -s -p no:cacheprovider --tb=no -o addopts= tests 2>&1 | grep "@@"
+echo "== kammer ($(docker run --rm --network none biotop-kammer:1 python -m pytest --version 2>&1 | head -1))"
+docker run --rm --network none -v $D:/w -w /w biotop-kammer:1 python -m pytest -q -s -p no:cacheprovider --tb=no -o addopts= tests 2>&1 | grep "@@"

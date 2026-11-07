@@ -1,0 +1,53 @@
+EB61 · Schritt 5: Aussonderung einer Datei mit auth.json-Wert aus dem Zwischenstand (E9)
+Beginn: 2026-09-26 02:08:59 CEST (UTC+0200)
+Ende:   2026-09-26 02:08:59 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/biotop-einlagerung/arbeit/s5_aussondern.py /root/.hermes/sessions/request_dump_20260920_052507_2f047335_20260920_055836_587741.json
+--- Inhalt von /root/biotop-einlagerung/arbeit/s5_aussondern.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-EINLAGERUNG-01 · Schritt 5: Aussonderung aus dem Zwischenstand vor dem Packen (Entscheidung Hermes E9).
+Eine Datei mit einem Wert aus auth.json gilt wie `/root/w7/07-codex-token.txt` als Geheimnisdatei („gleichartige Datei“,
+Auftrag Regel 2.4; Vorgang BIOTOP-LAGE-01 R178). Die Kopie im Zwischenstand wird nicht gelöscht, sondern nach
+/root/biotop-einlagerung/ausgesondert/ verschoben (nicht im Archiv, bleibt auf dem Server); das Original bleibt unberührt.
+Aufruf: s5_aussondern.py <absoluter Originalpfad> …"""
+import hashlib
+import os
+import sys
+import time
+from pathlib import Path
+
+E = Path('/root/biotop-einlagerung')
+S = E / 'stufe'
+A = E / 'ausgesondert'
+A.mkdir(exist_ok=True)
+os.chmod(A, 0o700)
+prot = []
+for orig in sys.argv[1:]:
+    q = S / orig.lstrip('/')
+    z = A / orig.lstrip('/')
+    if not q.is_file():
+        print(f'FEHLT im Zwischenstand: {q}')
+        continue
+    h = hashlib.sha256(q.read_bytes()).hexdigest()
+    z.parent.mkdir(parents=True, exist_ok=True)
+    if z.exists():
+        raise SystemExit(f'Ziel besteht schon: {z}')
+    os.rename(q, z)
+    ho = hashlib.sha256(Path(orig).read_bytes()).hexdigest() if Path(orig).exists() else 'Original fehlt'
+    zeile = (f'AUSGELASSEN (Geheimnisdatei, nur Pfad: enthält einen Wert aus auth.json, Entscheidung Hermes E9): {orig} · '
+             f'{z.stat().st_size} B · SHA-256 der Kopie {h[:16]}… · Original unverändert gleich: {ho == h}')
+    prot.append(zeile)
+    print(zeile)
+    print(f'  verschoben: {q} → {z} · im Zwischenstand noch vorhanden: {q.exists()}')
+p = E / 'paket' / f'protokoll-aussonderung-{time.strftime("%Y%m%d-%H%M%S")}.txt'
+with open(p, 'x', encoding='utf-8') as f:
+    f.write('\n'.join(prot) + '\n')
+print(f'Protokoll: {p}')
+--- Ende /root/biotop-einlagerung/arbeit/s5_aussondern.py ---
+Ausgabe (vollständig, stdout und stderr):
+AUSGELASSEN (Geheimnisdatei, nur Pfad: enthält einen Wert aus auth.json, Entscheidung Hermes E9): /root/.hermes/sessions/request_dump_20260920_052507_2f047335_20260920_055836_587741.json · 436277 B · SHA-256 der Kopie a3032b2531dbd8ba… · Original unverändert gleich: True
+  verschoben: /root/biotop-einlagerung/stufe/root/.hermes/sessions/request_dump_20260920_052507_2f047335_20260920_055836_587741.json → /root/biotop-einlagerung/ausgesondert/root/.hermes/sessions/request_dump_20260920_052507_2f047335_20260920_055836_587741.json · im Zwischenstand noch vorhanden: False
+Protokoll: /root/biotop-einlagerung/paket/protokoll-aussonderung-20260926-020859.txt
+=== Ende EB61 ===

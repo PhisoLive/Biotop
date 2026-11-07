@@ -1,0 +1,544 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 03 · Teil 190 (Teile 166–239 dieses Stands) · enthält R196 bis R196
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+[R196 · Fortsetzung, Stück 8 von 22]
+biotop/organe/aegis.py:204: in _anhaengen
+    return _anhaengen_ts(con, lauf_id, alt, neu, behalten)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/organe/aegis.py:296: in _anhaengen_ts
+    alt_namen = {t["name"] for t in typescript.testfunktionen(alt)}
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/kern/typescript.py:144: in testfunktionen
+    d, _ = _aufruf(Path(tmp), "testfunktionen", code=code)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/ts-parser-h63hnvy1'), aktion = 'testfunktionen'
+dateien = None, zeitlimit_s = 150
+daten = {'code': "import { test, expect } from 'vitest';\nimport { plus } from '../src/beta/wert.js';\n\ntest('test_alt', () => {\n  expect(plus(1, 1)).toBe(2);\n});\n"}
+
+    def _aufruf(werk, aktion, dateien=None, zeitlimit_s=150, **daten):
+        extra = dict(dateien or {})
+        for rel in extra:
+            p = Path(rel)
+            if p.is_absolute() or ".." in p.parts or p.parts[0] in ("_messgeraet", "node_modules"):
+                raise TypeScriptFehler("Unzulässiger Ersatzpfad: " + rel)
+        extra.update({"_messgeraet/ts/" + p.name: p.read_text() for p in SKRIPTE.iterdir() if p.is_file()})
+        extra["_messgeraet/ts/anfrage.json"] = json.dumps({"aktion": aktion, **daten})
+        e = kammer.ausfuehren(Path(werk), ["node", "_messgeraet/ts/main.mjs"],
+                              zeitlimit_s=zeitlimit_s, dateien=extra)
+        roh = asdict(e)
+        if e.zeitlimit or e.rc != 0:
+>           raise TypeScriptFehler("Kammerabbruch: " + json.dumps(roh, ensure_ascii=False))
+E           biotop.kern.typescript.TypeScriptFehler: Kammerabbruch: {"rc": 1, "stdout": "", "stderr": "failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n", "dauer_s": 0.019809810910373926, "zeitlimit": false, "container": "biotop-89f3ec212c71"}
+
+biotop/kern/typescript.py:43: TypeScriptFehler
+__________ test_review2_erweiterte_importzeile_ohne_doppelte_bindung ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_review2_erweiterte_import0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0d6f920>
+ts_kammer = 'biotop-kammer:ts1'
+
+    def test_review2_erweiterte_importzeile_ohne_doppelte_bindung(tmp_path, monkeypatch, ts_kammer):
+        """Review Nr. 2: `import { plus, halb }` neben vorhandenem `import { plus }` ergab eine doppelte Bindung und wurde als
+        geurteilt gezählt. Jetzt: nur halb kommt hinzu, die Datei hat jede Bindung genau einmal (Kammer-Parsing)."""
+        from biotop.kern import typescript
+        from biotop.organe import neutralzaehler
+        con = datenbank.verbinden(tmp_path / "a.db")
+        monkeypatch.setattr(aegis, "_zaehlkontext", lambda: (con, 9))
+        neu = ("import { test, expect } from 'vitest';\nimport { plus, halb } from '../src/beta/wert.js';\n\n"
+               "test('test_alt', () => {\n  expect(plus(1, 1)).toBe(2);\n});\n\ntest('test_neu', () => {\n  expect(halb(plus(2, 2))).toBe(2);\n});\n")
+>       g = aegis._anhaengen(ALT_PLUS, neu, {"test_neu"})
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4.py:452: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/aegis.py:204: in _anhaengen
+    return _anhaengen_ts(con, lauf_id, alt, neu, behalten)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/organe/aegis.py:296: in _anhaengen_ts
+    alt_namen = {t["name"] for t in typescript.testfunktionen(alt)}
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/kern/typescript.py:144: in testfunktionen
+    d, _ = _aufruf(Path(tmp), "testfunktionen", code=code)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/ts-parser-phoduv5h'), aktion = 'testfunktionen'
+dateien = None, zeitlimit_s = 150
+daten = {'code': "import { test, expect } from 'vitest';\nimport { plus } from '../src/beta/wert.js';\n\ntest('test_alt', () => {\n  expect(plus(1, 1)).toBe(2);\n});\n"}
+
+    def _aufruf(werk, aktion, dateien=None, zeitlimit_s=150, **daten):
+        extra = dict(dateien or {})
+        for rel in extra:
+            p = Path(rel)
+            if p.is_absolute() or ".." in p.parts or p.parts[0] in ("_messgeraet", "node_modules"):
+                raise TypeScriptFehler("Unzulässiger Ersatzpfad: " + rel)
+        extra.update({"_messgeraet/ts/" + p.name: p.read_text() for p in SKRIPTE.iterdir() if p.is_file()})
+        extra["_messgeraet/ts/anfrage.json"] = json.dumps({"aktion": aktion, **daten})
+        e = kammer.ausfuehren(Path(werk), ["node", "_messgeraet/ts/main.mjs"],
+                              zeitlimit_s=zeitlimit_s, dateien=extra)
+        roh = asdict(e)
+        if e.zeitlimit or e.rc != 0:
+>           raise TypeScriptFehler("Kammerabbruch: " + json.dumps(roh, ensure_ascii=False))
+E           biotop.kern.typescript.TypeScriptFehler: Kammerabbruch: {"rc": 1, "stdout": "", "stderr": "failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n", "dauer_s": 0.020212546922266483, "zeitlimit": false, "container": "biotop-62e27a07d79a"}
+
+biotop/kern/typescript.py:43: TypeScriptFehler
+_________ test_review2_gegenprobe_namenskonflikt_wird_nicht_angehaengt _________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_review2_gegenprobe_namens0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0cb6ff0>
+ts_kammer = 'biotop-kammer:ts1'
+
+    def test_review2_gegenprobe_namenskonflikt_wird_nicht_angehaengt(tmp_path, monkeypatch, ts_kammer):
+        """Derselbe Name aus einer anderen Quelle ist ein Konflikt: nichts angehängt, neutral gezählt."""
+        from biotop.organe import neutralzaehler
+        con = datenbank.verbinden(tmp_path / "a.db")
+        monkeypatch.setattr(aegis, "_zaehlkontext", lambda: (con, 9))
+        neu = ("import { test, expect } from 'vitest';\nimport { plus } from '../src/alpha/liste.js';\n\n"
+               "test('test_neu', () => {\n  expect(plus(1, 1)).toBe(2);\n});\n")
+>       assert aegis._anhaengen(ALT_PLUS, neu, {"test_neu"}) is None
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4.py:468: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/aegis.py:204: in _anhaengen
+    return _anhaengen_ts(con, lauf_id, alt, neu, behalten)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/organe/aegis.py:296: in _anhaengen_ts
+    alt_namen = {t["name"] for t in typescript.testfunktionen(alt)}
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/kern/typescript.py:144: in testfunktionen
+    d, _ = _aufruf(Path(tmp), "testfunktionen", code=code)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/ts-parser-fijlskza'), aktion = 'testfunktionen'
+dateien = None, zeitlimit_s = 150
+daten = {'code': "import { test, expect } from 'vitest';\nimport { plus } from '../src/beta/wert.js';\n\ntest('test_alt', () => {\n  expect(plus(1, 1)).toBe(2);\n});\n"}
+
+    def _aufruf(werk, aktion, dateien=None, zeitlimit_s=150, **daten):
+        extra = dict(dateien or {})
+        for rel in extra:
+            p = Path(rel)
+            if p.is_absolute() or ".." in p.parts or p.parts[0] in ("_messgeraet", "node_modules"):
+                raise TypeScriptFehler("Unzulässiger Ersatzpfad: " + rel)
+        extra.update({"_messgeraet/ts/" + p.name: p.read_text() for p in SKRIPTE.iterdir() if p.is_file()})
+        extra["_messgeraet/ts/anfrage.json"] = json.dumps({"aktion": aktion, **daten})
+        e = kammer.ausfuehren(Path(werk), ["node", "_messgeraet/ts/main.mjs"],
+                              zeitlimit_s=zeitlimit_s, dateien=extra)
+        roh = asdict(e)
+        if e.zeitlimit or e.rc != 0:
+>           raise TypeScriptFehler("Kammerabbruch: " + json.dumps(roh, ensure_ascii=False))
+E           biotop.kern.typescript.TypeScriptFehler: Kammerabbruch: {"rc": 1, "stdout": "", "stderr": "failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n", "dauer_s": 0.018989325035363436, "zeitlimit": false, "container": "biotop-ba3487d2f3df"}
+
+biotop/kern/typescript.py:43: TypeScriptFehler
+_____________ test_py_zwischenspeicher_fehler_scheitert_am_laufweg _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_py_zwischenspeicher_fehle0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0cdf350>
+
+    def test_py_zwischenspeicher_fehler_scheitert_am_laufweg(tmp_path, monkeypatch):
+>       con, u = _python_pruefen(tmp_path, monkeypatch, SW.zwischenspeicher_falsch())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_02.py:150: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_py_zwischenspeicher_fehle0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0cdf350>
+diff = '--- a/speicherwerk/zahlen/statistik.py\n+++ b/speicherwerk/zahlen/statistik.py\n@@ -9,9 +9,16 @@\n     return s\n \n ... - geordnet[0]\n+    ergebnis = max(werte) - min(werte)\n+    _SPEICHER[schluessel] = ergebnis\n+    return ergebnis\n'
+nische = 'schnell'
+
+    def _python_pruefen(tmp_path, monkeypatch, diff, nische="schnell"):
+        """aegis.pruefen am Python-Prüfwerk, echte Kammer (Messgerät, Bandit, Vulture, pytest, Python-Sonde). Gestellt sind
+        das Modell (KEIN ANGRIFF) und die Laufzeitmessung: der Kandidat ist in `zahlen` 20 % schneller (so erreicht ein
+        „schneller“-Kandidat den Verhaltensvergleich — wie K2934/K3121 in T3), `text` gleich schnell."""
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        SW.anlegen(w)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,?,?,'erzeugt',?)",
+                    ("zahlen" if "statistik" in diff else "text", nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["zahlen", "text"], SW.PAKET, SW.REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_02.py:133: AssertionError
+_______________ test_py_gegenprobe_speicher_am_inhalt_ueberlebt ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_py_gegenprobe_speicher_am0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0cdedb0>
+
+    def test_py_gegenprobe_speicher_am_inhalt_ueberlebt(tmp_path, monkeypatch):
+>       con, u = _python_pruefen(tmp_path, monkeypatch, SW.zwischenspeicher_richtig())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_02.py:158: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_py_gegenprobe_speicher_am0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0cdedb0>
+diff = '--- a/speicherwerk/zahlen/statistik.py\n+++ b/speicherwerk/zahlen/statistik.py\n@@ -9,9 +9,14 @@\n     return s\n \n ... ergebnis = (max(werte) - min(werte)) if werte else 0.0\n+    _SPEICHER[schluessel] = ergebnis\n+    return ergebnis\n'
+nische = 'schnell'
+
+    def _python_pruefen(tmp_path, monkeypatch, diff, nische="schnell"):
+        """aegis.pruefen am Python-Prüfwerk, echte Kammer (Messgerät, Bandit, Vulture, pytest, Python-Sonde). Gestellt sind
+        das Modell (KEIN ANGRIFF) und die Laufzeitmessung: der Kandidat ist in `zahlen` 20 % schneller (so erreicht ein
+        „schneller“-Kandidat den Verhaltensvergleich — wie K2934/K3121 in T3), `text` gleich schnell."""
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        SW.anlegen(w)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,?,?,'erzeugt',?)",
+                    ("zahlen" if "statistik" in diff else "text", nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["zahlen", "text"], SW.PAKET, SW.REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_02.py:133: AssertionError
+_________________ test_py_weissraum_scheitert_an_formvariante __________________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_py_weissraum_scheitert_an0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0cdcc80>
+
+    def test_py_weissraum_scheitert_an_formvariante(tmp_path, monkeypatch):
+        """Der Kandidat entfernt toten Code (Kernmaß +1, besteht das Maß) und ändert nebenbei `normieren` für Tab und
+        Zeilenumbruch — kein Test, keine Last nutzt das. Nur die Formvarianten des Korpus sehen es (T3-Muster K2868)."""
+>       con, u = _python_pruefen(tmp_path, monkeypatch, SW.weissraum_falsch(), nische="sicher")
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_02.py:168: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_py_weissraum_scheitert_an0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0cdcc80>
+diff = '--- a/speicherwerk/text/format.py\n+++ b/speicherwerk/text/format.py\n@@ -3,9 +3,5 @@\n \n def normieren(text: str) -...r:\n-    """Frühere Fassung, nirgends mehr aufgerufen (toter Code — Vulture zählt ihn)."""\n-    return text.strip()\n'
+nische = 'sicher'
+
+    def _python_pruefen(tmp_path, monkeypatch, diff, nische="schnell"):
+        """aegis.pruefen am Python-Prüfwerk, echte Kammer (Messgerät, Bandit, Vulture, pytest, Python-Sonde). Gestellt sind
+        das Modell (KEIN ANGRIFF) und die Laufzeitmessung: der Kandidat ist in `zahlen` 20 % schneller (so erreicht ein
+        „schneller“-Kandidat den Verhaltensvergleich — wie K2934/K3121 in T3), `text` gleich schnell."""
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        SW.anlegen(w)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,?,?,'erzeugt',?)",
+                    ("zahlen" if "statistik" in diff else "text", nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["zahlen", "text"], SW.PAKET, SW.REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_02.py:133: AssertionError
+_____________ test_py_gegenprobe_nur_toter_code_entfernt_ueberlebt _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_py_gegenprobe_nur_toter_c0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0cdd970>
+
+    def test_py_gegenprobe_nur_toter_code_entfernt_ueberlebt(tmp_path, monkeypatch):
+>       con, u = _python_pruefen(tmp_path, monkeypatch, SW.toter_code_entfernt(), nische="sicher")
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_02.py:175: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_py_gegenprobe_nur_toter_c0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0cdd970>
+diff = '--- a/speicherwerk/text/format.py\n+++ b/speicherwerk/text/format.py\n@@ -5,7 +5,3 @@\n     """Weißraumfolgen (Leerze...r:\n-    """Frühere Fassung, nirgends mehr aufgerufen (toter Code — Vulture zählt ihn)."""\n-    return text.strip()\n'
+nische = 'sicher'
+
+    def _python_pruefen(tmp_path, monkeypatch, diff, nische="schnell"):
+        """aegis.pruefen am Python-Prüfwerk, echte Kammer (Messgerät, Bandit, Vulture, pytest, Python-Sonde). Gestellt sind
+        das Modell (KEIN ANGRIFF) und die Laufzeitmessung: der Kandidat ist in `zahlen` 20 % schneller (so erreicht ein
+        „schneller“-Kandidat den Verhaltensvergleich — wie K2934/K3121 in T3), `text` gleich schnell."""
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        SW.anlegen(w)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,?,?,'erzeugt',?)",
+                    ("zahlen" if "statistik" in diff else "text", nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["zahlen", "text"], SW.PAKET, SW.REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_02.py:133: AssertionError
+________ test_deckungsaufzeichner_in_der_kammer_je_abweichung[ts-True] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_deckungsaufzeichner_in_de0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0cb4da0>
+sprache = 'ts', mit_test = True, ts_kammer = 'biotop-kammer:ts1'
+
+    @pytest.mark.parametrize("mit_test", [True, False])
+    @pytest.mark.parametrize("sprache", ["ts", "py"])
+    def test_deckungsaufzeichner_in_der_kammer_je_abweichung(tmp_path, monkeypatch, sprache, mit_test, ts_kammer):
+        w, code, tests, ref, image = _deckungswerk(tmp_path, sprache)
+        monkeypatch.setattr(kammer, "IMAGE", image)
+        behoben = {("test_m_deckung.test.ts" if sprache == "ts" else "test_m_deckung.py") + "::test_m_deckt_a"} if mit_test else set()
+>       r = vv.pruefen(w, code, ref, ["m"], lambda abw: vv.deckende_aufrufe(w, code, tests, behoben))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_02.py:283: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/pytest-of-root/pytest-0/test_deckungsaufzeichner_in_de0/werk_ts')
+code = {'src/m/a.ts': 'export function f(x: string): string {\n  return x.toUpperCase();\n}\n'}
+referenzlast = "import { f } from './dist/m/a.js';\nexport function last_m() { for (let i = 0; i < 100; i++) f('z'); }\n"
+bereiche = ['m']
+deckende = <function test_deckungsaufzeichner_in_der_kammer_je_abweichung.<locals>.<lambda> at 0x7240c0319f80>
+korpus_erweitert = True, deckungsregel = 'muster'
+
+    def pruefen(werk: Path, code: dict[str, str], referenzlast: str | None, bereiche: list[str],
+                deckende: dict | Callable[[list[str]], dict], *, korpus_erweitert: bool = True,
+                deckungsregel: str = "muster") -> dict:
+        """Vorgeneration (Werk wie es ist) gegen Kandidat (Werk + `code`), dieselbe Sonde, dieselbe Last.
+    
+        `deckende`: {"tests", "aufrufe", "haelt", "blind"} (deckende_aufrufe) — oder ein Aufruf (Abweichungen → dieses
+        dict), der erst ausgewertet wird, wenn es Abweichungen gibt (spart Kammerläufe).
+        Rückgabe mit `ausgefuehrt`, `geurteilt`, `tragfaehig`, `grund` und `grund_art` (für den Neutralzähler)."""
+        from ..kern import sprachprofil
+        python = not sprachprofil.ist_typescript(Path(werk))
+        module = geaenderte_module(code, python=python)
+        # S1c (D): geänderte Dateien im Quellpaket, die keine Quellmodule sind — die Sonde beobachtet sie nicht (Enthaltung);
+        # außerhalb des Quellpakets gezählt wie bisher (`nicht_quelldateien_ausserhalb`).
+        d_innen, d_aussen = nicht_quelldateien(werk, code, python)
+        basis = {"module": module, "bereiche": sorted(bereiche), "kappe": KAPPE, "sprache": "python" if python else "typescript",
+                 "deckungsregel": deckungsregel, "korpus_erweitert": korpus_erweitert,
+                 "werkzeugdateien": werkzeugdateien(code) if python else [], "nicht_quelldateien_ausserhalb": d_aussen}
+        ausserhalb: dict[str, str] = {p: _D_GRUND for p in d_innen}      # S1c: Wirkung außerhalb der Beobachtung (C, D)
+        if not module and ausserhalb:
+            return {**basis, "ausgefuehrt": False, "geurteilt": False, "tragfaehig": False, "enthaltung": True,
+                    "grund_art": "wirkung_ausserhalb_beobachtung", "ausserhalb": ausserhalb,
+                    "grund": (f"Enthaltung (S1c, D): {len(ausserhalb)} geänderte Datei(en) im Quellpaket, die kein "
+                              f"Quellmodul sind — die Sonde beobachtet sie nicht: {sorted(ausserhalb)[:3]}"),
+                    "beobachtungen": 0, "abweichungen": [], "ungedeckt": [], "gedeckt": {}}
+        if not module:
+            return {**basis, "ausgefuehrt": False, "geurteilt": True, "tragfaehig": True,
+                    "grund_art": "keine_quellaenderung",
+                    "grund": "Kandidat ändert keine Quellmodule — Verhalten der Quellen unverändert"
+                             + (f" (Werkzeugdateien nicht beobachtbar: {basis['werkzeugdateien']})" if basis["werkzeugdateien"] else ""),
+                    "beobachtungen": 0, "abweichungen": [], "ungedeckt": [], "gedeckt": {}}
+        if not referenzlast:
+            # Konfiguration, kein Urteil über den Kandidaten (Review 03 Nr. 3): ohne Referenzlast misst die Sonde nicht.
+            raise SondeAusgefallen("keine Referenzlast — die Verhaltenssonde kann nicht messen")
+        # Behebungsrunde 6 (Entscheidung 3): die vom Kandidaten betroffenen Funktionen (Syntaxbaum)
+        nennung: dict = {}
+        betroffen = betroffene_funktionen(werk, code, module, python=python, nennung=nennung)
+        alt = beobachten(werk, {}, referenzlast, module, bereiche, korpus_erweitert=korpus_erweitert)
+        if not alt.get("gueltig"):
+            if alt.get("art") != "inhalt":
+>               raise SondeAusgefallen(f"Sonde an der Vorgeneration ausgefallen ({alt.get('art')}): {str(alt.get('grund'))[:300]}")
+E               biotop.organe.verhaltensvergleich.SondeAusgefallen: Sonde an der Vorgeneration ausgefallen (infrastruktur): Kammerabbruch: {"rc": 1, "stdout": "", "stderr": "failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n", "dauer_s": 0.019679914927110076, "zeitlimit": false,
+
+biotop/organe/verhaltensvergleich.py:1937: SondeAusgefallen
+________ test_deckungsaufzeichner_in_der_kammer_je_abweichung[ts-False] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_deckungsaufzeichner_in_de1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0cb4530>
+sprache = 'ts', mit_test = False, ts_kammer = 'biotop-kammer:ts1'
+
+    @pytest.mark.parametrize("mit_test", [True, False])
+    @pytest.mark.parametrize("sprache", ["ts", "py"])
+    def test_deckungsaufzeichner_in_der_kammer_je_abweichung(tmp_path, monkeypatch, sprache, mit_test, ts_kammer):
+        w, code, tests, ref, image = _deckungswerk(tmp_path, sprache)
+        monkeypatch.setattr(kammer, "IMAGE", image)
+        behoben = {("test_m_deckung.test.ts" if sprache == "ts" else "test_m_deckung.py") + "::test_m_deckt_a"} if mit_test else set()
+>       r = vv.pruefen(w, code, ref, ["m"], lambda abw: vv.deckende_aufrufe(w, code, tests, behoben))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_02.py:283: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/pytest-of-root/pytest-0/test_deckungsaufzeichner_in_de1/werk_ts')
+code = {'src/m/a.ts': 'export function f(x: string): string {\n  return x.toUpperCase();\n}\n'}
+referenzlast = "import { f } from './dist/m/a.js';\nexport function last_m() { for (let i = 0; i < 100; i++) f('z'); }\n"
+bereiche = ['m']
+deckende = <function test_deckungsaufzeichner_in_der_kammer_je_abweichung.<locals>.<lambda> at 0x7240c031ad40>
+korpus_erweitert = True, deckungsregel = 'muster'
+
+    def pruefen(werk: Path, code: dict[str, str], referenzlast: str | None, bereiche: list[str],
+                deckende: dict | Callable[[list[str]], dict], *, korpus_erweitert: bool = True,
+                deckungsregel: str = "muster") -> dict:
+        """Vorgeneration (Werk wie es ist) gegen Kandidat (Werk + `code`), dieselbe Sonde, dieselbe Last.
+    
+        `deckende`: {"tests", "aufrufe", "haelt", "blind"} (deckende_aufrufe) — oder ein Aufruf (Abweichungen → dieses
+        dict), der erst ausgewertet wird, wenn es Abweichungen gibt (spart Kammerläufe).
+        Rückgabe mit `ausgefuehrt`, `geurteilt`, `tragfaehig`, `grund` und `grund_art` (für den Neutralzähler)."""
+        from ..kern import sprachprofil
+        python = not sprachprofil.ist_typescript(Path(werk))
+        module = geaenderte_module(code, python=python)
+        # S1c (D): geänderte Dateien im Quellpaket, die keine Quellmodule sind — die Sonde beobachtet sie nicht (Enthaltung);
+        # außerhalb des Quellpakets gezählt wie bisher (`nicht_quelldateien_ausserhalb`).
+        d_innen, d_aussen = nicht_quelldateien(werk, code, python)
+        basis = {"module": module, "bereiche": sorted(bereiche), "kappe": KAPPE, "sprache": "python" if python else "typescript",
+                 "deckungsregel": deckungsregel, "korpus_erweitert": korpus_erweitert,
+                 "werkzeugdateien": werkzeugdateien(code) if python else [], "nicht_quelldateien_ausserhalb": d_aussen}
+        ausserhalb: dict[str, str] = {p: _D_GRUND for p in d_innen}      # S1c: Wirkung außerhalb der Beobachtung (C, D)
+        if not module and ausserhalb:
+            return {**basis, "ausgefuehrt": False, "geurteilt": False, "tragfaehig": False, "enthaltung": True,
+                    "grund_art": "wirkung_ausserhalb_beobachtung", "ausserhalb": ausserhalb,
+                    "grund": (f"Enthaltung (S1c, D): {len(ausserhalb)} geänderte Datei(en) im Quellpaket, die kein "
+                              f"Quellmodul sind — die Sonde beobachtet sie nicht: {sorted(ausserhalb)[:3]}"),
+                    "beobachtungen": 0, "abweichungen": [], "ungedeckt": [], "gedeckt": {}}
+        if not module:
+            return {**basis, "ausgefuehrt": False, "geurteilt": True, "tragfaehig": True,
+                    "grund_art": "keine_quellaenderung",
+                    "grund": "Kandidat ändert keine Quellmodule — Verhalten der Quellen unverändert"
+                             + (f" (Werkzeugdateien nicht beobachtbar: {basis['werkzeugdateien']})" if basis["werkzeugdateien"] else ""),
+                    "beobachtungen": 0, "abweichungen": [], "ungedeckt": [], "gedeckt": {}}
+        if not referenzlast:
+            # Konfiguration, kein Urteil über den Kandidaten (Review 03 Nr. 3): ohne Referenzlast misst die Sonde nicht.
+            raise SondeAusgefallen("keine Referenzlast — die Verhaltenssonde kann nicht messen")
+        # Behebungsrunde 6 (Entscheidung 3): die vom Kandidaten betroffenen Funktionen (Syntaxbaum)
+        nennung: dict = {}
+        betroffen = betroffene_funktionen(werk, code, module, python=python, nennung=nennung)
+        alt = beobachten(werk, {}, referenzlast, module, bereiche, korpus_erweitert=korpus_erweitert)
+        if not alt.get("gueltig"):
+            if alt.get("art") != "inhalt":
+>               raise SondeAusgefallen(f"Sonde an der Vorgeneration ausgefallen ({alt.get('art')}): {str(alt.get('grund'))[:300]}")
+E               biotop.organe.verhaltensvergleich.SondeAusgefallen: Sonde an der Vorgeneration ausgefallen (infrastruktur): Kammerabbruch: {"rc": 1, "stdout": "", "stderr": "failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n", "dauer_s": 0.020058050053194165, "zeitlimit": false,
+
+biotop/organe/verhaltensvergleich.py:1937: SondeAusgefallen
+________ test_deckungsaufzeichner_in_der_kammer_je_abweichung[py-True] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_deckungsaufzeichner_in_de2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0ce0110>
+sprache = 'py', mit_test = True, ts_kammer = 'biotop-kammer:ts1'
+
+    @pytest.mark.parametrize("mit_test", [True, False])
+    @pytest.mark.parametrize("sprache", ["ts", "py"])
+    def test_deckungsaufzeichner_in_der_kammer_je_abweichung(tmp_path, monkeypatch, sprache, mit_test, ts_kammer):
+        w, code, tests, ref, image = _deckungswerk(tmp_path, sprache)
+        monkeypatch.setattr(kammer, "IMAGE", image)
+        behoben = {("test_m_deckung.test.ts" if sprache == "ts" else "test_m_deckung.py") + "::test_m_deckt_a"} if mit_test else set()
+>       r = vv.pruefen(w, code, ref, ["m"], lambda abw: vv.deckende_aufrufe(w, code, tests, behoben))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_02.py:283: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/pytest-of-root/pytest-0/test_deckungsaufzeichner_in_de2/werk_py')
+code = {'paket/m/a.py': 'def f(x: str) -> str:\n    return x.upper()\n'}
+referenzlast = "import sys\nsys.path.insert(0, '/werk')\n\ndef last_m():\n    from paket.m.a import f\n    for _ in range(100):\n        f('z')\n"
+bereiche = ['m']
+deckende = <function test_deckungsaufzeichner_in_der_kammer_je_abweichung.<locals>.<lambda> at 0x7240c031b2e0>
+korpus_erweitert = True, deckungsregel = 'muster'
+
+    def pruefen(werk: Path, code: dict[str, str], referenzlast: str | None, bereiche: list[str],
+                deckende: dict | Callable[[list[str]], dict], *, korpus_erweitert: bool = True,
+                deckungsregel: str = "muster") -> dict:
+        """Vorgeneration (Werk wie es ist) gegen Kandidat (Werk + `code`), dieselbe Sonde, dieselbe Last.
+    
+        `deckende`: {"tests", "aufrufe", "haelt", "blind"} (deckende_aufrufe) — oder ein Aufruf (Abweichungen → dieses
+        dict), der erst ausgewertet wird, wenn es Abweichungen gibt (spart Kammerläufe).
+        Rückgabe mit `ausgefuehrt`, `geurteilt`, `tragfaehig`, `grund` und `grund_art` (für den Neutralzähler)."""
+        from ..kern import sprachprofil
+        python = not sprachprofil.ist_typescript(Path(werk))
+        module = geaenderte_module(code, python=python)
+        # S1c (D): geänderte Dateien im Quellpaket, die keine Quellmodule sind — die Sonde beobachtet sie nicht (Enthaltung);
+        # außerhalb des Quellpakets gezählt wie bisher (`nicht_quelldateien_ausserhalb`).
+        d_innen, d_aussen = nicht_quelldateien(werk, code, python)
+        basis = {"module": module, "bereiche": sorted(bereiche), "kappe": KAPPE, "sprache": "python" if python else "typescript",
+                 "deckungsregel": deckungsregel, "korpus_erweitert": korpus_erweitert,
+                 "werkzeugdateien": werkzeugdateien(code) if python else [], "nicht_quelldateien_ausserhalb": d_aussen}
+        ausserhalb: dict[str, str] = {p: _D_GRUND for p in d_innen}      # S1c: Wirkung außerhalb der Beobachtung (C, D)
+        if not module and ausserhalb:
+            return {**basis, "ausgefuehrt": False, "geurteilt": False, "tragfaehig": False, "enthaltung": True,
+                    "grund_art": "wirkung_ausserhalb_beobachtung", "ausserhalb": ausserhalb,
+                    "grund": (f"Enthaltung (S1c, D): {len(ausserhalb)} geänderte Datei(en) im Quellpaket, die kein "
+                              f"Quellmodul sind — die Sonde beobachtet sie nicht: {sorted(ausserhalb)[:3]}"),
+                    "beobachtungen": 0, "abweichungen": [], "ungedeckt": [], "gedeckt": {}}
+        if not module:
+            return {**basis, "ausgefuehrt": False, "geurteilt": True, "tragfaehig": True,
+                    "grund_art": "keine_quellaenderung",
+                    "grund": "Kandidat ändert keine Quellmodule — Verhalten der Quellen unverändert"
+                             + (f" (Werkzeugdateien nicht beobachtbar: {basis['werkzeugdateien']})" if basis["werkzeugdateien"] else ""),
+                    "beobachtungen": 0, "abweichungen": [], "ungedeckt": [], "gedeckt": {}}
+        if not referenzlast:
+            # Konfiguration, kein Urteil über den Kandidaten (Review 03 Nr. 3): ohne Referenzlast misst die Sonde nicht.
+            raise SondeAusgefallen("keine Referenzlast — die Verhaltenssonde kann nicht messen")
+        # Behebungsrunde 6 (Entscheidung 3): die vom Kandidaten betroffenen Funktionen (Syntaxbaum)
+        nennung: dict = {}
+        betroffen = betroffene_funktionen(werk, code, module, python=python, nennung=nennung)
+        alt = beobachten(werk, {}, referenzlast, module, bereiche, korpus_erweitert=korpus_erweitert)
+        if not alt.get("gueltig"):
+            if alt.get("art") != "inhalt":
+>               raise SondeAusgefallen(f"Sonde an der Vorgeneration ausgefallen ({alt.get('art')}): {str(alt.get('grund'))[:300]}")
+E               biotop.organe.verhaltensvergleich.SondeAusgefallen: Sonde an der Vorgeneration ausgefallen (infrastruktur): Python-Sonde ohne Ergebnis (rc=1): failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory
+
+biotop/organe/verhaltensvergleich.py:1937: SondeAusgefallen
+________ test_deckungsaufzeichner_in_der_kammer_je_abweichung[py-False] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_deckungsaufzeichner_in_de3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0ce0950>
+sprache = 'py', mit_test = False, ts_kammer = 'biotop-kammer:ts1'
+
+    @pytest.mark.parametrize("mit_test", [True, False])
+    @pytest.mark.parametrize("sprache", ["ts", "py"])
+    def test_deckungsaufzeichner_in_der_kammer_je_abweichung(tmp_path, monkeypatch, sprache, mit_test, ts_kammer):
+        w, code, tests, ref, image = _deckungswerk(tmp_path, sprache)
+        monkeypatch.setattr(kammer, "IMAGE", image)
+        behoben = {("test_m_deckung.test.ts" if sprache == "ts" else "test_m_deckung.py") + "::test_m_deckt_a"} if mit_test else set()
+>       r = vv.pruefen(w, code, ref, ["m"], lambda abw: vv.deckende_aufrufe(w, code, tests, behoben))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_02.py:283: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/pytest-of-root/pytest-0/test_deckungsaufzeichner_in_de3/werk_py')
+code = {'paket/m/a.py': 'def f(x: str) -> str:\n    return x.upper()\n'}
+referenzlast = "import sys\nsys.path.insert(0, '/werk')\n\ndef last_m():\n    from paket.m.a import f\n    for _ in range(100):\n        f('z')\n"
+bereiche = ['m']
+deckende = <function test_deckungsaufzeichner_in_der_kammer_je_abweichung.<locals>.<lambda> at 0x7240c031b060>
+korpus_erweitert = True, deckungsregel = 'muster'
+
+    def pruefen(werk: Path, code: dict[str, str], referenzlast: str | None, bereiche: list[str],
+                deckende: dict | Callable[[list[str]], dict], *, korpus_erweitert: bool = True,
+                deckungsregel: str = "muster") -> dict:
+        """Vorgeneration (Werk wie es ist) gegen Kandidat (Werk + `code`), dieselbe Sonde, dieselbe Last.
+    
+        `deckende`: {"tests", "aufrufe", "haelt", "blind"} (deckende_aufrufe) — oder ein Aufruf (Abweichungen → dieses
+        dict), der erst ausgewertet wird, wenn es Abweichungen gibt (spart Kammerläufe).
+        Rückgabe mit `ausgefuehrt`, `geurteilt`, `tragfaehig`, `grund` und `grund_art` (für den Neutralzähler)."""
+        from ..kern import sprachprofil
+        python = not sprachprofil.ist_typescript(Path(werk))
+        module = geaenderte_module(code, python=python)
+        # S1c (D): geänderte Dateien im Quellpaket, die keine Quellmodule sind — die Sonde beobachtet sie nicht (Enthaltung);
+        # außerhalb des Quellpakets gezählt wie bisher (`nicht_quelldateien_ausserhalb`).
+        d_innen, d_aussen = nicht_quelldateien(werk, code, python)
+        basis = {"module": module, "bereiche": sorted(bereiche), "kappe": KAPPE, "sprache": "python" if python else "typescript",
+                 "deckungsregel": deckungsregel, "korpus_erweitert": korpus_erweitert,
+                 "werkzeugdateien": werkzeugdateien(code) if python else [], "nicht_quelldateien_ausserhalb": d_aussen}
+        ausserhalb: dict[str, str] = {p: _D_GRUND for p in d_innen}      # S1c: Wirkung außerhalb der Beobachtung (C, D)
+        if not module and ausserhalb:
+            return {**basis, "ausgefuehrt": False, "geurteilt": False, "tragfaehig": False, "enthaltung": True,
+                    "grund_art": "wirkung_ausserhalb_beobachtung", "ausserhalb": ausserhalb,
+                    "grund": (f"Enthaltung (S1c, D): {len(ausserhalb)} geänderte Datei(en) im Quellpaket, die kein "
+                              f"Quellmodul sind — die Sonde beobachtet sie nicht: {sorted(ausserhalb)[:3]}"),
+                    "beobachtungen": 0, "abweichungen": [], "ungedeckt": [], "gedeckt": {}}
+        if not module:
+            return {**basis, "ausgefuehrt": False, "geurteilt": True, "tragfaehig": True,
+                    "grund_art": "keine_quellaenderung",
+                    "grund": "Kandidat ändert keine Quellmodule — Verhalten der Quellen unverändert"
+                             + (f" (Werkzeugdateien nicht beobachtbar: {basis['werkzeugdateien']})" if basis["werkzeugdateien"] else ""),
+                    "beobachtungen": 0, "abweichungen": [], "ungedeckt": [], "gedeckt": {}}
+        if not referenzlast:
+            # Konfiguration, kein Urteil über den Kandidaten (Review 03 Nr. 3): ohne Referenzlast misst die Sonde nicht.

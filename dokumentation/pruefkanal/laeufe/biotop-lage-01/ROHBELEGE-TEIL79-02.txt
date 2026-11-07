@@ -1,0 +1,301 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 79 (Teile 4–165 dieses Stands) · enthält R83 bis R85
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R83 · Teil E: Geschmacksgedächtnis, Kontingent, Freigabe-Protokoll (STAMM immutable, T3 ro)
+Beginn: 2026-09-25 16:34:18 CEST (UTC+0200)
+Ende:   2026-09-25 16:34:18 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/soll-ist/e5_db.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/soll-ist/e5_db.py (wörtlich) ---
+#!/usr/bin/env python3
+"""Teil E (SOLL-IST), nur lesend: Datenbankabfragen für Belege zu Masterprompt v8 Abschnitt 3.12 (Geschmacks-
+gedächtnis), 3.14/6 (Kontingent schwerer Aufrufe) und 4 (Freigabe/Vollmacht).
+Regeln (REGELN-FUER-TEILE.md 2): STAMM nur mit mode=ro&immutable=1 und nur, wenn biotop.db-wal 0 Bytes hat;
+alle anderen Datenbanken mit mode=ro. Keine Schreibzugriffe. Ausgegeben werden nur Zählungen und Kurztexte,
+keine Geheimnisse (die Tabellen enthalten keine Schlüssel; Freitextfelder werden auf 120 Zeichen gekürzt)."""
+import os
+import sqlite3
+
+STAMM = '/root/biotop/daten/biotop.db'
+DBS = []
+wal = STAMM + '-wal'
+wal_groesse = os.path.getsize(wal) if os.path.exists(wal) else None
+print(f'Kammer-Sperre /tmp/biotop-kammer-exklusiv vorhanden: {os.path.exists("/tmp/biotop-kammer-exklusiv")}')
+print(f'{wal}: {"fehlt" if wal_groesse is None else str(wal_groesse) + " Bytes"}')
+if wal_groesse in (None, 0):
+    DBS.append(('STAMM', f'file:{STAMM}?mode=ro&immutable=1'))
+else:
+    print('STAMM NICHT GEÖFFNET: WAL nicht leer (Regel 2, REGELN-FUER-TEILE.md)')
+DBS.append(('T3', 'file:/root/biotop-t3/t3.db?mode=ro'))
+
+
+def spalten(con, tab):
+    return [r[1] for r in con.execute(f'PRAGMA table_info({tab})')]
+
+
+for name, uri in DBS:
+    print(f'\n===== {name}: {uri}')
+    con = sqlite3.connect(uri, uri=True)
+    tabs = [r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")]
+    print(f'Tabellen ({len(tabs)}): {", ".join(tabs)}')
+    if 'kasse' in tabs:
+        s = spalten(con, 'kasse')
+        print(f'kasse Spalten: {s}')
+        if 'kontingent' in s:
+            r = con.execute('SELECT COUNT(*), COALESCE(SUM(kontingent),0), COUNT(DISTINCT modell) FROM kasse').fetchone()
+            print(f'kasse: Buchungen {r[0]}, davon kontingent=1: {r[1]}, Modelle {r[2]}')
+            for z in con.execute('SELECT modell, COUNT(*), ROUND(SUM(kosten_eur),6), COALESCE(SUM(kontingent),0) '
+                                 'FROM kasse GROUP BY modell ORDER BY 2 DESC'):
+                print(f'   modell={z[0]} buchungen={z[1]} eur={z[2]} kontingent={z[3]}')
+    if 'geschmack' in tabs:
+        s = spalten(con, 'geschmack')
+        print(f'geschmack Spalten: {s}')
+        felder = [f for f in ('werk', 'quelle', 'entscheidung', 'von') if f in s]
+        q = f'SELECT {", ".join(felder)}, COUNT(*) FROM geschmack GROUP BY {", ".join(felder)} ORDER BY 1, 2'
+        for z in con.execute(q):
+            print('   ' + ' | '.join(str(x)[:60] for x in z))
+    if 'protokoll' in tabs:
+        s = spalten(con, 'protokoll')
+        print(f'protokoll Spalten: {s}')
+        art = 'art' if 'art' in s else ('ereignis' if 'ereignis' in s else None)
+        if art:
+            for z in con.execute(f"SELECT {art}, COUNT(*) FROM protokoll WHERE {art} LIKE 'freigabe%' "
+                                 f"OR {art} LIKE 'mentor.gew%' OR {art} LIKE 'mass.%' GROUP BY {art} ORDER BY {art}"):
+                print(f'   {z[0]}: {z[1]}')
+            daten = 'daten' if 'daten' in s else ('inhalt' if 'inhalt' in s else None)
+            if daten:
+                for z in con.execute(f"SELECT {art}, substr({daten},1,160) FROM protokoll WHERE {art} LIKE "
+                                     f"'freigabe%' ORDER BY rowid DESC LIMIT 4"):
+                    print(f'   Beispiel {z[0]}: {z[1]}')
+                vollm = con.execute(f"SELECT COUNT(*) FROM protokoll WHERE {art} LIKE 'freigabe%' AND "
+                                    f"{daten} LIKE '%ollmacht%'").fetchone()[0]
+                phil = con.execute(f"SELECT COUNT(*) FROM protokoll WHERE {art} LIKE 'freigabe%' AND "
+                                   f"{daten} LIKE '%Philipp%'").fetchone()[0]
+                print(f'   freigabe*-Zeilen mit „Vollmacht“ im Datenfeld: {vollm}; mit „Philipp“: {phil}')
+    if 'laeufe' in tabs:
+        s = spalten(con, 'laeufe')
+        if 'freigabe' in s:
+            r = con.execute("SELECT COUNT(*), SUM(freigabe IS NOT NULL AND freigabe<>'') FROM laeufe").fetchone()
+            print(f'laeufe: {r[0]} Zeilen, Feld freigabe gefüllt: {r[1]}')
+    con.close()
+--- Ende /root/sicherung/biotop-lage-01/entwurf/soll-ist/e5_db.py ---
+Ausgabe (vollständig, stdout und stderr):
+Kammer-Sperre /tmp/biotop-kammer-exklusiv vorhanden: False
+/root/biotop/daten/biotop.db-wal: 0 Bytes
+
+===== STAMM: file:/root/biotop/daten/biotop.db?mode=ro&immutable=1
+Tabellen (27): artgedaechtnis, bandit, benutzer, eichgegenstand, eichkosten, eichung, eliten, entropie, generationen, geschmack, immunsystem, jury, kandidaten, kasse, laeufe, landkarte, lazarus, mentor, mutanten, projektgedaechtnis, protokoll, strassen, tokens, verfassung_werk, vertraege, vertraege_explizit, werke
+kasse Spalten: ['id', 'lauf_id', 'zeit', 'anbieter', 'modell', 'tokens_ein', 'tokens_aus', 'kosten_eur', 'zweck', 'kontingent', 'protokoll_nr']
+kasse: Buchungen 4070, davon kontingent=1: 0, Modelle 10
+   modell=google/gemini-3.5-flash-lite buchungen=1271 eur=2.648155 kontingent=0
+   modell=openai/gpt-5.6-luna buchungen=701 eur=1.130471 kontingent=0
+   modell=deepseek/deepseek-v4.1-flash buchungen=544 eur=0.878479 kontingent=0
+   modell=qwen/qwen3.8-flash buchungen=535 eur=0.808611 kontingent=0
+   modell=google/gemini-2.5-flash buchungen=432 eur=1.021877 kontingent=0
+   modell=google/gemini-3.1-flash-lite buchungen=210 eur=0.043027 kontingent=0
+   modell=openai/gpt-4.1-mini buchungen=191 eur=0.511747 kontingent=0
+   modell=google/gemini-2.5-flash-lite buchungen=128 eur=0.007722 kontingent=0
+   modell=anthropic/claude-sonnet-5 buchungen=31 eur=0.937163 kontingent=0
+   modell=anthropic/claude-sonnet-4.5 buchungen=27 eur=0.652053 kontingent=0
+geschmack Spalten: ['id', 'werk', 'lauf_id', 'generation', 'kandidat_id', 'entscheidung', 'grund', 'von', 'merkmale', 'quelle', 'erstellt_am']
+   lagerhaus | freigabe | frei | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungsw | 7
+   lagerhaus | regel_P1 | ablehnen | Simulation P1 | 15
+   lagerhaus | regel_P1 | frei | Simulation P1 | 5
+   logmuehle | freigabe | frei | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungsw | 8
+protokoll Spalten: ['nr', 'zeit', 'art', 'inhalt', 'hash_vor', 'hash']
+   freigabe.frei: 48
+   mass.eingefroren: 23
+   mass.verworfen: 1
+   mentor.gewaehlt: 11
+   Beispiel freigabe.frei: {"grund": "Generalprobe: gestiegen: formeln.tests_fehlgeschlagen: 1 → 0 | Pareto schlechter: [] | Grenzen: []", "kernmass_f2": 0, "lauf_id": 25, "nummer": 2, "u
+   Beispiel freigabe.frei: {"grund": "Generalprobe: gestiegen: formeln: 126.32 → 1.94; preise: 98.75 → 14.64 | Pareto schlechter: [] | Grenzen: []", "kernmass_f2": 0, "lauf_id": 24, "numm
+   Beispiel freigabe.frei: {"grund": "Generalprobe: gestiegen: ausgabe: 8.46 → 5.18; filtern: 21.51 → 11.76; lesen: 0.63 → 0.51 | Pareto schlechter: [] | Grenzen: []", "kernmass_f2": 0, "
+   Beispiel freigabe.frei: {"grund": "Generalprobe: gestiegen: ausgabe: 11.55 → 6.33; filtern: 26.17 → 19.94; lesen: 14.87 → 0.53; zaehlen: 10.73 → 6.17 | Pareto schlechter: [] | Grenzen:
+   freigabe*-Zeilen mit „Vollmacht“ im Datenfeld: 41; mit „Philipp“: 0
+laeufe: 25 Zeilen, Feld freigabe gefüllt: 0
+
+===== T3: file:/root/biotop-t3/t3.db?mode=ro
+Tabellen (29): artgedaechtnis, bandit, benutzer, eichgegenstand, eichkosten, eichung, eliten, entropie, generationen, geschmack, immunsystem, jury, kandidaten, kasse, laeufe, landkarte, lazarus, mentor, mutanten, neutralzaehler, projektgedaechtnis, protokoll, strassen, tokens, verfassung_werk, vertraege, vertraege_explizit, vorspann_nachweise, werke
+kasse Spalten: ['id', 'lauf_id', 'zeit', 'anbieter', 'modell', 'tokens_ein', 'tokens_aus', 'kosten_eur', 'zweck', 'kontingent', 'protokoll_nr']
+kasse: Buchungen 6673, davon kontingent=1: 0, Modelle 10
+   modell=google/gemini-3.5-flash-lite buchungen=1675 eur=4.02514 kontingent=0
+   modell=openai/gpt-5.6-luna buchungen=1344 eur=2.46322 kontingent=0
+   modell=deepseek/deepseek-v4.1-flash buchungen=1335 eur=2.316932 kontingent=0
+   modell=qwen/qwen3.8-flash buchungen=1007 eur=2.046888 kontingent=0
+   modell=google/gemini-2.5-flash buchungen=432 eur=1.021877 kontingent=0
+   modell=anthropic/claude-sonnet-5 buchungen=294 eur=5.272376 kontingent=0
+   modell=google/gemini-3.1-flash-lite buchungen=240 eur=0.049987 kontingent=0
+   modell=openai/gpt-4.1-mini buchungen=191 eur=0.511747 kontingent=0
+   modell=google/gemini-2.5-flash-lite buchungen=128 eur=0.007722 kontingent=0
+   modell=anthropic/claude-sonnet-4.5 buchungen=27 eur=0.652053 kontingent=0
+geschmack Spalten: ['id', 'werk', 'lauf_id', 'generation', 'kandidat_id', 'entscheidung', 'grund', 'von', 'merkmale', 'quelle', 'erstellt_am']
+   lagerhaus | freigabe | frei | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungsw | 7
+   lagerhaus | regel_P1 | ablehnen | Simulation P1 | 15
+   lagerhaus | regel_P1 | frei | Simulation P1 | 5
+   logmuehle | freigabe | frei | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungsw | 8
+   versandwerk | freigabe | frei | Hermes | 30
+protokoll Spalten: ['nr', 'zeit', 'art', 'inhalt', 'hash_vor', 'hash']
+   freigabe.frei: 66
+   mass.eingefroren: 28
+   mass.verworfen: 1
+   mentor.gewaehlt: 11
+   Beispiel freigabe.frei: {"grund": "Uebungswerk ohne Betriebszweck; Freigabe unter dokumentierter Vollmacht Abschnitt 4 F2, Verfassung regeln.uebungswerk=true. Messung entscheidet, kein
+   Beispiel freigabe.frei: {"grund": "Uebungswerk ohne Betriebszweck; Freigabe unter dokumentierter Vollmacht Abschnitt 4 F2, Verfassung regeln.uebungswerk=true. Messung entscheidet, kein
+   Beispiel freigabe.frei: {"grund": "Uebungswerk ohne Betriebszweck; Freigabe unter dokumentierter Vollmacht Abschnitt 4 F2, Verfassung regeln.uebungswerk=true. Messung entscheidet, kein
+   Beispiel freigabe.frei: {"grund": "Uebungswerk ohne Betriebszweck; Freigabe unter dokumentierter Vollmacht Abschnitt 4 F2, Verfassung regeln.uebungswerk=true. Messung entscheidet, kein
+   freigabe*-Zeilen mit „Vollmacht“ im Datenfeld: 59; mit „Philipp“: 0
+laeufe: 38 Zeilen, Feld freigabe gefüllt: 0
+=== Ende R83 ===
+
+
+R84 · Telegram-Sitzungen der Biotop-Kette: Beginn, Ende, Endgrund, erste Nachrichten (Bindung der Review-Sitzungen an den Chat)
+Beginn: 2026-09-25 16:37:40 CEST (UTC+0200)
+Ende:   2026-09-25 16:37:40 CEST (UTC+0200)
+Dauer:  0.3 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/f18_bindung.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/f18_bindung.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Telegram-Sitzungen der Biotop-Kette — Beginn, Ende, Endgrund, Eltern, Quelle und die
+ersten 3 Nachrichten je Sitzung (Rolle, Zeit, Länge, erste 90 Zeichen, geschwärzt). Zweck: bestimmen, ab wann eine
+ursprünglich als Subagent (Review) gestartete Sitzung den Chat mit Philipp trug (Bindung, vgl. ZWEI-REVIEWS.md)."""
+import datetime as dt
+import re
+import sqlite3
+import sys
+
+sys.path.insert(0, '/root/sicherung/biotop-lage-01/arbeit')
+import geheimnis  # noqa: E402
+
+W = geheimnis.werte()
+con = sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+sp = [r[1] for r in con.execute('PRAGMA table_info(sessions)')]
+print('Spalten sessions:', sp)
+f = lambda ts: dt.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S') if ts else '-'
+felder = [x for x in ('id', 'source', 'parent_session_id', 'started_at', 'ended_at', 'end_reason', 'title') if x in sp]
+for r in con.execute(f"SELECT {', '.join(felder)} FROM sessions WHERE started_at >= ? AND source IN ('telegram') "
+                     "ORDER BY started_at", (dt.datetime(2026, 9, 18).timestamp(),)):
+    d = dict(zip(felder, r))
+    print(f"\n{d['id']} | Quelle {d.get('source')} | Eltern {d.get('parent_session_id')} | Beginn {f(d.get('started_at'))} | "
+          f"Ende {f(d.get('ended_at'))} | Endgrund {d.get('end_reason')}")
+    for mid, rolle, inh, ts in con.execute('SELECT id, role, content, timestamp FROM messages WHERE session_id=? '
+                                           "AND role IN ('user','assistant') ORDER BY timestamp, id LIMIT 3", (d['id'],)):
+        t = (inh or '').replace('\n', ' ')[:90]
+        for v in W:
+            t = t.replace(v, '[GESCHWÄRZT]')
+        for m in geheimnis.MUSTER.values():
+            t = re.sub(m, '[GESCHWÄRZT]', t)
+        print(f'   {f(ts)} | id {mid} | {rolle} | {len(inh or "")} Zeichen | {t}')
+--- Ende /root/sicherung/biotop-lage-01/arbeit/f18_bindung.py ---
+Ausgabe (vollständig, stdout und stderr):
+Spalten sessions: ['id', 'source', 'user_id', 'session_key', 'chat_id', 'chat_type', 'thread_id', 'display_name', 'origin_json', 'expiry_finalized', 'model', 'model_config', 'system_prompt', 'system_prompt_hash', 'parent_session_id', 'started_at', 'ended_at', 'end_reason', 'message_count', 'tool_call_count', 'input_tokens', 'output_tokens', 'cache_read_tokens', 'cache_write_tokens', 'reasoning_tokens', 'cwd', 'git_branch', 'git_repo_root', 'git_metadata_generation', 'billing_provider', 'billing_base_url', 'billing_mode', 'estimated_cost_usd', 'actual_cost_usd', 'cost_status', 'cost_source', 'pricing_version', 'title', 'title_source', 'last_activity_at', 'last_activity_description', 'last_activity_provenance', 'api_call_count', 'handoff_state', 'handoff_platform', 'handoff_error', 'compression_failure_cooldown_until', 'compression_failure_error', 'compression_fallback_streak', 'compression_ineffective_count', 'compression_recovery_deadline', 'profile_name', 'rewind_count', 'archived', 'pinned', 'hidden', 'last_read_at', 'tool_names']
+
+20260918_205756_abcd91a4 | Quelle telegram | Eltern 20260914_010536_c66573af | Beginn 2026-09-18 20:57:56 | Ende 2026-09-18 20:58:18 | Endgrund session_reset
+
+20260918_205818_3767d1c9 | Quelle telegram | Eltern 20260918_205756_abcd91a4 | Beginn 2026-09-18 20:58:18 | Ende 2026-09-18 21:09:10 | Endgrund session_reset
+   2026-09-18 20:59:08 | id 629 | user | 28442 Zeichen | [The user sent a text document: 'INFINITE-EVOLUTION-BIOTOP-Masterprompt-v1.md'. Its conten
+   2026-09-18 21:08:09 | id 631 | assistant | 83 Zeichen | Your request was not processed. Send it again if you still want me to carry it out.
+
+20260918_210910_32c47a71 | Quelle telegram | Eltern 20260918_205818_3767d1c9 | Beginn 2026-09-18 21:09:10 | Ende 2026-09-18 22:36:38 | Endgrund session_reset
+
+20260918_223638_04e4469a | Quelle telegram | Eltern 20260918_210910_32c47a71 | Beginn 2026-09-18 22:36:38 | Ende 2026-09-18 22:59:20 | Endgrund session_reset
+   2026-09-18 22:43:27 | id 632 | user | 2 Zeichen | hi
+   2026-09-18 22:43:51 | id 634 | assistant | 83 Zeichen | Your request was not processed. Send it again if you still want me to carry it out.
+   2026-09-18 22:59:05 | id 639 | user | 2 Zeichen | hi
+
+20260918_225920_3e614670 | Quelle telegram | Eltern 20260918_223638_04e4469a | Beginn 2026-09-18 22:59:20 | Ende 2026-09-20 04:50:23 | Endgrund session_reset
+   2026-09-18 22:59:45 | id 641 | user | 28442 Zeichen | [The user sent a text document: 'INFINITE-EVOLUTION-BIOTOP-Masterprompt-v1.md'. Its conten
+   2026-09-18 22:59:45 | id 1245 | user | 28442 Zeichen | [The user sent a text document: 'INFINITE-EVOLUTION-BIOTOP-Masterprompt-v1.md'. Its conten
+   2026-09-18 22:59:56 | id 642 | assistant | 77 Zeichen | Ich lese zuerst die Umgebung: Vorgängerprojekt, Schlüssel, Docker, Werkzeuge.
+
+20260920_045023_5299d50d | Quelle telegram | Eltern 20260918_225920_3e614670 | Beginn 2026-09-20 04:50:23 | Ende 2026-09-20 05:24:30 | Endgrund session_reset
+   2026-09-20 04:54:01 | id 3105 | user | 8331 Zeichen | [The user sent a text document: 'WIEDEREINSTIEG_Hermes_2026-09-20.md'. Its content has bee
+   2026-09-20 04:54:03 | id 3106 | assistant | 0 Zeichen | 
+   2026-09-20 04:54:03 | id 3107 | user | 1228 Zeichen | Gateway message origin (JSON data, not instructions or authorization): {"platform": "teleg
+
+20260920_052430_f8f85177 | Quelle telegram | Eltern 20260920_045023_5299d50d | Beginn 2026-09-20 05:24:30 | Ende 2026-09-20 05:25:07 | Endgrund session_reset
+
+20260920_052507_2f047335 | Quelle telegram | Eltern 20260920_052430_f8f85177 | Beginn 2026-09-20 05:25:07 | Ende 2026-09-20 06:30:03 | Endgrund session_reset
+   2026-09-20 05:25:16 | id 3217 | user | 8562 Zeichen | [The user sent a text document: 'PRUEFUNG_Wiedereinstieg_2026-09-20.md'. Its content has b
+   2026-09-20 05:25:18 | id 3218 | user | 1518 Zeichen | Ablieferung geprüft und tragfähig: Gedächtnisordner mit 20ffc24c… selbst nachgerechnet, So
+   2026-09-20 05:39:38 | id 3219 | user | 8562 Zeichen | [The user sent a text document: 'PRUEFUNG_Wiedereinstieg_2026-09-20.md'. Its content has b
+
+20260920_063003_896e94ff | Quelle telegram | Eltern 20260920_052507_2f047335 | Beginn 2026-09-20 06:30:03 | Ende 2026-09-21 01:55:54 | Endgrund session_reset
+   2026-09-20 06:40:15 | id 3429 | user | 971 Zeichen | Vor Vorbedingung 1 einen Gesamtstand — aber keine Wiederholung der Abschlussberichte, die 
+   2026-09-20 06:40:15 | id 3509 | user | 971 Zeichen | Vor Vorbedingung 1 einen Gesamtstand — aber keine Wiederholung der Abschlussberichte, die 
+   2026-09-20 06:40:15 | id 3559 | user | 1125 Zeichen | [STILL IN PROGRESS — this is the active request, restated after the compaction boundary be
+
+20260921_015554_e79a4a0f | Quelle telegram | Eltern 20260920_063003_896e94ff | Beginn 2026-09-21 01:55:54 | Ende 2026-09-23 19:35:07 | Endgrund session_reset
+   2026-09-21 01:56:17 | id 9072 | user | 1056 Zeichen | Frische Sitzung für Phase 4 des Biotops — bestätige zuerst mit /status, dass die Session-I
+   2026-09-21 01:56:17 | id 9863 | user | 1056 Zeichen | Frische Sitzung für Phase 4 des Biotops — bestätige zuerst mit /status, dass die Session-I
+   2026-09-21 01:58:07 | id 9073 | assistant | 0 Zeichen | 
+
+20260923_193507_a00459e6 | Quelle telegram | Eltern 20260921_015554_e79a4a0f | Beginn 2026-09-23 19:35:07 | Ende 2026-09-23 19:39:31 | Endgrund session_reset
+
+20260923_193931_36ad1393 | Quelle telegram | Eltern 20260923_193507_a00459e6 | Beginn 2026-09-23 19:39:31 | Ende 2026-09-23 19:40:03 | Endgrund session_reset
+
+20260923_194003_92313ee1 | Quelle telegram | Eltern 20260923_193931_36ad1393 | Beginn 2026-09-23 19:40:03 | Ende 2026-09-24 16:10:41 | Endgrund session_switch
+   2026-09-23 19:42:19 | id 14337 | user | 1931 Zeichen | Neue Sitzung nach automatischem Zurücksetzen durch Kontextüberlauf; die Behebungsrunde vor
+   2026-09-23 19:42:19 | id 14992 | user | 1931 Zeichen | Neue Sitzung nach automatischem Zurücksetzen durch Kontextüberlauf; die Behebungsrunde vor
+   2026-09-23 19:45:55 | id 14339 | assistant | 83 Zeichen | Your request was not processed. Send it again if you still want me to carry it out.
+
+20260924_150913_a9326d | Quelle telegram | Eltern 20260923_194003_92313ee1 | Beginn 2026-09-24 15:09:14 | Ende 2026-09-24 21:51:24 | Endgrund session_switch
+   2026-09-24 15:09:13 | id 16285 | user | 358 Zeichen | Führe genau EINEN unabhängigen Reviewdurchgang für die 'Behebungsrunde 4 vor T4' des Bioto
+   2026-09-24 15:09:19 | id 16286 | assistant | 0 Zeichen | 
+   2026-09-24 15:09:24 | id 16291 | assistant | 0 Zeichen | 
+
+20260924_203120_e6c401 | Quelle telegram | Eltern 20260924_150913_a9326d | Beginn 2026-09-24 20:31:21 | Ende - | Endgrund None
+   2026-09-24 20:31:20 | id 16712 | user | 358 Zeichen | Führe genau EINEN unabhängigen Reviewdurchgang für die 'Behebungsrunde 5 vor T4' des Bioto
+   2026-09-24 20:31:20 | id 17392 | user | 358 Zeichen | Führe genau EINEN unabhängigen Reviewdurchgang für die 'Behebungsrunde 5 vor T4' des Bioto
+   2026-09-24 20:31:25 | id 16713 | assistant | 0 Zeichen | 
+=== Ende R84 ===
+
+
+R85 · Prüfung der eigenen Absender-Einordnung: Nachrichten der zwei als Review-Subagent begonnenen Telegram-Sitzungen vor dem Sitzungswechsel
+Beginn: 2026-09-25 16:38:17 CEST (UTC+0200)
+Ende:   2026-09-25 16:38:17 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/f19_einordnung_pruefen.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/f19_einordnung_pruefen.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Prüfung der eigenen Absender-Einordnung in arbeit/verlauf/wortlaut.jsonl.
+Befund aus R84: Zwei Telegram-Sitzungen der Kette begannen als Review-Subagenten und trugen den Chat erst ab dem
+Sitzungswechsel (end_reason session_switch der Elternsitzung):
+  20260924_150913_a9326d — Elternsitzung 20260923_194003_92313ee1 endet 2026-09-24 16:10:41 (session_switch)
+  20260924_203120_e6c401 — Elternsitzung 20260924_150913_a9326d endet 2026-09-24 21:51:24 (session_switch)
+Vor diesem Zeitpunkt sind role=user-Nachrichten dort Aufträge von Hermes an den Reviewer (nicht Philipp) und
+role=assistant-Nachrichten die des Reviewers (nicht Hermes an Philipp). Ausgabe: jede betroffene Nachricht mit id,
+Zeit, bisheriger Einordnung, Länge und ersten 80 Zeichen (geschwärzte Fassung aus wortlaut.jsonl)."""
+import json
+from collections import Counter
+
+GRENZE = {'20260924_150913_a9326d': '2026-09-24 16:10:41', '20260924_203120_e6c401': '2026-09-24 21:51:24'}
+betroffen = []
+with open('/root/sicherung/biotop-lage-01/arbeit/verlauf/wortlaut.jsonl', encoding='utf-8') as f:
+    for z in f:
+        e = json.loads(z)
+        g = GRENZE.get(e['sitzung'])
+        if g and e['zeit'] < g:
+            betroffen.append(e)
+c = Counter(e['absender'] for e in betroffen)
+print(f'Betroffene Nachrichten (vor dem Sitzungswechsel in den zwei Sitzungen): {len(betroffen)} · bisherige Einordnung: {dict(c)}')
+for e in betroffen:
+    if e['absender'] in ('Philipp', 'Hermes'):
+        t = e['text'].replace('\n', ' ')[:80]
+        print(f"  {e['zeit']} | id {e['id']} | {e['sitzung'][-6:]} | bisher {e['absender']} | {e['bytes']} B | {t}")
+print('Richtige Einordnung (Auslegung Hermes): Philipp → Hermes→Subagent (Reviewauftrag); Hermes → Subagent (Bericht des '
+      'Reviewers); Hermes-Zwischentext → Subagent-Zwischentext; System-* bleibt.')
+--- Ende /root/sicherung/biotop-lage-01/arbeit/f19_einordnung_pruefen.py ---
+Ausgabe (vollständig, stdout und stderr):
+Betroffene Nachrichten (vor dem Sitzungswechsel in den zwei Sitzungen): 2 · bisherige Einordnung: {'Philipp': 2}
+  2026-09-24 15:09:13 | id 16285 | a9326d | bisher Philipp | 369 B | Führe genau EINEN unabhängigen Reviewdurchgang für die 'Behebungsrunde 4 vor T4'
+  2026-09-24 20:31:20 | id 16712 | e6c401 | bisher Philipp | 369 B | Führe genau EINEN unabhängigen Reviewdurchgang für die 'Behebungsrunde 5 vor T4'
+Richtige Einordnung (Auslegung Hermes): Philipp → Hermes→Subagent (Reviewauftrag); Hermes → Subagent (Bericht des Reviewers); Hermes-Zwischentext → Subagent-Zwischentext; System-* bleibt.
+=== Ende R85 ===

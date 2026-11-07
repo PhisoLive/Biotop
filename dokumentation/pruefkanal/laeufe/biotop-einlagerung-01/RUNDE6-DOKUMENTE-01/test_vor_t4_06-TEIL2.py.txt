@@ -1,0 +1,547 @@
+    geschriebener Code — tragfähig."""
+    alt = EXC.format("PLZ")
+    neu = EXC.format(meldung) if meldung != "PLZ" else alt.replace("    return x\n", "    y = x\n    return y\n")
+    r = _organ(tmp_path, monkeypatch, alt, neu, LAST_EXC)
+    assert r["geurteilt"] is True and r["tragfaehig"] is tragfaehig, (r.get("grund_art"), r.get("grund"))
+    if tragfaehig:
+        assert r["anzahl_abweichungen"] == 0, r["abweichungen"]
+    else:
+        assert any(k.startswith("paket.m.a:pruefe") for k in r["abweichungen"]), r["abweichungen"]
+
+
+def _wirft(m):
+    def g():
+        raise ValueError(m)
+    return g
+
+
+def _mit_feld(feld):
+    e = ValueError("ungültig")
+    e.feld = feld
+    return e
+
+
+@pytest.mark.parametrize("fall", ["attribut", "meldung_ab_200", "geworfen"])
+def test_x7_ausnahme_inhalt_lokal(fall):
+    """Review 05 Nr. 4 lokal (lokal_b.out.txt:13-14, 19): Attribut der Ausnahme, Meldungen, die sich erst nach Zeichen 200
+    unterscheiden, und die geworfene Ausnahme in wert() — jetzt je verschieden. Der Text der geworfenen Ausnahme beginnt
+    weiter mit 'Fehler:<Typ>'."""
+    vh = _vh()
+    if fall == "attribut":
+        a, b = vh.text_von(_mit_feld("plz")), vh.text_von(_mit_feld("ort"))
+    elif fall == "meldung_ab_200":
+        a, b = vh.text_von(ValueError("x" * 250 + "A")), vh.text_von(ValueError("x" * 250 + "B"))
+    else:
+        a, b = vh.wert(_wirft("PLZ ungültig"))["text"], vh.wert(_wirft("Ort ungültig"))["text"]
+        assert a.startswith("Fehler:ValueError") and b.startswith("Fehler:ValueError"), (a, b)
+    assert a != b, (fall, a[:200])
+
+
+# ================================================================ U2n Nachtrag zu Entscheidung 2: Werte mit Verhalten
+# Gemessen 25.09. (/tmp/r6-s1/grenzen.py): eine Funktion als Wert wurde nur nach ihrem Namen verglichen — zwei Closures
+# gleichen Namens mit anderem Inhalt hatten dieselbe Form, ohne Vermerk; ein Wert, dessen Verhalten die Sonde nicht
+# beobachtet (Lambda, innere oder private Funktion, nicht öffentliche Klasse), fiel still durch.
+def _mache(z):
+    return lambda: z
+
+
+def _mit_vorgabe(n):
+    def inner(x, k=n):
+        return x + k
+    return inner
+
+
+class _Stand:
+    def __init__(self, n):
+        self.n = n
+
+    def lies(self):
+        return self.n
+
+
+@pytest.mark.parametrize("fall", ["zelle", "vorgabe", "methode", "eingebaut"])
+def test_u2n_funktion_als_wert_traegt_ihren_inhalt(fall):
+    """Closure-Zellen, Vorgaben und bei gebundenen Methoden das Objekt (auch bei eingebauten: `liste.append`) gehören
+    zur Form (an 0c2f058 und nach E2 nur der Name); gleicher Inhalt bleibt gleich (Gegenprobe in derselben Zeile)."""
+    vh = _vh()
+    a, b, c = {"zelle": (_mache(1), _mache(2), _mache(1)),
+               "vorgabe": (_mit_vorgabe(1), _mit_vorgabe(2), _mit_vorgabe(1)),
+               "methode": (_Stand(1).lies, _Stand(2).lies, _Stand(1).lies),
+               "eingebaut": ([1].append, [2].append, [1].append)}[fall]
+    assert vh.text_von(a) != vh.text_von(b), (fall, vh.text_von(a))
+    assert vh.text_von(a) == vh.text_von(c), (fall, vh.text_von(a), vh.text_von(c))
+
+
+U2N_MODUL = ("def oeffentlich(x):\n    return x\n\n\ndef _privat(x):\n    return x\n\n\n"
+             "def fabrik(n):\n    return lambda x: x > n\n\n\n"
+             "class Offen:\n    def m(self):\n        return 1\n\n\n"
+             "class _Verdeckt:\n    def m(self):\n        return 1\n\n\n"
+             "class Erbe(_Verdeckt):\n    pass\n")
+
+
+def test_u2n_unbeobachteter_wert_eines_geaenderten_moduls_ist_vermerkt(monkeypatch):
+    """Eine Funktion als Wert aus einem vom Kandidaten geänderten Modul, deren Verhalten die Sonde nicht beobachtet
+    (private Funktion, Lambda, gebundene Methode einer nicht öffentlichen Klasse), steht in `fehlend` mit ihrem Namen in
+    «…» (gezählte Enthaltung; der Vergleich wertet den Vermerk, wenn der Kandidat ihren Besitzer ändert). Gegenproben
+    ohne Vermerk: eingewickelte Funktion, Klasse und Instanzen (ihre Daten sind erfasst), Funktion eines anderen Moduls,
+    derselbe private Wert, wenn sein Modul nicht geändert ist."""
+    import types as _types
+    vh = _vh()
+    mod = _types.ModuleType("u2n_mod")
+    exec(compile(U2N_MODUL, "u2n_mod.py", "exec"), mod.__dict__)
+    monkeypatch.setitem(sys.modules, "u2n_mod", mod)
+    vh.alle_wickeln(["u2n_mod"], vh.wickeln)
+
+    def vermerk(wert, module=("u2n_mod",)):
+        vh.REQ["module"] = list(module)
+        fehl = []
+        vh.text_von(wert, fehl)
+        return [g for g in fehl if "«" in g]
+    for name, wert in [("privat", mod._privat), ("lambda", mod.fabrik.__wrapped__(1)),
+                       ("methode_privater_klasse", mod._Verdeckt().m)]:
+        assert vermerk(wert), (name, vh.text_von(wert))
+    for name, wert in [("eingewickelt", mod.oeffentlich), ("klasse", mod._Verdeckt), ("instanz", mod._Verdeckt()),
+                       ("beobachtete_instanz", mod.Offen()), ("fremd", pathlib.Path.exists)]:
+        assert not vermerk(wert), (name, vermerk(wert))
+    assert not vermerk(mod._privat, module=()), "Modul nicht geändert: kein Vermerk"
+
+
+FABRIK = "def mache_filter(n: int):\n    {}\n\n\ndef doppel(x: int) -> int:\n    return {}\n"
+LAST_FABRIK = "from paket.m.a import mache_filter, doppel\nf = mache_filter(3)\nf(3)\nf(5)\ndoppel(3)"
+REGISTER = ("def _add(a: int, b: int) -> int:\n    return a {} b\n\n\nOPS = {{'add': _add}}\n\n\n"
+            "def op(name: str):\n    return OPS[name]\n\n\ndef doppel(x: int) -> int:\n    return 2 * x\n")
+LAST_REGISTER = "from paket.m.a import op, doppel\nop('add')(1, 2)\ndoppel(3)"
+U2N_ORGAN = {
+    "lambda": (FABRIK.format("return lambda x: x > n", "2 * x"), FABRIK.format("return lambda x: x >= n", "2 * x"),
+               LAST_FABRIK, "paket.m.a:mache_filter"),
+    "zelle": (FABRIK.format("return lambda x: x > n", "2 * x"),
+              FABRIK.format("m = n + 1\n    return lambda x: x > m", "2 * x"), LAST_FABRIK, "paket.m.a:mache_filter"),
+    "doppel": (FABRIK.format("return lambda x: x > n", "2 * x"), FABRIK.format("return lambda x: x > n", "x + x"),
+               LAST_FABRIK, "paket.m.a:mache_filter"),
+    "register": (REGISTER.format("+"), REGISTER.format("-"), LAST_REGISTER, "paket.m.a:op"),
+    "register_lieferantin": (REGISTER.format("+"),
+                             REGISTER.format("+").replace("    return OPS[name]\n", "    f = OPS[name]\n    return f\n"),
+                             LAST_REGISTER, "paket.m.a:op"),
+}
+
+
+@pytest.mark.parametrize("fall,soll", [("lambda", "enthaltung"), ("zelle", "abgelehnt"), ("doppel", "tragfaehig"),
+                                       ("doppel", "gezaehlt"), ("register", "enthaltung"),
+                                       ("register_lieferantin", "gezaehlt")])
+def test_u2n_wert_ohne_beobachtung_am_organ(tmp_path, monkeypatch, fall, soll):
+    """Am Organ in der Kammer. Der Kandidat ändert das Verhalten einer Funktion, die als Wert zurückkommt und die die
+    Sonde nicht beobachtet: den Körper eines Lambdas, das eine öffentliche Fabrik liefert (lambda); einen privaten
+    Helfer, den eine unveränderte Funktion aus einem Register liefert (register) — an 0c2f058 und nach E2 „0
+    Abweichungen, tragfähig“ (stiller Durchlass). Jetzt: die liefernde Funktion ist unvollständig erfasst („Funktion als
+    Wert“) und der Besitzer des Werts ist betroffen — der Vergleich enthält sich. Ändert er den Inhalt der Closure, ist
+    das eine Abweichung (zelle, abgelehnt). Gegenproben: der Kandidat ändert nur eine andere Funktion (doppel) bzw. nur
+    die Lieferantin, nicht den Wert (register_lieferantin) — geurteilt, tragfähig; die Lieferantin ist eine gezählte
+    Enthaltung (gezaehlt)."""
+    alt, neu, last, name = U2N_ORGAN[fall]
+    assert neu != alt
+    r = _organ(tmp_path, monkeypatch, alt, neu, last)
+    if soll == "enthaltung":
+        assert r.get("enthaltung") is True and r["grund_art"] == "betroffene_funktion_enthaelt_sich", (r.get("grund_art"), r.get("grund"))
+        assert name in r["grund"] and r["tragfaehig"] is False, r["grund"]
+    elif soll == "abgelehnt":
+        assert r["geurteilt"] is True and r["tragfaehig"] is False and not r.get("enthaltung"), (r.get("grund_art"), r.get("grund"))
+        assert any(k.startswith(name) for k in r["abweichungen"]), r["abweichungen"]
+    else:
+        assert r["geurteilt"] is True and r["tragfaehig"] is True and not r.get("enthaltung"), (r.get("grund_art"), r.get("grund"))
+        if soll == "gezaehlt":
+            assert "«" in (r.get("enthaltungen") or {}).get(name, ""), r.get("enthaltungen")
+
+
+# ================================================================ M2(b) (S1b): direkt geändert, nicht beobachtet
+# Bauauftrag BAU-S1B-M2B.md, Teil B (Festlegung „M2(b) (07:55)“ in bau/S1-PLAN.md mit Klarstellung). D = die direkt
+# geänderten Funktionen: eigener Knoten verschieden oder neu; Klassenrest geändert → alle Methoden der Klasse; Modulrest
+# geändert → alle Funktionen des Moduls; entfernte zählen nicht. X aus D ist nicht beobachtet, wenn die Sonde auf
+# mindestens einer Seite keine Beobachtung mit Inhalt von X hat (`inhalt`), gleich ob eingewickelt: Methoden nicht
+# öffentlicher Klassen, Dunder-Methoden, private Funktionen, nie erreichte öffentliche Funktionen. X ist gedeckt, wenn es
+# privat und keine Dunder-Methode ist, auf Modul- und Klassenebene nicht genannt wird (Namen, Zeichenketten) und jede
+# Aufruferin im Modul (ihr Körper nennt den Kurznamen; mindestens eine; ein Zyklus ist nicht gedeckt) beobachtet oder
+# gedeckt ist. Nicht beobachtet und nicht gedeckt → gezählte Enthaltung „betroffen, von der Sonde nicht beobachtet
+# (<Grund>)“, der Vergleich enthält sich (`betroffene_funktion_enthaelt_sich`), aegis stellt zurück. Eine ungedeckte
+# Abweichung lehnt immer ab. Gemessen am Stand nach E3 (bau/S1-PLAN.md 07:42): verdeckt „keine Verhaltensabweichung“,
+# tragfähig — ein stiller Durchlass.
+M2_QUELLE = R3.QUELLE + (
+    '\n\nclass _Konto:\n'
+    '    """Konto einer nicht öffentlichen Klasse: die Sonde wickelt ihre Methoden nicht ein."""\n\n'
+    '    def __init__(self, stand: int):\n        self.stand = stand\n\n'
+    '    def buchen(self, betrag: int) -> int:\n        self.stand += betrag\n        return self.stand\n\n\n'
+    'def eroeffne(stand: int) -> "_Konto":\n'
+    '    """Öffentliche Fabrik: liefert eine Instanz der nicht öffentlichen Klasse."""\n'
+    '    return _Konto(stand)\n\n\n'
+    'class Geld:\n    """Betrag in Cent, addierbar."""\n\n'
+    '    def __init__(self, cent: int):\n        self.cent = cent\n\n'
+    '    def __add__(self, anderes: "Geld") -> "Geld":\n        return Geld(self.cent + anderes.cent)\n\n\n'
+    'def _runden(x: float) -> int:\n    return int(x + 0.5)\n\n\n'
+    'def preis(netto: float) -> int:\n    """Bruttopreis in Cent, gerundet über den privaten Helfer."""\n'
+    '    return _runden(netto * 1.19)\n\n\n'
+    'def nie(*, n: int) -> int:\n'
+    '    """Weder von der Last noch vom Korpus erreicht (Pflicht-Schlüsselwortparameter: keine Randfälle)."""\n'
+    '    return n + 1\n\n\n'
+    'def _schluessel(eintrag: dict) -> int:\n    return eintrag["rang"]\n\n\n'
+    'def ordnung():\n    """Liefert den Sortierschlüssel (privater Helfer) als Wert."""\n    return _schluessel\n')
+M2_LAST = R3.REFERENZLAST + (
+    "    from probewerk.werk.kern import eroeffne, Geld, preis, ordnung\n"
+    "    for i in range(6):\n"
+    "        eroeffne(i).buchen(2)\n"
+    "        Geld(i) + Geld(2)\n"
+    "        preis(1.5 * i)\n"
+    "    sorted([{'rang': 3}, {'rang': 1}, {'rang': 2}], key=ordnung())\n")
+PW = "probewerk.werk.kern"
+# Fall: (Anker in M2_QUELLE, Ersatz, Soll-Status, Funktion der Zusicherung, X selbst als M2(b)-Enthaltung verlangt)
+M2_FAELLE = {
+    "verdeckt": ("        self.stand += betrag\n        return self.stand\n\n\ndef eroeffne",
+                 "        self.stand += 2 * betrag\n        return self.stand\n\n\ndef eroeffne",
+                 "zurueckgestellt", f"{PW}:_Konto.buchen", True),
+    "verdeckt_gegen": ("    return _Konto(stand)\n", "    konto = _Konto(stand)\n    return konto\n", "ueberlebt", None,
+                       False),
+    "dunder": ("        return Geld(self.cent + anderes.cent)\n", "        return Geld(self.cent - anderes.cent)\n",
+               "zurueckgestellt", f"{PW}:Geld.__add__", True),
+    "dunder_gegen": ("    return _runden(netto * 1.19)\n", "    return _runden(1.19 * netto)\n", "ueberlebt", None, False),
+    "helfer_gedeckt": ("    return int(x + 0.5)\n", "    return int(0.5 + x)\n", "ueberlebt", None, False),
+    "helfer_sichtbar": ("    return int(x + 0.5)\n", "    return int(x)\n", "abgelehnt", f"{PW}:preis", False),
+    "nicht_erreicht": ("    return n + 1\n", "    return n + 2\n", "zurueckgestellt", f"{PW}:nie", True),
+    "nicht_erreicht_gegen": ("    return x * x\n", "    return x ** 2\n", "ueberlebt", f"{PW}:nie", False),
+    "wert_verdeckt": ('    return eintrag["rang"]\n', '    return -eintrag["rang"]\n', "zurueckgestellt",
+                      f"{PW}:_schluessel", False),
+}
+
+
+@pytest.mark.parametrize("fall", list(M2_FAELLE))
+def test_m2_direkt_geaendert_und_unbeobachtet(tmp_path, monkeypatch, fall):
+    """Durch aegis.pruefen in der echten Kammer (Prüfwerk probewerk + M2_QUELLE, Last M2_LAST). Proben (zurückgestellt,
+    grund_art betroffene_funktion_enthaelt_sich): verdeckt (öffentliche Fabrik liefert eine `_Konto`-Instanz, der
+    Kandidat ändert `_Konto.buchen`, die Last ruft `buchen`), dunder (`Geld.__add__`, Last `Geld(i) + Geld(2)`),
+    nicht_erreicht (geänderte öffentliche Funktion `nie`, von Korpus und Last nicht erreicht) — X selbst gezählt
+    „betroffen, von der Sonde nicht beobachtet“; wert_verdeckt (privater Helfer `_schluessel`, von `ordnung` als Wert
+    zurückgegeben, geändert) — die Enthaltungen nennen `_schluessel` (selbst oder als Wert «…» der Lieferantin; am Stand
+    nach dem Nachtrag zu E2/E3 schon zurückgestellt, an 0c2f058 nicht). Gegenproben: verdeckt_gegen und dunder_gegen
+    (nur eine andere öffentliche Funktion verhaltensgleich geändert) — geurteilt, tragfähig; helfer_gedeckt (`_runden`,
+    gerufen von der beobachteten `preis`, verhaltensgleich) — tragfähig; helfer_sichtbar (derselbe Helfer mit
+    Verhaltensänderung) — abgelehnt an der Aufruferin; nicht_erreicht_gegen (`nie` unverändert) — gezählt („nicht
+    erreicht“), tragfähig."""
+    alt, ersatz, soll, name, selbst = M2_FAELLE[fall]
+    assert M2_QUELLE.count(alt) == 1, alt
+    neu = M2_QUELLE.replace(alt, ersatz)
+    monkeypatch.setattr(R3, "QUELLE", M2_QUELLE)
+    monkeypatch.setattr(R3, "REFERENZLAST", M2_LAST)
+    u, v = R3._pruefen(tmp_path, monkeypatch, R3._diff(M2_QUELLE, neu))
+    be = v.get("betroffene_enthaltungen") or {}
+    befund = {"status": u["status"], "grund": str(u.get("grund"))[:600], "grund_art": v.get("grund_art"),
+              "beobachtet": v.get("beobachtete_funktionen"),
+              "enthaltung_x": (v.get("enthaltungen") or {}).get(name) if name else None,
+              "betroffene_enthaltungen": be, "direkt": (v.get("betroffen") or {}).get("direkt")}
+    assert u["status"] == soll, befund
+    if soll == "zurueckgestellt":
+        assert v.get("enthaltung") is True and v.get("grund_art") == "betroffene_funktion_enthaelt_sich", befund
+        assert name in be or any(f"«{name}»" in str(g) for g in be.values()), befund
+        if selbst:
+            assert (v.get("enthaltungen") or {}).get(name, "").startswith("betroffen, von der Sonde nicht beobachtet"), befund
+            assert name in be, befund
+    elif soll == "ueberlebt":
+        assert v.get("geurteilt") is True and v.get("tragfaehig") is True and not v.get("enthaltung"), befund
+        if name:
+            assert (v.get("enthaltungen") or {}).get(name) == "nicht erreicht", befund
+    else:
+        assert v.get("geurteilt") is True and v.get("tragfaehig") is False, befund
+        assert any(k.startswith(name) for k in v.get("ungedeckt") or []), befund
+
+
+M2_REGEL = ("NAMEN = ['_e']\n\n\n"
+            "def _a(x):\n    return x + 1\n\n\n"
+            "def _b(x):\n    return _a(x) * 2\n\n\n"
+            "def oben(x):\n    return _b(x)\n\n\n"
+            "def _c(x):\n    return x - 1\n\n\n"
+            "def mitte(x):\n    return _c(x)\n\n\n"
+            "def _r(x):\n    return x if x < 1 else _r(x - 1)\n\n\n"
+            "def rekursiv(x):\n    return _r(x)\n\n\n"
+            "def _e(x):\n    return x\n\n\n"
+            "def benutzt_e(x):\n    return _e(x)\n\n\n"
+            "def _d(x):\n    return x\n")
+M2_REGEL_BEOBACHTET = ["benutzt_e", "oben", "rekursiv"]         # `mitte` erreichen Last und Korpus nicht
+
+
+@pytest.mark.parametrize("fall,alt,neu,soll", [
+    ("kette", "    return x + 1\n", "    return 1 + x\n", "gedeckt"),
+    ("aufruferin_unbeobachtet", "    return x - 1\n", "    return x - 2\n", "paket.m.a:_c"),
+    # Geändert in S1c (BAU-S1C-UNBEOBACHTET.md, F): ein Selbstaufruf ist keine Aufruferin — `_r` (nur von der beobachteten
+    # `rekursiv` gerufen) ist gedeckt; die Änderung ändert das Verhalten von `rekursiv` nicht sichtbar (Sonde gestellt:
+    # gleich) → geurteilt. Gegenseitige Rekursion bleibt nicht gedeckt: test_w_ef_regel_am_organ[gegenseitig].
+    ("zyklus", "    return x if x < 1 else _r(x - 1)\n", "    return x if x < 2 else _r(x - 1)\n", "gedeckt"),
+    ("ebene_zeichenkette", "def _e(x):\n    return x\n", "def _e(x):\n    return -x\n", "paket.m.a:_e"),
+    ("ohne_aufruferin", "def _d(x):\n    return x\n", "def _d(x):\n    return -x\n", "paket.m.a:_d"),
+    ("instabil", "def oben(x):\n    return _b(x)\n", "def oben(x):\n    return _b(x) + 0\n", "paket.m.a:oben"),
+])
+def test_m2_regel_gedeckt_am_organ(tmp_path, monkeypatch, fall, alt, neu, soll):
+    """Deckungsregel am Organ, Sonde gestellt (beobachtet mit Inhalt: benutzt_e, oben, rekursiv; `mitte` nicht erreicht),
+    Syntaxbaum echt. Gegenprobe kette: `_a` geändert, gerufen nur von `_b`, das nur die beobachtete `oben` ruft — gedeckt,
+    geurteilt, tragfähig; ebenso zyklus (`_r` ruft sich selbst, sonst nur von der beobachteten `rekursiv` gerufen — S1c
+    F, vorher als Zyklus nicht gedeckt). Proben (X selbst „betroffen, von der Sonde nicht beobachtet“, der Vergleich
+    enthält sich):
+    `_c` nur von der nicht erreichten `mitte` gerufen; `_e` auf Modulebene in einer
+    Zeichenkette genannt; `_d` ohne Aufruferin; `oben` geändert, ihre Beobachtungen schwanken alle an der Vorgeneration
+    (instabil: keine Beobachtung bleibt — Auslegung S1b, Entscheidung 3 „enthält sich eine geänderte Funktion“)."""
+    assert M2_REGEL.count(alt) == 1, alt
+    w = _werk(tmp_path, M2_REGEL)
+    oeffentlich = ["benutzt_e", "mitte", "oben", "rekursiv"]
+
+    def seite(werte):
+        return {"gueltig": True, "beobachtungen": {f"paket.m.a:{f}#0": x for f, x in werte.items()},
+                "inhalt": {f"paket.m.a:{f}": 1 for f in werte}, "eingewickelt": {"paket.m.a": oeffentlich},
+                "muster": {f"paket.m.a:{f}#0": [] for f in werte}}
+    gleich = {f: "1" for f in M2_REGEL_BEOBACHTET}
+    folge = iter([seite(gleich), seite({**gleich, "oben": "2"} if fall == "instabil" else gleich), seite(gleich)])
+    monkeypatch.setattr(vv, "beobachten", lambda *a, **k: next(folge))
+    r = vv.pruefen(w, {"paket/m/a.py": M2_REGEL.replace(alt, neu)}, "last", ["m"], {})
+    befund = (r.get("grund_art"), r.get("grund"), r.get("enthaltungen"))
+    if soll == "gedeckt":
+        assert r["geurteilt"] is True and r["tragfaehig"] is True and not r.get("enthaltung"), befund
+    else:
+        assert r.get("enthaltung") is True and r["grund_art"] == "betroffene_funktion_enthaelt_sich", befund
+        assert (r.get("enthaltungen") or {}).get(soll, "").startswith("betroffen, von der Sonde nicht beobachtet"), befund
+
+
+M2_DEKO = ("_REG = []\n\n\n"
+           "def _merke(f):\n    _REG.append(f)\n    return f\n\n\n"
+           "@_merke\ndef _g(x):\n    return x + 1\n\n\n"
+           "def oben(x):\n    return _g(x)\n\n\n"
+           "def _h(x):\n    return x + 1\n\n\n"
+           "def mitte(x):\n    return _h(x)\n")
+M2_ANDERES = "from paket.m.a import _h\n\n\ndef nutze(x):\n    return _h(x) * 3\n"
+
+
+@pytest.mark.parametrize("fall,alt,neu,soll", [
+    ("dekoriert", "def _g(x):\n    return x + 1\n", "def _g(x):\n    return x + 2\n", "paket.m.a:_g"),
+    ("anderes_modul", "def _h(x):\n    return x + 1\n", "def _h(x):\n    return x + 2\n", "paket.m.a:_h"),
+    ("gegen", "def _h(x):\n    return x + 1\n", "def _h(x):\n    return 1 + x\n", "gedeckt"),
+])
+def test_m2_regel_dekorator_und_anderes_modul(tmp_path, monkeypatch, fall, alt, neu, soll):
+    """Auslegung S1b von „auf Modul- oder Klassenebene genannt“ (bau/S1B-PLAN.md): ein Dekorator, der die Funktion
+    weitergeben kann (hier ein Register), ist eine Nennung auf der Ebene (`_g = _merke(_g)`); ein anderes Quellmodul, das
+    den privaten Helfer importiert, ruft ihn an der Deckungsregel vorbei — beides nicht gedeckt, obwohl die einzige
+    Aufruferin im Modul beobachtet ist. Gegenprobe: `_h` verhaltensgleich geändert, kein anderes Modul nennt ihn —
+    gedeckt, geurteilt, tragfähig. Sonde gestellt (beobachtet: oben, mitte), Syntaxbaum echt."""
+    assert M2_DEKO.count(alt) == 1, alt
+    w = _werk(tmp_path, M2_DEKO)
+    if fall == "anderes_modul":
+        (w / "paket" / "m" / "b.py").write_text(M2_ANDERES)
+
+    def seite():
+        return {"gueltig": True, "beobachtungen": {"paket.m.a:oben#0": "2", "paket.m.a:mitte#0": "2"},
+                "inhalt": {"paket.m.a:oben": 1, "paket.m.a:mitte": 1}, "eingewickelt": {"paket.m.a": ["mitte", "oben"]},
+                "muster": {"paket.m.a:oben#0": [], "paket.m.a:mitte#0": []}}
+    monkeypatch.setattr(vv, "beobachten", lambda *a, **k: seite())
+    r = vv.pruefen(w, {"paket/m/a.py": M2_DEKO.replace(alt, neu)}, "last", ["m"], {})
+    befund = (r.get("grund_art"), r.get("grund"), r.get("enthaltungen"))
+    if soll == "gedeckt":
+        assert r["geurteilt"] is True and r["tragfaehig"] is True and not r.get("enthaltung"), befund
+    else:
+        assert r.get("enthaltung") is True and r["grund_art"] == "betroffene_funktion_enthaelt_sich", befund
+        assert (r.get("enthaltungen") or {}).get(soll, "").startswith("betroffen, von der Sonde nicht beobachtet"), befund
+
+
+@pytest.mark.parametrize("fall,alt,neu,soll", [
+    ("helfer", "    return x\n\n\ndef mitte", "    return -x\n\n\ndef mitte", {"paket.m.a:_helfer"}),
+    ("modulebene", 'TABELLE = {"a": 1}', 'TABELLE = {"a": 2}',
+     {"paket.m.a:_helfer", "paket.m.a:mitte", "paket.m.a:oben", "paket.m.a:allein", "paket.m.a:Konto.__init__",
+      "paket.m.a:Konto.buchen", "paket.m.a:konto"}),
+    ("klassenkoerper", "    rabatt = 0\n", "    rabatt = 1\n", {"paket.m.a:Konto.__init__", "paket.m.a:Konto.buchen"}),
+    ("methode", "        return self.s + b\n", "        return self.s - b\n", {"paket.m.a:Konto.buchen"}),
+    ("kommentar", "def allein(x):\n", "def allein(x):  # nur ein Kommentar\n", set()),
+    ("neu_und_entfernt", "def allein(x):\n    return x\n", "def einsam(x):\n    return x\n", {"paket.m.a:einsam"}),
+])
+def test_m2_direkt_geaenderte_funktionen(tmp_path, fall, alt, neu, soll):
+    """D (direkt geändert) aus dem Syntaxbaum — ohne die transitiv Betroffenen (die bleiben wie gebaut): eigener Knoten
+    verschieden oder neu; Modulrest geändert → alle Funktionen des Kandidaten; Klassenrest → alle Methoden der Klasse;
+    entfernte zählen nicht (neu_und_entfernt: nur `einsam`)."""
+    assert hasattr(vv, "betroffene_funktionen"), "verhaltensvergleich.betroffene_funktionen fehlt"
+    assert BETROFFEN_ALT.count(alt) == 1
+    w = _werk(tmp_path, BETROFFEN_ALT)
+    b = vv.betroffene_funktionen(w, {"paket/m/a.py": BETROFFEN_ALT.replace(alt, neu)}, ["paket.m.a"], python=True)
+    assert set(b.get("direkt") or ()) == soll, b
+
+
+@pytest.mark.parametrize("fall,last,soll", [
+    ("last_ruft_privat", "from paket.m.a import _h, mitte\n_h(5)\nmitte(1)", "paket.m.a:_h"),
+    ("last_ruft_oeffentlich", "from paket.m.a import mitte\nmitte(5)\nmitte(1)", "gedeckt"),
+])
+def test_m2_regel_referenzlast_ruft_privaten_helfer(tmp_path, monkeypatch, fall, last, soll):
+    """Auslegung S1b (c) von „gedeckt“: ruft die Referenzlast den privaten Helfer `_h` selbst, sieht die Deckungsregel
+    diese Aufrufe nicht — die beobachtete Aufruferin `mitte` deckt nur ihre eigenen Eingaben. `_h` verhaltensgleich
+    geändert, trotzdem nicht gedeckt: Enthaltung „betroffen, von der Sonde nicht beobachtet“. Gegenprobe: die Last ruft
+    nur `mitte` — gedeckt, geurteilt, tragfähig. Sonde gestellt (beobachtet: oben, mitte), Syntaxbaum echt."""
+    w = _werk(tmp_path, M2_DEKO)
+
+    def seite():
+        return {"gueltig": True, "beobachtungen": {"paket.m.a:oben#0": "2", "paket.m.a:mitte#0": "2"},
+                "inhalt": {"paket.m.a:oben": 1, "paket.m.a:mitte": 1}, "eingewickelt": {"paket.m.a": ["mitte", "oben"]},
+                "muster": {"paket.m.a:oben#0": [], "paket.m.a:mitte#0": []}}
+    monkeypatch.setattr(vv, "beobachten", lambda *a, **k: seite())
+    neu = M2_DEKO.replace("def _h(x):\n    return x + 1\n", "def _h(x):\n    return 1 + x\n")
+    assert neu != M2_DEKO
+    r = vv.pruefen(w, {"paket/m/a.py": neu}, _ref(last), ["m"], {})
+    befund = (r.get("grund_art"), r.get("grund"), r.get("enthaltungen"))
+    if soll == "gedeckt":
+        assert r["geurteilt"] is True and r["tragfaehig"] is True and not r.get("enthaltung"), befund
+    else:
+        assert r.get("enthaltung") is True and r["grund_art"] == "betroffene_funktion_enthaelt_sich", befund
+        assert (r.get("enthaltungen") or {}).get(soll, "").startswith("betroffen, von der Sonde nicht beobachtet"), befund
+
+
+M2_WERT = ("REG = {{}}\n\n\n"
+           "def _h(x):\n    return x + 1\n\n\n"
+           "def setup():\n    {}\n\n\n"
+           "def mitte(x):\n    return _h(x)\n")
+
+
+@pytest.mark.parametrize("fall,zeile,soll", [
+    ("wert", 'REG["h"] = _h', "paket.m.a:_h"),
+    ("nur_aufruf", 'REG["h"] = _h(0)', "gedeckt"),
+])
+def test_m2_regel_wert_in_einer_funktion(tmp_path, monkeypatch, fall, zeile, soll):
+    """Auslegung S1b (d) von „gedeckt“: die öffentliche, beobachtete Funktion `setup` ruft `_h` nicht, sondern legt ihn als
+    Wert in das Modul-Register `REG` — gerufen wird er dann außerhalb jeder beobachteten Aufruferin (etwa von der Last
+    über `REG["h"]`). `_h` geändert → nicht gedeckt, Enthaltung „betroffen, von der Sonde nicht beobachtet“ (mit der
+    Regel wörtlich wäre `setup` eine beobachtete Aufruferin: stiller Durchlass). Gegenprobe: `setup` ruft `_h` nur
+    (`REG["h"] = _h(0)`) — gedeckt, geurteilt, tragfähig. Sonde gestellt (beobachtet: setup, mitte), Syntaxbaum echt."""
+    alt = M2_WERT.format(zeile)
+    w = _werk(tmp_path, alt)
+
+    def seite():
+        return {"gueltig": True, "beobachtungen": {"paket.m.a:setup#0": "null", "paket.m.a:mitte#0": "2"},
+                "inhalt": {"paket.m.a:setup": 1, "paket.m.a:mitte": 1}, "eingewickelt": {"paket.m.a": ["mitte", "setup"]},
+                "muster": {"paket.m.a:setup#0": [], "paket.m.a:mitte#0": []}}
+    monkeypatch.setattr(vv, "beobachten", lambda *a, **k: seite())
+    neu = alt.replace("def _h(x):\n    return x + 1\n", "def _h(x):\n    return x + 2\n")
+    assert neu != alt
+    r = vv.pruefen(w, {"paket/m/a.py": neu}, _ref("from paket.m.a import REG, setup, mitte\nsetup()\nmitte(1)"), ["m"], {})
+    befund = (r.get("grund_art"), r.get("grund"), r.get("enthaltungen"))
+    if soll == "gedeckt":
+        assert r["geurteilt"] is True and r["tragfaehig"] is True and not r.get("enthaltung"), befund
+    else:
+        assert r.get("enthaltung") is True and r["grund_art"] == "betroffene_funktion_enthaelt_sich", befund
+        assert (r.get("enthaltungen") or {}).get(soll, "").startswith("betroffen, von der Sonde nicht beobachtet"), befund
+
+
+# ================================================================ W S1c: Wirkung außerhalb der Beobachtung (A–D), E, F
+# BAU-S1C-UNBEOBACHTET.md: der Verhaltensvergleich sagt „tragfähig“ nur über beobachtetes Verhalten. Jede vom Kandidaten
+# geänderte Stelle, deren Wirkung die Sonde nicht beobachtet, ist eine gezählte Enthaltung → zurückgestellt.
+# A unbeobachtet („0 von y“), B Vorgeneration nicht beobachtbar, C geänderte Modulwerte außerhalb gelesen, D Nicht-
+# Quelldateien im Quellpaket; E eine neue, am Kandidaten beobachtete Funktion gilt als beobachtet; F ein Selbstaufruf
+# ist keine Aufruferin. Neue Rückgabefelder nur über .get (die Datei läuft auch an älteren Ständen).
+PWW = "probewerk.werk"
+W_KONST = "RATE = 19\n"
+W_KERN_A = R3.QUELLE + ("\n\nfrom .konst import RATE  # noqa: E402\n\n\n"
+                        "def brutto(cent: int) -> int:\n    return cent + cent * RATE // 100\n")
+W_KONST_G = "RATE = 19\n\n\ndef satz() -> int:\n    return RATE\n"
+W_KERN_AG = R3.QUELLE + ("\n\nfrom .konst import satz  # noqa: E402\n\n\n"
+                         "def brutto(cent: int) -> int:\n    return cent + cent * satz() // 100\n")
+W_LAST_A = "    from probewerk.werk.kern import brutto\n    for i in range(6):\n        brutto(100 * i)\n"
+# Zusicherungen mit Meldung: an 0c2f058 (vor R6-4, Entscheidung 1) hielt ein umgeschriebenes `assert` ohne Meldung
+# nie fest (pytest kürzt „AssertionError: “ weg) — mit Meldung prüft die Gegenprobe an beiden Ständen nur S1c.
+W_TEST_SATZ = "from probewerk.werk.konst import satz\n\n\ndef test_satz_sieben():\n    assert satz() == 7, \"satz\"\n"
+W_WERTE = ('"""Werte des Prüfwerks (S1c)."""\nAUSSEN = 5\nGRENZE = 10\n\n\n'
+           'def grenze() -> int:\n    return GRENZE\n\n\n'
+           'def stufe(x: int) -> int:\n    return x * 2\n\n\n'
+           'if __name__ == "__main__":\n    print(stufe(1))\n')
+W_LESER = "from .werte import AUSSEN\n\n\ndef aussen_mal(n: int) -> int:\n    return AUSSEN * n\n"
+W_LAST_C = ("    from probewerk.werk.werte import grenze, stufe\n    from probewerk.werk.leser import aussen_mal\n"
+            "    for i in range(6):\n        grenze()\n        stufe(i)\n        aussen_mal(i)\n")
+W_TEST_GRENZE = "from probewerk.werk.werte import grenze\n\n\ndef test_grenze_elf():\n    assert grenze() == 11, \"grenze\"\n"
+W_KERN_F = R3.QUELLE + (
+    "\n\ndef _stufen(n: int) -> int:\n    return 0 if n < 1 else 1 + _stufen(n // 2)\n\n\n"
+    "def _gerade(n: int) -> bool:\n    return True if n < 1 else _ungerade(n // 2)\n\n\n"
+    "def _ungerade(n: int) -> bool:\n    return False if n < 1 else _gerade(n // 2)\n\n\n"
+    "def haelfte(x: int) -> int:\n    return x // 2 + _stufen(x) * 0 + (0 if _gerade(x) else 0)\n")
+W_LAST_F = "    from probewerk.werk.kern import haelfte\n    for i in range(6):\n        haelfte(i)\n"
+W_TEST_ANTWORT = "def test_antwort():\n    from probewerk.werk.kern import antwort\n    assert antwort() == 42\n"
+W_TEST_NIRGENDS = "def test_nirgends():\n    from probewerk.werk.kern import nirgends\n    assert nirgends(n=3) == 3\n"
+W_WERTE_ALT = {f"{PWW.replace('.', '/')}/werte.py": W_WERTE, f"{PWW.replace('.', '/')}/leser.py": W_LESER}
+# Fall: kern (Vorgeneration), weitere Werkdateien der Vorgeneration (auch Werkstests), Änderungen des Kandidaten
+# {Pfad: (alt oder None, neu)}, Zusatz der Referenzlast, Soll-Status, Schlüssel in `ausserhalb`/`enthaltungen` oder None
+W_FAELLE = {
+    # A (Befund S1b 12:32): nur ein Konstantenmodul geändert, gelesen von der unveränderten `brutto` → „0 von 0“
+    "a_konst": (W_KERN_A, {"probewerk/werk/konst.py": W_KONST},
+                {"probewerk/werk/konst.py": (W_KONST, "RATE = 7\n")}, W_LAST_A, "zurueckgestellt", None),
+    # A-Gegenprobe: dieselbe Änderung, ein Test hält sie fest, die beobachtete `satz` liest die Konstante → geurteilt
+    "a_gegen": (W_KERN_AG, {"probewerk/werk/konst.py": W_KONST_G, "tests/test_werk_satz.py": W_TEST_SATZ},
+                {"probewerk/werk/konst.py": (W_KONST_G, W_KONST_G.replace("19", "7"))}, W_LAST_A, "ueberlebt", None),
+    # B: der Kandidat legt nur ein neues Modul an (nur ein Wert) — an der Vorgeneration lädt es nicht: nicht beobachtbar
+    "b_neues_modul": (R3.QUELLE, {}, {"probewerk/werk/zusatz.py": (None, "ZUSATZ = {'a': 1}\n")},
+                      "", "zurueckgestellt", None),
+    # C gemischt: AUSSEN (gelesen in leser.py) geändert und dazu die beobachtete `stufe` verhaltensgleich
+    "c_gemischt": (R3.QUELLE, W_WERTE_ALT,
+                   {"probewerk/werk/werte.py": (W_WERTE, W_WERTE.replace("AUSSEN = 5", "AUSSEN = 6")
+                                                .replace("    return x * 2\n", "    return 2 * x\n"))},
+                   W_LAST_C, "zurueckgestellt", f"{PWW}.werte:AUSSEN"),
+    # C-Gegenprobe: GRENZE nur in M gelesen (von der beobachteten `grenze`), ein Test hält die Änderung fest
+    "c_innen": (R3.QUELLE, {**W_WERTE_ALT, "tests/test_werk_grenze.py": W_TEST_GRENZE},
+                {"probewerk/werk/werte.py": (W_WERTE, W_WERTE.replace("GRENZE = 10", "GRENZE = 11"))},
+                W_LAST_C, "ueberlebt", None),
+    # C-Gegenproben: Modul-Docstring bzw. `__main__`-Block geändert (AUSSEN wird außen gelesen, bleibt aber gleich)
+    "c_docstring": (R3.QUELLE, W_WERTE_ALT,
+                    {"probewerk/werk/werte.py": (W_WERTE, W_WERTE.replace("Werte des Prüfwerks", "Werte, neu"))},
+                    W_LAST_C, "ueberlebt", None),
+    "c_main": (R3.QUELLE, W_WERTE_ALT,
+               {"probewerk/werk/werte.py": (W_WERTE, W_WERTE.replace("print(stufe(1))", "print(stufe(2))"))},
+               W_LAST_C, "ueberlebt", None),
+    # D: eine Datendatei im Quellpaket (neben den Quellmodulen) geändert — die Sonde beobachtet keine Datei
+    "d_daten": (R3.QUELLE, {"probewerk/werk/tarife.csv": "zone;preis\nnah;100\n"},
+                {"probewerk/werk/tarife.csv": ("zone;preis\nnah;100\n", "zone;preis\nnah;90\n")}, "",
+                "zurueckgestellt", "probewerk/werk/tarife.csv"),
+    # D-Gegenprobe: README.md liegt außerhalb des Quellpakets → wie bisher „keine Quelländerung“
+    "d_readme": (R3.QUELLE, {}, {"README.md": ("# probewerk\n\nPrüfwerk ohne Betriebszweck.\n",
+                                               "# probewerk\n\nPrüfwerk, neu formuliert.\n")},
+                 "", "ueberlebt", None),
+    # E: neue öffentliche Funktion `antwort`, am Kandidaten beobachtet (Korpus der Sonde am Kandidaten) → geurteilt; ein
+    # Werkstest nutzt sie (sonst zählte vulture sie als tote Funktion und das Maß lehnte vor dem Vergleich ab)
+    "e_neu_beobachtet": (W_KERN_F, {"tests/test_werk_antwort.py": W_TEST_ANTWORT},
+                         {"probewerk/werk/kern.py": (W_KERN_F, W_KERN_F + "\n\ndef antwort() -> int:\n    return 42\n")},
+                         W_LAST_F, "ueberlebt", None),
+    # E-Probe: neue öffentliche Funktion mit Pflicht-Schlüsselwortparameter (kein Korpus), weder von der Last noch vom
+    # Korpus erreicht (nur ein Werkstest nutzt sie: sonst zählte vulture sie als tot) → M2(b) wie bisher
+    "e_neu_unbeobachtet": (W_KERN_F, {"tests/test_werk_nirgends.py": W_TEST_NIRGENDS},
+                           {"probewerk/werk/kern.py": (W_KERN_F, W_KERN_F
+                                                       + "\n\ndef nirgends(*, n: int) -> int:\n    return n\n")},
+                           W_LAST_F, "zurueckgestellt", f"{PWW}.kern:nirgends"),
+    # F: der private, selbstrekursive Helfer `_stufen` der beobachteten `haelfte` verhaltensgleich geändert → gedeckt
+    "f_selbst": (W_KERN_F, {}, {"probewerk/werk/kern.py": (W_KERN_F, W_KERN_F.replace(
+        "return 0 if n < 1 else", "return 0 if 1 > n else"))}, W_LAST_F, "ueberlebt", None),
+    # F-Probe: gegenseitige Rekursion `_gerade`/`_ungerade`, `_gerade` verhaltensgleich geändert → nicht gedeckt
+    "f_gegenseitig": (W_KERN_F, {}, {"probewerk/werk/kern.py": (W_KERN_F, W_KERN_F.replace(
+        "return True if n < 1 else", "return True if 1 > n else"))}, W_LAST_F, "zurueckgestellt",
+        f"{PWW}.kern:_gerade"),
+}
+
+
+def _w_diff(alt: str | None, neu: str, rel: str) -> str:
+    import difflib
+    return "".join(difflib.unified_diff((alt or "").splitlines(True), neu.splitlines(True),
+                                        "/dev/null" if alt is None else f"a/{rel}", f"b/{rel}"))
+
+
+@pytest.mark.parametrize("fall", list(W_FAELLE))
+def test_w_wirkung_ausserhalb_der_beobachtung_durch_aegis(tmp_path, monkeypatch, fall):
+    """Durch aegis.pruefen in der echten Kammer (Prüfwerk probewerk, gestellt nur Modell und Laufzeit). Proben
+    (zurückgestellt, `enthaltung` True, nicht geurteilt): a_konst (Befund S1b: nur `konst.py` geändert, „0 von 0“ — an
+    0c2f058 und nach S1b `ueberlebt`), b_neues_modul (Vorgeneration nicht beobachtbar), c_gemischt (Konstante außerhalb
+    gelesen, dazu eine beobachtete geänderte Funktion), d_daten (Datendatei im Quellpaket), e_neu_unbeobachtet (neue
+    Funktion, nirgends beobachtet: M2(b) wie bisher), f_gegenseitig (gegenseitige Rekursion bleibt nicht gedeckt).
+    Gegenproben (überlebt, geurteilt, tragfähig): a_gegen (ein Test hält die Änderung fest, die beobachtete `satz` liest
+    die Konstante), c_innen (nur in M gelesen und beobachtet), c_docstring, c_main, d_readme, e_neu_beobachtet (neue
+    öffentliche Funktion, am Kandidaten mit Inhalt beobachtet), f_selbst (ein Selbstaufruf ist keine
+    Aufruferin)."""
+    kern, extra, aenderung, last, soll, schluessel = W_FAELLE[fall]
+    monkeypatch.setattr(R3, "QUELLE", kern)
+    monkeypatch.setattr(R3, "REFERENZLAST", R3.REFERENZLAST + last)
+    diff = ""
+    for rel, (alt, neu) in aenderung.items():
+        assert alt != neu, rel
+        diff += _w_diff(alt, neu, rel)
+    u, v = R3._pruefen(tmp_path, monkeypatch, diff, werk_extra=extra)
+    befund = {"status": u["status"], "grund": str(u.get("grund"))[:500], "grund_art": v.get("grund_art"),
+              "enthaltung": v.get("enthaltung"), "tragfaehig": v.get("tragfaehig"), "geurteilt": v.get("geurteilt"),
+              "beobachtet": v.get("beobachtete_funktionen"), "ausserhalb": v.get("ausserhalb"),

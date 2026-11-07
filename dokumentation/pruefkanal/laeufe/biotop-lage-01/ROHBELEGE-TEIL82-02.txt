@@ -1,0 +1,643 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 82 (Teile 4–165 dieses Stands) · enthält R93 bis R99
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R93 · Teil B: git-Herkunft der Verfassungsdateien, Prüfkanal-Zeitstempel, Testattrappen (nur lesend)
+Beginn: 2026-09-25 16:44:29 CEST (UTC+0200)
+Ende:   2026-09-25 16:44:29 CEST (UTC+0200)
+Dauer:  0.5 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/verfassungen/b6_herkunft.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/verfassungen/b6_herkunft.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil B (nur lesend): git-Herkunft der Verfassungsdateien, Zeitstempel im Prüfkanal, Testattrappen.
+
+1. git (nur lesend: log, ls-tree, rev-parse, show): Commits, die verfassungen/ oder tests/drahtwerk.py berühren,
+   mit Autor und Zeit; Blob-Kennung und SHA-256 der Blob-Bytes je Datei an HEAD und am ersten Commit.
+2. Prüfkanal: Bytes, mtime (CEST) und SHA-256 von Dateien, auf die sich die Bestätigungen beziehen (nur stat + Hash).
+3. Testattrappen: Zeichenketten, die Tests als Verfassung einlegen (ast, ohne Import), mit Datei:Zeile.
+Schreibt nichts.
+"""
+import ast
+import hashlib
+import os
+import subprocess
+import time
+from pathlib import Path
+
+SCHLUESSEL = Path('/etc/pruefkanal/schluessel').read_text().strip()
+LAEUFE = f'/var/pruefkanal/oeffentlich/_akte/{SCHLUESSEL}/laeufe'
+GIT = ['git', '-C', '/root/biotop']
+
+
+def zeige(p) -> str:
+    return str(p).replace(LAEUFE, '{LAEUFE}').replace(SCHLUESSEL, '{SCHLUESSEL}')
+
+
+def sha(b: bytes) -> str:
+    return hashlib.sha256(b).hexdigest()
+
+
+def g(*a) -> subprocess.CompletedProcess:
+    return subprocess.run(GIT + list(a), capture_output=True)
+
+
+print('== 1. git')
+print('HEAD:', g('rev-parse', 'HEAD').stdout.decode().strip())
+for pfad in ['verfassungen/', 'tests/drahtwerk.py']:
+    r = g('log', '--format=%H | %aI | %an <%ae> | %s', '--', pfad)
+    zeilen = r.stdout.decode().splitlines()
+    print(f'-- git log -- {pfad}: rc={r.returncode}, {len(zeilen)} Commits (neueste zuerst)')
+    for z in zeilen:
+        print('   ' + z[:200])
+r = g('ls-tree', '-r', 'HEAD', 'verfassungen/')
+print('-- git ls-tree -r HEAD verfassungen/:')
+for z in r.stdout.decode().splitlines():
+    modus, art, blob_pfad = z.split(' ', 2)
+    blob, pfad = blob_pfad.split('\t', 1)
+    inhalt = g('cat-file', 'blob', blob).stdout
+    platte = Path('/root/biotop') / pfad
+    pb = platte.read_bytes() if platte.exists() else b''
+    print(f'   {pfad} | blob {blob} | {len(inhalt)} B | SHA-256 {sha(inhalt)} | Platte gleich: {pb == inhalt}')
+erste = g('log', '--reverse', '--format=%H', '--', 'verfassungen/lagerhaus.md').stdout.decode().split()
+if erste:
+    c = erste[0]
+    print(f'-- erster Commit mit verfassungen/lagerhaus.md: {c}')
+    for pfad in ['verfassungen/lagerhaus.md', 'verfassungen/lagerhaus.regeln.json']:
+        s = g('show', f'{c}:{pfad}')
+        print(f'   {pfad} @ {c[:12]}: rc={s.returncode} {len(s.stdout)} B SHA-256 {sha(s.stdout)}')
+erste = g('log', '--reverse', '--format=%H', '--', 'verfassungen/logmuehle.md').stdout.decode().split()
+if erste:
+    c = erste[0]
+    print(f'-- erster Commit mit verfassungen/logmuehle.md: {c}')
+    for pfad in ['verfassungen/logmuehle.md', 'verfassungen/logmuehle.regeln.json']:
+        s = g('show', f'{c}:{pfad}')
+        print(f'   {pfad} @ {c[:12]}: rc={s.returncode} {len(s.stdout)} B SHA-256 {sha(s.stdout)}')
+
+print('\n== 2. Prüfkanal: Bytes, mtime (CEST), SHA-256')
+for rel in ['biotop-phase-3-nachlauf/BERICHT.md',
+            'biotop-phase-3-nachlauf/ausgaben/26-verfassungsentwurf-logmuehle.md',
+            'biotop-phase-3-nachlauf/ausgaben/26-verfassungsentwurf-logmuehle.regeln.json',
+            'biotop-phase-1-nachlauf/ausgaben/13-verfassung-lagerhaus.md',
+            'biotop-phase-1-nachlauf/ausgaben/13-verfassung-lagerhaus.regeln.json',
+            'biotop-t3-typescript/verfassung-entwurf-01/VERFASSUNG-T3-ENTWURF.md',
+            'biotop-t3-typescript/verfassung-entwurf-01/ZWISCHENBERICHT.md',
+            'biotop-t3-typescript/verfassung-02/VERFASSUNG-T3.md',
+            'biotop-t3-typescript/verfassung-02/BESTAETIGUNG.md',
+            'biotop-t3-typescript/verfassung-02/ZWISCHENBERICHT.md',
+            'biotop-t3-typescript/abschluss-01/VERFASSUNG-T3-02.md',
+            'biotop-t3-typescript/abschluss-01/VERFASSUNG-T3-02.regeln.json',
+            'biotop-t3-typescript/uebernahme-01/VERFASSUNG-T3-02.md',
+            'biotop-t3-typescript/uebernahme-01/VERFASSUNG-T3-02.regeln.json',
+            'biotop-phase-4-vorbedingung-1/nach-reparatur-02/abschluss-01/UEBERGABE-PHASE-4.md',
+            'biotop-phase-4-vorbedingung-1/nach-reparatur-02/uebergabe-abnahme-01/UEBERGABE-PHASE-4.md']:
+    p = Path(LAEUFE) / rel
+    if not p.exists():
+        print(f'   NICHT GEFUNDEN: {{LAEUFE}}/{rel}')
+        continue
+    st = p.stat()
+    print(f'   {{LAEUFE}}/{rel} | {st.st_size} B | mtime {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(st.st_mtime))} | {sha(p.read_bytes())}')
+
+print('\n== 3. Testattrappen: Aufrufe verfassung.einlegen(...) und VERFASSUNG-Zuweisungen in tests/ (ast)')
+for p in sorted(Path('/root/biotop/tests').glob('*.py')):
+    try:
+        baum = ast.parse(p.read_text())
+    except SyntaxError:
+        continue
+    for n in ast.walk(baum):
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == 'einlegen' \
+                and isinstance(n.func.value, ast.Name) and n.func.value.id == 'verfassung':
+            args = n.args
+            text = args[2] if len(args) > 2 else None
+            try:
+                wert = ast.literal_eval(text) if text is not None else None
+                wert = repr(wert)
+            except ValueError:
+                wert = '(kein Literal: ' + ast.unparse(text)[:120] + ')'
+            von = ast.unparse(args[5])[:60] if len(args) > 5 else '?'
+            print(f'   {p.name}:{n.lineno} | Text {wert[:200]} | von {von}')
+        if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == 'VERFASSUNG' for t in n.targets):
+            print(f'   {p.name}:{n.lineno} | VERFASSUNG = {ast.unparse(n.value)[:220]}')
+--- Ende /root/sicherung/biotop-lage-01/entwurf/verfassungen/b6_herkunft.py ---
+Ausgabe (vollständig, stdout und stderr):
+== 1. git
+HEAD: 0c2f058d57f68b8891b535d6e00214172c82fefa
+-- git log -- verfassungen/: rc=0, 3 Commits (neueste zuerst)
+   791aae5c91f53c23355af29c46fe0e7dba191068 | 2026-09-19T13:54:43+02:00 | hermes <hermes@biotop> | Phase 3: Gedächtnisse, Mentor, Entropie, Jury, Web-Oberfläche, Referenzlast logmuehle, Befundklasse B602
+   b3246172bc4b3bdb09d09f986f6d089e2f82efc6 | 2026-09-19T02:41:55+02:00 | hermes <hermes@local> | Phase 2: Nischen+Bandit, Gen0, Verträge, Norm-Regel, Doppelungen, Grenzmaß absolut, Verhandlung
+   0d80f789e05e6467d575f7572ecdf03061e81475 | 2026-09-19T01:19:56+02:00 | hermes <hermes@local> | Nachlauf: Maß F2, Verfassung, Befundklassen, schwerer Angriff, Immunisierung nur bestandene Tests
+-- git log -- tests/drahtwerk.py: rc=0, 3 Commits (neueste zuerst)
+   0c2f058d57f68b8891b535d6e00214172c82fefa | 2026-09-24T20:24:54+02:00 | Hermes (Biotop) <hermes@biotop.local> | Vor T4, Runde 5: Vollständigkeitsprüfung, fallende Zusicherung, Ausfall je Funktion, Regi
+   58bd9f9f658358256b581821de91d2e0df74eec5 | 2026-09-23T17:32:34+02:00 | Hermes (Biotop) <hermes@biotop.local> | Vor T4: Behebungsrunde — Vorbedingungen 1–11 aus Masterprompt Fassung 8
+   f82170711bc4230076ade4ff7602f45bb375b1e7 | 2026-09-23T13:59:41+02:00 | Hermes (Biotop) <hermes@biotop.local> | T3: Abwehr im Annahmepfad — Maßeichung und Verhaltensvergleich eingehängt, Verdrahtungsna
+-- git ls-tree -r HEAD verfassungen/:
+   verfassungen/lagerhaus.md | blob 04b9abfa123f874c6278d3d524a705765b216f98 | 1506 B | SHA-256 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | Platte gleich: True
+   verfassungen/lagerhaus.regeln.json | blob af2cbdf473c1f02babd8d7e2549d01135aa49b4e | 806 B | SHA-256 34d67f36719395b6cff4c9bed88b8b506ae525943aa7c84682b7c0167ad27abc | Platte gleich: True
+   verfassungen/logmuehle.md | blob 6ab71e6aba69e7084e1e861358e7c00cb09f0378 | 1841 B | SHA-256 0ce7f8651ae70ad0783cb6caa8f54b9ebbcf789b5e6b116d6df6fb63242bc803 | Platte gleich: True
+   verfassungen/logmuehle.regeln.json | blob 01922a07045da8a5acae09710bd9158d693ceef6 | 691 B | SHA-256 bce33200a57d77e5a9254e0da271c38c9ce23404506cc6cfb0bf902e5051b0c8 | Platte gleich: True
+   verfassungen/vertraege-lagerhaus/test_vertrag_bericht_lager.py | blob 9d4f01d9df4740ca32c80c0c21167d65a7ac20f3 | 2059 B | SHA-256 b69270558c12328906acf851cc12a66f617c0fc27b4818d52432671538a4bc6c | Platte gleich: True
+   verfassungen/vertraege-lagerhaus/test_vertrag_bericht_preise.py | blob d44a7a5ce84ac495013c3a33939b2007afb37048 | 1613 B | SHA-256 e5aecb66e462650f5dd019ecdff7fe09b6995fd4afa2590a32f077c3892768e2 | Platte gleich: True
+   verfassungen/vertraege-lagerhaus/test_vertrag_preise_formeln.py | blob 92762630e8eef670159ade321e72a8e06190e8a6 | 1490 B | SHA-256 14ce158ceb1b5b0625baca85e85592252403977601e99251b12a6da86ac0abe1 | Platte gleich: True
+   verfassungen/vertraege-logmuehle/test_vertrag_ausgabe_filtern.py | blob 912674c988536754b46040a1d324088be0323ea8 | 2049 B | SHA-256 57f1da1f52a8ce6194aa9fc2963cd592effd78d35cec5a05290f40eb4ca0064f | Platte gleich: True
+   verfassungen/vertraege-logmuehle/test_vertrag_ausgabe_zaehlen.py | blob e552c871bafc7ca3a513cfe030d9d211d2ffcdf9 | 1446 B | SHA-256 667b67d923b400b15c5901ad58fca65e53807a5fddf3ccbe97d2ecd9e3a5e91f | Platte gleich: True
+   verfassungen/vertraege-logmuehle/test_vertrag_filtern_lesen.py | blob 599fe911187eb9e34fbc920128fbe0afae06217a | 1561 B | SHA-256 be37bcf30373e45b032737e61159f0c63cbbd89b569d18ec5cc629ebb20aaff8 | Platte gleich: True
+   verfassungen/vertraege-logmuehle/test_vertrag_zaehlen_lesen.py | blob af2fe7a67c7c957b0f81e14a8fc96f1ecfb68bf8 | 859 B | SHA-256 21b172574770f174931f5c458008d1558139eef97e1530ba79b2260408af33ec | Platte gleich: True
+-- erster Commit mit verfassungen/lagerhaus.md: 0d80f789e05e6467d575f7572ecdf03061e81475
+   verfassungen/lagerhaus.md @ 0d80f789e05e: rc=0 1506 B SHA-256 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14
+   verfassungen/lagerhaus.regeln.json @ 0d80f789e05e: rc=0 806 B SHA-256 34d67f36719395b6cff4c9bed88b8b506ae525943aa7c84682b7c0167ad27abc
+-- erster Commit mit verfassungen/logmuehle.md: 791aae5c91f53c23355af29c46fe0e7dba191068
+   verfassungen/logmuehle.md @ 791aae5c91f5: rc=0 1841 B SHA-256 0ce7f8651ae70ad0783cb6caa8f54b9ebbcf789b5e6b116d6df6fb63242bc803
+   verfassungen/logmuehle.regeln.json @ 791aae5c91f5: rc=0 691 B SHA-256 bce33200a57d77e5a9254e0da271c38c9ce23404506cc6cfb0bf902e5051b0c8
+
+== 2. Prüfkanal: Bytes, mtime (CEST), SHA-256
+   {LAEUFE}/biotop-phase-3-nachlauf/BERICHT.md | 18916 B | mtime 2026-09-19 23:59:31 | 999a0c4867eeb9809ddb604488a1268cb0ac7baf08f7d9504fa89005d7c0e5ad
+   {LAEUFE}/biotop-phase-3-nachlauf/ausgaben/26-verfassungsentwurf-logmuehle.md | 1841 B | mtime 2026-09-19 23:57:23 | 0ce7f8651ae70ad0783cb6caa8f54b9ebbcf789b5e6b116d6df6fb63242bc803
+   {LAEUFE}/biotop-phase-3-nachlauf/ausgaben/26-verfassungsentwurf-logmuehle.regeln.json | 691 B | mtime 2026-09-19 23:57:23 | bce33200a57d77e5a9254e0da271c38c9ce23404506cc6cfb0bf902e5051b0c8
+   {LAEUFE}/biotop-phase-1-nachlauf/ausgaben/13-verfassung-lagerhaus.md | 1506 B | mtime 2026-09-19 00:48:48 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14
+   {LAEUFE}/biotop-phase-1-nachlauf/ausgaben/13-verfassung-lagerhaus.regeln.json | 806 B | mtime 2026-09-19 00:48:48 | 34d67f36719395b6cff4c9bed88b8b506ae525943aa7c84682b7c0167ad27abc
+   {LAEUFE}/biotop-t3-typescript/verfassung-entwurf-01/VERFASSUNG-T3-ENTWURF.md | 2498 B | mtime 2026-09-21 02:27:58 | d048a77e9faf2e24ae1a8145510d1b8c2f2957747b519d100c14e0ed0a4e0ac0
+   {LAEUFE}/biotop-t3-typescript/verfassung-entwurf-01/ZWISCHENBERICHT.md | 1831 B | mtime 2026-09-21 02:27:58 | 8576ec0cefc18cc6e701d905c61994ce48583f206070adf3d6aea4da82708c9d
+   {LAEUFE}/biotop-t3-typescript/verfassung-02/VERFASSUNG-T3.md | 4418 B | mtime 2026-09-21 03:42:22 | 5ece12d93dc760d6bfb834d7d1cd53e29065bd54d673e2381a23d50234f78a28
+   {LAEUFE}/biotop-t3-typescript/verfassung-02/BESTAETIGUNG.md | 1878 B | mtime 2026-09-21 03:42:22 | ba786254cccd23f67cc358f7993e40208a8cb57fcf09b2a9abd6bd25b64a547b
+   {LAEUFE}/biotop-t3-typescript/verfassung-02/ZWISCHENBERICHT.md | 2243 B | mtime 2026-09-21 03:42:22 | 2ca41d0a95ade8a153babea1afb25351b998c035a69bb5d7a6f9cb8348c05ac8
+   {LAEUFE}/biotop-t3-typescript/abschluss-01/VERFASSUNG-T3-02.md | 4418 B | mtime 2026-09-21 03:40:41 | 5ece12d93dc760d6bfb834d7d1cd53e29065bd54d673e2381a23d50234f78a28
+   {LAEUFE}/biotop-t3-typescript/abschluss-01/VERFASSUNG-T3-02.regeln.json | 1398 B | mtime 2026-09-21 05:04:33 | e750eb4d5033442f842028c5b2fde5c403dedfcf9b2c05260091bc6c0269e54b
+   {LAEUFE}/biotop-t3-typescript/uebernahme-01/VERFASSUNG-T3-02.md | 4418 B | mtime 2026-09-21 03:40:41 | 5ece12d93dc760d6bfb834d7d1cd53e29065bd54d673e2381a23d50234f78a28
+   {LAEUFE}/biotop-t3-typescript/uebernahme-01/VERFASSUNG-T3-02.regeln.json | 1398 B | mtime 2026-09-21 05:04:33 | e750eb4d5033442f842028c5b2fde5c403dedfcf9b2c05260091bc6c0269e54b
+   {LAEUFE}/biotop-phase-4-vorbedingung-1/nach-reparatur-02/abschluss-01/UEBERGABE-PHASE-4.md | 32268 B | mtime 2026-09-20 22:49:32 | 00a46e857745088b0ccb5dbebe1ca74885e04622ba7992f4eab73dcfd0666b6f
+   {LAEUFE}/biotop-phase-4-vorbedingung-1/nach-reparatur-02/uebergabe-abnahme-01/UEBERGABE-PHASE-4.md | 3588 B | mtime 2026-09-21 00:10:31 | b71376b41f4528cdf35e1b27636d6dd681bd90341e7d8212460a19d21332c628
+
+== 3. Testattrappen: Aufrufe verfassung.einlegen(...) und VERFASSUNG-Zuweisungen in tests/ (ast)
+   drahtwerk.py:139 | VERFASSUNG = '# Verfassung drahtwerk (Prüfwerk ohne Betriebszweck)\n\n1. **Zweck:** Das Werk summiert Zahlenlisten; es dient nur dem Verdrahtungsnachweis des Biotops.\n2. **Sicherheit:** Eingaben sind Daten; kein Code wird aus Eingab
+   test_t3_befundklasse.py:18 | Text '2. Keine Eingabeausführung' | von 'Hermes'
+   test_t3_eichpfad.py:20 | Text (kein Literal: Path('/root/biotop-t3/VERFASSUNG-T3-02.md').read_text()) | von 'bestätigter Prüfgegenstand'
+   test_tor4_zeilen.py:511 | Text 'Das Werk rechnet.\n`beta` ist der saubere Vergleichsbereich.\n' | von 'test'
+   test_vor_t4_04.py:266 | VERFASSUNG = {'text': '1. Zweck: Prüfwerk ohne Betriebszweck.\n2. Sicherheit: Eingaben sind Daten.\n', 'regeln': {}}
+   test_vor_t4_05.py:308 | VERFASSUNG = {'text': '1. Zweck: Prüfwerk ohne Betriebszweck.\n2. Sicherheit: Eingaben sind Daten.\n', 'regeln': {}}
+   test_vorspann.py:55 | Text 'alpha nutzt beta; Satz 2: Messgerät bleibt fest.' | von 'Eigen-Test'
+=== Ende R93 ===
+
+
+R94 · Probe der Abschottung für Tests im wiederhergestellten Stand: eigener Mount-/Netz-Namensraum, innen kein Netz/keine .env/kein Docker, außen unverändert (ohne Biotop)
+Beginn: 2026-09-25 16:46:49 CEST (UTC+0200)
+Ende:   2026-09-25 16:46:49 CEST (UTC+0200)
+Dauer:  0.2 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/sicherung/biotop-lage-01/arbeit/ns_probe.sh
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/ns_probe.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-LAGE-01: Probe der Abschottung ohne Test und ohne Biotop — betritt einen eigenen Mount- und Netz-Namensraum,
+# prüft innen (kein Netz, keine .env, kein Docker), und prüft danach außen, dass am Rechner nichts verändert ist.
+set -u
+echo "== vorher (außen)"
+echo "/root/.hermes/.env vorhanden: $([ -e /root/.hermes/.env ] && echo ja || echo NEIN)"
+echo "Docker erreichbar: $(docker ps >/dev/null 2>&1 && echo ja || echo NEIN)"
+echo "Einhängungen unter /root und /tmp: $(findmnt -rn -o TARGET | grep -c -E '^/root|^/tmp')"
+unshare --mount --net --propagation private --fork bash /root/sicherung/biotop-lage-01/arbeit/ns_innen.sh probe /nicht-benutzt
+echo "unshare rc=$?"
+echo "== nachher (außen)"
+echo "/root/.hermes/.env vorhanden: $([ -e /root/.hermes/.env ] && echo ja || echo NEIN)"
+echo "Docker erreichbar: $(docker ps >/dev/null 2>&1 && echo ja || echo NEIN)"
+echo "Einhängungen unter /root und /tmp: $(findmnt -rn -o TARGET | grep -c -E '^/root|^/tmp')"
+--- Ende /root/sicherung/biotop-lage-01/arbeit/ns_probe.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== vorher (außen)
+/root/.hermes/.env vorhanden: ja
+Docker erreichbar: ja
+Einhängungen unter /root und /tmp: 0
+== Abschottung (innen)
+Netz-Schnittstellen: docker0 ens6 lo 
+/root/.hermes/.env sichtbar: nein
+Docker erreichbar: nein
+Verbindung ('1.1.1.1', 443) nicht möglich: OSError
+Verbindung ('openrouter.ai', 443) nicht möglich: gaierror
+Einhängungen unter /root und /tmp:
+  /tmp tmpfs
+  /root/.hermes tmpfs
+unshare rc=0
+== nachher (außen)
+/root/.hermes/.env vorhanden: ja
+Docker erreichbar: ja
+Einhängungen unter /root und /tmp: 0
+=== Ende R94 ===
+
+
+R95 · FK14: Wortlaut Masterprompt v8 aus dem Original (state.db Nachricht 13998) in Teile ≤ 38.000 Bytes, Verkettung = Original
+Beginn: 2026-09-25 16:48:31 CEST (UTC+0200)
+Ende:   2026-09-25 16:48:31 CEST (UTC+0200)
+Dauer:  0.2 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/mp_gueltig.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/mp_gueltig.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 · FK14 Masterprompt-Wortlaut (gültige Fassung v8) aus dem Original in der Sitzungsdatenbank.
+
+Original: /root/.hermes/state.db, Nachricht id 13998 (23.09.2026 15:53:53 CEST), Dokument
+'INFINITE-EVOLUTION-BIOTOP-Masterprompt-v8.md' — eingefügter Inhalt nach „[Content of …]:\\n“ bis zum Ende der Nachricht
+(oder bis zum nächsten Dokumentkopf), UNVERÄNDERT (kein Abschneiden von Zeilenumbrüchen).
+Prüft: alle Zeilen der Datenbank mit diesem Dokument haben denselben Inhalt; der Pfad „The file is also saved at“ existiert
+(ja/nein); die Arbeitskopie arbeit/dokumente/… ist gleich dem Original ohne abschließende Zeilenumbrüche.
+Schreibt: ausgabe/MASTERPROMPT-V8-WORTLAUT-TEIL<k>-01.txt (je ≤ 38.000 Bytes, geteilt an Zeilengrenzen, exklusiv),
+prüft, dass die Verkettung der Teile Byte für Byte dem Original gleicht, und gibt je Teil Bytes, Zeilen und SHA-256 aus.
+Aufruf: mp_gueltig.py [--nur-pruefen]"""
+import hashlib
+import os
+import re
+import sqlite3
+import sys
+from pathlib import Path
+
+W = Path('/root/sicherung/biotop-lage-01')
+NAME = 'INFINITE-EVOLUTION-BIOTOP-Masterprompt-v8.md'
+MAX = 38_000
+sha = lambda b: hashlib.sha256(b).hexdigest()
+
+con = sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+kopf = re.compile(r"\[The user sent a (?:text )?document: '([^']+)'\. Its content has been included below\. "
+                  r"The file is also saved at: ([^\]]+)\]")
+zeilen = con.execute("SELECT id, session_id, timestamp, content FROM messages WHERE role='user' AND content LIKE ? "
+                     "ORDER BY timestamp, id", (f"%document: '{NAME}'%",)).fetchall()
+funde = []
+for mid, sid, ts, c in zeilen:
+    for m in kopf.finditer(c):
+        if m.group(1) != NAME:
+            continue
+        marke = f'[Content of {NAME}]:\n'
+        i = c.find(marke, m.end())
+        if i < 0:
+            continue
+        nxt = kopf.search(c, i + len(marke))
+        roh = c[i + len(marke): nxt.start() if nxt else len(c)]
+        funde.append((mid, sid, ts, m.group(2), roh))
+print(f'Zeilen der Sitzungsdatenbank mit dem Dokument {NAME}: {len(funde)}')
+for mid, sid, ts, pfad, roh in funde:
+    b = roh.encode('utf-8')
+    print(f'  Nachricht id {mid} · Sitzung {sid} · {len(b)} Bytes · SHA-256 {sha(b)} · endet mit '
+          f'{len(roh) - len(roh.rstrip(chr(10)))} Zeilenumbruch/-brüchen · gespeichert unter {pfad} '
+          f'(vorhanden: {"ja" if Path(pfad).exists() else "NEIN"})')
+inhalte = {r[4] for r in funde}
+print(f'Verschiedene Inhalte: {len(inhalte)}')
+if len(inhalte) != 1:
+    sys.exit('ABBRUCH: mehrere verschiedene Inhalte — nichts geschrieben')
+mid, sid, ts, pfad, roh = funde[0]
+orig = roh.encode('utf-8')
+kopie = (W / 'arbeit' / 'dokumente' / f'2026-09-23_155353_{NAME}').read_bytes()
+print(f'Original: {len(orig)} Bytes, {roh.count(chr(10))} Zeilenumbrüche, SHA-256 {sha(orig)}')
+print(f'Arbeitskopie arbeit/dokumente: {len(kopie)} Bytes, SHA-256 {sha(kopie)} · gleich Original ohne abschließende '
+      f'Zeilenumbrüche: {kopie == roh.rstrip(chr(10)).encode()}')
+teile, akt, n = [], [], 0
+for z in roh.splitlines(keepends=True):
+    zb = len(z.encode('utf-8'))
+    if n + zb > MAX and akt:
+        teile.append(''.join(akt))
+        akt, n = [], 0
+    akt.append(z)
+    n += zb
+if akt:
+    teile.append(''.join(akt))
+assert ''.join(teile) == roh
+print(f'Teile: {len(teile)} (Grenze {MAX} Bytes je Teil, geteilt an Zeilengrenzen)')
+start = 1
+for k, t in enumerate(teile, 1):
+    b = t.encode('utf-8')
+    zeilen_k = t.count('\n') + (0 if t.endswith('\n') else 1)
+    print(f'  TEIL{k}: {len(b)} Bytes · Zeilen {start}–{start + zeilen_k - 1} · SHA-256 {sha(b)}')
+    start += zeilen_k
+    if '--nur-pruefen' not in sys.argv:
+        fd = os.open(W / 'ausgabe' / f'MASTERPROMPT-V8-WORTLAUT-TEIL{k}-01.txt', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+        with os.fdopen(fd, 'wb') as f:
+            f.write(b)
+if '--nur-pruefen' not in sys.argv:
+    zusammen = b''.join((W / 'ausgabe' / f'MASTERPROMPT-V8-WORTLAUT-TEIL{k}-01.txt').read_bytes() for k in range(1, len(teile) + 1))
+    print(f'Verkettung der geschriebenen Teile: {len(zusammen)} Bytes · SHA-256 {sha(zusammen)} · gleich Original: {zusammen == orig}')
+--- Ende /root/sicherung/biotop-lage-01/arbeit/mp_gueltig.py ---
+Ausgabe (vollständig, stdout und stderr):
+Zeilen der Sitzungsdatenbank mit dem Dokument INFINITE-EVOLUTION-BIOTOP-Masterprompt-v8.md: 1
+  Nachricht id 13998 · Sitzung 20260921_015554_e79a4a0f · 94877 Bytes · SHA-256 0c7961e1d2b7eeeb7a6982e419905c54e93a9b12bfa5bea7e6326c0ef58a5d94 · endet mit 1 Zeilenumbruch/-brüchen · gespeichert unter /root/.hermes/cache/documents/doc_6640d9a3854f_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v8.md (vorhanden: NEIN)
+Verschiedene Inhalte: 1
+Original: 94877 Bytes, 551 Zeilenumbrüche, SHA-256 0c7961e1d2b7eeeb7a6982e419905c54e93a9b12bfa5bea7e6326c0ef58a5d94
+Arbeitskopie arbeit/dokumente: 94876 Bytes, SHA-256 4168a35ede38c31fe4fad21844105a148da5b5aa0d69d2672f29b774b7a67cc9 · gleich Original ohne abschließende Zeilenumbrüche: True
+Teile: 3 (Grenze 38000 Bytes je Teil, geteilt an Zeilengrenzen)
+  TEIL1: 37726 Bytes · Zeilen 1–195 · SHA-256 2aee31d8246d4d0234a5191b6b7dd98e6aacd9603e394234530cfbe295d1a137
+  TEIL2: 37981 Bytes · Zeilen 196–411 · SHA-256 7d2284a75396620c5f445efefb7407bac9ecbc18bb0e020f197a1134d160f48f
+  TEIL3: 19170 Bytes · Zeilen 412–551 · SHA-256 3e551cfbbed5e15e4dd8b58b5fd8648f8a93aa194e72bccbfac5a19376700d89
+Verkettung der geschriebenen Teile: 94877 Bytes · SHA-256 0c7961e1d2b7eeeb7a6982e419905c54e93a9b12bfa5bea7e6326c0ef58a5d94 · gleich Original: True
+=== Ende R95 ===
+
+
+R96 · Teil C: Einführung eigene_ansage_nr (A33 C-Selbstblock) in aegis.py, git log -S (nur lesend)
+Beginn: 2026-09-25 16:49:09 CEST (UTC+0200)
+Ende:   2026-09-25 16:49:09 CEST (UTC+0200)
+Dauer:  0.0 s
+Exit-Code: 127
+Befehl (wörtlich):
+git -C /root/biotop log --format=%h|%ad|%s --date=iso -S eigene_ansage_nr -- biotop/organe/aegis.py
+Ausgabe (vollständig, stdout und stderr):
+bash: line 1: %ad: command not found
+bash: line 1: %s: command not found
+=== Ende R96 ===
+
+
+R97 · Teil C: Einführung eigene_ansage_nr (A33) in aegis.py, git log -S (zweiter Versuch, R96 scheiterte an meinem Format mit Pipe-Zeichen)
+Beginn: 2026-09-25 16:49:15 CEST (UTC+0200)
+Ende:   2026-09-25 16:49:15 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+git -C /root/biotop log --pretty=format:%h%x09%ad%x09%s --date=iso -S eigene_ansage_nr -- biotop/organe/aegis.py
+Ausgabe (vollständig, stdout und stderr):
+bb8eb0f	2026-09-21 12:08:57 +0200	Vorbedingung 1 Phase 4: abgenommener Stand (Nachtrag)
+=== Ende R97 ===
+
+
+R98 · Teil D: Rolle je Nische — Kasse schwarm.<nische>, Kandidaten, Bandit je Zweig (FK33)
+Beginn: 2026-09-25 16:49:44 CEST (UTC+0200)
+Ende:   2026-09-25 16:49:44 CEST (UTC+0200)
+Dauer:  0.4 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/aufbau/d12_nischen.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/aufbau/d12_nischen.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil D (nur lesend): Rolle je Nische in der Kasse und in den Kandidaten — FK33.
+
+STAMM (Läufe 1–25) nur mit mode=ro&immutable=1 und nur bei -wal = 0 Bytes; T3 (nur Läufe >= 26) mit mode=ro.
+Je Zweig: (1) Kassenbuchungen mit Zweck schwarm.<nische>.… je Nische × Modell (Anzahl);
+(2) Kandidaten je Nische × Modell: gesamt und Status 'angenommen'; (3) Bandit-Tabelle je Nische × Hersteller:
+Summe versuche, Summe erfolge.
+"""
+import collections
+import os
+import sqlite3
+
+wal = '/root/biotop/daten/biotop.db-wal'
+zweige = []
+if os.path.exists(wal) and os.path.getsize(wal) == 0:
+    zweige.append(('STAMM (Läufe 1–25)', 'file:/root/biotop/daten/biotop.db?mode=ro&immutable=1', 0))
+else:
+    print('STAMM NICHT GEÖFFNET: -wal nicht 0 Bytes')
+zweige.append(('T3 (nur Läufe 26–38)', 'file:/root/biotop-t3/t3.db?mode=ro', 26))
+
+for name, uri, ab in zweige:
+    con = sqlite3.connect(uri, uri=True)
+    print(f'== {name}')
+    z = collections.Counter()
+    for zweck, modell in con.execute("SELECT zweck, modell FROM kasse WHERE zweck LIKE 'schwarm.%' AND lauf_id >= ?", (ab,)):
+        teile = (zweck or '').split('.')
+        z[(teile[1] if len(teile) > 1 else '?', modell)] += 1
+    print('-- (1) Kasse schwarm.<nische>: Nische | Modell | Buchungen')
+    for (n, m), v in sorted(z.items()):
+        print(f'   {n} | {m} | {v}')
+    print(f'   Summe: {sum(z.values())}')
+    print('-- (2) Kandidaten: Nische | Modell | gesamt | angenommen (ohne ist_probe=1)')
+    for r in con.execute("""SELECT nische, modell, count(*), sum(status='angenommen') FROM kandidaten
+                            WHERE lauf_id >= ? AND COALESCE(ist_probe,0)=0 GROUP BY 1,2 ORDER BY 1,2""", (ab,)):
+        print('   ' + ' | '.join(str(x) for x in r))
+    print('-- (3) Bandit: Nische | Hersteller | versuche | erfolge')
+    for r in con.execute("""SELECT nische, hersteller, sum(versuche), sum(erfolge) FROM bandit WHERE lauf_id >= ?
+                            GROUP BY 1,2 ORDER BY 1,2""", (ab,)):
+        print('   ' + ' | '.join(str(x) for x in r))
+    con.close()
+--- Ende /root/sicherung/biotop-lage-01/entwurf/aufbau/d12_nischen.py ---
+Ausgabe (vollständig, stdout und stderr):
+== STAMM (Läufe 1–25)
+-- (1) Kasse schwarm.<nische>: Nische | Modell | Buchungen
+   elegant | deepseek/deepseek-v4.1-flash | 133
+   elegant | google/gemini-3.5-flash-lite | 132
+   elegant | openai/gpt-5.6-luna | 164
+   elegant | qwen/qwen3.8-flash | 115
+   schnell | deepseek/deepseek-v4.1-flash | 113
+   schnell | google/gemini-3.5-flash-lite | 127
+   schnell | openai/gpt-5.6-luna | 170
+   schnell | qwen/qwen3.8-flash | 135
+   sicher | deepseek/deepseek-v4.1-flash | 152
+   sicher | google/gemini-2.5-flash | 181
+   sicher | google/gemini-3.5-flash-lite | 194
+   sicher | openai/gpt-4.1-mini | 181
+   sicher | openai/gpt-5.6-luna | 159
+   sicher | qwen/qwen3.8-flash | 137
+   wild | deepseek/deepseek-v4.1-flash | 129
+   wild | google/gemini-3.5-flash-lite | 124
+   wild | openai/gpt-5.6-luna | 150
+   wild | qwen/qwen3.8-flash | 137
+   Summe: 2633
+-- (2) Kandidaten: Nische | Modell | gesamt | angenommen (ohne ist_probe=1)
+   elegant | deepseek/deepseek-v4.1-flash | 133 | 0
+   elegant | google/gemini-3.5-flash-lite | 132 | 0
+   elegant | openai/gpt-5.6-luna | 164 | 1
+   elegant | qwen/qwen3.8-flash | 115 | 0
+   schnell | deepseek/deepseek-v4.1-flash | 113 | 4
+   schnell | google/gemini-3.5-flash-lite | 127 | 6
+   schnell | openai/gpt-5.6-luna | 170 | 6
+   schnell | qwen/qwen3.8-flash | 135 | 8
+   sicher | deepseek/deepseek-v4.1-flash | 152 | 2
+   sicher | google/gemini-2.5-flash | 181 | 25
+   sicher | google/gemini-3.5-flash-lite | 194 | 1
+   sicher | openai/gpt-4.1-mini | 181 | 13
+   sicher | openai/gpt-5.6-luna | 159 | 0
+   sicher | qwen/qwen3.8-flash | 137 | 1
+   wild | deepseek/deepseek-v4.1-flash | 129 | 1
+   wild | google/gemini-3.5-flash-lite | 124 | 0
+   wild | openai/gpt-5.6-luna | 150 | 0
+   wild | qwen/qwen3.8-flash | 137 | 2
+-- (3) Bandit: Nische | Hersteller | versuche | erfolge
+   elegant | deepseek | 80 | 3
+   elegant | google | 63 | 1
+   elegant | openai | 49 | 3
+   elegant | qwen | 91 | 0
+   schnell | deepseek | 89 | 10
+   schnell | google | 63 | 8
+   schnell | openai | 71 | 8
+   schnell | qwen | 124 | 17
+   sicher | deepseek | 90 | 6
+   sicher | google | 95 | 5
+   sicher | openai | 65 | 0
+   sicher | qwen | 101 | 2
+   wild | deepseek | 92 | 1
+   wild | google | 67 | 0
+   wild | openai | 55 | 0
+   wild | qwen | 99 | 4
+== T3 (nur Läufe 26–38)
+-- (1) Kasse schwarm.<nische>: Nische | Modell | Buchungen
+   elegant | deepseek/deepseek-v4.1-flash | 69
+   elegant | google/gemini-3.5-flash-lite | 62
+   elegant | openai/gpt-5.6-luna | 115
+   elegant | qwen/qwen3.8-flash | 76
+   schnell | deepseek/deepseek-v4.1-flash | 78
+   schnell | google/gemini-3.5-flash-lite | 44
+   schnell | openai/gpt-5.6-luna | 127
+   schnell | qwen/qwen3.8-flash | 80
+   sicher | deepseek/deepseek-v4.1-flash | 205
+   sicher | google/gemini-3.5-flash-lite | 55
+   sicher | openai/gpt-5.6-luna | 97
+   sicher | qwen/qwen3.8-flash | 88
+   wild | deepseek/deepseek-v4.1-flash | 102
+   wild | google/gemini-3.5-flash-lite | 53
+   wild | openai/gpt-5.6-luna | 115
+   wild | qwen/qwen3.8-flash | 54
+   Summe: 1420
+-- (2) Kandidaten: Nische | Modell | gesamt | angenommen (ohne ist_probe=1)
+   elegant | deepseek/deepseek-v4.1-flash | 16 | 0
+   elegant | google/gemini-3.5-flash-lite | 20 | 1
+   elegant | openai/gpt-5.6-luna | 110 | 0
+   elegant | qwen/qwen3.8-flash | 48 | 5
+   schnell | deepseek/deepseek-v4.1-flash | 60 | 4
+   schnell | google/gemini-3.5-flash-lite | 24 | 0
+   schnell | openai/gpt-5.6-luna | 3 | 0
+   schnell | qwen/qwen3.8-flash | 62 | 8
+   sicher | deepseek/deepseek-v4.1-flash | 41 | 3
+   sicher | google/gemini-3.5-flash-lite | 16 | 0
+   sicher | openai/gpt-5.6-luna | 56 | 0
+   sicher | qwen/qwen3.8-flash | 51 | 3
+   wild | deepseek/deepseek-v4.1-flash | 62 | 4
+   wild | google/gemini-3.5-flash-lite | 44 | 0
+   wild | openai/gpt-5.6-luna | 14 | 0
+   wild | qwen/qwen3.8-flash | 36 | 2
+-- (3) Bandit: Nische | Hersteller | versuche | erfolge
+   elegant | deepseek | 16 | 1
+   elegant | google | 17 | 1
+   elegant | openai | 1 | 0
+   elegant | qwen | 47 | 7
+   schnell | deepseek | 60 | 7
+   schnell | google | 24 | 0
+   schnell | qwen | 61 | 9
+   sicher | deepseek | 373 | 202
+   sicher | google | 86 | 5
+   sicher | openai | 145 | 22
+   sicher | qwen | 97 | 11
+   wild | deepseek | 61 | 6
+   wild | google | 44 | 0
+   wild | openai | 4 | 0
+   wild | qwen | 36 | 3
+=== Ende R98 ===
+
+
+R99 · Teil E: Verfassungsdateien (SHA-256), Anhang-B-Schlüssel, .env-Namen, Anbieterdateien
+Beginn: 2026-09-25 16:52:27 CEST (UTC+0200)
+Ende:   2026-09-25 16:52:27 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/soll-ist/e6_dateibelege.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/soll-ist/e6_dateibelege.py (wörtlich) ---
+#!/usr/bin/env python3
+"""Teil E (SOLL-IST), nur lesend: Dateibelege für Masterprompt v8 Anhang A/B, Abschnitt 6/7.
+- SHA-256 der Verfassungsdateien im Biotop, im VB1-Zweig und in T3 (nur Prüfsummen, keine Inhalte).
+- Anhang B Z. 538: Präfixe `0ce7f865` (Datei) und `bce33200` (Regeln) gegen die Dateien im Biotop.
+- Anhang B Z. 547: Schlüssel `verbotene_muster` und `laufzeit_faktor_bei_sicherheitsgewinn` in logmuehle.regeln.json.
+- Namen (ohne Inhalt) von Dateien `.env*` unter /root/biotop (ohne .git, node_modules, .venv, daten/werke).
+- Dateinamen unter /root/biotop/biotop/anbieter.
+Kein Import, keine Ausführung von Biotop-Code; schreibt nichts."""
+import hashlib
+import json
+import os
+from pathlib import Path
+
+
+def sha(p: Path) -> str:
+    return hashlib.sha256(p.read_bytes()).hexdigest()
+
+
+DATEIEN = [
+    '/root/biotop/verfassungen/lagerhaus.md',
+    '/root/biotop/verfassungen/lagerhaus.regeln.json',
+    '/root/biotop/verfassungen/logmuehle.md',
+    '/root/biotop/verfassungen/logmuehle.regeln.json',
+    '/root/phase-4-vorbedingung-1/privat/verfassung.md',
+    '/root/phase-4-vorbedingung-1/privat/verfassung.regeln.json',
+    '/root/biotop-t3/VERFASSUNG-T3-02.md',
+    '/root/biotop-t3/VERFASSUNG-T3-02.regeln.json',
+]
+print('## SHA-256 der Verfassungsdateien')
+werte = {}
+for d in DATEIEN:
+    p = Path(d)
+    if p.is_file():
+        werte[d] = sha(p)
+        print(f'{p.stat().st_size:>7} Bytes  {werte[d]}  {d}')
+    else:
+        print(f'NICHT GEFUNDEN  {d}')
+
+print('\n## Vergleich lagerhaus (Biotop) gegen VB1-Zweig')
+for a, b in [('/root/biotop/verfassungen/lagerhaus.md', '/root/phase-4-vorbedingung-1/privat/verfassung.md'),
+             ('/root/biotop/verfassungen/lagerhaus.regeln.json',
+              '/root/phase-4-vorbedingung-1/privat/verfassung.regeln.json')]:
+    if a in werte and b in werte:
+        print(f'{"gleich" if werte[a] == werte[b] else "VERSCHIEDEN"}: {a} ↔ {b}')
+
+print('\n## Anhang B Z. 538: Präfixe')
+for d, praefix in [('/root/biotop/verfassungen/logmuehle.md', '0ce7f865'),
+                   ('/root/biotop/verfassungen/logmuehle.regeln.json', 'bce33200')]:
+    if d in werte:
+        print(f'{d}: beginnt mit {praefix}: {werte[d].startswith(praefix)}')
+
+print('\n## Anhang B Z. 547: Schlüssel in logmuehle.regeln.json (nur Namen und Typ/Wert der Tauschzahl)')
+p = Path('/root/biotop/verfassungen/logmuehle.regeln.json')
+if p.is_file():
+    j = json.loads(p.read_text())
+
+    def finde(o, pfad=''):
+        if isinstance(o, dict):
+            for k, v in o.items():
+                q = f'{pfad}.{k}' if pfad else k
+                if k == 'verbotene_muster':
+                    print(f'   {q}: vorhanden, {type(v).__name__} mit {len(v)} Einträgen')
+                if k == 'laufzeit_faktor_bei_sicherheitsgewinn':
+                    print(f'   {q}: {v}')
+                finde(v, q)
+        elif isinstance(o, list):
+            for i, v in enumerate(o):
+                finde(v, f'{pfad}[{i}]')
+    finde(j)
+    print(f'   oberste Schlüssel: {list(j) if isinstance(j, dict) else type(j).__name__}')
+
+print('\n## Dateinamen .env* unter /root/biotop (nur Namen, ohne Inhalt)')
+AUS = {'.git', 'node_modules', '.venv', '__pycache__'}
+n = 0
+for wurzel, ordner, dateien in os.walk('/root/biotop'):
+    ordner[:] = [o for o in ordner if o not in AUS]
+    for d in dateien:
+        if d.startswith('.env'):
+            n += 1
+            print(f'   {os.path.join(wurzel, d)}')
+print(f'   Anzahl: {n}')
+
+print('\n## /root/biotop/biotop/anbieter (Dateinamen)')
+for p in sorted(Path('/root/biotop/biotop/anbieter').iterdir()):
+    print(f'   {p.name}')
+--- Ende /root/sicherung/biotop-lage-01/entwurf/soll-ist/e6_dateibelege.py ---
+Ausgabe (vollständig, stdout und stderr):
+## SHA-256 der Verfassungsdateien
+   1506 Bytes  326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14  /root/biotop/verfassungen/lagerhaus.md
+    806 Bytes  34d67f36719395b6cff4c9bed88b8b506ae525943aa7c84682b7c0167ad27abc  /root/biotop/verfassungen/lagerhaus.regeln.json
+   1841 Bytes  0ce7f8651ae70ad0783cb6caa8f54b9ebbcf789b5e6b116d6df6fb63242bc803  /root/biotop/verfassungen/logmuehle.md
+    691 Bytes  bce33200a57d77e5a9254e0da271c38c9ce23404506cc6cfb0bf902e5051b0c8  /root/biotop/verfassungen/logmuehle.regeln.json
+   1506 Bytes  326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14  /root/phase-4-vorbedingung-1/privat/verfassung.md
+    729 Bytes  74e9d337f7ecf17d84fd6c66e05eeb68e2486b7cc96b900400a1b0becb14fe72  /root/phase-4-vorbedingung-1/privat/verfassung.regeln.json
+   4418 Bytes  5ece12d93dc760d6bfb834d7d1cd53e29065bd54d673e2381a23d50234f78a28  /root/biotop-t3/VERFASSUNG-T3-02.md
+   1398 Bytes  e750eb4d5033442f842028c5b2fde5c403dedfcf9b2c05260091bc6c0269e54b  /root/biotop-t3/VERFASSUNG-T3-02.regeln.json
+
+## Vergleich lagerhaus (Biotop) gegen VB1-Zweig
+gleich: /root/biotop/verfassungen/lagerhaus.md ↔ /root/phase-4-vorbedingung-1/privat/verfassung.md
+VERSCHIEDEN: /root/biotop/verfassungen/lagerhaus.regeln.json ↔ /root/phase-4-vorbedingung-1/privat/verfassung.regeln.json
+
+## Anhang B Z. 538: Präfixe
+/root/biotop/verfassungen/logmuehle.md: beginnt mit 0ce7f865: True
+/root/biotop/verfassungen/logmuehle.regeln.json: beginnt mit bce33200: True
+
+## Anhang B Z. 547: Schlüssel in logmuehle.regeln.json (nur Namen und Typ/Wert der Tauschzahl)
+   tausch.laufzeit_faktor_bei_sicherheitsgewinn: 3.0
+   verbotene_muster: vorhanden, list mit 5 Einträgen
+   oberste Schlüssel: ['uebungswerk', 'quelle', 'tausch', 'verbotene_muster', 'einstiege']
+
+## Dateinamen .env* unter /root/biotop (nur Namen, ohne Inhalt)
+   Anzahl: 0
+
+## /root/biotop/biotop/anbieter (Dateinamen)
+   __init__.py
+   __pycache__
+=== Ende R99 ===

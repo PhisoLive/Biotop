@@ -1,0 +1,340 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 55 (Teile 4–165 dieses Stands) · enthält R47 bis R49
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R47 · Teil H: kompakte Laufliste mit Status und Grund aus arbeit/kasse/laeufe.csv (STAMM 1–25, VB1 26, T3 26–38), nur lesend
+Beginn: 2026-09-25 16:15:17 CEST (UTC+0200)
+Ende:   2026-09-25 16:15:17 CEST (UTC+0200)
+Dauer:  0.0 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/lage-offen/h4_laeufe.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/lage-offen/h4_laeufe.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil H (nur lesend): kompakte Laufliste aus arbeit/kasse/laeufe.csv (aus R25) — je Lauf nur Zweig, id,
+Status, Beginn, Ende und die ersten 260 Zeichen des Grundes. Doppelte Läufe (gleiche id in mehreren Zweigen) werden nur
+einmal gezeigt: STAMM für 1–25, T3 für 26–38, VB1-Lauf 26 zusätzlich getrennt (eigene Zeile)."""
+import csv
+import sys
+from pathlib import Path
+
+csv.field_size_limit(sys.maxsize)
+P = Path('/root/sicherung/biotop-lage-01/arbeit/kasse/laeufe.csv')
+zeilen = list(csv.DictReader(P.open(encoding='utf-8', newline=''), delimiter=';'))
+print(f'Zeilen gesamt: {len(zeilen)}; Zweige: {sorted({z["zweig"] for z in zeilen})}')
+gesehen = set()
+for z in zeilen:
+    i = int(z['id'])
+    schluessel = (z['zweig'] if (z['zweig'] == 'VB1' and i == 26) else ('T3' if i >= 26 else 'STAMM'), i)
+    if z['zweig'] == 'STAMM' and i <= 25 or z['zweig'] == 'T3' and i >= 26 or (z['zweig'] == 'VB1' and i == 26):
+        if schluessel in gesehen:
+            continue
+        gesehen.add(schluessel)
+        grund = (z.get('grund') or '').replace('\n', ' ')
+        print(f"{z['zweig']};{i};{z['status']};{z['begonnen_am'][:19]};{(z['beendet_am'] or '')[:19]};"
+              f"{grund[:260]}{'…' if len(grund) > 260 else ''}")
+zaehl = {}
+for (zw, i) in gesehen:
+    pass
+st = {}
+for z in zeilen:
+    i = int(z['id'])
+    if z['zweig'] == 'STAMM' and i <= 25 or z['zweig'] == 'T3' and i >= 26:
+        st[z['status']] = st.get(z['status'], 0) + 1
+print('Status je Lauf (STAMM 1–25 + T3 26–38, ohne VB1-26):', dict(sorted(st.items())))
+--- Ende /root/sicherung/biotop-lage-01/entwurf/lage-offen/h4_laeufe.py ---
+Ausgabe (vollständig, stdout und stderr):
+Zeilen gesamt: 115; Zweige: ['R02', 'STAMM', 'T3', 'VB1']
+STAMM;1;abgebrochen;2026-09-18T21:40:42;2026-09-18T21:44:34;Abbruch durch Hermes nach Generation 1 (0 angenommen): zwei Mängel im Biotop (Diff-Anwendung verwarf 6 von 8 Kandidaten wegen Hunk-Zählern; Maß groesste_funktion ohne Toleranz verwarf eine Fehlerbehebung wegen +1 Zeile). Maß geändert → neuer Lauf (Verfassungss…
+STAMM;2;bereit;2026-09-18T21:44:49;;
+STAMM;3;gestoppt;2026-09-18T22:04:12;2026-09-18T22:04:14;Messgerät fehlt: keine Tests gefunden (0 Testdateien mit ausführbaren Tests). Vorschlag: mit Generation 0 (Tests erzeugen) beginnen.
+STAMM;4;abgebrochen;2026-09-18T22:04:51;;Budget erschöpft vor Aufruf (Protokoll #652)
+STAMM;5;abgebrochen;2026-09-18T22:11:45;2026-09-18T22:16:27;Budget erschöpft vor Generation 3 (Protokoll #800)
+STAMM;6;abgebrochen;2026-09-18T22:48:35;2026-09-18T23:19:56;Abbruch durch Hermes nach Generation 12: Immunisierungsregel des Biotops fehlerhaft (Angriffstests, die der angenommene Kandidat nicht besteht, wurden ins Werk geschrieben → 19 rote Tests im Werk). Regel korrigiert (aegis.py: nur bestandene Tests ins Werk); ne…
+STAMM;7;abgebrochen;2026-09-18T23:20:20;2026-09-18T23:32:26;Abbruch durch Hermes nach Generation 4: Generation 4 (K231) machte den S3-Fix aus Generation 1 rückgängig und wurde angenommen. Ursache im Messgerät: (1) Pareto auf Fehlschlags-ZAHL je Bereich statt je Test — die Regression eines vorhandenen Immuntests wurde v…
+STAMM;8;abgebrochen;2026-09-18T23:33:13;2026-09-18T23:53:28;Abbruch durch Hermes nach Generation 8 (3 angenommen): S1, S4, S5 behoben; S3 in 13 von 16 lager-Kandidaten korrekt vorgeschlagen, aber ohne mitgelieferten Test → Kernmaß unverändert; der Ankläger fand den Fehler an der Vorgeneration jedes Mal (bestaetigt_basi…
+STAMM;9;beendet;2026-09-18T23:53:36;2026-09-19T00:08:53;Nachlauf abgeschlossen: 6 Generationen, 4 angenommen; Tor-Zeilen 1–4 gemessen (97-tor-zeilen-1-bis-4-lauf9.txt). Kein Sättigungsorgan in Phase 1 — Ende durch Hermes nach Erreichen des Tor-Ziels.
+STAMM;10;abgebrochen;2026-09-19T00:09:20;2026-09-19T00:12:40;Budget erschöpft vor Generation 2 (Protokoll #2623)
+STAMM;11;angelegt;2026-09-19T00:28:44;;
+STAMM;12;abgebrochen;2026-09-19T00:41:55;2026-09-19T01:46:20;Abbruch durch Hermes nach Generation 10 und Proben: Norm-Probe zeigte, dass die Norm-Regel 3.7 F3 nur auf Ankläger-Tests, nicht auf mitgebrachte Kandidaten-Tests angewandt war (Norm-Test wäre ins Werk gekommen). Messgerät korrigiert → Maßänderung → neuer Lauf …
+STAMM;13;beendet;2026-09-19T01:47:07;2026-09-19T03:25:10;Phase-2-Hauptlauf beendet nach 14 Generationen (7 angenommen: 1,3,5,6,10,11,13); Tor-2-Proben gegen Gen 13 ausgeführt; Ende durch Hermes (Sättigung ist Phase 3).
+STAMM;14;verworfen;2026-09-19T11:03:07;;
+STAMM;15;verworfen;2026-09-19T11:09:10;;
+STAMM;16;verworfen;2026-09-19T11:26:06;2026-09-19T14:40:29;In dieser Richtung gesättigt: Generationen 4–9, Verbesserung 0.00 % (Schwelle 0.5 % über 5 Generationen), Kernmaß 0 = Höchstwert, Doppelgänger-Anteil der Vorschläge im Fenster 44 %. Weiter nur mit anderer Richtung (zurück zum Mentor: `biotop mentor <lauf>`) od…
+STAMM;17;gesaettigt;2026-09-19T11:55:34;2026-09-19T13:54:24;In dieser Richtung gesättigt: Generationen 4–8, Verbesserung 0.00 % (Schwelle 0.5 % über 5 Generationen), Kernmaß 0 = Höchstwert, Doppelgänger-Anteil der Vorschläge im Fenster 9 %. Weiter nur mit anderer Richtung (zurück zum Mentor: `biotop mentor <lauf>`) ode…
+STAMM;18;verworfen;2026-09-19T14:41:03;2026-09-19T15:05:45;
+STAMM;19;verworfen;2026-09-19T15:06:18;2026-09-19T15:39:39;In dieser Richtung gesättigt: Generationen 1–5, Verbesserung 0.00 % (Schwelle 0.5 % über 5 Generationen), Kernmaß 0 = Höchstwert, Doppelgänger-Anteil der Vorschläge im Fenster 9 %. Weiter nur mit anderer Richtung (zurück zum Mentor: `biotop mentor <lauf>`) ode…
+STAMM;20;gesaettigt;2026-09-19T15:40:05;2026-09-19T16:23:54;In dieser Richtung gesättigt: Generationen 1–5, Verbesserung 0.00 % (Schwelle 0.5 % über 5 Generationen), Kernmaß 0 = Höchstwert, Doppelgänger-Anteil der Vorschläge im Fenster 12 %. Weiter nur mit anderer Richtung (zurück zum Mentor: `biotop mentor <lauf>`) od…
+STAMM;21;verworfen;2026-09-19T20:34:21;2026-09-19T20:34:21;Hermes (satz2): Ankläger-Ablauf während des Laufs geändert (Prüfung)
+STAMM;22;gesaettigt;2026-09-19T20:57:41;2026-09-19T22:50:08;In dieser Richtung gesättigt: Generationen 1–5, Verbesserung 0.00 % (Schwelle 0.5 % über 5 Generationen), Kernmaß 0 = Höchstwert, Doppelgänger-Anteil der Vorschläge im Fenster 2 %. Weiter nur mit anderer Richtung (zurück zum Mentor: `biotop mentor <lauf>`) ode…
+STAMM;23;gesaettigt;2026-09-19T21:32:55;2026-09-19T22:39:48;In dieser Richtung gesättigt: Generationen 1–5, Verbesserung 0.00 % (Schwelle 0.5 % über 5 Generationen), Kernmaß 0 = Höchstwert, Doppelgänger-Anteil der Vorschläge im Fenster 7 %. Weiter nur mit anderer Richtung (zurück zum Mentor: `biotop mentor <lauf>`) ode…
+STAMM;24;bereit;2026-09-19T22:57:49;;
+STAMM;25;bereit;2026-09-20T01:13:30;;
+VB1;26;gesaettigt;2026-09-20T19:31:54;2026-09-20T20:16:10;In dieser Richtung gesättigt: Generationen 1–5, Verbesserung 0.00 % (Schwelle 0.5 % über 5 Generationen), Kernmaß 0 = Höchstwert, Doppelgänger-Anteil der Vorschläge im Fenster 9 %. Weiter nur mit anderer Richtung (zurück zum Mentor: `biotop mentor <lauf>`) ode…
+T3;26;kartiert;2026-09-21T03:43:38;;
+T3;27;kartiert;2026-09-21T03:48:08;;
+T3;28;kartiert;2026-09-21T04:05:27;;
+T3;29;kartiert;2026-09-21T04:35:14;;
+T3;30;kartiert;2026-09-21T05:34:47;;
+T3;31;laeuft;2026-09-21T11:11:04;;
+T3;32;laeuft;2026-09-21T13:19:35;;
+T3;33;kartiert;2026-09-21T16:23:15;;
+T3;34;kartiert;2026-09-21T16:45:51;;
+T3;35;kartiert;2026-09-21T17:15:24;;
+T3;36;laeuft;2026-09-21T18:25:59;;
+T3;37;gesaettigt;2026-09-21T22:21:06;2026-09-22T04:29:03;In dieser Richtung gesättigt: Generationen 6–10, Verbesserung 0.00 % (Schwelle 0.5 % über 5 Generationen), Kernmaß -14, Doppelgänger-Anteil der Vorschläge im Fenster 0 %. Weiter nur mit anderer Richtung (zurück zum Mentor: `biotop mentor <lauf>`) oder anderem …
+T3;38;bereit;2026-09-22T13:42:49;;
+Status je Lauf (STAMM 1–25 + T3 26–38, ohne VB1-26): {'abgebrochen': 8, 'angelegt': 1, 'beendet': 2, 'bereit': 4, 'gesaettigt': 5, 'gestoppt': 1, 'kartiert': 8, 'laeuft': 3, 'verworfen': 6}
+=== Ende R47 ===
+
+
+R48 · Teil D: Umgebung — Sprachversionen, docker images, Port 8642 (FK36)
+Beginn: 2026-09-25 16:15:19 CEST (UTC+0200)
+Ende:   2026-09-25 16:15:20 CEST (UTC+0200)
+Dauer:  0.3 s
+Exit-Code: 2
+Befehl (wörtlich):
+bash /root/sicherung/biotop-lage-01/entwurf/aufbau/d5_umgebung.sh
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/aufbau/d5_umgebung.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-LAGE-01 Teil D (nur lesend): Umgebung — FK36.
+# Erlaubt laut Teilauftrag: python3 --version, node --version, /root/biotop-t3/venv/bin/python --version, docker images.
+# Dazu nur lesend: pytest-Version im T3-venv (pip-Metadaten, kein Import von Biotop-Code), Port 8642 (Biotop-Dienst)
+# in ss, Kammer-Sperrdatei.
+date '+== Zeitpunkt %Y-%m-%d %H:%M:%S %Z (UTC%z)'
+echo "== python3 --version"; python3 --version 2>&1
+echo "== node --version"; node --version 2>&1
+echo "== which node / /opt/node22/bin/node --version"; which node 2>&1; /opt/node22/bin/node --version 2>&1
+echo "== /root/biotop-t3/venv/bin/python --version"; /root/biotop-t3/venv/bin/python --version 2>&1
+echo "== T3-venv: installierte Pakete (Metadaten-Verzeichnisse, nur Namen)"
+ls /root/biotop-t3/venv/lib/python3*/site-packages 2>/dev/null | grep -i -E 'dist-info$' | sed 's/\.dist-info$//' | sort
+echo "== docker --version"; docker --version 2>&1
+echo "== docker images"; docker images 2>&1
+echo "== Biotop-Dienst Port 8642 in ss -ltn?"; ss -ltn 2>&1 | grep -E ':8642\b' || echo "(kein Dienst auf 8642)"
+echo "== Kammer-Sperrdatei"; ls -ld /tmp/biotop-kammer-exklusiv 2>&1
+--- Ende /root/sicherung/biotop-lage-01/entwurf/aufbau/d5_umgebung.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== Zeitpunkt 2026-09-25 16:15:19 CEST (UTC+0200)
+== python3 --version
+Python 3.12.3
+== node --version
+v26.8.2
+== which node / /opt/node22/bin/node --version
+/root/.hermes/node/bin/node
+v22.14.0
+== /root/biotop-t3/venv/bin/python --version
+Python 3.12.3
+== T3-venv: installierte Pakete (Metadaten-Verzeichnisse, nur Namen)
+iniconfig-2.3.0
+packaging-26.3
+pluggy-1.6.0
+pygments-2.21.0
+pytest-9.1.1
+== docker --version
+Docker version 29.1.3, build 29.1.3-0ubuntu3~24.04.2
+== docker images
+WARNING: This output is designed for human readability. For machine-readable output, please use --format.
+IMAGE                   ID             DISK USAGE   CONTENT SIZE   EXTRA
+biotop-kammer:1         ce7bbe944118        231MB         55.8MB        
+biotop-kammer:ts1       212e6212cd16        535MB          125MB        
+node:22-bookworm-slim   48e4b67d85f8        329MB         82.6MB        
+python:3.12-slim        78387bc3881b        190MB         48.4MB        
+== Biotop-Dienst Port 8642 in ss -ltn?
+(kein Dienst auf 8642)
+== Kammer-Sperrdatei
+ls: cannot access '/tmp/biotop-kammer-exklusiv': No such file or directory
+=== Ende R48 ===
+
+
+R49 · Teil B: Verfassungen in den Kassen-Datenbanken (verfassung_werk, Protokoll), nur lesend
+Beginn: 2026-09-25 16:15:26 CEST (UTC+0200)
+Ende:   2026-09-25 16:15:26 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 1
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/verfassungen/b3_datenbanken.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/verfassungen/b3_datenbanken.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil B (nur lesend): Verfassungen in den Kassen-Datenbanken (Tabelle verfassung_werk, Protokoll).
+
+Regeln: STAMM nur mit mode=ro&immutable=1 und nur, wenn biotop.db-wal 0 Bytes hat (vorher geprüft);
+alle anderen Datenbanken mit mode=ro. Nichts wird geschrieben. Kein Biotop-Code wird importiert.
+Ausgabe: je Zweig Tabellen mit „verfass“, Schema, Zeilen (werk_id, Werkname, Textlänge, SHA-256 von Text und Regeln,
+Quelle, eingelegt_am, eingelegt_von), Abgleich mit den Dateien, Protokollzeilen „verfassung.eingelegt“,
+Läufe je werk_id; Wortlaut jedes Textes und jeder Regel, der keiner bekannten Datei entspricht.
+"""
+import hashlib
+import json
+import os
+import sqlite3
+import sys
+
+STAMM = '/root/biotop/daten/biotop.db'
+ZWEIGE = [('STAMM', STAMM), ('VB1', '/root/phase-4-vorbedingung-1/privat/biotop.db'),
+          ('R02', '/root/reparatur-02/privat-cli/privat.db'), ('T3', '/root/biotop-t3/t3.db')]
+DATEIEN = {
+    'lagerhaus.md': '/root/biotop/verfassungen/lagerhaus.md',
+    'lagerhaus.regeln.json': '/root/biotop/verfassungen/lagerhaus.regeln.json',
+    'logmuehle.md': '/root/biotop/verfassungen/logmuehle.md',
+    'logmuehle.regeln.json': '/root/biotop/verfassungen/logmuehle.regeln.json',
+    'VB1 privat/verfassung.md': '/root/phase-4-vorbedingung-1/privat/verfassung.md',
+    'VB1 privat/verfassung.regeln.json': '/root/phase-4-vorbedingung-1/privat/verfassung.regeln.json',
+    'VERFASSUNG-T3-ENTWURF.md': '/root/biotop-t3/VERFASSUNG-T3-ENTWURF.md',
+    'VERFASSUNG-T3-02.md': '/root/biotop-t3/VERFASSUNG-T3-02.md',
+    'VERFASSUNG-T3-02.regeln.json': '/root/biotop-t3/VERFASSUNG-T3-02.regeln.json',
+}
+
+
+def h(b: bytes) -> str:
+    return hashlib.sha256(b).hexdigest()
+
+
+text_bek, regel_bek = {}, {}
+for k, p in DATEIEN.items():
+    b = open(p, 'rb').read()
+    if p.endswith('.json'):
+        regel_bek[json.dumps(json.loads(b), sort_keys=True, ensure_ascii=False)] = k
+    else:
+        text_bek[h(b)] = k
+        text_bek[h(b.rstrip(b'\n'))] = k + ' (ohne Schluss-Zeilenumbruch)'
+
+wal = STAMM + '-wal'
+wal_groesse = os.path.getsize(wal) if os.path.exists(wal) else -1
+print(f'Vorprüfung: {wal} = {wal_groesse} Bytes')
+
+unbekannt_text, unbekannt_regel = {}, {}
+for name, db in ZWEIGE:
+    print(f'\n########## {name}: {db}')
+    if not os.path.exists(db):
+        print('  NICHT GEFUNDEN')
+        continue
+    if name == 'STAMM':
+        if wal_groesse != 0:
+            print('  NICHT GEÖFFNET: WAL nicht 0 Bytes')
+            continue
+        uri = f'file:{db}?mode=ro&immutable=1'
+    else:
+        uri = f'file:{db}?mode=ro'
+    print(f'  URI: {uri}')
+    c = sqlite3.connect(uri, uri=True)
+    c.row_factory = sqlite3.Row
+    tab = [r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")]
+    print(f'  Tabellen gesamt: {len(tab)}; mit „verfass“: {[t for t in tab if "verfass" in t.lower()]}')
+    spalten = {}
+    for t in tab:
+        cols = [r[1] for r in c.execute(f'PRAGMA table_info("{t}")')]
+        treffer = [x for x in cols if 'verfass' in x.lower() or 'bestaet' in x.lower()]
+        if treffer:
+            spalten[t] = treffer
+    print(f'  Spalten mit „verfass“/„bestaet“: {spalten}')
+    if 'verfassung_werk' not in tab:
+        print('  verfassung_werk: NICHT VORHANDEN')
+        c.close()
+        continue
+    print('  Schema:', c.execute("SELECT sql FROM sqlite_master WHERE name='verfassung_werk'").fetchone()[0].strip())
+    werke = {r['id']: r['name'] for r in c.execute('SELECT id, name FROM werke')}
+    zeilen = c.execute('SELECT * FROM verfassung_werk ORDER BY werk_id').fetchall()
+    print(f'  Zeilen verfassung_werk: {len(zeilen)} (Werke in Tabelle werke: {len(werke)})')
+    print('  werk_id | Werk | Text Bytes | SHA-256 Text | Text = Datei | Regeln = Datei | Quelle | eingelegt_am | eingelegt_von')
+    for r in zeilen:
+        tb = (r['text'] or '').encode()
+        ht = h(tb)
+        try:
+            rk = json.dumps(json.loads(r['regeln'] or 'null'), sort_keys=True, ensure_ascii=False)
+        except ValueError:
+            rk = 'UNLESBAR:' + str(r['regeln'])[:60]
+        tdat = text_bek.get(ht, 'KEINE')
+        rdat = regel_bek.get(rk, 'KEINE')
+        if tdat == 'KEINE':
+            unbekannt_text.setdefault(ht, (r['text'], []))[1].append(f'{name}:{r["werk_id"]}')
+        if rdat == 'KEINE':
+            unbekannt_regel.setdefault(rk, []).append(f'{name}:{r["werk_id"]}')
+        print(f'  {r["werk_id"]} | {werke.get(r["werk_id"])} | {len(tb)} | {ht} | {tdat} | {rdat} | {r["quelle"]} | '
+              f'{r["eingelegt_am"]} | {r["eingelegt_von"]}')
+    werke_ohne = sorted(set(werke) - {r['werk_id'] for r in zeilen})
+    print(f'  Werke ohne Verfassungszeile: {[(w, werke[w]) for w in werke_ohne]}')
+    print('  Protokoll art=verfassung.eingelegt: nr | zeit | inhalt')
+    n = 0
+    for r in c.execute("SELECT nr, zeit, inhalt FROM protokoll WHERE art='verfassung.eingelegt' ORDER BY nr"):
+        n += 1
+        print(f'    {r["nr"]} | {r["zeit"]} | {r["inhalt"]}')
+    print(f'  Protokollzeilen verfassung.eingelegt: {n}')
+    print('  Läufe je werk_id (id-Liste):')
+    lj = {}
+    for r in c.execute('SELECT id, werk_id FROM laeufe ORDER BY id'):
+        lj.setdefault(r['werk_id'], []).append(r['id'])
+    for w in sorted(lj):
+        print(f'    werk {w} ({werke.get(w)}): Läufe {lj[w]}')
+    c.close()
+
+print('\n########## Texte ohne passende Datei (Wortlaut):', len(unbekannt_text))
+for ht, (t, wo) in unbekannt_text.items():
+    print(f'--- SHA-256 {ht} · Bytes {len((t or "").encode())} · Vorkommen {wo}')
+    print(t)
+    print('--- Ende')
+print('\n########## Regeln ohne passende Datei (kanonisches JSON):', len(unbekannt_regel))
+for rk, wo in unbekannt_regel.items():
+    print(f'--- Vorkommen {wo}')
+    print(rk)
+    print('--- Ende')
+print('\nNachprüfung WAL STAMM:', os.path.getsize(wal) if os.path.exists(wal) else -1, 'Bytes')
+sys.exit(0)
+--- Ende /root/sicherung/biotop-lage-01/entwurf/verfassungen/b3_datenbanken.py ---
+Ausgabe (vollständig, stdout und stderr):
+Vorprüfung: /root/biotop/daten/biotop.db-wal = 0 Bytes
+
+########## STAMM: /root/biotop/daten/biotop.db
+  URI: file:/root/biotop/daten/biotop.db?mode=ro&immutable=1
+  Tabellen gesamt: 27; mit „verfass“: ['verfassung_werk']
+  Spalten mit „verfass“/„bestaet“: {}
+  Schema: CREATE TABLE verfassung_werk (
+  werk_id INTEGER PRIMARY KEY, text TEXT, regeln TEXT, quelle TEXT, eingelegt_am TEXT, eingelegt_von TEXT)
+  Zeilen verfassung_werk: 18 (Werke in Tabelle werke: 22)
+  werk_id | Werk | Text Bytes | SHA-256 Text | Text = Datei | Regeln = Datei | Quelle | eingelegt_am | eingelegt_von
+  5 | lagerhaus-nachlauf | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | VB1 privat/verfassung.md | VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-18T22:48:45.943+00:00 | Chat-Claude (Anhang A, Masterprompt v2), eingelegt durch Hermes
+  6 | lagerhaus-nachlauf2 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | VB1 privat/verfassung.md | VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-18T23:20:31.794+00:00 | Chat-Claude (Anhang A, Masterprompt v2), eingelegt durch Hermes
+  7 | lagerhaus-nachlauf8 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | VB1 privat/verfassung.md | VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-18T23:33:24.936+00:00 | Chat-Claude (Anhang A, Masterprompt v2), eingelegt durch Hermes
+  8 | lagerhaus-nachlauf9 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | VB1 privat/verfassung.md | VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-18T23:53:47.793+00:00 | Chat-Claude (Anhang A, Masterprompt v2), eingelegt durch Hermes
+  9 | lagerhaus-kasse3 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | VB1 privat/verfassung.md | VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-19T00:09:32.022+00:00 | Chat-Claude (Anhang A)
+  10 | lagerhaus-p2 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | VB1 privat/verfassung.md | VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-19T00:42:11.160+00:00 | Chat-Claude (Anhang A, Masterprompt v3), eingelegt durch Hermes
+  11 | lagerhaus-p2-13 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | VB1 privat/verfassung.md | VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-19T01:47:26.985+00:00 | Chat-Claude (Anhang A, Masterprompt v3), eingelegt durch Hermes
+  12 | lagerhaus-p3-14 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | VB1 privat/verfassung.md | VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-19T11:03:26.026+00:00 | Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes
+  13 | lagerhaus-p3-15 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | VB1 privat/verfassung.md | VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-19T11:09:30.426+00:00 | Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes
+  14 | lagerhaus-p3-16 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | VB1 privat/verfassung.md | VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-19T11:26:25.066+00:00 | Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes
+  15 | logmuehle-17 | 1841 | 0ce7f8651ae70ad0783cb6caa8f54b9ebbcf789b5e6b116d6df6fb63242bc803 | logmuehle.md | logmuehle.regeln.json | /root/biotop/verfassungen/logmuehle.md + /root/biotop/verfassungen/logmuehle.regeln.json | 2026-09-19T11:55:53.396+00:00 | Hermes (Entwurf, Masterprompt v4 Phase 3; Chat-Claude bestätigt am Bericht)
+  16 | lagerhaus-p3-18 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | VB1 privat/verfassung.md | VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-19T14:41:23.062+00:00 | Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes
+  17 | lagerhaus-p3-19 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | VB1 privat/verfassung.md | VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-19T15:06:37.763+00:00 | Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes
+  18 | lagerhaus-p3-20 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | VB1 privat/verfassung.md | VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-19T15:40:22.795+00:00 | Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes
+  19 | lagerhaus-p3-22 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | VB1 privat/verfassung.md | VB1 privat/verfassung.regeln.json | /root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json | 2026-09-19T20:58:00.295+00:00 | Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes
+  20 | logmuehle-23 | 1841 | 0ce7f8651ae70ad0783cb6caa8f54b9ebbcf789b5e6b116d6df6fb63242bc803 | logmuehle.md | logmuehle.regeln.json | /root/biotop/verfassungen/logmuehle.md + /root/biotop/verfassungen/logmuehle.regeln.json | 2026-09-19T21:33:14.053+00:00 | Hermes (Entwurf, Chat-Claude bestaetigt am Bericht)
+  21 | lagerhaus-zeile8-24 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | VB1 privat/verfassung.md | VB1 privat/verfassung.regeln.json | verfassungen/lagerhaus.md + verfassungen/lagerhaus.regeln.json | 2026-09-19T22:59:01.160+00:00 | Chat-Claude (Anhang A)
+  22 | lagerhaus-c-25 | 1506 | 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | VB1 privat/verfassung.md | VB1 privat/verfassung.regeln.json | verfassungen/lagerhaus.md + verfassungen/lagerhaus.regeln.json | 2026-09-20T01:13:48.308+00:00 | Chat-Claude (Anhang A)
+  Werke ohne Verfassungszeile: [(1, 'lagerhaus'), (2, 'lagerhaus-ohne-tests'), (3, 'lagerhaus-kasse'), (4, 'lagerhaus-kasse2')]
+  Protokoll art=verfassung.eingelegt: nr | zeit | inhalt
+    838 | 2026-09-18T22:48:45.944+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v2), eingelegt durch Hermes", "werk_id": 5}
+    1462 | 2026-09-18T23:20:31.796+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v2), eingelegt durch Hermes", "werk_id": 6}
+    1758 | 2026-09-18T23:33:24.938+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v2), eingelegt durch Hermes", "werk_id": 7}
+    2202 | 2026-09-18T23:53:47.794+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v2), eingelegt durch Hermes", "werk_id": 8}
+    2566 | 2026-09-19T00:09:32.024+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A)", "werk_id": 9}
+    2674 | 2026-09-19T00:42:11.162+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v3), eingelegt durch Hermes", "werk_id": 10}
+    4582 | 2026-09-19T01:47:26.988+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v3), eingelegt durch Hermes", "werk_id": 11}
+    7291 | 2026-09-19T11:03:26.028+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes", "werk_id": 12}
+    7338 | 2026-09-19T11:09:30.428+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes", "werk_id": 13}
+    7431 | 2026-09-19T11:26:25.068+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes", "werk_id": 14}
+    7547 | 2026-09-19T11:55:53.397+00:00 | {"quelle": "/root/biotop/verfassungen/logmuehle.md + /root/biotop/verfassungen/logmuehle.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 3.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Hermes (Entwurf, Masterprompt v4 Phase 3; Chat-Claude bestätigt am Bericht)", "werk_id": 15}
+    9893 | 2026-09-19T14:41:23.064+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes", "werk_id": 16}
+    10525 | 2026-09-19T15:06:37.765+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes", "werk_id": 17}
+    11456 | 2026-09-19T15:40:22.797+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes", "werk_id": 18}
+    12514 | 2026-09-19T20:58:00.297+00:00 | {"quelle": "/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes", "werk_id": 19}
+    13334 | 2026-09-19T21:33:14.055+00:00 | {"quelle": "/root/biotop/verfassungen/logmuehle.md + /root/biotop/verfassungen/logmuehle.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 3.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Hermes (Entwurf, Chat-Claude bestaetigt am Bericht)", "werk_id": 20}
+    14472 | 2026-09-19T22:59:01.162+00:00 | {"quelle": "verfassungen/lagerhaus.md + verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A)", "werk_id": 21}
+    15268 | 2026-09-20T01:13:48.310+00:00 | {"quelle": "verfassungen/lagerhaus.md + verfassungen/lagerhaus.regeln.json", "saetze": 8, "tausch": {"laufzeit_faktor": 2.0, "laufzeit_faktor_bei_sicherheitsgewinn": 5.0, "sonst_faktor": 1.25}, "uebungswerk": true, "von": "Chat-Claude (Anhang A)", "werk_id": 22}
+  Protokollzeilen verfassung.eingelegt: 18
+  Läufe je werk_id (id-Liste):
+Traceback (most recent call last):
+  File "/root/sicherung/biotop-lage-01/entwurf/verfassungen/b3_datenbanken.py", line 110, in <module>
+    for w in sorted(lj):
+             ^^^^^^^^^^
+TypeError: '<' not supported between instances of 'NoneType' and 'int'
+=== Ende R49 ===

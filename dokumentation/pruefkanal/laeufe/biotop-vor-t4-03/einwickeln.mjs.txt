@@ -1,0 +1,71 @@
+// Exportierte Funktionen eines Moduls einwickeln — gemeinsam für die Verhaltenssonde (verhalten.mjs, gebautes dist-JS)
+// und den Aufzeichner der deckenden Tests (vitest.deck.config.mjs, TypeScript-Quelle). Am Syntaxbaum statt per Regex
+// (Behebungsrunde 3 vor T4, Review 02 Nr. 9b): `export (async) function f` (auch generisch, überladen, Generator) UND
+// `export const f = (…) => …` bzw. `= function …`. Bisher wurden Pfeilfunktions-Exporte nicht eingewickelt; ein Test,
+// der sie rief, zeichnete 0 Aufrufe auf.
+// Jede Funktion wird umbenannt (__vv_orig_f) und durch einen gleichnamigen Export ersetzt, der über
+// globalThis[hook](name, args, call) läuft. Funktionsdeklarationen: Hülle am Modulende (hochgezogen wie das Original).
+// Pfeil-Exporte: Hülle unmittelbar nach der Anweisung (keine neue Zeitzone vor der Initialisierung).
+// Nicht eingewickelt (gezählt, mit Name): Klassen, export default, export-Listen, let/var, Nicht-Funktionskonstanten
+// werden übergangen (sie sind kein Verhalten), gemischte const-Anweisungen.
+// Rückgabe {code, namen, nicht_eingewickelt: [name + ' (Grund)']}.
+export function einwickeln(ts, code, modul, hook, {typen = false} = {}) {
+  const sf = ts.createSourceFile(typen ? 'modul.ts' : 'modul.js', code, ts.ScriptTarget.Latest, true,
+                                 typen ? ts.ScriptKind.TS : ts.ScriptKind.JS);
+  const mods = n => (ts.canHaveModifiers?.(n) ? ts.getModifiers(n) : n.modifiers) ?? [];
+  const hat = (n, k) => mods(n).some(m => m.kind === k);
+  const exportTok = n => mods(n).find(m => m.kind === ts.SyntaxKind.ExportKeyword);
+  const edits = [], namen = [], nicht = [], ende = [];
+  const G = typen ? '(globalThis as any)' : 'globalThis';
+  const A = typen ? ': any[]' : '', R = typen ? ': any' : '';
+  const aufruf = n => `${G}[${JSON.stringify(hook)}](${JSON.stringify(modul + ':' + n)}, a, (...b${A}) => `
+    + (typen ? `(__vv_orig_${n} as any)` : `__vv_orig_${n}`) + '(...b))';
+  const fnInit = e => e && (ts.isArrowFunction(e) || ts.isFunctionExpression(e));
+  const deklariert = new Set();
+  for (const st of sf.statements) {
+    if (!hat(st, ts.SyntaxKind.ExportKeyword)) continue;
+    const ex = exportTok(st);
+    if (hat(st, ts.SyntaxKind.DefaultKeyword)) { nicht.push('default (export default)'); continue; }
+    if (ts.isFunctionDeclaration(st) && st.name) {
+      const n = st.name.text;
+      edits.push([ex.getStart(sf), ex.end, '']);
+      edits.push([st.name.getStart(sf), st.name.end, '__vv_orig_' + n]);
+      if (!deklariert.has(n) && st.body) {
+        deklariert.add(n);
+        namen.push(n);
+        ende.push(`export function ${n}(...a${A})${R} { return ${aufruf(n)}; }`);
+      }
+      continue;
+    }
+    if (ts.isVariableStatement(st)) {
+      const dl = st.declarationList;
+      const istConst = (dl.flags & ts.NodeFlags.Const) !== 0;
+      const decls = dl.declarations;
+      const fn = decls.filter(d => ts.isIdentifier(d.name) && fnInit(d.initializer));
+      if (!fn.length) continue;                               // Konstanten ohne Funktion: kein Verhalten
+      if (!istConst || fn.length !== decls.length) {
+        for (const d of fn) nicht.push(`${d.name.text} (${istConst ? 'gemischte const-Anweisung' : 'let/var'})`);
+        continue;
+      }
+      edits.push([ex.getStart(sf), ex.end, '']);
+      const huelle = [];
+      for (const d of decls) {
+        const n = d.name.text;
+        edits.push([d.name.getStart(sf), d.name.end, '__vv_orig_' + n]);
+        namen.push(n);
+        huelle.push(`export const ${n} = (...a${A})${R} => ${aufruf(n)};`);
+      }
+      edits.push([st.end, st.end, '\n' + huelle.join('\n')]);
+      continue;
+    }
+    if (ts.isClassDeclaration(st) && st.name) nicht.push(`${st.name.text} (Klasse)`);
+    else if (ts.isExportDeclaration(st) && !st.moduleSpecifier && st.exportClause && ts.isNamedExports(st.exportClause)) {
+      for (const e of st.exportClause.elements) nicht.push(`${e.name.text} (export-Liste)`);
+    }
+  }
+  edits.sort((x, y) => y[0] - x[0] || y[1] - x[1]);
+  let neu = code;
+  for (const [a, b, t] of edits) neu = neu.slice(0, a) + t + neu.slice(b);
+  if (ende.length) neu += '\n// --- Verhaltensvergleich: Aufzeichner (nur in der Kammer) ---\n' + ende.join('\n') + '\n';
+  return {code: neu, namen, nicht_eingewickelt: nicht};
+}

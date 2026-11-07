@@ -1,0 +1,536 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 89 (Teile 4–165 dieses Stands) · enthält R117 bis R118
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R117 · Gehören biotop/organe/stufe2.py und tests/test_tor4_zeilen.py zu Runde 5 oder 6? git (nur lesend), Dateizeiten, Arbeitsordner, Prüfkanal, Herkunft in der Sitzungsdatenbank
+Beginn: 2026-09-25 17:21:20 CEST (UTC+0200)
+Ende:   2026-09-25 17:21:20 CEST (UTC+0200)
+Dauer:  0.6 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/sicherung/biotop-lage-01/arbeit/n5_stufe2.sh && python3 /root/sicherung/biotop-lage-01/arbeit/n5b_herkunft.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/n5_stufe2.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-LAGE-01 (nur lesend): Gehören biotop/organe/stufe2.py und tests/test_tor4_zeilen.py zu Runde 5 oder Runde 6?
+# (Frage Chat-Claudes vom 25.09.2026: Commit 0c2f058 nennt „Stufe 2 überall“ und das Tor-4-Skript, beide Dateien sind
+# nicht eingecheckt.) git nur lesend (log, show, cat-file, rev-parse, grep auf den Commit), kein status, kein diff am Baum.
+cd /root/biotop || exit 1
+echo '== Commit 0c2f058: Kennung, Zeit, Autor, Nachricht (wörtlich)'
+git log -1 --format='%H%n%ci%n%an <%ae>%n---%n%B---' 0c2f058
+echo '== Dateien, die der Commit 0c2f058 berührt (Status, Pfad)'
+git show --name-status --format= 0c2f058
+echo '== Sind die Dateien im Stand 0c2f058 enthalten?'
+for f in biotop/organe/stufe2.py tests/test_tor4_zeilen.py biotop/tor4.py; do
+  if git cat-file -e "0c2f058:$f" 2>/dev/null; then echo "  $f: ja (Blob $(git rev-parse --short "0c2f058:$f"))"; else echo "  $f: nein"; fi
+done
+echo '== Waren sie jemals eingecheckt (alle Zweige, alle Commits)?'
+echo "  Commits, die eine der zwei Dateien berühren: $(git log --all --format='%h' -- biotop/organe/stufe2.py tests/test_tor4_zeilen.py | wc -l)"
+echo '== Geschichte von biotop/tor4.py (alle Commits)'
+git log --all --format='  %h %ci %s' -- biotop/tor4.py
+echo '== Wo steht „Stufe 2“ im Stand 0c2f058? (git grep -c auf den Commit: Datei:Trefferzahl)'
+git grep -c -i -E 'stufe ?2|stufe2' 0c2f058 -- biotop tests | sed 's/^0c2f058://; s/^/  /'
+echo '== Dateizeiten im Arbeitsbaum (Geburt | Änderung | Bytes | Pfad) und SHA-256'
+for f in biotop/organe/stufe2.py tests/test_tor4_zeilen.py biotop/tor4.py; do stat -c '  %w | %y | %s | %n' "$f"; done
+sha256sum biotop/organe/stufe2.py tests/test_tor4_zeilen.py | sed 's/^/  /'
+echo '== Ausgang der Runde 6 laut ihrer Übergabe (Zeilen mit „Arbeitsbaum“ oder „begonnen“)'
+grep -n -E 'Arbeitsbaum|begonnen' /root/biotop-vor-t4-06/UEBERGABE.md | head -5
+echo '== Nennungen der zwei Dateinamen in den Arbeitsordnern der Runden 5 und 6 (Datei:Anzahl, ohne Nullen)'
+grep -r -c -E 'stufe2\.py|test_tor4_zeilen' /root/biotop-vor-t4-05 /root/biotop-vor-t4-06 \
+  --include='*.md' --include='*.txt' --include='*.py' --include='*.json' 2>/dev/null | grep -v ':0$' | sed 's/^/  /' | head -60
+K=$(cat /etc/pruefkanal/schluessel); L=/var/pruefkanal/oeffentlich/_akte/$K/laeufe
+echo '== Nennungen im veröffentlichten Ordner der Runde 5 (laeufe/biotop-vor-t4-05, Datei:Anzahl, ohne Nullen)'
+grep -r -c -E 'stufe2\.py|test_tor4_zeilen' "$L/biotop-vor-t4-05" 2>/dev/null | grep -v ':0$' | sed "s|$L/|laeufe/|; s/^/  /"
+echo '  (Ende der Liste)'
+--- Ende /root/sicherung/biotop-lage-01/arbeit/n5_stufe2.sh ---
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/n5b_herkunft.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Wann und in welcher Sitzung tauchen „stufe2.py“ und „test_tor4_zeilen.py“ zuerst in
+Werkzeugaufrufen auf, und gab es sie vor Beginn der Runde 6? Ausgabe ohne Inhalte: Zeit, Sitzung, Quelle, Elternsitzung,
+Werkzeugnamen; dazu der Anfang des ersten Auftrags jeder beteiligten Sitzung (welcher Bauauftrag)."""
+import datetime as dt
+import json
+import sqlite3
+
+f = lambda ts: dt.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+con = sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+sess = {r[0]: (r[1], r[2]) for r in con.execute('SELECT id, source, parent_session_id FROM sessions')}
+COMMIT = dt.datetime(2026, 9, 24, 20, 24, 54).timestamp()   # Commit 0c2f058 (Runde 5)
+R6 = dt.datetime(2026, 9, 24, 23, 45).timestamp()           # Beginn Runde 6 laut ihrer Übergabe
+
+
+def auftrag(sid):
+    r = con.execute("SELECT content FROM messages WHERE session_id=? AND role='user' ORDER BY timestamp, id LIMIT 1",
+                    (sid,)).fetchone()
+    return (r[0] or '')[:120].replace('\n', ' ') if r else ''
+
+
+sids = set()
+for name in ('stufe2.py', 'test_tor4_zeilen.py'):
+    print(f'-- {name}')
+    q = con.execute("SELECT id, session_id, timestamp, tool_calls FROM messages WHERE role='assistant' AND tool_calls LIKE ? "
+                    "ORDER BY timestamp, id", (f'%{name}%',)).fetchall()
+    print(f'   Werkzeugaufrufe (Zeilen) mit dem Namen: {len(q)}; vor dem Commit 0c2f058 ({f(COMMIT)}): '
+          f'{sum(1 for x in q if x[2] < COMMIT)}; zwischen Commit und Beginn Runde 6 ({f(R6)}): '
+          f'{sum(1 for x in q if COMMIT <= x[2] < R6)}')
+    for mid, sid, ts, tc in q[:3]:
+        try:
+            namen = [c.get('function', {}).get('name') or c.get('name') for c in json.loads(tc)]
+        except Exception:
+            namen = ['?']
+        src, eltern = sess.get(sid, ('?', '?'))
+        print(f'   erste: {f(ts)} | id {mid} | Sitzung {sid} ({src}, Eltern {eltern}) | Werkzeuge {namen}')
+    n = con.execute('SELECT count(*) FROM messages WHERE content LIKE ? AND timestamp < ?', (f'%{name}%', R6)).fetchone()[0]
+    print(f'   Nachrichten (Textinhalt, alle Rollen) mit dem Namen vor Beginn Runde 6: {n}')
+    sids |= {x[1] for x in q}
+print('-- Sitzungen mit Werkzeugaufrufen, die einen der Namen enthalten, und der Anfang ihres ersten Auftrags:')
+for sid in sorted(sids):
+    print(f'   {sid} ({sess.get(sid, ("?",))[0]}): {auftrag(sid)!r}')
+--- Ende /root/sicherung/biotop-lage-01/arbeit/n5b_herkunft.py ---
+Ausgabe (vollständig, stdout und stderr):
+== Commit 0c2f058: Kennung, Zeit, Autor, Nachricht (wörtlich)
+0c2f058d57f68b8891b535d6e00214172c82fefa
+2026-09-24 20:24:54 +0200
+Hermes (Biotop) <hermes@biotop.local>
+---
+Vor T4, Runde 5: Vollständigkeitsprüfung, fallende Zusicherung, Ausfall je Funktion, Register und Tor-4-Skript, Stufe 2 überall
+
+    Behebungsrunde 5 vor T4 — Klassen statt Fälle (Entscheidungen Chat-Claude 24.09.2026 zum Review 04):
+    - Entscheidung 1 (Vollständigkeitsprüfung): kern/py/verhalten.py kan() erfasst alle Datenattribute (__dict__ und Slots
+      der ganzen Hierarchie unter gespeicherten, auch verschleierten Namen) und prüft danach gegen object.__getstate__;
+      fehlt etwas (auch Iterator-Objekt, gekappter Iterator, Objekt nur mit Standarddarstellung) → `unvollstaendig`,
+      verhaltensvergleich enthält sich (grund_art unvollstaendig_erfasst), aegis stellt zurück — nie „0 Abweichungen,
+      tragfähig“. os.PathLike über os.fspath als Wert. TS-Kanon: private Felder, nicht aufzählbare/Symbol-Eigenschaften,
+      eingebaute Objekte ohne Daten → unvollständig; RegExp/URL/Puffer als Werte. ITER_KAPPE 50 → 1000 (Py und TS).
+    - Entscheidung 2: festhalten = fallende Zusicherung im Test (Python: reprcrash AssertionError/Failed in der
+      Testdatei; TS: AssertionError, erste Werkstelle unter tests/); jede andere Ausnahme ist 'fehler'.
+    - Entscheidung 3: Sondenausfall nur der betroffenen Funktion — die Python-Sonde grenzt per os.fork aus dem Zustand vor
+      der Last (Halbierung) die Funktion ein, deren Einwicklung den Lastabbruch auslöst; sie wird durchlässig und enthält
+      sich, der Lauf geht weiter; TS: die Funktionen der abbrechenden Last enthalten sich. Ersetzt werden nur echte
+      Iteratoren (Generatoren, eingebaute ohne Datenattribute; nicht csv.DictReader, nicht groupby).
+    - Entscheidung 4: hängt jede ungedeckte Abweichung an einer ausgelassenen Verfälschungsprobe (Kappe) → Enthaltung mit
+      Grund (grund_art verfaelschungskappe), aegis stellt zurück, gezählt.
+    - Entscheidung 5: kern/register.py (verlangte Aufrufe mit Aufrufer und Phase), Verdrahtungstest verlangt jeden
+      Eintrag; biotop/tor4.py (Tor-4-Skript, `biotop tor4 <lauf> --altlasten`) ruft gegenzeugen.torzeile_schwaechen;
+      Normalvergleich einer Altlast = Verhalten der Vorgeneration über den Verhaltensvergleich, verhaltensändernde
+      Altlast braucht einen unabhängigen Test aus der Liste.
+    - Entscheidung 6: Vorspann verweigert ohne Stufe 2; Stufe-2-Last eingang W 60 → 240 (gemessen: 0 von 8 Sperren).
+    - Entscheidung 7: Lastaufrufe tragen die Formmerkmale ihrer Eingabe (Py und TS).
+    - Entscheidung 8: Eichproben, Ausgangsmaß, Generalprobe und gespeicherte Maße an Stufe 2 (laufzeit_stufe im Maß);
+      Ausschluss eigener Tests nach Testkennung inkl. Parametrisierung (aegis.ist_eigener_test; parametrisierte
+      Kandidatentests werden aufgenommen); Nachspiel als echter Durchlauf im Verdrahtungstest.
+    - tests/test_vor_t4_05.py (neu); tests angepasst: drahtwerk (Stufe 2, Altlasten), test_verdrahtung (Register, tor4,
+      Nachspiel, Stufe).
+    Kein Modellaufruf, kein Lauf.
+---
+== Dateien, die der Commit 0c2f058 berührt (Status, Pfad)
+M	biotop/__main__.py
+M	biotop/kern/py/verhalten.py
+M	biotop/kern/referenzlast/versandwerk-t3-02.stufe2.mjs
+A	biotop/kern/register.py
+M	biotop/kern/ts/deckung.mjs
+M	biotop/kern/ts/kanon.mjs
+M	biotop/kern/ts/verhalten-runner.mjs
+M	biotop/lauf.py
+M	biotop/nachspiel.py
+M	biotop/organe/aegis.py
+M	biotop/organe/eichproben.py
+M	biotop/organe/verhaltensvergleich.py
+M	biotop/organe/vorspann.py
+A	biotop/tor4.py
+M	tests/drahtwerk.py
+M	tests/test_verdrahtung.py
+A	tests/test_vor_t4_05.py
+== Sind die Dateien im Stand 0c2f058 enthalten?
+  biotop/organe/stufe2.py: nein
+  tests/test_tor4_zeilen.py: nein
+  biotop/tor4.py: ja (Blob 69ac47c)
+== Waren sie jemals eingecheckt (alle Zweige, alle Commits)?
+  Commits, die eine der zwei Dateien berühren: 0
+== Geschichte von biotop/tor4.py (alle Commits)
+  0c2f058 2026-09-24 20:24:54 +0200 Vor T4, Runde 5: Vollständigkeitsprüfung, fallende Zusicherung, Ausfall je Funktion, Register und Tor-4-Skript, Stufe 2 überall
+== Wo steht „Stufe 2“ im Stand 0c2f058? (git grep -c auf den Commit: Datei:Trefferzahl)
+  biotop/kern/referenzlast/versandwerk-t3-02.stufe2.mjs:4
+  biotop/kern/register.py:1
+  biotop/lauf.py:3
+  biotop/nachspiel.py:7
+  biotop/organe/aegis.py:2
+  biotop/organe/eichproben.py:1
+  biotop/organe/eichung.py:4
+  biotop/organe/landkarte.py:1
+  biotop/organe/vorspann.py:10
+  tests/drahtwerk.py:5
+  tests/test_verdrahtung.py:1
+  tests/test_vor_t4_04.py:8
+  tests/test_vor_t4_05.py:10
+== Dateizeiten im Arbeitsbaum (Geburt | Änderung | Bytes | Pfad) und SHA-256
+  2026-09-25 03:24:45.226941831 +0200 | 2026-09-25 03:24:45.226941831 +0200 | 23931 | biotop/organe/stufe2.py
+  2026-09-25 04:34:22.992254923 +0200 | 2026-09-25 04:41:34.747101344 +0200 | 48585 | tests/test_tor4_zeilen.py
+  2026-09-24 19:08:59.047764277 +0200 | 2026-09-25 04:41:34.747101344 +0200 | 86239 | biotop/tor4.py
+  e42f974af546b8ff14858a23dcfdc9ceac6db5e283a6e347a1da200bc3e64464  biotop/organe/stufe2.py
+  9f512c55fea5d8d9d4ab57513cde9e832873dd25e74c3b602997eaffdcf56df0  tests/test_tor4_zeilen.py
+== Ausgang der Runde 6 laut ihrer Übergabe (Zeilen mit „Arbeitsbaum“ oder „begonnen“)
+1:# Übergabe: Behebungsrunde 6 vor T4 (begonnen 2026-09-24 ~23:45)
+27:- HEAD `0c2f058` (Runde 5), Arbeitsbaum sauber; Regression dort 598/2/0 (`/root/biotop-vor-t4-05/REGRESSION.txt`).
+142:  63 Fälle, sha256 79c08dc7…; Vorher 47 von 63 rot), Schritte 2–5 nicht begonnen (Produktionsdateien unverändert).
+190:- 09:43 **Eigener Fehler:** `bau/lesen_s4g.sh` von S4 überschrieben (Namensreihe lesen_s4* von mir begonnen, S4
+206:  Minimum 17,4 / 28,6 ms (Kriterium < 0,25 und ≥ 10 ms erfüllt). Verhandlung: begonnen (K7, Nachbar beta), Paar mit
+== Nennungen der zwei Dateinamen in den Arbeitsordnern der Runden 5 und 6 (Datei:Anzahl, ohne Nullen)
+  /root/biotop-vor-t4-06/UEBERGABE.md:3
+  /root/biotop-vor-t4-06/BAU-S2-TOR4.md:3
+  /root/biotop-vor-t4-06/BAU-S1-FORTSETZUNG.md:2
+  /root/biotop-vor-t4-06/BAU-S1B-M2B.md:2
+  /root/biotop-vor-t4-06/sperre/SPERRE-03-ROH.txt:1
+  /root/biotop-vor-t4-06/sperre/SPERRE-02-ROH.txt:1
+  /root/biotop-vor-t4-06/BAU-S4-VERDRAHTUNG.md:4
+  /root/biotop-vor-t4-06/BAU-S3-STUFE2.md:2
+  /root/biotop-vor-t4-06/bau/VERDRAHTUNG-BELEG-VOLL-20260925-095833.json:1
+  /root/biotop-vor-t4-06/bau/TOR4-ZEILEN-DEFINITION.md:1
+  /root/biotop-vor-t4-06/bau/TEILPRUEFUNG-S1-E3.txt:2
+  /root/biotop-vor-t4-06/bau/VERDRAHTUNG-VOLL-20260925-095833.txt:2
+  /root/biotop-vor-t4-06/bau/S3-SPERRE-ROH.txt:5
+  /root/biotop-vor-t4-06/bau/PRUEFE-S4.txt:3
+  /root/biotop-vor-t4-06/bau/LESEN-S4e.txt:1
+  /root/biotop-vor-t4-06/bau/S1B-PLAN.md:1
+  /root/biotop-vor-t4-06/bau/hermes/H-PRUEFE-S1B.txt:2
+  /root/biotop-vor-t4-06/bau/hermes/H-VOLL-AUSWERTUNG.txt:1
+  /root/biotop-vor-t4-06/bau/hermes/H-VERDRAHTUNG-VOLL-START.txt:2
+  /root/biotop-vor-t4-06/bau/hermes/H-NACHARBEIT-KOPIE.txt:2
+  /root/biotop-vor-t4-06/bau/hermes/H-NACHARBEIT-BAUM.txt:2
+  /root/biotop-vor-t4-06/bau/LESEN-S4j.txt:2
+  /root/biotop-vor-t4-06/bau/URSACHE-S1d.txt:1
+  /root/biotop-vor-t4-06/bau/R6-S3-STUFE2.txt:3
+  /root/biotop-vor-t4-06/bau/VERDRAHTUNG-VOLL-NUR-KOPIE-20260925-085733.txt:2
+  /root/biotop-vor-t4-06/bau/LESEN-S4.txt:3
+  /root/biotop-vor-t4-06/bau/R6-S2-TOR4.txt:18
+  /root/biotop-vor-t4-06/bau/TEILPRUEFUNG-S1-E2.txt:2
+  /root/biotop-vor-t4-06/bau/TEILLAUF-S1.txt:14
+  /root/biotop-vor-t4-06/bau/TEILLAUF-S3.txt:2
+  /root/biotop-vor-t4-06/bau/S3-GEAENDERTE-TESTS.md:1
+  /root/biotop-vor-t4-06/bau/VORHER-NACHHER-S3.txt:2
+  /root/biotop-vor-t4-06/bau/TEILPRUEFUNG-S1-E1.txt:2
+  /root/biotop-vor-t4-06/bau/r6_s4_vorher.py:2
+  /root/biotop-vor-t4-06/bau/LESEN-S4zn.txt:1
+  /root/biotop-vor-t4-06/bau/TEILLAUF-S2.txt:2
+  /root/biotop-vor-t4-06/bau/S2-PLAN.md:9
+  /root/biotop-vor-t4-06/bau/r6_s3_stufe2.py:2
+  /root/biotop-vor-t4-06/bau/S1-PLAN.md:1
+  /root/biotop-vor-t4-06/bau/S4-PLAN.md:2
+  /root/biotop-vor-t4-06/bau/r6_s4_teillauf.py:2
+  /root/biotop-vor-t4-06/bau/LESEN-S4zd.txt:4
+  /root/biotop-vor-t4-06/bau/TEILLAUF-S1-durchgang1.txt:3
+  /root/biotop-vor-t4-06/bau/TEILPRUEFUNG-S1-E7.txt:2
+  /root/biotop-vor-t4-06/bau/r6_s2_tor4.py:2
+  /root/biotop-vor-t4-06/bau/LESEN-S4q.txt:1
+  /root/biotop-vor-t4-06/bau/S4-KENNZAHLEN.txt:1
+  /root/biotop-vor-t4-06/bau/PRUEFE-S1.txt:2
+  /root/biotop-vor-t4-06/bau/VERDRAHTUNG-VOLL-NUR-KOPIE-20260925-093142.txt:2
+  /root/biotop-vor-t4-06/bau/TEILLAUF-S4.txt:5
+  /root/biotop-vor-t4-06/bau/TEILLAUF-S1-durchgang2.txt:5
+  /root/biotop-vor-t4-06/bau/S4-VORHER.txt:2
+  /root/biotop-vor-t4-06/bau/r6_s4_neu/biotop/kern/register.py:1
+  /root/biotop-vor-t4-06/bau/LESEN-S4zl.txt:1
+  /root/biotop-vor-t4-06/bau/PRUEFE-S2-S3.txt:8
+  /root/biotop-vor-t4-06/bau/STAND-S4-A.txt:11
+== Nennungen im veröffentlichten Ordner der Runde 5 (laeufe/biotop-vor-t4-05, Datei:Anzahl, ohne Nullen)
+  (Ende der Liste)
+-- stufe2.py
+   Werkzeugaufrufe (Zeilen) mit dem Namen: 64; vor dem Commit 0c2f058 (2026-09-24 20:24:54): 4; zwischen Commit und Beginn Runde 6 (2026-09-24 23:45:00): 0
+   erste: 2026-09-24 13:17:06 | id 16078 | Sitzung 20260923_194003_92313ee1 (telegram, Eltern 20260923_193931_36ad1393) | Werkzeuge ['write_file']
+   erste: 2026-09-24 13:17:09 | id 16080 | Sitzung 20260923_194003_92313ee1 (telegram, Eltern 20260923_193931_36ad1393) | Werkzeuge ['terminal']
+   erste: 2026-09-24 13:24:25 | id 16104 | Sitzung 20260923_194003_92313ee1 (telegram, Eltern 20260923_193931_36ad1393) | Werkzeuge ['execute_code', 'terminal']
+   Nachrichten (Textinhalt, alle Rollen) mit dem Namen vor Beginn Runde 6: 4
+-- test_tor4_zeilen.py
+   Werkzeugaufrufe (Zeilen) mit dem Namen: 59; vor dem Commit 0c2f058 (2026-09-24 20:24:54): 0; zwischen Commit und Beginn Runde 6 (2026-09-24 23:45:00): 0
+   erste: 2026-09-25 00:17:54 | id 16997 | Sitzung 20260924_203120_e6c401 (telegram, Eltern 20260924_150913_a9326d) | Werkzeuge ['write_file', 'write_file']
+   erste: 2026-09-25 00:23:04 | id 17161 | Sitzung 20260924_203120_e6c401 (telegram, Eltern 20260924_150913_a9326d) | Werkzeuge ['patch']
+   erste: 2026-09-25 03:54:34 | id 18209 | Sitzung 20260924_203120_e6c401 (telegram, Eltern 20260924_150913_a9326d) | Werkzeuge ['write_file', 'write_file']
+   Nachrichten (Textinhalt, alle Rollen) mit dem Namen vor Beginn Runde 6: 0
+-- Sitzungen mit Werkzeugaufrufen, die einen der Namen enthalten, und der Anfang ihres ersten Auftrags:
+   20260923_194003_92313ee1 (telegram): 'Neue Sitzung nach automatischem Zurücksetzen durch Kontextüberlauf; die Behebungsrunde vor T4 ist fast fertig, aber wede'
+   20260924_203120_e6c401 (telegram): "Führe genau EINEN unabhängigen Reviewdurchgang für die 'Behebungsrunde 5 vor T4' des Biotop-Projekts durch und schreibe "
+   20260925_001805_512a27 (subagent): 'Setze den Bauauftrag /root/biotop-vor-t4-06/BAU-S2-TOR4.md um (Tor-4-Skript berechnet jede der 14 Torzeilen; Zweig verha'
+   20260925_001805_f0fcb7 (subagent): 'Setze den Bauauftrag /root/biotop-vor-t4-06/BAU-S3-STUFE2.md um (eigene Eichphase der Stufe-2-Last mit Kriterium Spannwe'
+   20260925_035450_dad814 (subagent): 'Setze den Bau S1 der Behebungsrunde 6 vor T4 fort: Einordnung des Vorher-Ergebnisses, dann Umbau je Entscheidung (7, 1, '
+   20260925_050613_954859 (subagent): 'Setze den Bauauftrag /root/biotop-vor-t4-06/BAU-S4-VERDRAHTUNG.md um (Befehlszeile stufe2/tor4-Belege, echte Verhandlung'
+   20260925_084443_a0e4df (subagent): 'Setze den Bauauftrag /root/biotop-vor-t4-06/BAU-S1B-M2B.md um: M2(b) (direkt geänderte, von der Sonde nicht beobachtete '
+   20260925_125142_033a80 (subagent): 'Setze den Bauauftrag /root/biotop-vor-t4-06/BAU-S1C-UNBEOBACHTET.md um: die Klasse „Wirkung außerhalb der Beobachtung“ s'
+   20260925_161047_1a3720 (subagent): 'Schreibe den Entwurfsteil B (VERFASSUNGEN: FK22, Wortlaut jeder Verfassung) der Offenlegung BIOTOP-LAGE-01 nach /root/si'
+=== Ende R117 ===
+
+
+R118 · Teil B: Wortlaute byteweise einsetzen, Fundorte je SHA-256, Teile schreiben (liest Quellen, schreibt nur in entwurf/verfassungen/)
+Beginn: 2026-09-25 17:24:14 CEST (UTC+0200)
+Ende:   2026-09-25 17:24:16 CEST (UTC+0200)
+Dauer:  2.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/verfassungen/b8_einsetzen.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/verfassungen/b8_einsetzen.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil B: Wortlaute byteweise in die Vorlagen einsetzen, Fundorte je SHA-256 erheben, Teile schreiben.
+
+Liest: die Verfassungsquellen (Dateien, Zeilenbereiche der Masterprompt-Kopie v8, Konstanten aus
+/root/biotop/tests/drahtwerk.py per ast — kein Import, keine Ausführung), die eigenen Vorlagen.
+Schreibt ausschließlich in /root/sicherung/biotop-lage-01/entwurf/verfassungen/: VERFASSUNGEN-TEIL<n>.md.
+Fundorte: frischer Lauf über dieselben Wurzeln wie b1_finden.py (ohne /root/sicherung), dazu /tmp bis Tiefe 6;
+gehasht werden nur Dateien, deren Größe einer Quelle entspricht. Entfällt, solange /tmp/biotop-kammer-exklusiv besteht.
+Prüft nach dem Schreiben jeden Block gegen das Original (mit Gegenprobe: ein Byte verändert → muss ungleich sein).
+"""
+import ast
+import hashlib
+import json
+import os
+import re
+import time
+from pathlib import Path
+
+O = Path('/root/sicherung/biotop-lage-01/entwurf/verfassungen')
+SCHLUESSEL = Path('/etc/pruefkanal/schluessel').read_text().strip()
+LAEUFE = f'/var/pruefkanal/oeffentlich/_akte/{SCHLUESSEL}/laeufe'
+MP8 = '/root/sicherung/biotop-lage-01/arbeit/dokumente/2026-09-23_155353_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v8.md'
+DRAHT = '/root/biotop/tests/drahtwerk.py'
+GRENZE = 34000
+ZAUN = '````'
+
+
+def sha(b: bytes) -> str:
+    return hashlib.sha256(b).hexdigest()
+
+
+def zeige(p: str) -> str:
+    return p.replace(LAEUFE, '{LAEUFE}').replace(SCHLUESSEL, '{SCHLUESSEL}')
+
+
+def zeilen(pfad: str, von: int, bis: int, anfang_von: str, anfang_bis: str) -> bytes:
+    z = Path(pfad).read_text(encoding='utf-8').split('\n')
+    assert z[von - 1].startswith(anfang_von), (pfad, von, z[von - 1][:40])
+    assert z[bis - 1].startswith(anfang_bis), (pfad, bis, z[bis - 1][:40])
+    return ('\n'.join(z[von - 1:bis]) + '\n').encode()
+
+
+def draht_konstanten():
+    baum = ast.parse(Path(DRAHT).read_text(encoding='utf-8'))
+    v = r = None
+    zv = zr = None
+    for n in ast.walk(baum):
+        if isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name):
+            if n.targets[0].id == 'VERFASSUNG':
+                v, zv = ast.literal_eval(n.value), (n.lineno, n.end_lineno)
+            elif n.targets[0].id == 'REGELN':
+                r, zr = ast.literal_eval(n.value), (n.lineno, n.end_lineno)
+    return v, r, zv, zr
+
+
+dv, dr, zv, zr = draht_konstanten()
+# Schlüssel → (Quelle-Text, Bytes, Sprache des Blocks)
+Q = {}
+
+
+def datei(schl, pfad, sprache):
+    Q[schl] = (f'`{zeige(pfad)}`', Path(pfad).read_bytes(), sprache)
+
+
+datei('lagerhaus_md', '/root/biotop/verfassungen/lagerhaus.md', 'text')
+datei('lagerhaus_regeln', '/root/biotop/verfassungen/lagerhaus.regeln.json', 'json')
+datei('vb1_md', '/root/phase-4-vorbedingung-1/privat/verfassung.md', 'text')
+datei('vb1_regeln', '/root/phase-4-vorbedingung-1/privat/verfassung.regeln.json', 'json')
+datei('logmuehle_md', '/root/biotop/verfassungen/logmuehle.md', 'text')
+datei('logmuehle_regeln', '/root/biotop/verfassungen/logmuehle.regeln.json', 'json')
+datei('t3_02', '/root/biotop-t3/VERFASSUNG-T3-02.md', 'text')
+datei('t3_02_regeln', '/root/biotop-t3/VERFASSUNG-T3-02.regeln.json', 'json')
+datei('t3_entwurf', '/root/biotop-t3/VERFASSUNG-T3-ENTWURF.md', 'text')
+datei('draht_probe_md', '/tmp/drahtwerk-probe/VERFASSUNG.md', 'text')
+Q['mp_v8_anhang_a'] = (f'`{MP8}`, Zeilen 520–529', zeilen(MP8, 520, 529, '## Anhang A', '6. '), 'text')
+Q['mp_v8_anhang_b'] = (f'`{MP8}`, Zeilen 536–547', zeilen(MP8, 536, 547, '## Anhang B', 'Satz 2 wurde'), 'text')
+Q['draht_md'] = (f'Konstante `VERFASSUNG` in `{DRAHT}` Z. {zv[0]}–{zv[1]} (per `ast` gelesen), so wie `anlegen()` sie als '
+                 f'`VERFASSUNG.md` schreibt', dv.encode(), 'text')
+Q['draht_regeln'] = (f'Konstante `REGELN` in `{DRAHT}` Z. {zr[0]}–{zr[1]} (per `ast` gelesen), so wie `anlegen()` sie als '
+                     f'`VERFASSUNG.regeln.json` schreibt: `json.dumps(REGELN, ensure_ascii=False, indent=1)`',
+                     json.dumps(dr, ensure_ascii=False, indent=1).encode(), 'json')
+
+
+def block(schl: str) -> str:
+    quelle, b, sprache = Q[schl]
+    t = b.decode('utf-8')
+    assert ZAUN not in t and '\r' not in t, schl
+    innen = t[:-1] if t.endswith('\n') else t
+    kopf = (f'Quelle: {quelle} · {len(b)} Bytes · SHA-256 `{sha(b)}` · Schluss-Zeilenumbruch: '
+            f'{"ja" if t.endswith(chr(10)) else "nein"}')
+    return f'{kopf}\n\n{ZAUN}{sprache}\n{innen}\n{ZAUN}'
+
+
+def fuellen(t: str) -> str:
+    t = re.sub(r'@@WORTLAUT:(\w+)@@', lambda m: block(m.group(1)), t)
+    t = re.sub(r'@@SHA16:(\w+)@@', lambda m: sha(Q[m.group(1)][1])[:16], t)
+    t = re.sub(r'@@SHA:(\w+)@@', lambda m: sha(Q[m.group(1)][1]), t)
+    return t
+
+
+jetzt = time.strftime('%d.%m.%Y %H:%M')
+v1 = (O / 'vorlage-TEIL1.md').read_text(encoding='utf-8')
+v2 = (O / 'vorlage-TEIL2.md').read_text(encoding='utf-8')
+assert v2.count('@@TEIL3@@') == 1
+v2a, v2b = v2.split('@@TEIL3@@')
+teil1 = fuellen(v1).replace('@@JETZT@@', jetzt)
+teil2 = fuellen(v2a).rstrip('\n') + '\n'
+kopf3 = ('# VERFASSUNGEN — Teil 3 von @@N@@ (FK22) · Entwurf\n\n'
+         'Fortsetzung von Teil 2. Stand des Lesens, Verfahren, Belegregel und Lesehilfe stehen in Teil 1; dieselben Regeln '
+         'gelten hier.\n\n---\n')
+teil3 = kopf3 + fuellen(v2b).rstrip('\n') + '\n'
+
+# ---- §11 Fundorte (frischer Lauf) ----
+print('== Fundorte-Lauf')
+WURZELN = [
+    '/root/biotop', '/root/biotop-t3', '/root/biotop-vor-t4', '/root/biotop-vor-t4-02', '/root/biotop-vor-t4-03',
+    '/root/biotop-vor-t4-04', '/root/biotop-vor-t4-05', '/root/biotop-vor-t4-06', '/root/versandwerk-t3',
+    '/root/versandwerk-t3-02', '/root/uebungswerk', '/root/uebungswerk2', '/root/uebungswerk-nachlauf',
+    '/root/uebungswerk-p2', '/root/uebungswerk-p3', '/root/uebungswerk-p3b', '/root/uebungswerk-p3c',
+    '/root/uebungswerk-p3d', '/root/w7', '/root/phase-4-vorbedingung-1', '/root/reparatur-01', '/root/reparatur-02',
+    '/root/gesamtstand-01', '/root/wiedereinstieg-01', '/root/biotop-einstieg-20260921-0122',
+]
+WURZELN += sorted(str(p) for p in Path(LAEUFE).iterdir() if p.name.startswith('biotop-') or p.name == 'gedaechtnis')
+AUSLASSEN = {'.git', 'node_modules', 'venv', '.venv', '__pycache__', 'dist', 'coverage', '.pytest_cache'}
+ziel = {}
+for schl, (_, b, _) in Q.items():
+    if not schl.startswith('mp_v8'):
+        ziel.setdefault(sha(b), []).append(schl)
+groessen = {len(Q[s[0]][1]) for s in ziel.values()}
+funde = {h: [] for h in ziel}
+sperre = os.path.exists('/tmp/biotop-kammer-exklusiv')
+t0 = time.time()
+n_stat = n_hash = 0
+if sperre:
+    print('NICHT AUSGEFÜHRT: /tmp/biotop-kammer-exklusiv besteht')
+else:
+    for w in WURZELN + ['/tmp']:
+        if not os.path.isdir(w):
+            print('FEHLT:', zeige(w))
+            continue
+        for d, dirs, files in os.walk(w):
+            if w == '/tmp' and d.count('/') > 6:
+                dirs[:] = []
+                continue
+            dirs[:] = sorted(x for x in dirs if x not in AUSLASSEN)
+            for f in sorted(files):
+                p = os.path.join(d, f)
+                try:
+                    st = os.lstat(p)
+                except OSError:
+                    continue
+                n_stat += 1
+                if not os.path.isfile(p) or os.path.islink(p) or st.st_size not in groessen:
+                    continue
+                try:
+                    h = sha(open(p, 'rb').read())
+                except OSError:
+                    continue
+                n_hash += 1
+                if h in funde:
+                    funde[h].append((p, st.st_mtime))
+print(f'Wurzeln {len(WURZELN)} + /tmp · Dateien geprüft {n_stat} · gehasht {n_hash} · {time.time() - t0:.1f} s')
+
+zeilen11 = ['## 11. Fundorte je SHA-256', '',
+            f'Frischer Lauf am {time.strftime("%d.%m.%Y %H:%M")} CEST (Skript `b8_einsetzen.py`).',
+            f'- Durchsucht: {len(WURZELN)} Wurzeln (wie `b1_finden.py`: Biotop-Baum, T3-Ordner, Behebungsrunden, Werkordner, '
+            'Reparatur- und Übergabeordner, alle Prüfkanal-Ordner `biotop-*` und `gedaechtnis`) sowie `/tmp` bis Tiefe 6.',
+            '- Ausgelassen: `.git`, `node_modules`, `venv`, `.venv`, `__pycache__`, `dist`, `coverage`, `.pytest_cache`. Außerdem '
+            '`/root/sicherung` (diese Arbeit), `/root/versiegelt` (versiegelte Schwächen) und `/root/.hermes`.',
+            f'- Geprüfte Dateien: {n_stat}; gehasht, weil die Größe einer Quelle entsprach: {n_hash}.',
+            '- Die Kassenzeilen stehen in §9 (R50); die git-Blobs an HEAD sind bytegleich mit der Platte (R93).', '']
+if sperre:
+    zeilen11.append('**NICHT AUSGEFÜHRT:** `/tmp/biotop-kammer-exklusiv` bestand. Ersatz: Rohbelege R41 und R42.')
+namen = {'lagerhaus_md': 'lagerhaus Text', 'vb1_md': 'lagerhaus Text (VB1-Kopie)', 'lagerhaus_regeln': 'lagerhaus Regeln',
+         'vb1_regeln': 'lagerhaus Regeln (VB1-Schreibweise)', 'logmuehle_md': 'logmuehle Text',
+         'logmuehle_regeln': 'logmuehle Regeln', 't3_02': 'T3 Revision 02', 't3_02_regeln': 'T3 Regeln',
+         't3_entwurf': 'T3 Entwurf 01', 'draht_md': 'drahtwerk Text', 'draht_regeln': 'drahtwerk Regeln',
+         'draht_probe_md': 'drahtwerk ältere Variante'}
+for h, schl in ziel.items():
+    liste = sorted(funde[h], key=lambda x: (('/tmp/' in x[0]) + ('/reparatur-01/' in x[0]), x[0]))
+    zeilen11.append(f'**{" = ".join(namen[s] for s in schl)}** · `{h}` · {len(Q[schl[0]][1])} Bytes · Fundorte: {len(liste)}')
+    for p, mt in liste:
+        zeilen11.append(f'- `{zeige(p)}` ({time.strftime("%d.%m. %H:%M", time.localtime(mt))})')
+    zeilen11.append('')
+zeilen11 += ['## 12. Einsetz- und Rückprobe', '',
+             '- Einsetzprüfung beim Schreiben (`b8_einsetzen.py`, Rohbeleg @@RB8@@): @@B8@@',
+             '- Unabhängige Rückprobe (`b9_rueckprobe.py`, Rohbeleg @@RB9@@): @@B9@@', '']
+fund_text = '\n'.join(zeilen11)
+
+# ---- Teile bilden ----
+teile = [teil1, teil2]
+if len((teil3 + '\n---\n\n' + fund_text).encode()) <= GRENZE - 1500:
+    teile.append(teil3 + '\n---\n\n' + fund_text)
+    t_fund = 'Teil 3'
+else:
+    kopf4 = ('# VERFASSUNGEN — Teil 4 von @@N@@ (FK22) · Entwurf\n\n'
+             'Fortsetzung von Teil 3. Stand des Lesens, Verfahren, Belegregel und Lesehilfe stehen in Teil 1.\n\n---\n\n')
+    teile += [teil3, kopf4 + fund_text]
+    t_fund = 'Teil 4'
+n = len(teile)
+teile = [t.replace('@@N@@', str(n)).replace('@@T_FUND@@', t_fund) for t in teile]
+
+# ---- Einsetzprüfung mit Gegenprobe ----
+BLOCK = re.compile(r'^Quelle: (.*) · (\d+) Bytes · SHA-256 `([0-9a-f]{64})` · Schluss-Zeilenumbruch: (ja|nein)\n\n'
+                   + ZAUN + r'(\w*)\n(.*?)\n' + ZAUN + r'$', re.M | re.S)
+erwartet = {sha(b) for _, b, _ in Q.values()}
+gut = gesamt = 0
+geg_ok = None
+for t in teile:
+    for m in BLOCK.finditer(t):
+        gesamt += 1
+        inhalt = (m.group(6) + ('\n' if m.group(4) == 'ja' else '')).encode()
+        if sha(inhalt) == m.group(3) and m.group(3) in erwartet and len(inhalt) == int(m.group(2)):
+            gut += 1
+        if geg_ok is None:
+            kaputt = bytearray(inhalt)
+            kaputt[len(kaputt) // 2] ^= 1
+            geg_ok = sha(bytes(kaputt)) != m.group(3)
+n_platz = sum(len(re.findall(r'@@WORTLAUT:\w+@@', v)) for v in (v1, v2))
+b8 = (f'{gut} von {gesamt} Wortlautblöcken nach dem Einsetzen SHA-256- und längengleich mit dem Original '
+      f'(Platzhalter in den Vorlagen: {n_platz}); Gegenprobe (ein Byte eines Blocks im Speicher verändert → ungleich): '
+      f'{"angeschlagen" if geg_ok else "NICHT angeschlagen"}.')
+teile = [t.replace('@@B8@@', b8) for t in teile]
+
+rest = [re.findall(r'@@[A-Z_0-9]+(?::\w+)?@@', t) for t in teile]
+for i, t in enumerate(teile, 1):
+    assert SCHLUESSEL not in t, f'Schlüssel in Teil {i}'
+    erlaubt = {'@@RB8@@', '@@RB9@@', '@@B9@@'}
+    assert set(rest[i - 1]) <= erlaubt, (i, rest[i - 1])
+    b = t.encode('utf-8')
+    assert len(b) <= GRENZE, f'Teil {i}: {len(b)} Bytes > {GRENZE}'
+    p = O / f'VERFASSUNGEN-TEIL{i}.md'
+    p.write_bytes(b)
+    print(f'{p} · {len(b)} Bytes · SHA-256 {sha(b)} · Restplatzhalter {rest[i - 1]}')
+print('Einsetzprüfung:', b8)
+print('Fundorte je Quelle:', {namen[s[0]]: len(funde[h]) for h, s in ziel.items()})
+print('\n== Belege für Teil 2')
+print('Verzeichnis {LAEUFE}/biotop-t3-typescript/verfassung-02/:')
+for p in sorted(Path(LAEUFE, 'biotop-t3-typescript', 'verfassung-02').iterdir()):
+    st = p.stat()
+    print(f'   {p.name} | {st.st_size} B | mtime {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(st.st_mtime))}')
+for p in ['/tmp/drahtwerk-probe/VERFASSUNG.md', '/tmp/drahtwerk-probe/VERFASSUNG.regeln.json']:
+    st = os.stat(p)
+    print(f'{p} | {st.st_size} B | mtime {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(st.st_mtime))} | '
+          f'{sha(open(p, "rb").read())}')
+--- Ende /root/sicherung/biotop-lage-01/entwurf/verfassungen/b8_einsetzen.py ---
+Ausgabe (vollständig, stdout und stderr):
+== Fundorte-Lauf
+Wurzeln 45 + /tmp · Dateien geprüft 63635 · gehasht 570 · 2.0 s
+/root/sicherung/biotop-lage-01/entwurf/verfassungen/VERFASSUNGEN-TEIL1.md · 28249 Bytes · SHA-256 6b4bf96bc0e0eaaba6faf598b7866a585a15934fdc7a246a0a0fb821c2d92831 · Restplatzhalter []
+/root/sicherung/biotop-lage-01/entwurf/verfassungen/VERFASSUNGEN-TEIL2.md · 27817 Bytes · SHA-256 48f4e3aefe1f148cb2dd7c9197e7c171221f946995209f2e0f59c4cc62b78fea · Restplatzhalter []
+/root/sicherung/biotop-lage-01/entwurf/verfassungen/VERFASSUNGEN-TEIL3.md · 7650 Bytes · SHA-256 e46ecf9fdc92e8451f149da2ba5d0b1fd30a417d7c59d1707dcd3a1111912992 · Restplatzhalter []
+/root/sicherung/biotop-lage-01/entwurf/verfassungen/VERFASSUNGEN-TEIL4.md · 29193 Bytes · SHA-256 e49aaecaf0430a1341e7d24c724411a4aa9ad40c473269b495c71da0079c2501 · Restplatzhalter ['@@RB8@@', '@@RB9@@', '@@B9@@']
+Einsetzprüfung: 2 von 2 Wortlautblöcken nach dem Einsetzen SHA-256- und längengleich mit dem Original (Platzhalter in den Vorlagen: 13); Gegenprobe (ein Byte eines Blocks im Speicher verändert → ungleich): angeschlagen.
+Fundorte je Quelle: {'lagerhaus Text': 73, 'lagerhaus Regeln': 72, 'lagerhaus Regeln (VB1-Schreibweise)': 1, 'logmuehle Text': 72, 'logmuehle Regeln': 72, 'T3 Revision 02': 4, 'T3 Regeln': 3, 'T3 Entwurf 01': 2, 'drahtwerk ältere Variante': 1, 'drahtwerk Text': 8, 'drahtwerk Regeln': 9}
+
+== Belege für Teil 2
+Verzeichnis {LAEUFE}/biotop-t3-typescript/verfassung-02/:
+   BESTAETIGUNG.md | 1878 B | mtime 2026-09-21 03:42:22
+   DATEIEN.txt | 349 B | mtime 2026-09-21 03:42:22
+   MANIFEST.sha256 | 328 B | mtime 2026-09-21 03:42:22
+   PRUEFSUMME-ORDNER.txt | 82 B | mtime 2026-09-21 03:42:22
+   VERFASSUNG-T3.md | 4418 B | mtime 2026-09-21 03:42:22
+   ZWISCHENBERICHT.md | 2243 B | mtime 2026-09-21 03:42:22
+/tmp/drahtwerk-probe/VERFASSUNG.md | 489 B | mtime 2026-09-23 11:18:04 | 4630f6e3d6661d3576d720350989feb4e28909eb9e4f9c87233ca8cb4ef46ba4
+/tmp/drahtwerk-probe/VERFASSUNG.regeln.json | 340 B | mtime 2026-09-23 11:18:04 | 1bb6f77ccf4da46a85ad171b183d03113a25cc237c799638d90de31524bb963d
+=== Ende R118 ===

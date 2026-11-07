@@ -1,0 +1,54 @@
+"""Privater TDD-Treiber: protokolliert tatsächliche pytest-/Kammerergebnisse."""
+import hashlib
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+basis = Path(__file__).resolve().parent
+repo = basis / "repo"
+lieferung = basis / "lieferung"
+allowlist = ["biotop/organe/fundpruefung.py", "biotop/organe/generation0.py", "biotop/organe/aufnahme.py",
+             "biotop/lauf.py", "pruefung/funde_neubewerten.py", "pruefung/verhandlungsprobe.py", "pruefung/proben_tor2.py"]
+if sys.argv[1] == "sichern":
+    bestand = []
+    for p in sorted(repo.rglob("*")):
+        if not p.is_file():
+            continue
+        rel = str(p.relative_to(repo))
+        bestand.append({"pfad": rel, "sha256": hashlib.sha256(p.read_bytes()).hexdigest()})
+        if rel in allowlist:
+            ziel = lieferung / "ausgang" / rel
+            ziel.parent.mkdir(parents=True, exist_ok=True)
+            ziel.write_bytes(p.read_bytes())
+    (lieferung / "AUSGANG.json").write_text(json.dumps(bestand, indent=2) + "\n")
+    print(json.dumps({"gesichert": allowlist, "dateien": len(bestand)}))
+else:
+    name = sys.argv[1]
+    ziel = lieferung / "belege" / name
+    ziel.mkdir(parents=True, exist_ok=False)
+    tmp = basis / "tmp"
+    tmp.mkdir(exist_ok=True)
+    env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PYTHONPATH=str(repo), TMPDIR=str(tmp),
+               BIOTOP_DB=str(tmp / "verbot-produktiv.db"), NACHWEIS_BELEGE=str(ziel),
+               PYTEST_DISABLE_PLUGIN_AUTOLOAD="1")
+    cmd = ["/root/reparatur-01/venv/bin/python", "-m", "pytest", "-q", "-s",
+           "--junitxml=" + str(ziel / "junit.xml"), *sys.argv[2:]]
+    if os.environ.get("VERBRAUCHER_GESAMTZAEHLUNG") == "1":
+        skript = ("import json,os,sys;from pathlib import Path;import pytest;from biotop.organe import kammer\n"
+                  "with kammer.zaehlung() as r:\n    rc=pytest.main(sys.argv[1:])\n"
+                  "Path(os.environ['NACHWEIS_BELEGE'],'gesamt-kammer.json').write_text(json.dumps(r,ensure_ascii=False,indent=2))\n"
+                  "print('GESAMT_KAMMER_AUFRUFE',len(r));sys.exit(rc)")
+        cmd = [cmd[0], "-c", skript, *cmd[3:]]
+    p = subprocess.run(cmd, cwd=repo, env=env, text=True, capture_output=True)
+    (ziel / "stdout.txt").write_text(p.stdout)
+    (ziel / "stderr.txt").write_text(p.stderr)
+    (ziel / "aufruf.json").write_text(json.dumps({"befehl": cmd, "rc": p.returncode,
+                                               "cwd": str(repo), "env": {k: env[k] for k in (
+                                                   "PYTHONDONTWRITEBYTECODE", "PYTHONPATH", "TMPDIR", "BIOTOP_DB",
+                                                   "NACHWEIS_BELEGE", "PYTEST_DISABLE_PLUGIN_AUTOLOAD")}}, indent=2) + "\n")
+    print("\n".join(p.stdout.splitlines()[-35:]))
+    print(p.stderr, file=sys.stderr)
+    print("PROTOKOLLIERTER PYTEST-RC:", p.returncode)
+    sys.exit(p.returncode)

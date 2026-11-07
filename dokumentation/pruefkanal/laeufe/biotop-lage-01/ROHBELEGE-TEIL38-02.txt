@@ -1,0 +1,435 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 38 (Teile 4–165 dieses Stands) · enthält R40 bis R40
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+[R40 · Fortsetzung, Stück 3 von 6]
+biotop/lauf.py:13 | from .kern import kasse, messgeraet, protokoll, sprachprofil
+biotop/lauf.py:14 | from .kern.datenbank import j, lj, transaktion
+biotop/lauf.py:15 | from .organe import aegis, aufnahme, entropie, gedaechtnis, genesis, jury, kammer, landkarte, lazarus, masseichung, mentor, nischen, verfassung, vertraege, vorspann
+biotop/lauf.py:25 | z = con.execute("SELECT * FROM laeufe WHERE id=?", (lauf_id,)).fetchone()
+biotop/lauf.py:32 | z = con.execute("SELECT * FROM werke WHERE id=?", (werk_id,)).fetchone()
+biotop/lauf.py:118 | "nischen": list(__import__("biotop.organe.nischen", fromlist=["NISCHEN"]).NISCHEN), "groesste_funktion_absolut": 60,
+biotop/lauf.py:147 | ms = [lj(z["masse"]) for z in con.execute("SELECT masse FROM generationen WHERE lauf_id=? AND status='angenommen' ORDER BY nummer", (lauf_id,))]
+biotop/lauf.py:150 | b["_aus_generationen"] = [z["nummer"] for z in con.execute("SELECT nummer FROM generationen WHERE lauf_id=? AND status='angenommen' ORDER BY nummer", (lauf_id,))]
+biotop/lauf.py:155 | z = con.execute("SELECT * FROM generationen WHERE lauf_id=? AND status='angenommen' ORDER BY nummer DESC LIMIT 1", (lauf_id,)).fetchone()
+biotop/lauf.py:194 | from .organe import generation0 as _g0
+biotop/lauf.py:198 | offen = con.execute("SELECT nummer FROM generationen WHERE lauf_id=? AND status='vorgelegt'", (lauf_id,)).fetchone()
+biotop/lauf.py:208 | nummer = con.execute("SELECT COALESCE(MAX(nummer),0)+1 FROM generationen WHERE lauf_id=?", (lauf_id,)).fetchone()[0]
+biotop/lauf.py:209 | kanten = [(z["von"], z["nach"], z["art"]) for z in con.execute("SELECT von, nach, art FROM strassen WHERE werk_id=?", (werk["id"],))]
+biotop/lauf.py:291 | kz0 = con.execute("SELECT status, diff FROM kandidaten WHERE id=?", (kid,)).fetchone()
+biotop/lauf.py:312 | kz = con.execute("SELECT modell, status FROM kandidaten WHERE id=?", (kid,)).fetchone()
+biotop/lauf.py:319 | kd = con.execute("SELECT diff, begruendung FROM kandidaten WHERE id=?", (kid,)).fetchone()
+biotop/lauf.py:339 | k = con.execute("SELECT masse, diff FROM kandidaten WHERE id=?", (u["kandidat"],)).fetchone()
+biotop/lauf.py:349 | zusammenfassung = {b: [{"kandidat": u["kandidat"], "status": u["status"], "grund": u["grund"][:200], "nische": con.execute("SELECT nische FROM kandidaten WHERE id=?", (u[
+biotop/lauf.py:369 | km = lj(con.execute("SELECT masse FROM kandidaten WHERE id=?", (kid,)).fetchone()["masse"]) or {}
+biotop/lauf.py:390 | kz = con.execute("SELECT wirkungskreis FROM kandidaten WHERE id=?", (kid,)).fetchone()
+biotop/lauf.py:496 | for z in con.execute("SELECT id, name, bereich, generation, lauf_id FROM immunsystem WHERE werk_id=? AND status IN ('offen','offen_norm')", (werk["id"],)):
+biotop/lauf.py:497 | seit = con.execute("SELECT COUNT(*) FROM generationen WHERE lauf_id=? AND nummer>? AND nummer<=? AND status!='abgebrochen'",
+biotop/lauf.py:537 | "SELECT nummer, status FROM generationen WHERE lauf_id=? AND status IN ('laeuft','vorgelegt')", (lauf_id,))]
+biotop/lauf.py:555 | g = con.execute("SELECT * FROM generationen WHERE lauf_id=? AND nummer=?", (lauf_id, nummer)).fetchone()
+biotop/lauf.py:582 | vorherige = con.execute("SELECT MAX(nummer) FROM generationen WHERE lauf_id=? AND nummer<? AND status='angenommen'", (lauf_id, nummer)).fetchone()[0]
+biotop/lauf.py:599 | import shutil, tarfile, tempfile
+biotop/lauf.py:605 | gens = [dict(z) for z in con.execute("SELECT generation, tag, archiv, pruefsumme FROM lazarus WHERE lauf_id=? ORDER BY generation", (lauf_id,))]
+biotop/lauf.py:607 | letzte = con.execute("SELECT archiv, generation FROM lazarus WHERE lauf_id=? ORDER BY generation DESC LIMIT 1", (quelle_lauf,)).fetchone()
+biotop/lauf.py:645 | kd0 = con.execute("SELECT vertraege FROM kandidaten WHERE id=?", (kid,)).fetchone()
+biotop/lauf.py:653 | kd = con.execute("SELECT diff, begruendung, vertraege FROM kandidaten WHERE id=?", (kid,)).fetchone()
+biotop/lauf.py:680 | if einseitig_ok and len(ids) == 2 and all(con.execute("SELECT status FROM kandidaten WHERE id=?", (aid,)).fetchone()["status"] == "leer" for aid in ids):
+biotop/lauf.py:686 | az = con.execute("SELECT diff, status FROM kandidaten WHERE id=?", (aid,)).fetchone()
+biotop/lauf.py:733 | vorige = con.execute("SELECT status, grund FROM generationen WHERE lauf_id=? AND nummer=?", (lauf_id, nummer - 1)).fetchone()
+biotop/lauf.py:774 | import json as _json
+biotop/lauf.py:775 | from .organe import generation0 as G0
+biotop/lauf.py:802 | import math as _math
+biotop/lauf.py:815 | from .kern import typescript
+biotop/nachspiel.py:29 | from __future__ import annotations
+biotop/nachspiel.py:31 | import json
+biotop/nachspiel.py:32 | import socket
+biotop/nachspiel.py:33 | import sqlite3
+biotop/nachspiel.py:34 | from contextlib import contextmanager
+biotop/nachspiel.py:35 | from pathlib import Path
+biotop/nachspiel.py:37 | from . import anbieter
+biotop/nachspiel.py:38 | from . import lauf as L
+biotop/nachspiel.py:39 | from .kern import datenbank, messgeraet
+biotop/nachspiel.py:40 | from .kern.datenbank import lj, transaktion
+biotop/nachspiel.py:41 | from .organe import aegis, kammer, landkarte, lazarus, masseichung, verfassung
+biotop/nachspiel.py:98 | return [(z["nr"], lj(z["inhalt"])) for z in con.execute("SELECT nr, inhalt FROM protokoll WHERE art='aegis.urteil' ORDER BY nr")
+biotop/nachspiel.py:104 | for z in con.execute("SELECT nr, inhalt FROM protokoll WHERE art='aegis.ansage' AND nr<? ORDER BY nr", (bis_nr,)):
+biotop/nachspiel.py:129 | k = con.execute("SELECT * FROM kandidaten WHERE id=?", (kandidat_id,)).fetchone()
+biotop/nachspiel.py:153 | z = con.execute("SELECT ergebnis, nachweis_sha256 FROM vorspann_nachweise WHERE lauf_id=?", (lauf_id,)).fetchone()
+biotop/nachspiel.py:175 | # eigener Name: `eichung` ist in dieser Funktion die Maßeichung des Falls (Fehler in 1d9a5aa: der Import
+biotop/nachspiel.py:177 | from .organe import eichung as eichung_organ, vorspann
+biotop/nachspiel.py:184 | import hashlib
+biotop/nachspiel.py:186 | kanten = [(x["von"], x["nach"], x["art"]) for x in con.execute("SELECT von, nach, art FROM strassen WHERE werk_id=?", (werk["id"],))]
+biotop/nachspiel.py:196 | pd = con.execute("SELECT diff FROM kandidaten WHERE id=?", (partner_id,)).fetchone()["diff"]
+biotop/nachspiel.py:238 | nz0 = con.execute("SELECT COALESCE(MAX(id),0) FROM neutralzaehler").fetchone()[0] if con.execute(
+biotop/nachspiel.py:239 | "SELECT name FROM sqlite_master WHERE name='neutralzaehler'").fetchone() else 0
+biotop/nachspiel.py:257 | kz = con.execute("SELECT status, grund, masse FROM kandidaten WHERE id=?", (fall["kandidat"],)).fetchone()
+biotop/nachspiel.py:264 | zaehler = [dict(z) for z in con.execute("SELECT organ, art, grund, einzelheit FROM neutralzaehler WHERE id>?", (nz0,))]
+biotop/oberflaeche.py:9 | from __future__ import annotations
+biotop/oberflaeche.py:34 | <html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+biotop/oberflaeche.py:149 | import re
+biotop/oberflaeche.py:150 | from pathlib import Path
+biotop/organe/aegis.py:20 | from __future__ import annotations
+biotop/organe/aegis.py:22 | import ast
+biotop/organe/aegis.py:23 | import re
+biotop/organe/aegis.py:24 | import sqlite3
+biotop/organe/aegis.py:25 | import xml.etree.ElementTree as ET
+biotop/organe/aegis.py:26 | from pathlib import Path
+biotop/organe/aegis.py:28 | from ..anbieter import AnbieterFehler, aufrufen
+biotop/organe/aegis.py:29 | from ..kern import befundklassen, diffwerk, messgeraet, protokoll, sprachprofil
+biotop/organe/aegis.py:30 | from ..kern.datenbank import j, lj, transaktion
+biotop/organe/aegis.py:31 | from . import kammer, landkarte, masseichung, neutralzaehler, verfassung, verhaltensvergleich, vertraege
+biotop/organe/aegis.py:37 | Du wirst nach Fehlern bewertet, die sich durch Ausführung BESTÄTIGEN lassen — nicht nach Bedenken. Ein Test, der an einem falschen Import oder falschen Methodennamen stir
+biotop/organe/aegis.py:41 | Bei einer Befundklasse mit eval/exec: greife die Erreichbarkeit von Objektklassen über Introspektion an (().__class__.__base__.__subclasses__(), __globals__ von Funktione
+biotop/organe/aegis.py:47 | # je Test eine Funktion test_..., Importe aus dem Werk-Paket
+biotop/organe/aegis.py:55 | Datei mit import { test, expect } from 'vitest' und vollständigen relativen Imports aus ../../?src.
+biotop/organe/aegis.py:59 | Ein Import-/Infrastrukturfehler ist kein Fund. Vorhandene Tests nicht duplizieren. Kein it.each/describe/skip.
+biotop/organe/aegis.py:94 | from ..kern import typescript
+biotop/organe/aegis.py:107 | skript = ("import subprocess,sys;p=subprocess.run([sys.executable,'-m','pytest','-q','-p','no:cacheprovider','--tb=short',"
+biotop/organe/aegis.py:141 | out[f"{t}::*"] = {"ok": False, "bestaetigt": False, "meldung": "Sammelfehler (Import) in " + t}
+biotop/organe/aegis.py:147 | from ..kern import typescript
+biotop/organe/aegis.py:162 | from ..kern import typescript
+biotop/organe/aegis.py:198 | """Alte Testdatei unverändert + die gültigen neuen Funktionen (und neue Imports) des Kandidaten angehängt."""
+biotop/organe/aegis.py:203 | # dazu die neuen Importe und die gültigen neuen test()-Blöcke (Syntaxbaum des Kerns, nicht Textanker).
+biotop/organe/aegis.py:211 | alt_imports = {ast.unparse(k) for k in ba.body if isinstance(k, (ast.Import, ast.ImportFrom))}
+biotop/organe/aegis.py:212 | zusatz = [k for k in bn.body if isinstance(k, (ast.Import, ast.ImportFrom)) and ast.unparse(k) not in alt_imports]
+biotop/organe/aegis.py:222 | r"^[ \t]*import[ \t]+(?:(?P<typ>type)[ \t]+)?(?P<klausel>[^'\";]*?)[ \t]*\bfrom[ \t]*(?P<q>['\"])(?P<modul>[^'\"]+)(?P=q)[ \t]*;?[ \t]*$"
+biotop/organe/aegis.py:223 | r"|^[ \t]*import[ \t]*(?P<q2>['\"])(?P<modul2>[^'\"]+)(?P=q2)[ \t]*;?[ \t]*$", re.M)
+biotop/organe/aegis.py:224 | _TOP_DEKL = re.compile(r"^(?:export[ \t]+)?(?:declare[ \t]+)?(?:async[ \t]+)?(?:const|let|var|function\*?|class|enum|interface|type)[ \t]+([A-Za-z_$][\w$]*)", re.M)
+biotop/organe/aegis.py:227 | def _importbindungen(klausel: str, nur_typ_dekl: bool) -> list[tuple[str, str, str, bool]] | None:
+biotop/organe/aegis.py:228 | """(art, importiert, lokal, nur_typ) je Bindung einer Importklausel; None, wenn die Form nicht verstanden wird."""
+biotop/organe/aegis.py:252 | def _importe(code: str) -> list[dict] | None:
+biotop/organe/aegis.py:258 | bi = _importbindungen(m.group("klausel"), bool(m.group("typ")))
+biotop/organe/aegis.py:265 | def _importzeilen(modul: str, bindungen: list[tuple[str, str, str, bool]]) -> list[str]:
+biotop/organe/aegis.py:269 | zeilen.append(f"import {'type ' if typ else ''}{lokal} from '{modul}';")
+biotop/organe/aegis.py:271 | zeilen.append(f"import {'type ' if typ else ''}* as {lokal} from '{modul}';")
+biotop/organe/aegis.py:275 | zeilen.append("import { " + ", ".join(teile) + f" }} from '{modul}';")
+biotop/organe/aegis.py:280 | """Alle auf oberster Ebene gebundenen Namen (Importe und Deklarationen) — mit Wiederholungen."""
+biotop/organe/aegis.py:281 | im = _importe(code)
+biotop/organe/aegis.py:288 | """Vorbedingung 9 (T4): alte Datei unverändert, dazu die neuen Importe und die gültigen neuen test()-Blöcke.
+biotop/organe/aegis.py:290 | Importe werden nach BINDUNGEN zusammengeführt, nicht nach Zeilen (Review vor T4 Nr. 2: `import { plus, halb }`
+biotop/organe/aegis.py:291 | neben vorhandenem `import { plus }` ergab eine doppelte Bindung — „Identifier 'plus' has already been declared“ —,
+biotop/organe/aegis.py:295 | from ..kern import typescript
+biotop/organe/aegis.py:305 | alt_im, nur_im = _importe(alt), _importe(nur)
+biotop/organe/aegis.py:308 | neutralzaehler.neutral(con, lauf_id, "aegis._anhaengen", "zusammenfuegen_gescheitert", "Importform unbekannt")
+biotop/organe/aegis.py:319 | zeilen.append(f"import '{d['modul']}';")
+biotop/organe/aegis.py:332 | zeilen += _importzeilen(d["modul"], behalten_b)
+biotop/organe/aegis.py:355 | from ..kern import typescript
+biotop/organe/aegis.py:434 | code = befundklassen.immuntest_typescript(kl, e['import'], e['aufruf'])
+biotop/organe/aegis.py:437 | code = befundklassen.immuntest_code(kl, e["import"], e["aufruf"], e["fehler_import"], e["fehler"])
+biotop/organe/aegis.py:458 | from ..kern import typescript
+biotop/organe/aegis.py:478 | from ..kern import typescript
+biotop/organe/aegis.py:517 | werden übersprungen), sonst der importierte Name.
+biotop/organe/aegis.py:523 | from ..kern import typescript
+biotop/organe/aegis.py:579 | for z in con.execute("SELECT ursprung FROM immunsystem WHERE werk_id=? AND bereich=? AND status IN ('im_werk','gefunden','offen')",
+biotop/organe/aegis.py:610 | for z in con.execute("SELECT ursprung FROM immunsystem WHERE werk_id=? AND bereich=? ORDER BY id DESC",
+biotop/organe/aegis.py:620 | for z in con.execute("SELECT nr, inhalt FROM protokoll WHERE art='aegis.ansage' ORDER BY nr DESC"):
+biotop/organe/aegis.py:684 | "SELECT text, quelle FROM vertraege WHERE werk_id=? AND bereich=? AND herkunft='docstring'", (werk_id, bereich)))
+biotop/organe/aegis.py:806 | k = con.execute("SELECT * FROM kandidaten WHERE id=?", (kandidat_id,)).fetchone()
+biotop/organe/aegis.py:892 | for z in con.execute("SELECT name, code FROM immunsystem WHERE werk_id=? AND bereich=? AND status IN ('gefunden','offen')", (werk_id, bereich)):
+biotop/organe/aegis.py:930 | from ..kern.typescript import TypeScriptFehler
+biotop/organe/aufnahme.py:7 | from __future__ import annotations
+biotop/organe/aufnahme.py:9 | import re
+biotop/organe/aufnahme.py:10 | import shutil
+biotop/organe/aufnahme.py:11 | import sqlite3
+biotop/organe/aufnahme.py:12 | import subprocess
+biotop/organe/aufnahme.py:13 | import zipfile
+biotop/organe/aufnahme.py:14 | from pathlib import Path
+biotop/organe/aufnahme.py:16 | from ..anbieter import aufrufen
+biotop/organe/aufnahme.py:17 | from ..kern import protokoll, sprachprofil
+biotop/organe/aufnahme.py:18 | from ..kern.datenbank import j, transaktion
+biotop/organe/aufnahme.py:19 | from . import kammer
+biotop/organe/aufnahme.py:130 | from .landkarte import bereiche_finden
+biotop/organe/aufnahme.py:135 | import json
+biotop/organe/aufnahme.py:154 | e = kammer.ausfuehren(ziel, ["python", "-c", f"import {paket}"], zeitlimit_s=60)
+biotop/organe/aufnahme.py:158 | from ..kern import typescript
+biotop/organe/aufnahme.py:189 | werk_id = con.execute("SELECT id FROM werke WHERE name=?", (name,)).fetchone()["id"]
+biotop/organe/eichgegenstand.py:14 | from __future__ import annotations
+biotop/organe/eichgegenstand.py:16 | import hashlib
+biotop/organe/eichgegenstand.py:17 | import sqlite3
+biotop/organe/eichgegenstand.py:18 | from pathlib import Path
+biotop/organe/eichgegenstand.py:20 | from ..kern import protokoll
+biotop/organe/eichgegenstand.py:21 | from ..kern.datenbank import lj, transaktion
+biotop/organe/eichgegenstand.py:38 | for z in con.execute("SELECT von_bereich, nach_bereich, pfad FROM vertraege_explizit WHERE werk_id=? "
+biotop/organe/eichgegenstand.py:65 | z = con.execute("SELECT text, regeln FROM verfassung_werk WHERE werk_id=?", (werk_id,)).fetchone()
+biotop/organe/eichgegenstand.py:100 | z = con.execute("SELECT * FROM eichgegenstand WHERE werk_id=? AND abgeloest_am IS NULL ORDER BY id DESC LIMIT 1",
+biotop/organe/eichproben.py:20 | from __future__ import annotations
+biotop/organe/eichproben.py:22 | import ast
+biotop/organe/eichproben.py:23 | import hashlib
+biotop/organe/eichproben.py:24 | import sqlite3
+biotop/organe/eichproben.py:25 | import tempfile
+biotop/organe/eichproben.py:26 | import time
+biotop/organe/eichproben.py:27 | from contextlib import contextmanager
+biotop/organe/eichproben.py:28 | from pathlib import Path
+biotop/organe/eichproben.py:30 | from ..kern import protokoll
+biotop/organe/eichproben.py:31 | from ..kern.datenbank import lj, transaktion
+biotop/organe/eichproben.py:32 | from . import aegis, eichgegenstand, eichung, kammer, verfassung
+biotop/organe/eichproben.py:55 | from difflib import unified_diff
+biotop/organe/eichproben.py:67 | from ..kern import sprachprofil
+biotop/organe/eichproben.py:69 | from . import eichproben_ts
+biotop/organe/eichproben.py:106 | from ..kern import sprachprofil
+biotop/organe/eichproben.py:109 | code = "import {test,expect} from 'vitest';\n" + "\n".join(
+biotop/organe/eichproben.py:118 | """Meinung über eine VORHANDENE Funktion; niemals ein neuer Import am Ausgang.
+biotop/organe/eichproben.py:124 | from ..kern import sprachprofil
+biotop/organe/eichproben.py:126 | from . import eichproben_ts
+biotop/organe/eichproben.py:130 | importname, aufruf = fn.name, fn.name
+biotop/organe/eichproben.py:144 | importname, aufruf = klasse.name, f"{klasse.name}().{fn.name}"
+biotop/organe/eichproben.py:164 | test = (f"from {modul} import {importname}\n\n"
+biotop/organe/eichproben.py:187 | z = con.execute("SELECT COUNT(*) n, COALESCE(SUM(kosten_eur),0) c FROM kasse WHERE lauf_id=?", (lauf_id,)).fetchone()
+biotop/organe/eichproben.py:293 | from .fundpruefung import _testnamen
+biotop/organe/eichproben.py:343 | from ..kern import sprachprofil
+biotop/organe/eichproben.py:345 | from . import eichproben_ts
+biotop/organe/eichproben.py:367 | from ..kern import sprachprofil
+biotop/organe/eichproben.py:409 | from . import verhaltensvergleich
+biotop/organe/eichproben.py:421 | from ..kern import sprachprofil
+biotop/organe/eichproben.py:423 | from . import eichproben_ts
+biotop/organe/eichproben.py:429 | zusicherung = [f"    from {paket} import {b} as _eichlieferant",
+biotop/organe/eichproben.py:454 | # Helfer und Imports gehören zu seiner Ausführung. Ein AST-Fragment aus
+biotop/organe/eichproben.py:455 | # Imports + Funktion verliert diese Voraussetzungen; globale Namen aus
+biotop/organe/eichproben.py:474 | "    import runpy\n"
+biotop/organe/eichproben.py:477 | f"    from {paket}.{b} import eichprobe_zusicherung\n"
+biotop/organe/eichproben.py:529 | messung = lj(db.execute("SELECT masse FROM kandidaten WHERE id=?", (kid,)).fetchone()[0]) or {}
+biotop/organe/eichproben.py:534 | "SELECT name,status,code,ursprung FROM immunsystem WHERE name=?",
+biotop/organe/eichproben_ts.py:2 | from pathlib import Path
+biotop/organe/eichproben_ts.py:3 | from ..kern import typescript
+biotop/organe/eichproben_ts.py:9 | if f['exportiert'] and f['body_kind']=='block']
+biotop/organe/eichproben_ts.py:31 | from .eichproben import _diff, _neue_datei
+biotop/organe/eichproben_ts.py:40 | test=("import {test,expect} from 'vitest';\n"
+biotop/organe/eichproben_ts.py:41 | f"import {{ {fn['name']} }} from '../{Path(rel).with_suffix('.js').as_posix()}';\n"
+biotop/organe/eichproben_ts.py:47 | from . import aegis
+biotop/organe/eichproben_ts.py:48 | from .eichproben import _diff, _neue_datei
+biotop/organe/eichproben_ts.py:49 | import posixpath
+biotop/organe/eichproben_ts.py:56 | lieferanten=[p for p in d['imports'] if p.startswith(f'src/{b}/')]
+biotop/organe/eichproben_ts.py:60 | if not (fn['exportiert'] and fn['body_kind']=='block' and fn['params']
+biotop/organe/eichproben_ts.py:78 | neu=(f"import * as _eichlieferant from '{imp}';\n"+quelle[:ziel]
+biotop/organe/eichproben_ts.py:85 | zusatz=("\nimport {eichprobe_verbraucher} from './_eichprobe_zeuge.js';\n"
+biotop/organe/eichproben_ts.py:90 | diff+=_diff(lieferant,q,q+"\nexport const eichprobe_zusicherung = 'da';\n")
+biotop/organe/eichproben_ts.py:102 | from .eichproben import _diff
+biotop/organe/eichproben_ts.py:110 | from .eichproben import _diff
+biotop/organe/eichung.py:17 | from __future__ import annotations
+biotop/organe/eichung.py:19 | import sqlite3
+biotop/organe/eichung.py:20 | from pathlib import Path
+biotop/organe/eichung.py:22 | from ..kern import messgeraet, protokoll
+biotop/organe/eichung.py:23 | from ..kern.datenbank import lj, transaktion
+biotop/organe/eichung.py:30 | from datetime import datetime
+biotop/organe/eichung.py:63 | z = con.execute("SELECT COUNT(*) n, COALESCE(SUM(kosten_eur),0) c FROM kasse WHERE lauf_id=? AND zweck LIKE ?",
+biotop/organe/eichung.py:65 | v = con.execute("SELECT COALESCE(SUM(modellaufrufe),0) n, COALESCE(SUM(kosten_eur),0) c FROM eichkosten"
+biotop/organe/eichung.py:70 | con.execute("DELETE FROM eichkosten WHERE lauf_id=? AND teil=?", (lauf_id, teil))
+biotop/organe/eichung.py:82 | " SUM(dauer_s) dauer_s FROM eichkosten WHERE lauf_id=? GROUP BY teil ORDER BY teil", (lauf_id,))]
+biotop/organe/eichung.py:112 | from ..kern import sprachprofil
+biotop/organe/eichung.py:113 | from .landkarte import bereiche_finden
+biotop/organe/eichung.py:133 | import time
+biotop/organe/eichung.py:177 | "SELECT gesperrt, erstellt_am FROM eichung WHERE werk_id=? AND bereich=? ORDER BY id DESC LIMIT 10",
+biotop/organe/entropie.py:12 | from __future__ import annotations
+biotop/organe/entropie.py:14 | import re
+biotop/organe/entropie.py:15 | import sqlite3
+biotop/organe/entropie.py:17 | from ..kern import messgeraet, protokoll
+biotop/organe/entropie.py:18 | from ..kern.datenbank import j, lj, transaktion
+biotop/organe/entropie.py:31 | ks = [dict(z) for z in con.execute("SELECT id, bereich, diff FROM kandidaten WHERE lauf_id=? AND generation=? AND diff!='' AND nische!='probe'", (lauf_id, nummer))]
+biotop/organe/entropie.py:55 | g = con.execute("SELECT status, masse FROM generationen WHERE lauf_id=? AND nummer=?", (lauf_id, nummer)).fetchone()
+biotop/organe/entropie.py:56 | vor = con.execute("SELECT nummer, masse FROM generationen WHERE lauf_id=? AND nummer<? AND status='angenommen' ORDER BY nummer DESC LIMIT 1", (lauf_id, nummer)).fetchone(
+biotop/organe/entropie.py:74 | return [lj(z["inhalt"]) for z in con.execute("SELECT inhalt FROM entropie WHERE lauf_id=? ORDER BY generation", (lauf_id,))]
+biotop/organe/fundpruefung.py:15 | from __future__ import annotations
+biotop/organe/fundpruefung.py:17 | import ast
+biotop/organe/fundpruefung.py:18 | import re
+biotop/organe/fundpruefung.py:19 | import sqlite3
+biotop/organe/fundpruefung.py:20 | import xml.etree.ElementTree as ET
+biotop/organe/fundpruefung.py:21 | from pathlib import Path
+biotop/organe/fundpruefung.py:23 | from ..kern import protokoll, sprachprofil
+biotop/organe/fundpruefung.py:24 | from ..kern.datenbank import transaktion
+biotop/organe/fundpruefung.py:25 | from . import aegis, kammer, verfassung
+biotop/organe/fundpruefung.py:30 | from ..kern import typescript
+biotop/organe/fundpruefung.py:42 | skript = ("import subprocess,sys;from pathlib import Path;"
+biotop/organe/fundpruefung.py:72 | from ..kern import typescript
+biotop/organe/fundpruefung.py:116 | "SELECT id, name, bereich, code, status FROM immunsystem WHERE werk_id=? AND status IN ('offen','offen_norm')"
+biotop/organe/fundpruefung.py:167 | "SELECT bereich, name, code, ursprung, status FROM immunsystem WHERE werk_id=? AND status IN ('offen','offen_norm')",
+biotop/organe/gedaechtnis.py:15 | from __future__ import annotations
+biotop/organe/gedaechtnis.py:17 | import ast
+biotop/organe/gedaechtnis.py:18 | import json
+biotop/organe/gedaechtnis.py:19 | import math
+biotop/organe/gedaechtnis.py:20 | import re
+biotop/organe/gedaechtnis.py:21 | import sqlite3
+biotop/organe/gedaechtnis.py:22 | from collections import Counter, defaultdict
+biotop/organe/gedaechtnis.py:24 | from ..anbieter import AnbieterFehler, aufrufen
+biotop/organe/gedaechtnis.py:25 | from ..kern import protokoll
+biotop/organe/gedaechtnis.py:26 | from ..kern.datenbank import j, lj, transaktion
+biotop/organe/gedaechtnis.py:27 | from . import neutralzaehler
+biotop/organe/gedaechtnis.py:58 | from ..kern import typescript
+biotop/organe/gedaechtnis.py:91 | from .aegis import kandidat_dateien
+biotop/organe/gedaechtnis.py:189 | z = con.execute("SELECT bericht FROM werke WHERE id=?", (werk_id,)).fetchone()
+biotop/organe/gedaechtnis.py:230 | k = con.execute("SELECT * FROM kandidaten WHERE id=?", (kandidat_id,)).fetchone()
+biotop/organe/gedaechtnis.py:256 | "SELECT p.* FROM projektgedaechtnis p JOIN laeufe l ON l.id = p.lauf_id "
+biotop/organe/gedaechtnis.py:276 | for w in con.execute("SELECT p.* FROM projektgedaechtnis p JOIN laeufe l ON l.id = p.lauf_id "
+biotop/organe/gedaechtnis.py:293 | def projekt_import(con, lauf_id: int, werk_pfad) -> int:
+biotop/organe/gedaechtnis.py:296 | lauf = con.execute("SELECT werk_id FROM laeufe WHERE id=?", (lauf_id,)).fetchone()
+biotop/organe/gedaechtnis.py:298 | for k in con.execute("SELECT id FROM kandidaten WHERE lauf_id=? AND status='abgelehnt' AND diff!=''", (lauf_id,)):
+biotop/organe/gedaechtnis.py:306 | z = con.execute("SELECT bericht, sprache FROM werke WHERE id=?", (werk_id,)).fetchone()
+biotop/organe/gedaechtnis.py:367 | k = con.execute("SELECT * FROM kandidaten WHERE id=?", (kandidat_id,)).fetchone()
+biotop/organe/gedaechtnis.py:404 | q = "SELECT * FROM artgedaechtnis" + (" WHERE " + " AND ".join(b) if b else "") + " ORDER BY id DESC LIMIT ?"
+biotop/organe/gedaechtnis.py:414 | MIN(id) erster, MAX(id) letzter FROM artgedaechtnis GROUP BY werkklasse, nische, kategorie ORDER BY an DESC"""):
+biotop/organe/gedaechtnis.py:480 | def art_import(con, lauf_id: int) -> int:
+biotop/organe/gedaechtnis.py:483 | lauf = con.execute("SELECT werk_id FROM laeufe WHERE id=?", (lauf_id,)).fetchone()
+biotop/organe/gedaechtnis.py:485 | for k in con.execute("SELECT id, status, bereich FROM kandidaten WHERE lauf_id=? AND masse IS NOT NULL AND nische!='probe' AND status IN ('angenommen','ueberlebt','abgele
+biotop/organe/gedaechtnis.py:493 | k = con.execute("SELECT * FROM kandidaten WHERE id=?", (kandidat_id,)).fetchone()
+biotop/organe/gedaechtnis.py:514 | k = con.execute("SELECT nische, bereich, ist_probe FROM kandidaten WHERE id=?", (kandidat_id,)).fetchone()
+biotop/organe/gedaechtnis.py:576 | q = "SELECT * FROM geschmack WHERE kandidat_id IS NOT NULL"; p: list = []
+biotop/organe/generation0.py:14 | from __future__ import annotations
+biotop/organe/generation0.py:16 | import ast
+biotop/organe/generation0.py:17 | import copy
+biotop/organe/generation0.py:18 | import hashlib
+biotop/organe/generation0.py:19 | import re
+biotop/organe/generation0.py:20 | import sqlite3
+biotop/organe/generation0.py:21 | from pathlib import Path
+biotop/organe/generation0.py:23 | from ..anbieter import AnbieterFehler, aufrufen
+biotop/organe/generation0.py:24 | from ..kern import protokoll, sprachprofil
+biotop/organe/generation0.py:25 | from ..kern.datenbank import j, transaktion
+biotop/organe/generation0.py:26 | from . import kammer, neutralzaehler, nischen
+biotop/organe/generation0.py:41 | from ..kern import typescript
+biotop/organe/generation0.py:147 | from ..kern import typescript
+biotop/organe/generation0.py:203 | from ..kern import typescript
+biotop/organe/generation0.py:214 | import sys, json, hashlib, importlib, inspect
+biotop/organe/generation0.py:219 | import referenzlast_werk as R
+biotop/organe/generation0.py:281 | from ..kern import typescript
+biotop/organe/generation0.py:351 | Die Antwort ist eine EIGENSTÄNDIGE neue Testdatei: sie beginnt mit allen nötigen Imports (import pytest; from lagerhaus.<bereich> import ...)
+biotop/organe/generation0.py:355 | import pytest
+biotop/organe/generation0.py:356 | from lagerhaus.<bereich> import ...
+biotop/organe/generation0.py:410 | from ..kern import typescript
+biotop/organe/generation0.py:414 | "Importiere test/expect aus 'vitest' und Werkfunktionen relativ aus ../src/. "
+biotop/organe/genesis.py:10 | from __future__ import annotations
+biotop/organe/genesis.py:12 | import re
+biotop/organe/genesis.py:13 | import sqlite3
+biotop/organe/genesis.py:14 | from pathlib import Path
+biotop/organe/genesis.py:16 | from ..anbieter import AnbieterFehler, aufrufen
+biotop/organe/genesis.py:17 | from ..kern import protokoll, sprachprofil
+biotop/organe/genesis.py:18 | from ..kern.datenbank import j, lj
+biotop/organe/genesis.py:19 | from . import landkarte, nischen
+biotop/organe/genesis.py:51 | Neue Testdateien importieren test/expect aus 'vitest', nutzen direkte relative Werkimporte und flache
+biotop/organe/genesis.py:56 | Sicherheit: ESLint security/*, no-new-func und no-extend-native; tote Exporte/Funktionen durch Knip und AST-zugeordnete unbenutzte Funktionen.
+biotop/organe/genesis.py:114 | for z in con.execute("SELECT generation, begruendung, grund FROM kandidaten WHERE lauf_id=? AND bereich=? AND status='abgelehnt' AND grund NOT LIKE 'Diff nicht anwendbar%
+biotop/organe/genesis.py:128 | from . import gedaechtnis as _G, mentor as _M
+biotop/organe/genesis.py:132 | from . import verfassung as _V
+biotop/organe/genesis.py:140 | offene = [dict(z) for z in con.execute("SELECT name, code FROM immunsystem WHERE werk_id=? AND bereich=? AND status IN ('gefunden','offen')", (werk_id, bereich))]
+biotop/organe/jury.py:9 | from __future__ import annotations
+biotop/organe/jury.py:11 | import json
+biotop/organe/jury.py:12 | import re
+biotop/organe/jury.py:13 | import sqlite3
+biotop/organe/jury.py:15 | from ..anbieter import AnbieterFehler, aufrufen
+biotop/organe/jury.py:16 | from ..kern import protokoll
+biotop/organe/jury.py:17 | from ..kern.datenbank import j, lj, transaktion
+biotop/organe/jury.py:40 | a = con.execute("SELECT diff, begruendung FROM kandidaten WHERE id=?", (kid_a,)).fetchone()
+biotop/organe/jury.py:41 | b = con.execute("SELECT diff, begruendung FROM kandidaten WHERE id=?", (kid_b,)).fetchone()
+biotop/organe/kammer.py:4 | - kein Netz (--network none),
+biotop/organe/kammer.py:13 | from __future__ import annotations
+biotop/organe/kammer.py:15 | import os
+biotop/organe/kammer.py:16 | import shutil
+biotop/organe/kammer.py:17 | import subprocess
+biotop/organe/kammer.py:18 | import tempfile
+biotop/organe/kammer.py:19 | import uuid
+biotop/organe/kammer.py:20 | from contextlib import contextmanager
+biotop/organe/kammer.py:21 | from contextvars import ContextVar
+biotop/organe/kammer.py:22 | from dataclasses import asdict, dataclass
+biotop/organe/kammer.py:23 | from pathlib import Path
+biotop/organe/kammer.py:25 | IMAGE = os.environ.get("BIOTOP_KAMMER_IMAGE", "biotop-kammer:1")
+biotop/organe/kammer.py:65 | "docker", "run", "--rm", "--name", name,
+biotop/organe/kammer.py:66 | "--network", "none",
+biotop/organe/kammer.py:77 | import time
+biotop/organe/kammer.py:87 | subprocess.run(["docker", "kill", name], capture_output=True)
+biotop/organe/kammer.py:88 | subprocess.run(["docker", "rm", "-f", name], capture_output=True)
+biotop/organe/kammer.py:121 | p = subprocess.run(["docker", "image", "inspect", IMAGE], capture_output=True, text=True)
+biotop/organe/landkarte.py:10 | Straßen: gerichtete Kanten von Modul zu Modul (Import) und von Funktion zu
+biotop/organe/landkarte.py:14 | from __future__ import annotations
+biotop/organe/landkarte.py:16 | import ast
+biotop/organe/landkarte.py:17 | import hashlib
+biotop/organe/landkarte.py:18 | import sqlite3
+biotop/organe/landkarte.py:19 | from pathlib import Path
+biotop/organe/landkarte.py:21 | from ..anbieter import aufrufen
+biotop/organe/landkarte.py:22 | from ..kern import protokoll, sprachprofil
+biotop/organe/landkarte.py:23 | from ..kern.datenbank import j, lj, transaktion
+biotop/organe/landkarte.py:46 | from ..kern import typescript
+biotop/organe/landkarte.py:69 | """Kanten (von, nach, art). art = 'import' (Modul→Modul) oder 'aufruf' (Funktion→Funktion)."""
+biotop/organe/landkarte.py:71 | from ..kern import typescript
+biotop/organe/landkarte.py:73 | return sorted({(_modulname(werk, werk / d["pfad"]), _modulname(werk, werk / ziel), "import")
+biotop/organe/landkarte.py:74 | for d in daten["dateien"] for ziel in d["imports"]})
+biotop/organe/landkarte.py:89 | if isinstance(kn, ast.ImportFrom):
+biotop/organe/landkarte.py:102 | kanten.add((m, ziel_mod, "import"))
+biotop/organe/landkarte.py:103 | elif isinstance(kn, ast.Import):
+biotop/organe/landkarte.py:106 | kanten.add((m, a.name, "import"))
+biotop/organe/landkarte.py:180 | con.execute("DELETE FROM strassen WHERE werk_id=?", (werk_id,))
+biotop/organe/landkarte.py:183 | con.execute("DELETE FROM vertraege WHERE werk_id=?", (werk_id,))
+biotop/organe/landkarte.py:199 | z = con.execute("SELECT inhalt, pruefsumme FROM landkarte WHERE werk_id=? AND stufe=? AND schluessel=?",
+biotop/organe/landkarte.py:252 | z = con.execute("SELECT inhalt FROM landkarte WHERE werk_id=? AND stufe=0", (werk_id,)).fetchone()
+biotop/organe/landkarte.py:255 | for r in con.execute("SELECT schluessel, inhalt FROM landkarte WHERE werk_id=? AND stufe=1 ORDER BY schluessel", (werk_id,)):
+biotop/organe/landkarte.py:258 | for r in con.execute("SELECT schluessel, inhalt FROM landkarte WHERE werk_id=? AND stufe=3 AND schluessel LIKE ? ORDER BY schluessel",
+biotop/organe/landkarte.py:263 | for r in con.execute("SELECT von, nach FROM strassen WHERE werk_id=?", (werk_id,)):
+biotop/organe/landkarte.py:270 | for r in con.execute("SELECT bereich, text, herkunft, quelle FROM vertraege WHERE werk_id=? AND herkunft='docstring' ORDER BY bereich", (werk_id,)):
+biotop/organe/lazarus.py:12 | from __future__ import annotations
+biotop/organe/lazarus.py:14 | import hashlib
+biotop/organe/lazarus.py:15 | import shutil
+biotop/organe/lazarus.py:16 | import sqlite3
+biotop/organe/lazarus.py:17 | import subprocess
+biotop/organe/lazarus.py:18 | import tarfile
+biotop/organe/lazarus.py:19 | from pathlib import Path
+biotop/organe/lazarus.py:21 | from ..kern import protokoll
+biotop/organe/lazarus.py:22 | from ..kern.datenbank import j, lj, transaktion
+biotop/organe/lazarus.py:80 | return [dict(z) for z in con.execute("SELECT * FROM lazarus WHERE lauf_id=? ORDER BY generation", (lauf_id,))]
+biotop/organe/lazarus.py:86 | z = con.execute("SELECT * FROM lazarus WHERE lauf_id=? AND generation=?", (lauf_id, generation)).fetchone()
+biotop/organe/lazarus.py:97 | werk_id = con.execute("SELECT werk_id FROM laeufe WHERE id=?", (lauf_id,)).fetchone()["werk_id"]
+biotop/organe/masseichung.py:23 | from __future__ import annotations
+biotop/organe/masseichung.py:25 | import re
+biotop/organe/mentor.py:13 | from __future__ import annotations
+biotop/organe/mentor.py:15 | import json
+biotop/organe/mentor.py:16 | import re
+biotop/organe/mentor.py:17 | import sqlite3
+biotop/organe/mentor.py:19 | from ..anbieter import AnbieterFehler, aufrufen
+biotop/organe/mentor.py:20 | from ..kern import messgeraet, protokoll
+biotop/organe/mentor.py:21 | from ..kern.datenbank import j, lj, transaktion
+biotop/organe/mentor.py:22 | from . import gedaechtnis, landkarte, verfassung, vertraege
+biotop/organe/mentor.py:47 | lauf = con.execute("SELECT * FROM laeufe WHERE id=?", (lauf_id,)).fetchone()
+biotop/organe/mentor.py:48 | werk = con.execute("SELECT * FROM werke WHERE id=?", (lauf["werk_id"],)).fetchone()
+biotop/organe/mentor.py:51 | bereiche = landkarte.bereiche_finden(__import__("pathlib").Path(werk["pfad"]), paket)
+biotop/organe/mentor.py:52 | sicht = "\n".join(f"Stufe {z['stufe']} {z['schluessel']}: {z['inhalt'][:600]}" for z in con.execute("SELECT stufe, schluessel, inhalt FROM landkarte WHERE werk_id=? AND s
+biotop/organe/mentor.py:54 | g0 = con.execute("SELECT masse FROM generationen WHERE lauf_id=? AND status='angenommen' ORDER BY nummer DESC LIMIT 1", (lauf_id,)).fetchone()
+biotop/organe/mentor.py:60 | offen = [dict(z) for z in con.execute("SELECT bereich, name, status, substr(ursprung,1,160) u FROM immunsystem WHERE werk_id=? AND status IN ('offen','offen_norm','archiv
+biotop/organe/mentor.py:63 | for z in con.execute("SELECT grund FROM laeufe WHERE werk_id=? AND status='gesaettigt'", (werk["id"],)):
+biotop/organe/mentor.py:82 | werk_von = {f"A{z['id']}": z["werk"] for z in con.execute("SELECT id, werk FROM artgedaechtnis")}
+biotop/organe/mentor.py:110 | z = con.execute("SELECT * FROM mentor WHERE lauf_id=? ORDER BY id DESC LIMIT 1", (lauf_id,)).fetchone()
+biotop/organe/mentor.py:117 | lauf = con.execute("SELECT werk_id FROM laeufe WHERE id=?", (lauf_id,)).fetchone()
+biotop/organe/mentor.py:131 | z = con.execute("SELECT richtung FROM laeufe WHERE id=?", (lauf_id,)).fetchone()
+biotop/organe/neutralzaehler.py:22 | from __future__ import annotations
+biotop/organe/neutralzaehler.py:24 | import sqlite3
+biotop/organe/neutralzaehler.py:26 | from ..kern import protokoll
+biotop/organe/neutralzaehler.py:27 | from ..kern.datenbank import transaktion
+biotop/organe/neutralzaehler.py:64 | for z in con.execute("SELECT organ, art, grund, COUNT(*) n FROM neutralzaehler "
+biotop/organe/nischen.py:16 | from __future__ import annotations
+biotop/organe/nischen.py:18 | import random
+biotop/organe/nischen.py:19 | import sqlite3
+biotop/organe/nischen.py:21 | from ..kern import protokoll
+biotop/organe/nischen.py:22 | from ..kern.datenbank import j, transaktion
+biotop/organe/nischen.py:78 | import json as _json
+biotop/organe/nischen.py:79 | from datetime import datetime, timedelta
+biotop/organe/nischen.py:82 | for z in con.execute("SELECT zeit, art, inhalt FROM protokoll WHERE art IN ('anbieter.gedrosselt','modell.antwort') ORDER BY nr"):
+biotop/organe/nischen.py:114 | z = con.execute("SELECT versuche, erfolge FROM bandit WHERE lauf_id=? AND nische=? AND hersteller=?", (lauf_id, nische, h)).fetchone()
+biotop/organe/nischen.py:134 | for z in con.execute("SELECT nische, hersteller, versuche, erfolge FROM bandit WHERE lauf_id=? ORDER BY nische, hersteller", (lauf_id,)):
+biotop/organe/nischen.py:144 | z = con.execute("SELECT zuwachs, laufzeit_gewinn FROM eliten WHERE lauf_id=? AND nische=? AND bereich=?", (lauf_id, nische, bereich)).fetchone()
+biotop/organe/nischen.py:155 | z = con.execute("SELECT * FROM eliten WHERE lauf_id=? AND nische=? AND bereich=?", (lauf_id, nische, bereich)).fetchone()
+biotop/organe/nischen.py:161 | return [dict(z) for z in con.execute("SELECT nische, bereich, kandidat_id, generation, zuwachs, laufzeit_gewinn FROM eliten WHERE lauf_id=? ORDER BY nische, bereich", (la
+biotop/organe/verfassung.py:10 | from __future__ import annotations
+biotop/organe/verfassung.py:12 | import json
+biotop/organe/verfassung.py:13 | import sqlite3
+biotop/organe/verfassung.py:15 | from ..kern import protokoll
+biotop/organe/verfassung.py:16 | from ..kern.datenbank import lj, transaktion
+biotop/organe/verfassung.py:36 | z = con.execute("SELECT * FROM verfassung_werk WHERE werk_id=?", (werk_id,)).fetchone()
+biotop/organe/verhaltensvergleich.py:32 | - Ein Sondenausfall (Kammerabbruch, beschädigter Transport — `art` 'infrastruktur'; fehlende Referenzlast) ist ein
+biotop/organe/verhaltensvergleich.py:86 | from __future__ import annotations
+biotop/organe/verhaltensvergleich.py:88 | import re
+biotop/organe/verhaltensvergleich.py:89 | from pathlib import Path
+biotop/organe/verhaltensvergleich.py:90 | from typing import Callable
+biotop/organe/verhaltensvergleich.py:141 | Python: Importnamen (paket/zahlen/x.py → paket.zahlen.x, paket/zahlen/__init__.py → paket.zahlen), auch auf
+biotop/organe/verhaltensvergleich.py:343 | """Grob: lädt diese Testdatei das geänderte Modul? (TS: Pfad im Import; Python: Modul- oder Paketpfad.)"""
+biotop/organe/verhaltensvergleich.py:347 | return modul in text or (len(teile) > 1 and f"from {'.'.join(teile[:-1])} import" in text and teile[-1] in text)
+biotop/organe/verhaltensvergleich.py:351 | from ..kern import sprachprofil
+biotop/organe/verhaltensvergleich.py:353 | from ..kern import typescript
+biotop/organe/verhaltensvergleich.py:373 | from ..kern import sprachprofil
+biotop/organe/verhaltensvergleich.py:413 | import json as _json
+biotop/organe/verhaltensvergleich.py:414 | from . import kammer
+biotop/organe/verhaltensvergleich.py:440 | from ..kern import sprachprofil, typescript

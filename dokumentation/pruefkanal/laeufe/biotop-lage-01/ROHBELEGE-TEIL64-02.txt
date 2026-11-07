@@ -1,0 +1,189 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 64 (Teile 4–165 dieses Stands) · enthält R60 bis R60
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R60 · Teil C: Erkundung Protokollarten, mentor, kandidaten (STAMM immutable, VB1/T3 mode=ro)
+Beginn: 2026-09-25 16:18:54 CEST (UTC+0200)
+Ende:   2026-09-25 16:18:55 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/tore/c4_erkunden.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/tore/c4_erkunden.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil C (nur lesend): Erkundung für FK28/FK29.
+STAMM nur mit ?mode=ro&immutable=1 und nur bei -wal = 0 Bytes; VB1 und T3 mit ?mode=ro.
+Ausgabe je Zweig:
+ 1. Protokollarten (Tabelle protokoll, Spalte art) mit 'immun', 'aufnahme', 'abweich', 'ansage', 'mentor',
+    'gedaechtnis', 'muster' im Namen: Anzahl, erste und letzte Zeit.
+ 2. Spalten der Tabellen mentor und kandidaten.
+ 3. Letzte Zeile der Tabelle mentor: jede Spalte, Text auf 700 Zeichen gekürzt.
+ 4. Je eine Beispielzeile (die jüngste) der Protokollarten immun.aufnahme_gesperrt und immun.aufnahme_geprueft
+    und aegis.abweichung (inhalt auf 700 Zeichen gekürzt)."""
+import os
+import sqlite3
+
+ZWEIGE = [
+    ('STAMM', '/root/biotop/daten/biotop.db', 'immutable'),
+    ('VB1', '/root/phase-4-vorbedingung-1/privat/biotop.db', 'ro'),
+    ('T3', '/root/biotop-t3/t3.db', 'ro'),
+]
+MERK = ('immun', 'aufnahme', 'abweich', 'ansage', 'mentor', 'gedaechtnis', 'muster')
+
+for name, pfad, art in ZWEIGE:
+    wal = os.path.getsize(pfad + '-wal') if os.path.exists(pfad + '-wal') else None
+    print(f'==================== {name}: {pfad} (wal {wal})')
+    if art == 'immutable':
+        if wal not in (None, 0):
+            print('NICHT GEÖFFNET: -wal nicht 0 Bytes')
+            continue
+        uri = f'file:{pfad}?mode=ro&immutable=1'
+    else:
+        uri = f'file:{pfad}?mode=ro'
+    c = sqlite3.connect(uri, uri=True)
+    print('-- 1. Protokollarten')
+    for a, n, z0, z1 in c.execute('SELECT art, count(*), min(zeit), max(zeit) FROM protokoll GROUP BY art ORDER BY art'):
+        if any(k in a for k in MERK):
+            print(f'   {a}: {n} | {z0} … {z1}')
+    for t in ('mentor', 'kandidaten'):
+        print(f'-- 2. Spalten {t}:', [r[1] for r in c.execute(f'PRAGMA table_info({t})')])
+    print('-- 3. letzte Zeile mentor')
+    cur = c.execute('SELECT * FROM mentor ORDER BY rowid DESC LIMIT 1')
+    namen = [d[0] for d in cur.description]
+    zeile = cur.fetchone()
+    if zeile:
+        for k, v in zip(namen, zeile):
+            s = str(v)
+            print(f'   {k}: {s[:700]}{" …[" + str(len(s)) + " Zeichen]" if len(s) > 700 else ""}')
+    for a in ('immun.aufnahme_gesperrt', 'immun.aufnahme_geprueft', 'aegis.abweichung'):
+        r = c.execute('SELECT nr, zeit, inhalt FROM protokoll WHERE art=? ORDER BY nr DESC LIMIT 1', (a,)).fetchone()
+        print(f'-- 4. Beispiel {a}:', (r[0], r[1], r[2][:700]) if r else 'keine Zeile')
+    c.close()
+    print(f'   danach wal: {os.path.getsize(pfad + "-wal") if os.path.exists(pfad + "-wal") else None}')
+--- Ende /root/sicherung/biotop-lage-01/entwurf/tore/c4_erkunden.py ---
+Ausgabe (vollständig, stdout und stderr):
+==================== STAMM: /root/biotop/daten/biotop.db (wal 0)
+-- 1. Protokollarten
+   aegis.abweichung: 1 | 2026-09-20T02:04:52.314+00:00 … 2026-09-20T02:04:52.314+00:00
+   aegis.ansage: 90 | 2026-09-19T22:21:40.622+00:00 … 2026-09-20T01:42:17.232+00:00
+   aufnahme: 23 | 2026-09-18T21:40:44.993+00:00 … 2026-09-20T01:13:33.014+00:00
+   gedaechtnis.muster_fehler: 20 | 2026-09-19T21:30:40.444+00:00 … 2026-09-19T21:30:51.064+00:00
+   gedaechtnis.muster_nachgetragen: 2 | 2026-09-19T21:30:40.453+00:00 … 2026-09-19T21:31:51.357+00:00
+   gedaechtnis.probe_uebersprungen: 5 | 2026-09-19T19:55:01.757+00:00 … 2026-09-19T19:58:42.606+00:00
+   gedaechtnis.probenabfall_entfernt: 1 | 2026-09-19T19:55:01.751+00:00 … 2026-09-19T19:55:01.751+00:00
+   gedaechtnis.wiederholung: 128 | 2026-09-19T12:57:45.085+00:00 … 2026-09-20T01:43:33.229+00:00
+   immun.archiviert: 1 | 2026-09-19T21:41:34.213+00:00 … 2026-09-19T21:41:34.213+00:00
+   immun.archivierung_zurueckgenommen: 1 | 2026-09-19T21:41:50.414+00:00 … 2026-09-19T21:41:50.414+00:00
+   immun.aufnahme_geprueft: 6 | 2026-09-20T01:13:16.556+00:00 … 2026-09-20T02:04:52.311+00:00
+   immun.aufnahme_gesperrt: 8 | 2026-09-20T00:49:04.962+00:00 … 2026-09-20T02:04:52.312+00:00
+   immun.behauptung_nachgetragen: 1 | 2026-09-19T20:57:25.569+00:00 … 2026-09-19T20:57:25.569+00:00
+   immun.fund: 1 | 2026-09-19T12:45:09.840+00:00 … 2026-09-19T12:45:09.840+00:00
+   immun.gefunden: 230 | 2026-09-18T21:42:27.130+00:00 … 2026-09-20T02:04:52.315+00:00
+   immun.neubewertet: 6 | 2026-09-19T15:39:16.728+00:00 … 2026-09-20T01:14:32.223+00:00
+   immun.norm: 39 | 2026-09-19T00:52:50.749+00:00 … 2026-09-20T02:04:02.767+00:00
+   immun.uebernommen: 5 | 2026-09-19T14:41:40.609+00:00 … 2026-09-20T01:14:08.387+00:00
+   immun.verworfen: 1 | 2026-09-18T21:50:16.362+00:00 … 2026-09-18T21:50:16.362+00:00
+   mentor.fehler: 2 | 2026-09-19T11:59:08.430+00:00 … 2026-09-19T11:59:41.687+00:00
+   mentor.gewaehlt: 11 | 2026-09-19T12:01:22.171+00:00 … 2026-09-20T01:15:08.248+00:00
+   mentor.richtungen: 13 | 2026-09-19T12:00:42.588+00:00 … 2026-09-20T01:15:08.017+00:00
+-- 2. Spalten mentor: ['id', 'lauf_id', 'werk_id', 'richtungen', 'empfehlung', 'begruendung', 'modell', 'gewaehlt', 'gewaehlt_von', 'erstellt_am']
+-- 2. Spalten kandidaten: ['id', 'lauf_id', 'generation', 'bereich', 'nische', 'anbieter', 'modell', 'diff', 'begruendung', 'status', 'grund', 'masse', 'wirkungskreis', 'erstellt_am', 'vertraege', 'ist_probe']
+-- 3. letzte Zeile mentor
+   id: 13
+   lauf_id: 25
+   werk_id: 22
+   richtungen: [{"_verweise_eigenes_werk": ["A33", "A651"], "_verweise_werkuebergreifend": [], "artgedaechtnis": [], "aufwand_generationen": 3, "bereiche": ["lager"], "ertrag": "Kernmaß lager: schließt ~15 offene Immunfunde (Sicherheitspunkte/Vertragsverstöße), Ziel 0 offene Funde in lager", "name": "Reservierung-Einlösen Verfügbarkeitsprüfung härten", "nische": "sicher", "projektgedaechtnis": ["A33", "A651"], "risiko": "Berührt lager-internen Vertrag reservierung_einloesen/entnehmen und indirekt test_vertrag_bericht_lager.py; kann Verhalten bei Grenzfällen ändern.", "vertraege": ["tests/vertraege/test_vertrag_bericht_lager.py"], "ziel": "Die zahlreichen offenen Aegis-Funde zu reservierung_einloesen (Überz …[3797 Zeichen]
+   empfehlung: Reservierung-Einlösen Verfügbarkeitsprüfung härten
+   begruendung: Die überwältigende Mehrheit der offenen Immunfunde (über 15) betrifft lager/reservierung_einloesen und direkt die Kernkorrektheit (Bestand nie negativ, Reservierung nicht doppelt zählend) — das höchste Gewicht laut Verfassung Punkt 3. Diese Richtung schließt die meisten offenen Funde bei moderatem Aufwand und stützt sich auf bewährte Muster aus A33/A651.
+   modell: anthropic/claude-sonnet-5
+   gewaehlt: Reservierung-Einlösen Verfügbarkeitsprüfung härten
+   gewaehlt_von: Hermes (Vollmacht Abschnitt 4, Uebungswerk; Lauf 25 Pfadnachweis C, Freigabe Philipp 20.09.2026)
+   erstellt_am: 2026-09-20T01:15:08.017+00:00
+-- 4. Beispiel immun.aufnahme_gesperrt: (16027, '2026-09-20T02:04:52.312+00:00', '{"behauptung": "preis_fuer|GtE:zahl", "bereich": "preise", "gegenstueck": "bereits im Vorrat des Bereichs", "kandidat": 2680, "lauf_id": 25, "regel": "Aufnahmesperre C (F7): der Schlüssel des geschriebenen Tests wird vor der Aufnahme gegen den Vorrat geprüft — deterministisch, ohne Modellaufruf", "sperrart": "fund", "test": "test_rot2_preis_fuer_wiederholte_behauptung", "werk_id": 22}')
+-- 4. Beispiel immun.aufnahme_geprueft: (16026, '2026-09-20T02:04:52.311+00:00', '{"anzahl": 2, "bereich": "preise", "kandidat": 2680, "lauf_id": 25, "sperrart": "fund", "tests": ["test_gruen2_neue_behauptung_im_fund_zweig", "test_rot2_preis_fuer_wiederholte_behauptung"], "vorrat_groesse": 7, "werk_id": 22}')
+-- 4. Beispiel aegis.abweichung: (16028, '2026-09-20T02:04:52.314+00:00', '{"abweichung": true, "angesagt": ["preis_fuer|GtE:zahl"], "bereich": "preise", "geschrieben": ["anzahl|Lt:name"], "hinweis": "V9 zählt nur; die Aufnahmesperre C entscheidet über die Aufnahme", "kandidat": 2680, "lauf_id": 25}')
+   danach wal: 0
+==================== VB1: /root/phase-4-vorbedingung-1/privat/biotop.db (wal 4140632)
+-- 1. Protokollarten
+   aegis.abweichung: 1 | 2026-09-20T02:04:52.314+00:00 … 2026-09-20T02:04:52.314+00:00
+   aegis.ansage: 129 | 2026-09-19T22:21:40.622+00:00 … 2026-09-20T20:15:12.879+00:00
+   aufnahme: 24 | 2026-09-18T21:40:44.993+00:00 … 2026-09-20T19:31:57.943+00:00
+   gedaechtnis.muster_fehler: 20 | 2026-09-19T21:30:40.444+00:00 … 2026-09-19T21:30:51.064+00:00
+   gedaechtnis.muster_nachgetragen: 2 | 2026-09-19T21:30:40.453+00:00 … 2026-09-19T21:31:51.357+00:00
+   gedaechtnis.probe_uebersprungen: 5 | 2026-09-19T19:55:01.757+00:00 … 2026-09-19T19:58:42.606+00:00
+   gedaechtnis.probenabfall_entfernt: 1 | 2026-09-19T19:55:01.751+00:00 … 2026-09-19T19:55:01.751+00:00
+   gedaechtnis.wiederholung: 145 | 2026-09-19T12:57:45.085+00:00 … 2026-09-20T20:11:38.047+00:00
+   immun.archiviert: 1 | 2026-09-19T21:41:34.213+00:00 … 2026-09-19T21:41:34.213+00:00
+   immun.archivierung_zurueckgenommen: 1 | 2026-09-19T21:41:50.414+00:00 … 2026-09-19T21:41:50.414+00:00
+   immun.aufnahme_geprueft: 9 | 2026-09-20T01:13:16.556+00:00 … 2026-09-20T20:03:08.539+00:00
+   immun.aufnahme_gesperrt: 8 | 2026-09-20T00:49:04.962+00:00 … 2026-09-20T02:04:52.312+00:00
+   immun.behauptung_nachgetragen: 1 | 2026-09-19T20:57:25.569+00:00 … 2026-09-19T20:57:25.569+00:00
+   immun.fund: 1 | 2026-09-19T12:45:09.840+00:00 … 2026-09-19T12:45:09.840+00:00
+   immun.gefunden: 230 | 2026-09-18T21:42:27.130+00:00 … 2026-09-20T02:04:52.315+00:00
+   immun.neubewertet: 7 | 2026-09-19T15:39:16.728+00:00 … 2026-09-20T19:32:31.359+00:00
+   immun.norm: 42 | 2026-09-19T00:52:50.749+00:00 … 2026-09-20T20:03:08.541+00:00
+   immun.uebernommen: 5 | 2026-09-19T14:41:40.609+00:00 … 2026-09-20T01:14:08.387+00:00
+   immun.verworfen: 1 | 2026-09-18T21:50:16.362+00:00 … 2026-09-18T21:50:16.362+00:00
+   mentor.fehler: 2 | 2026-09-19T11:59:08.430+00:00 … 2026-09-19T11:59:41.687+00:00
+   mentor.gewaehlt: 12 | 2026-09-19T12:01:22.171+00:00 … 2026-09-20T19:36:38.808+00:00
+   mentor.richtungen: 14 | 2026-09-19T12:00:42.588+00:00 … 2026-09-20T19:36:38.503+00:00
+-- 2. Spalten mentor: ['id', 'lauf_id', 'werk_id', 'richtungen', 'empfehlung', 'begruendung', 'modell', 'gewaehlt', 'gewaehlt_von', 'erstellt_am']
+-- 2. Spalten kandidaten: ['id', 'lauf_id', 'generation', 'bereich', 'nische', 'anbieter', 'modell', 'diff', 'begruendung', 'status', 'grund', 'masse', 'wirkungskreis', 'erstellt_am', 'vertraege', 'ist_probe']
+-- 3. letzte Zeile mentor
+   id: 14
+   lauf_id: 26
+   werk_id: 23
+   richtungen: [{"_verweise_eigenes_werk": ["A175", "A141", "A249", "A6"], "_verweise_werkuebergreifend": ["A597", "A569", "A568"], "artgedaechtnis": ["A597", "A569", "A568"], "aufwand_generationen": 2, "bereiche": ["formeln"], "ertrag": "Grenzmaß Laufzeit formeln sinkt voraussichtlich um 20–40 % gegenüber 125,96 ms, ohne Kernmaß zu verschlechtern (bleibt bei 0).", "name": "Formeln-Laufzeit weiter senken (Referenzlast dominiert)", "nische": "schnell", "projektgedaechtnis": ["A175", "A141", "A249", "A6"], "risiko": "Berührt auswertung.py und den Cache-Mechanismus; Vertrag test_vertrag_preise_formeln muss unverändert grün bleiben.", "vertraege": ["tests/vertraege/test_vertrag_preise_formeln.py"], "ziel": "Di …[4019 Zeichen]
+   empfehlung: Formeln-Laufzeit weiter senken (Referenzlast dominiert)
+   begruendung: Alle vier Bereiche stehen bereits am Höchstwert des Kernmaßes (0/0/0); formeln hat mit 125,96 ms die klar höchste Laufzeit und die größte Funktion, also liegt hier der größte Hebel für ein Grenzmaß. Das Projektgedächtnis zeigt bereits mehrfach erfolgreiche Laufzeit-Reduktionen in formeln, was die Erfolgswahrscheinlichkeit erhöht.
+   modell: anthropic/claude-sonnet-5
+   gewaehlt: Formeln-Laufzeit weiter senken (Referenzlast dominiert)
+   gewaehlt_von: Hermes unter Übungswerk-Vollmacht
+   erstellt_am: 2026-09-20T19:36:38.502+00:00
+-- 4. Beispiel immun.aufnahme_gesperrt: (16027, '2026-09-20T02:04:52.312+00:00', '{"behauptung": "preis_fuer|GtE:zahl", "bereich": "preise", "gegenstueck": "bereits im Vorrat des Bereichs", "kandidat": 2680, "lauf_id": 25, "regel": "Aufnahmesperre C (F7): der Schlüssel des geschriebenen Tests wird vor der Aufnahme gegen den Vorrat geprüft — deterministisch, ohne Modellaufruf", "sperrart": "fund", "test": "test_rot2_preis_fuer_wiederholte_behauptung", "werk_id": 22}')
+-- 4. Beispiel immun.aufnahme_geprueft: (16793, '2026-09-20T20:03:08.539+00:00', '{"anzahl": 1, "bereich": "lager", "kandidat": 2799, "lauf_id": 26, "sperrart": "norm", "tests": ["test_lager_mit_externem_journal_nutzt_cache_nicht"], "vorrat_groesse": 5, "werk_id": 23}')
+-- 4. Beispiel aegis.abweichung: (16028, '2026-09-20T02:04:52.314+00:00', '{"abweichung": true, "angesagt": ["preis_fuer|GtE:zahl"], "bereich": "preise", "geschrieben": ["anzahl|Lt:name"], "hinweis": "V9 zählt nur; die Aufnahmesperre C entscheidet über die Aufnahme", "kandidat": 2680, "lauf_id": 25}')
+   danach wal: 4140632
+==================== T3: /root/biotop-t3/t3.db (wal 13221112)
+-- 1. Protokollarten
+   aegis.abweichung: 21 | 2026-09-20T02:04:52.314+00:00 … 2026-09-22T18:10:29.283+00:00
+   aegis.ansage: 328 | 2026-09-19T22:21:40.622+00:00 … 2026-09-22T19:24:53.576+00:00
+   aufnahme: 36 | 2026-09-18T21:40:44.993+00:00 … 2026-09-22T13:43:15.332+00:00
+   gedaechtnis.muster_fehler: 20 | 2026-09-19T21:30:40.444+00:00 … 2026-09-19T21:30:51.064+00:00
+   gedaechtnis.muster_nachgetragen: 2 | 2026-09-19T21:30:40.453+00:00 … 2026-09-19T21:31:51.357+00:00
+   gedaechtnis.probe_uebersprungen: 5 | 2026-09-19T19:55:01.757+00:00 … 2026-09-19T19:58:42.606+00:00
+   gedaechtnis.probenabfall_entfernt: 1 | 2026-09-19T19:55:01.751+00:00 … 2026-09-19T19:55:01.751+00:00
+   gedaechtnis.wiederholung: 217 | 2026-09-19T12:57:45.085+00:00 … 2026-09-22T19:22:33.513+00:00
+   immun.archiviert: 9 | 2026-09-19T21:41:34.213+00:00 … 2026-09-22T19:16:34.188+00:00
+   immun.archivierung_zurueckgenommen: 1 | 2026-09-19T21:41:50.414+00:00 … 2026-09-19T21:41:50.414+00:00
+   immun.aufnahme_geprueft: 46 | 2026-09-20T01:13:16.556+00:00 … 2026-09-22T19:02:47.629+00:00
+   immun.aufnahme_gesperrt: 17 | 2026-09-20T00:49:04.962+00:00 … 2026-09-22T19:02:49.686+00:00
+   immun.behauptung_nachgetragen: 1 | 2026-09-19T20:57:25.569+00:00 … 2026-09-19T20:57:25.569+00:00
+   immun.fund: 1 | 2026-09-19T12:45:09.840+00:00 … 2026-09-19T12:45:09.840+00:00
+   immun.gefunden: 250 | 2026-09-18T21:42:27.130+00:00 … 2026-09-22T18:10:29.283+00:00
+   immun.neubewertet: 18 | 2026-09-19T15:39:16.728+00:00 … 2026-09-22T13:46:54.438+00:00
+   immun.norm: 51 | 2026-09-19T00:52:50.749+00:00 … 2026-09-22T19:02:50.702+00:00
+   immun.uebernommen: 5 | 2026-09-19T14:41:40.609+00:00 … 2026-09-20T01:14:08.387+00:00
+   immun.verworfen: 1 | 2026-09-18T21:50:16.362+00:00 … 2026-09-18T21:50:16.362+00:00
+   mentor.fehler: 2 | 2026-09-19T11:59:08.430+00:00 … 2026-09-19T11:59:41.687+00:00
+   mentor.gewaehlt: 11 | 2026-09-19T12:01:22.171+00:00 … 2026-09-20T01:15:08.248+00:00
+   mentor.richtungen: 13 | 2026-09-19T12:00:42.588+00:00 … 2026-09-20T01:15:08.017+00:00
+-- 2. Spalten mentor: ['id', 'lauf_id', 'werk_id', 'richtungen', 'empfehlung', 'begruendung', 'modell', 'gewaehlt', 'gewaehlt_von', 'erstellt_am']
+-- 2. Spalten kandidaten: ['id', 'lauf_id', 'generation', 'bereich', 'nische', 'anbieter', 'modell', 'diff', 'begruendung', 'status', 'grund', 'masse', 'wirkungskreis', 'erstellt_am', 'vertraege', 'ist_probe']
+-- 3. letzte Zeile mentor
+   id: 13
+   lauf_id: 25
+   werk_id: 22
+   richtungen: [{"_verweise_eigenes_werk": ["A33", "A651"], "_verweise_werkuebergreifend": [], "artgedaechtnis": [], "aufwand_generationen": 3, "bereiche": ["lager"], "ertrag": "Kernmaß lager: schließt ~15 offene Immunfunde (Sicherheitspunkte/Vertragsverstöße), Ziel 0 offene Funde in lager", "name": "Reservierung-Einlösen Verfügbarkeitsprüfung härten", "nische": "sicher", "projektgedaechtnis": ["A33", "A651"], "risiko": "Berührt lager-internen Vertrag reservierung_einloesen/entnehmen und indirekt test_vertrag_bericht_lager.py; kann Verhalten bei Grenzfällen ändern.", "vertraege": ["tests/vertraege/test_vertrag_bericht_lager.py"], "ziel": "Die zahlreichen offenen Aegis-Funde zu reservierung_einloesen (Überz …[3797 Zeichen]
+   empfehlung: Reservierung-Einlösen Verfügbarkeitsprüfung härten
+   begruendung: Die überwältigende Mehrheit der offenen Immunfunde (über 15) betrifft lager/reservierung_einloesen und direkt die Kernkorrektheit (Bestand nie negativ, Reservierung nicht doppelt zählend) — das höchste Gewicht laut Verfassung Punkt 3. Diese Richtung schließt die meisten offenen Funde bei moderatem Aufwand und stützt sich auf bewährte Muster aus A33/A651.
+   modell: anthropic/claude-sonnet-5
+   gewaehlt: Reservierung-Einlösen Verfügbarkeitsprüfung härten
+   gewaehlt_von: Hermes (Vollmacht Abschnitt 4, Uebungswerk; Lauf 25 Pfadnachweis C, Freigabe Philipp 20.09.2026)
+   erstellt_am: 2026-09-20T01:15:08.017+00:00
+-- 4. Beispiel immun.aufnahme_gesperrt: (26082, '2026-09-22T19:02:49.686+00:00', '{"behauptung": "jsonbericht|toThrow:name", "bereich": "bericht", "gegenstueck": "zweiter Test derselben Behauptung in diesem Kandidaten", "kandidat": 3307, "lauf_id": 38, "regel": "Aufnahmesperre C (F7): der Schlüssel des geschriebenen Tests wird vor der Aufnahme gegen den Vorrat geprüft — deterministisch, ohne Modellaufruf", "sperrart": "norm", "test": "test_jsonbericht wirft RangeError bei negativer Sendungsanzahl (Behauptung jsonbericht|raises:RangeError)", "werk_id": 23}')
+-- 4. Beispiel immun.aufnahme_geprueft: (26081, '2026-09-22T19:02:47.629+00:00', '{"anzahl": 2, "bereich": "bericht", "kandidat": 3307, "lauf_id": 38, "sperrart": "norm", "tests": ["test_jsonbericht wirft RangeError bei negativem Gesamtbetrag (Behauptung jsonbericht|raises:RangeError)", "test_jsonbericht wirft RangeError bei negativer Sendungsanzahl (Behauptung jsonbericht|raises:RangeError)"], "vorrat_groesse": 13, "werk_id": 23}')
+-- 4. Beispiel aegis.abweichung: (25128, '2026-09-22T18:10:29.283+00:00', '{"abweichung": false, "angesagt": ["vergleichen|toEqual:name"], "bereich": "planung", "geschrieben": ["vergleichen|toEqual:name"], "hinweis": "V9 zählt nur; die Aufnahmesperre C entscheidet über die Aufnahme", "kandidat": 3227, "lauf_id": 38}')
+   danach wal: 13221112
+=== Ende R60 ===

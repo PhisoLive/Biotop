@@ -1,0 +1,26 @@
+--- a/biotop/organe/generation0.py
++++ b/biotop/organe/generation0.py
+@@ -24,6 +24,7 @@
+ from ..kern import protokoll
+ from ..kern.datenbank import j, transaktion
+ from . import kammer, nischen
++from .fundpruefung import _pytest_nachweis
+ 
+ _VERGLEICH = {ast.Lt: ast.GtE, ast.LtE: ast.Gt, ast.Gt: ast.LtE, ast.GtE: ast.Lt, ast.Eq: ast.NotEq, ast.NotEq: ast.Eq}
+ _ARITH = {ast.Add: ast.Sub, ast.Sub: ast.Add, ast.Mult: ast.Div, ast.Div: ast.Mult}
+@@ -107,10 +108,11 @@
+ 
+ def _testlauf(werk: Path, dateien: dict[str, str]) -> tuple[bool, str]:
+     """True = mindestens ein Test fällt (Mutant gefangen). Rückgabe (gefangen, fallende Tests)."""
+-    e = kammer.ausfuehren(werk, ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider", "--tb=no", "-x", "-q"], zeitlimit_s=90, dateien=dateien)
+-    fallen = re.findall(r"^FAILED (\S+)", e.stdout, re.M)
+-    gefangen = e.rc != 0
+-    return gefangen, ", ".join(fallen[:3]) or ("Zeitlimit/Absturz" if gefangen and not fallen else "")
++    e, tests = _pytest_nachweis(werk, dateien)
++    if tests is None:
++        raise RuntimeError("Generation 0: ausgeführter Test-Nachweis fehlt: " + (e.stdout + e.stderr)[-400:])
++    fallen = [t.get("classname", "") + "::" + t.get("name") for t in tests if t.find("failure") is not None]
++    return bool(fallen), ", ".join(fallen[:3])
+ 
+ 
+ _AEQUIVALENZ_SKRIPT = """

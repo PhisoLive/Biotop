@@ -1,0 +1,426 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 49 (Teile 4–165 dieses Stands) · enthält R42 bis R42
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R42 · Teil B: Treffer aus R41 nach SHA-256 gruppiert (nur lesend)
+Beginn: 2026-09-25 16:14:28 CEST (UTC+0200)
+Ende:   2026-09-25 16:14:28 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/verfassungen/b2_gruppieren.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/verfassungen/b2_gruppieren.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil B (nur lesend): Treffer aus R41 nach SHA-256 gruppieren.
+
+Liest nur den Rohbeleg R41 (Ausgabe von b1_finden.py). Gibt je Abschnitt (A Name, B Inhalt) die verschiedenen
+Inhalte aus: SHA-256, Bytes, Anzahl Pfade, Endung, bis zu 4 Pfade (Vorrang: nicht unter reparatur-01/tmp/pytest).
+Code-Kopien des Biotops (biotop/organe/*.py, pruefung/*.py, biotop/kern/*.py usw.) werden als Code gezählt, aber nur
+summarisch ausgegeben.
+"""
+import re
+from collections import OrderedDict, defaultdict
+
+R = '/root/sicherung/biotop-lage-01/rohbelege/R0041.txt'
+abschnitt = None
+gruppen = {'A': OrderedDict(), 'B': OrderedDict()}
+for z in open(R, encoding='utf-8'):
+    z = z.rstrip('\n')
+    if z.startswith('== A.'):
+        abschnitt = 'A'
+        continue
+    if z.startswith('== B.'):
+        abschnitt = 'B'
+        continue
+    if abschnitt is None or ' | ' not in z or z.startswith('Pfad |') or z.startswith('=== Ende'):
+        continue
+    teile = z.split(' | ')
+    if len(teile) < 5:
+        continue
+    pfad, groesse, sha, zeit, merk = teile[0], teile[1], teile[2], teile[3], ' | '.join(teile[4:])
+    g = gruppen[abschnitt].setdefault(sha, {'bytes': groesse, 'pfade': [], 'merk': set(), 'zeiten': []})
+    g['pfade'].append(pfad)
+    g['merk'].add(merk)
+    g['zeiten'].append(zeit)
+
+
+def code(p: str) -> bool:
+    return bool(re.search(r'/(biotop/(organe|kern|anbieter)|pruefung|pruefung_vorbedingung1|tests|kammer)/[^/]+\.(py|mjs|js|ts)$', p)) \
+        or p.endswith(('/biotop/lauf.py', '/biotop/nachspiel.py', '/biotop/dienst.py', '/biotop/oberflaeche.py',
+                       '/biotop/__main__.py', '/biotop/tor4.py', '/biotop/tor3.py', '/biotop/zwischenbericht.py'))
+
+
+def vorrang(p: str) -> int:
+    return (('/tmp/' in p or 'pytest-of-root' in p or '/eltern-temp/' in p) * 2) + ('/reparatur-01/' in p)
+
+
+for ab in 'AB':
+    print(f'===== Abschnitt {ab}: {len(gruppen[ab])} verschiedene Inhalte, {sum(len(g["pfade"]) for g in gruppen[ab].values())} Pfade')
+    code_n = defaultdict(int)
+    for sha, g in gruppen[ab].items():
+        if all(code(p) for p in g['pfade']):
+            for p in g['pfade']:
+                code_n[p.rsplit('/', 1)[-1]] += 1
+            continue
+        pf = sorted(g['pfade'], key=lambda p: (vorrang(p), p))
+        endg = sorted({p.rsplit('.', 1)[-1] if '.' in p.rsplit('/', 1)[-1] else '-' for p in g['pfade']})
+        print(f'- {sha} | {g["bytes"]} B | {len(pf)} Pfade | Endungen {",".join(endg)} | Merkmale {";".join(sorted(g["merk"]))}')
+        for p in pf[:4]:
+            print(f'    {p}')
+        if len(pf) > 4:
+            print(f'    … {len(pf) - 4} weitere')
+    print(f'  Code-Dateien des Biotops (nur gezählt, Name → Anzahl Pfade): {dict(sorted(code_n.items()))}')
+--- Ende /root/sicherung/biotop-lage-01/entwurf/verfassungen/b2_gruppieren.py ---
+Ausgabe (vollständig, stdout und stderr):
+===== Abschnitt A: 34 verschiedene Inhalte, 283 Pfade
+- 4c69232270ac0239cd14b8d6659206c84724865eb29461bfbf3e7838ff1c9bca | 1366 B | 1 Pfade | Endungen json | Merkmale —
+    /root/biotop-t3/VERFASSUNG-02-HTTPS.json
+- 7d599d302e9baf81d95b94bbcac6c6689c9d041685acb8fb6942fba9bc5f9ce2 | 832 B | 1 Pfade | Endungen json | Merkmale —
+    /root/biotop-t3/VERFASSUNG-HTTPS.json
+- 5ece12d93dc760d6bfb834d7d1cd53e29065bd54d673e2381a23d50234f78a28 | 4418 B | 4 Pfade | Endungen md | Merkmale —
+    /root/biotop-t3/VERFASSUNG-T3-02.md
+    {LAEUFE}/biotop-t3-typescript/abschluss-01/VERFASSUNG-T3-02.md
+    {LAEUFE}/biotop-t3-typescript/uebernahme-01/VERFASSUNG-T3-02.md
+    {LAEUFE}/biotop-t3-typescript/verfassung-02/VERFASSUNG-T3.md
+- e750eb4d5033442f842028c5b2fde5c403dedfcf9b2c05260091bc6c0269e54b | 1398 B | 3 Pfade | Endungen json | Merkmale —
+    /root/biotop-t3/VERFASSUNG-T3-02.regeln.json
+    {LAEUFE}/biotop-t3-typescript/abschluss-01/VERFASSUNG-T3-02.regeln.json
+    {LAEUFE}/biotop-t3-typescript/uebernahme-01/VERFASSUNG-T3-02.regeln.json
+- d048a77e9faf2e24ae1a8145510d1b8c2f2957747b519d100c14e0ed0a4e0ac0 | 2498 B | 2 Pfade | Endungen md | Merkmale —
+    /root/biotop-t3/VERFASSUNG-T3-ENTWURF.md
+    {LAEUFE}/biotop-t3-typescript/verfassung-entwurf-01/VERFASSUNG-T3-ENTWURF.md
+- c7b7557ecd05190cb15fe1ddbfafac3e834f177ee86edf7e5094f6c85079e941 | 39 B | 14 Pfade | Endungen txt | Merkmale —
+    /root/biotop-t3/lauf-03-verfassung.txt
+    /root/biotop-t3/lauf27-03-verfassung.txt
+    /root/biotop-t3/lauf28-03-verfassung.txt
+    /root/biotop-t3/lauf29-03-verfassung.txt
+    … 10 weitere
+- 4a0701df6f3375a0e0d4ecc7cad6f08aa1eec0d9817a9b496220d344162929bd | 6559 B | 1 Pfade | Endungen py | Merkmale —
+    /root/biotop-t3/verfassung02_veroeffentlichen.py
+- f91bfb496d14a9dd75a6c96014b8ae7f7051400ed0a60c8b21a35b7bcfc400d8 | 3606 B | 1 Pfade | Endungen py | Merkmale —
+    /root/biotop-t3/verfassung_veroeffentlichen.py
+- e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 | 0 B | 1 Pfade | Endungen txt | Merkmale —
+    /root/phase-4-vorbedingung-1/belege/04-verfassung.stderr.txt
+- 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | 1506 B | 2 Pfade | Endungen md | Merkmale —
+    /root/phase-4-vorbedingung-1/privat/verfassung.md
+    {LAEUFE}/biotop-phase-1-nachlauf/ausgaben/13-verfassung-lagerhaus.md
+- 74e9d337f7ecf17d84fd6c66e05eeb68e2486b7cc96b900400a1b0becb14fe72 | 729 B | 1 Pfade | Endungen json | Merkmale —
+    /root/phase-4-vorbedingung-1/privat/verfassung.regeln.json
+- 34d67f36719395b6cff4c9bed88b8b506ae525943aa7c84682b7c0167ad27abc | 806 B | 1 Pfade | Endungen json | Merkmale —
+    {LAEUFE}/biotop-phase-1-nachlauf/ausgaben/13-verfassung-lagerhaus.regeln.json
+- c9d93e6c95bb53073732cde992c052f7f7c2fb3ddeb7ea2eb1a79917ef5194f8 | 38 B | 1 Pfade | Endungen json | Merkmale —
+    {LAEUFE}/biotop-phase-1-nachlauf/ausgaben/13-verfassung.json
+- 0623e3dcab2157ba644f7b30ad3bf4d843d7ecde08f9ca54afb06302bb02ef6a | 38 B | 1 Pfade | Endungen json | Merkmale —
+    {LAEUFE}/biotop-phase-1-nachlauf/ausgaben/63-lauf7-verfassung.json
+- cbbb8a0c804340917edaea0103ecdbae4da970c523e0a57363372d987df03e90 | 38 B | 1 Pfade | Endungen json | Merkmale —
+    {LAEUFE}/biotop-phase-1-nachlauf/ausgaben/83-verfassung.json
+- 4e91c525020254f586330373fc590d4f97fe7d965fe2cdc2c854ad9e856fbe1d | 38 B | 1 Pfade | Endungen json | Merkmale —
+    {LAEUFE}/biotop-phase-1-nachlauf/ausgaben/93-verfassung.json
+- 47f2615ec6abd569143e46f59b68f1379213d82b71439aff02b121420ad38bf9 | 39 B | 1 Pfade | Endungen json | Merkmale —
+    {LAEUFE}/biotop-phase-2/ausgaben/43-verfassung.json
+- e47243b4992d49efd6f15d653c2f1438a42301e15257465227bd0051d9ca0287 | 39 B | 1 Pfade | Endungen json | Merkmale —
+    {LAEUFE}/biotop-phase-3/ausgaben/103-verfassung.json
+- bc23fe9d04c8e372b35e28ed2edb78b1b2d16854dfa56d27de869b6492b01f74 | 39 B | 1 Pfade | Endungen json | Merkmale —
+    {LAEUFE}/biotop-phase-3/ausgaben/13-verfassung.json
+- 667a9fb2e5e9559512e7a2b728248a5e4d3e36142332911502d41dbb21b12160 | 39 B | 1 Pfade | Endungen json | Merkmale —
+    {LAEUFE}/biotop-phase-3/ausgaben/33-verfassung.json
+- da0dea77cd8333545ab4103343b49c9fd7cfdea559d8dc8e52a251bed71eb724 | 39 B | 1 Pfade | Endungen json | Merkmale —
+    {LAEUFE}/biotop-phase-3/ausgaben/83-verfassung.json
+- 6e0179c8d2a1b5f9f601477b1c650039264a6bfc7c786f7a703bd4db9ad6a7f9 | 39 B | 1 Pfade | Endungen json | Merkmale —
+    {LAEUFE}/biotop-phase-3/ausgaben/93-verfassung.json
+- 742e062c10c26dcab88396cd37a2029dc076bdef1da8dcad772efe91ba464bee | 39 B | 1 Pfade | Endungen json | Merkmale —
+    {LAEUFE}/biotop-phase-3/ausgaben/lauf14-verworfen/13-verfassung.json
+- d984fca2e0f8e13311693cb58f1d9590eb8e34d2602769615427697c13e093e3 | 39 B | 1 Pfade | Endungen json | Merkmale —
+    {LAEUFE}/biotop-phase-3/ausgaben/lauf15-verworfen/13-verfassung.json
+- d9850cd967565c43b8e253635d6b6de5063ef1993d26c969cdc7e805f6104ba6 | 1454 B | 1 Pfade | Endungen txt | Merkmale —
+    {LAEUFE}/biotop-phase-3-nachlauf/ausgaben/06-eichgegenstand-verfassung-vor-groesse.txt
+- b8102a0b7f88dc84909df0cc6a6349c3871612ade1cf361939927ac98003d17e | 39 B | 1 Pfade | Endungen json | Merkmale —
+    {LAEUFE}/biotop-phase-3-nachlauf/ausgaben/203-verfassung.json
+- 4355bd1c8d738ee8a14eea0f0d650272c67bd5b799267c75b37d899d33a7b349 | 39 B | 1 Pfade | Endungen json | Merkmale —
+    {LAEUFE}/biotop-phase-3-nachlauf/ausgaben/21-verfassung.json
+- 0ce7f8651ae70ad0783cb6caa8f54b9ebbcf789b5e6b116d6df6fb63242bc803 | 1841 B | 1 Pfade | Endungen md | Merkmale —
+    {LAEUFE}/biotop-phase-3-nachlauf/ausgaben/26-verfassungsentwurf-logmuehle.md
+- bce33200a57d77e5a9254e0da271c38c9ce23404506cc6cfb0bf902e5051b0c8 | 691 B | 1 Pfade | Endungen json | Merkmale —
+    {LAEUFE}/biotop-phase-3-nachlauf/ausgaben/26-verfassungsentwurf-logmuehle.regeln.json
+- aeb0b07d4c2b7562f6649db73fa0ca1f0ea12439bc61d5b4babf3648953b8da0 | 39 B | 1 Pfade | Endungen json | Merkmale —
+    {LAEUFE}/biotop-phase-4-vorbedingung-1/ausgaben/09-verfassung.json
+- 3305982ba06925e5c51f87a13f8b28a93646f93879551121c03e9b317d58e3ba | 39 B | 1 Pfade | Endungen json | Merkmale —
+    {LAEUFE}/biotop-phase-4-vorbedingung-1/ausgaben/25-03-verfassung.json
+  Code-Dateien des Biotops (nur gezählt, Name → Anzahl Pfade): {'eichgegenstand_verfassung.py': 35, 'verfassung.py': 197}
+===== Abschnitt B: 126 verschiedene Inhalte, 789 Pfade
+- 326e26163f74d9822961d2569e17188d4fde381dc866c565909a2df32861ba14 | 1506 B | 35 Pfade | Endungen md | Merkmale WasEsIst,VerfassungDes
+    /root/biotop-t3/arbeitsstand-sicherung/verfassungen/lagerhaus.md
+    /root/biotop-t3/repo-sicherung-vor-commits/verfassungen/lagerhaus.md
+    /root/biotop/verfassungen/lagerhaus.md
+    /root/phase-4-vorbedingung-1/privat/verfassung.md
+    … 31 weitere
+- 34d67f36719395b6cff4c9bed88b8b506ae525943aa7c84682b7c0167ad27abc | 806 B | 34 Pfade | Endungen json | Merkmale verbotene_muster,uebungswerk_json
+    /root/biotop-t3/arbeitsstand-sicherung/verfassungen/lagerhaus.regeln.json
+    /root/biotop-t3/repo-sicherung-vor-commits/verfassungen/lagerhaus.regeln.json
+    /root/biotop/verfassungen/lagerhaus.regeln.json
+    {LAEUFE}/biotop-phase-1-nachlauf/ausgaben/13-verfassung-lagerhaus.regeln.json
+    … 30 weitere
+- 0ce7f8651ae70ad0783cb6caa8f54b9ebbcf789b5e6b116d6df6fb63242bc803 | 1841 B | 34 Pfade | Endungen md | Merkmale WasEsIst,VerfassungDes
+    /root/biotop-t3/arbeitsstand-sicherung/verfassungen/logmuehle.md
+    /root/biotop-t3/repo-sicherung-vor-commits/verfassungen/logmuehle.md
+    /root/biotop/verfassungen/logmuehle.md
+    {LAEUFE}/biotop-phase-3-nachlauf/ausgaben/26-verfassungsentwurf-logmuehle.md
+    … 30 weitere
+- bce33200a57d77e5a9254e0da271c38c9ce23404506cc6cfb0bf902e5051b0c8 | 691 B | 34 Pfade | Endungen json | Merkmale verbotene_muster,uebungswerk_json
+    /root/biotop-t3/arbeitsstand-sicherung/verfassungen/logmuehle.regeln.json
+    /root/biotop-t3/repo-sicherung-vor-commits/verfassungen/logmuehle.regeln.json
+    /root/biotop/verfassungen/logmuehle.regeln.json
+    {LAEUFE}/biotop-phase-3-nachlauf/ausgaben/26-verfassungsentwurf-logmuehle.regeln.json
+    … 30 weitere
+- e750eb4d5033442f842028c5b2fde5c403dedfcf9b2c05260091bc6c0269e54b | 1398 B | 3 Pfade | Endungen json | Merkmale verbotene_muster,uebungswerk_json,tragender_pfad
+    /root/biotop-t3/VERFASSUNG-T3-02.regeln.json
+    {LAEUFE}/biotop-t3-typescript/abschluss-01/VERFASSUNG-T3-02.regeln.json
+    {LAEUFE}/biotop-t3-typescript/uebernahme-01/VERFASSUNG-T3-02.regeln.json
+- 12bc7ac5a11d234d403411f80fc2c9736b113be44445f75cdbf3a3b06384cb91 | 436384 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/WERK02-MESSUNG-02.json
+- cd8c9b999843b4d3f47a5a80e46169767948a65591b7581d608da9c86dd1a8b3 | 234934 B | 1 Pfade | Endungen txt | Merkmale tragender_pfad
+    /root/biotop-t3/lauf-02-einlegen.txt
+- f1bf49e2f6b636ecf62275e0bf923a44880d0e1e440331c4f75f6852f6518e6f | 234848 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/lauf27-02-einlegen.json
+- 7861737ea955da03bec6b324089338e9e26a3637374cc30c2bb209ce2c894554 | 234912 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/lauf28-02-einlegen.json
+- 3f0123d7efecd9f0dd32ea20106e04849c05ebe60d3a93ea2b479ec726d8570c | 234871 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/lauf29-02-einlegen.json
+- 4bfe4d4eca7b7af9ec1496302940e667136b4fa8d90c0361f96b7647cc47207a | 234871 B | 1 Pfade | Endungen txt | Merkmale tragender_pfad
+    /root/biotop-t3/lauf30-02-einlegen.txt
+- d7e5f0e3d6270acd0634e77e27f4a044c3329a71dd76e3d924f88b70e63b7aed | 234889 B | 1 Pfade | Endungen txt | Merkmale tragender_pfad
+    /root/biotop-t3/lauf31-02-einlegen.txt
+- 83c7fd0a12241f57e69d5d0355d78c95b22fac9d20eae6c4d41f112ccb96679d | 234857 B | 1 Pfade | Endungen txt | Merkmale tragender_pfad
+    /root/biotop-t3/lauf32-02-einlegen.txt
+- d80d32e70144c44682ea88a137d217da7226eaf12ecad9403e05f46ce9e1f2f6 | 234913 B | 1 Pfade | Endungen txt | Merkmale tragender_pfad
+    /root/biotop-t3/lauf33-02-einlegen.txt
+- c41ebc6ae5f922abc62d397363ab78e124b4383a70868f66e990f224a5f614cf | 235005 B | 1 Pfade | Endungen txt | Merkmale tragender_pfad
+    /root/biotop-t3/lauf34-02-einlegen.txt
+- 4292aa085c445fa3374da8cba5a2459687bba4739ccdfea2070c01eec2eb63b7 | 235005 B | 1 Pfade | Endungen txt | Merkmale tragender_pfad
+    /root/biotop-t3/lauf35-02-einlegen.txt
+- d684575d7069f68250c4ca587c8c1c9c1656d57bd872adcbfac337286c5d9604 | 234867 B | 1 Pfade | Endungen txt | Merkmale tragender_pfad
+    /root/biotop-t3/lauf36-02-einlegen.txt
+- 5436d29da80a35ca03f5f0ed597db0a093fb5327f903ef322df9908e9c90ad27 | 235014 B | 1 Pfade | Endungen txt | Merkmale tragender_pfad
+    /root/biotop-t3/lauf37-02-einlegen.txt
+- f462a2a479ba977dc5ed98e73ffc4f3c17ea84cc335c210e808656d96f8fa81e | 234969 B | 1 Pfade | Endungen txt | Merkmale tragender_pfad
+    /root/biotop-t3/lauf38-02-einlegen.txt
+- f61889b61cc87c5673a3f9cea7edc6beb7b20cc42755b942db04aa162679d191 | 89660 B | 2 Pfade | Endungen txt | Merkmale verbotene_muster,uebungswerk_json,tragender_pfad,VerfassungDes
+    /root/biotop-t3/abschluss3/KERN-COMMIT.patch.txt
+    {LAEUFE}/biotop-t3-typescript/abschluss-03/KERN-COMMIT.patch.txt
+- 1099d133b0715caae9791bc4807568e4d197e5da2449b16c695473f9fc908a9c | 4623 B | 1 Pfade | Endungen txt | Merkmale uebungswerk_json,tragender_pfad
+    /root/biotop-t3/abschluss3/inspekt_23.txt
+- 8ff3748ef24c79bc28c172be53d5905df38723de8d68ebb4800c02e719e5b685 | 638317 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/abschluss3/eichpfad-commit/nebenwirkung-0.json
+- b4995343e529fb7fdecc1700893708365ff8b883b810edbc4b282d981917a18f | 629049 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/abschluss3/eichpfad-commit/nebenwirkung-1.json
+- a368acf9d5b4b28a53781841da304e20a4ae829f0aba8e78afc70ee9a4309438 | 620804 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/abschluss3/eichpfad-commit/norm-0.json
+- 59e925a1b368ed1dbccba3162ee82f256013c516f13b736ca1d0d25b9a4872be | 609081 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/abschluss3/eichpfad-commit/norm-1.json
+- 476d57553bf98c9a0d0b93a1031ff14f16e6eb691af8ffc35ada88ebe5a2dc1e | 688955 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/abschluss3/eichpfad-commit/regression-0.json
+- 1cd7fdce4fba5c7f8bcf82226782246339c3b2a2371e9c7c57e94f02fc1cbb99 | 679067 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/abschluss3/eichpfad-commit/regression-1.json
+- 98625f2d063c63ce0b6e2bb02139da9a52cbf9ef2142831f9aadba912f628229 | 660992 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/abschluss3/eichpfad-commit/vertrag-0.json
+- 3e3b38d96385d0e1774d1fb598833d4d567c84d79d74dc0fdc1195c5502626fa | 634799 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/abschluss3/eichpfad-commit/vertrag-1.json
+- 3e311d3a79a637ce702871e1e531aaea875159268647e0c8b116abc5ed966b53 | 638274 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/abschluss3/eichpfad-nach-einbau/nebenwirkung-0.json
+- 508d879c508dca6856bd8f8473fa369739fef68286a69772eb83d2bc7276b73b | 629186 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/abschluss3/eichpfad-nach-einbau/nebenwirkung-1.json
+- 3ced0861b634d5708678fcb957eb34aeb92d6dec496739002146342a1552637e | 620939 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/abschluss3/eichpfad-nach-einbau/norm-0.json
+- 7e75ccd332120f24505baa294d4f2cb2aa59521fcb3d38737afea3c12fa1d853 | 609103 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/abschluss3/eichpfad-nach-einbau/norm-1.json
+- c82f4cf6c481b1ea1846f42a3db680b85d58118b07dea25a089acb26c0c59272 | 688974 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/abschluss3/eichpfad-nach-einbau/regression-0.json
+- 3ff6ed70878d3ffa0682e5c25400d6f1c2b5c81f9693fb17d2a2cb2ace5cf3bd | 679070 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/abschluss3/eichpfad-nach-einbau/regression-1.json
+- a22ab85d0bace9dc25666e57e2b2e8e8c68beac7af377c62b958be45bd1a60d7 | 661078 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/abschluss3/eichpfad-nach-einbau/vertrag-0.json
+- 8c5e80a28533f6f7c9dfcc698793bf2d6fe4e99a423822d5cd640131b66cac89 | 634967 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/abschluss3/eichpfad-nach-einbau/vertrag-1.json
+- 8461dc3dd2b6b7d829e22e67cc0876505d61f325b1f90b728208a3fe743d88fd | 177514 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/abschluss3/lauf38/ag_nachmessung_roh.json
+- fbeeec074f0436996c702055f80473f3e6ac418e5fdfe13a688886875f9c3960 | 638618 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/eichbau/nebenwirkung-0.json
+- a9056dd7c75c5c985175ef734f6f72fa413519b81aa1b5b0ee426e0ea3cfd95d | 689117 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/eichbau/regression-0.json
+- 507bdd297d3d768d02ce9a777bcce8dca0f73ecf19b4ca84125c2fbf6202176e | 638140 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/eichbau/02-nebenwirkung/nebenwirkung-0.json
+- 9f03cc4ae92306dd394dbe517ee6bbeb58b646382b63989c03505ef4f0884225 | 628418 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/eichbau/02-nebenwirkung/nebenwirkung-1.json
+- 581c8363480fcee2666fad2bea36aad604792b0edeccabdcb050f3d6735f7e6b | 688612 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/eichbau/04-regression/regression-0.json
+- 259666e1bc247a809cbfa1d1e873545bd842a7cb8e9b4c6c07be6ab70a2f67f3 | 678168 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/eichbau/04-regression/regression-1.json
+- c0733bcfb80de37b5d934d8a1507300ac225a69b3c43efdb89d607cd547a6665 | 619902 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/eichbau/06-norm/norm-0.json
+- 3a459ae2fc42e1c48ca4db34a881b2cc451faa2a55dfe0866aed53e598ae5be8 | 608707 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/eichbau/06-norm/norm-1.json
+- aff6ccd9ff1c93ae6236cb1470dc8cc4b3d1844a2ee2c6e747f0381a7d81ef29 | 660767 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/eichbau/08-vertrag/vertrag-0.json
+- b1107c73f54dbcdaa2f8f80cdbd6ad0ff8f5727be85535aeed6b714006bf7f6e | 634744 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/eichbau/08-vertrag/vertrag-1.json
+- 46c61a841c255a2d18f287f08cc7ef04c835cd9545c604184e1ce341adcc4b5c | 89093 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/rundung/02-rot.json
+- 6e29c90eb06c5631dcdb2d55d50966231a087dbd2175aadb4a90f77caf35bfd5 | 90845 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/rundung/03-rot.json
+- 0d1e571f28ae0958936c16a08a355522e82668af1a09fe665d12b31fc4dca7a6 | 89261 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/rundung/04-umgesetzt.json
+- 3002dc1ab74ce4f0ab1b9da75f88dd1bcd630610f1657f57e17a787128665cb5 | 86839 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/rundung/05-gruen.json
+- 6803db736e26e5698d552bbd0a02f81a5d3a39692e248ad17176135894d98d5d | 89319 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/rundung/06-geteilter-zustand.json
+- 7654f25ad8fad49a518ed2771d82f58ab1c739f85c74dd79732506cc1d544765 | 26350 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/werkbau/27-bericht-rot.vitest.json
+- 53fa77d199614115c8b1f4255c4511c7be0435b6280ab3dd4729154d6c368f09 | 20389 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/werkbau/28-bericht-gruen.vitest.json
+- 9e6374a42ae1068177061816992b82f28b27129557dbb9b34ddaaf496bf6a2c2 | 27473 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/werkbau/29-formate-rot.vitest.json
+- 83202a3d6e6faeb046b7b28a3f1c1869fbedf87554de64de0a58f4656b6fdd10 | 22500 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/werkbau/30-formate-gruen.vitest.json
+- 0bf49768aa7a2cebadecf2f5376700857cf95f336c580910062065702a27af64 | 21589 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/werkbau/31-formate-gruen.vitest.json
+- fd65266655e2a9720e55f32e09b359a07f7d5c204290e212f95eb8408a9b4766 | 28846 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/werkbau/32-zeilen-rot.vitest.json
+- d7db277f747ede8123ec42296a5e99085af3c419fcf594610d12c4f155aeab6b | 22843 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/werkbau/33-zeilen-gruen.vitest.json
+- 03e9d31d292e7dd8d0a38249c2ba4b5d670f204275ca72f6c4d47708555e50e8 | 30972 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/werkbau/34-reihen-rot.vitest.json
+- 8a7abb05c9b9972a3c70481d6403a2ed909f396305c24dc82c9d0d27d75b4817 | 24280 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/werkbau/35-reihen-gruen.vitest.json
+- ebafeb761371895d7562f24f4ab2555722b75e04617331de3e55fe332b362279 | 31341 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/werkbau/36-tabelle-rot.vitest.json
+- 187ff5a01f80ee0e024b09def3d5d3fd089427fd8f7ff24798d7d838f9ef467b | 25469 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/werkbau/37-tabelle-gruen.vitest.json
+- fd666402d49a2a7c0f321c5a26139d7b4e8fff89cc4ac6e3cec8f1b92ed12b19 | 35713 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/werkbau/38-optionen-rot.vitest.json
+- 6af012d8f308f7c3d4945a040281bc4de32e5bb52ae752806ebc38b2c0719743 | 27305 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/werkbau/39-optionen-gruen.vitest.json
+- b3ccd64a45a82139784c763d002d86299bcbf0bd5ba31724e2604962329259a2 | 33444 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/werkbau/40-szenarien-rot.vitest.json
+- dfc5bec1a61bd0d03915ae0574f88bb3ef7185c248818b90012e3207129c368c | 28352 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/werkbau/41-szenarien-gruen.vitest.json
+- cb55af741c0601b2304c2192eb1ac626e46a29736a5f483d560c472948d68ca3 | 34533 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/werkbau/42-abstimmung-rot.vitest.json
+- 57c731761cc19317252884916f03ee3c86e40722b77e0aeec1767cc4e3fa2319 | 29425 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/werkbau/43-abstimmung-gruen.vitest.json
+- a31dce129586130d1b41afdf48b96152fe054afa354ddbe114041d966d8e06ee | 36580 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/werkbau/44-register-rot.vitest.json
+- bd0a53a9815fe5be72860879cf8af2feb76726913d9d45ecf0506aea040ee5a9 | 30700 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/werkbau/45-register-gruen.vitest.json
+- ac23318e9092e86b4ed2761eacfa1cfb4374cdb4b86283c596d3d07d79211e53 | 33278 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/werkbau/46-normal-vertraege.vitest.json
+- f76a683eacc9c5748ac4c33f0408def6dec7e25ca55059890e833b598baae1c6 | 33269 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/werkbau/47-fixture-final.vitest.json
+- 2caa40da474bdfaa20949b1f1fedf8ff545179f7d9cffd353ad355d262cbc42d | 12178 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/biotop-t3/werkbau/ABSCHLUSSPRUEFUNG.json
+- 2c80faf54ac50d989901a8d8685d72906c131327b3b657423c1aae2fdc53a72d | 58595 B | 2 Pfade | Endungen txt | Merkmale tragender_pfad
+    /root/biotop-vor-t4-05/bau/LESEN5.txt
+    {LAEUFE}/biotop-vor-t4-05/bau_LESEN5.txt
+- 1033f7b520067ad8e749047940114ef2db2a60b8d6a15c287c0e31cfdcbf4fe7 | 18809 B | 2 Pfade | Endungen txt | Merkmale verbotene_muster,uebungswerk_json,tragender_pfad
+    /root/biotop-vor-t4-05/bau/LESEN8.txt
+    {LAEUFE}/biotop-vor-t4-05/bau_LESEN8.txt
+- 46c911c4239c5877dd451c20517b8faa356a65370e09149819519ba0aba5557c | 11302 B | 1 Pfade | Endungen txt | Merkmale tragender_pfad
+    /root/biotop-vor-t4-06/bau/LESEN-R6-d.txt
+- a20c1507effb9df4b121ce15543244541ebd81fce2b5f3de4b36de04ff4997d8 | 8668 B | 1 Pfade | Endungen txt | Merkmale tragender_pfad
+    /root/biotop-vor-t4-06/bau/LESEN-S1B.txt
+- 515f03cc6cd7bbefabbf5e815411d8b134300f4186c572bccebb1dcc12db6b11 | 20613 B | 1 Pfade | Endungen txt | Merkmale verbotene_muster,uebungswerk_json,tragender_pfad
+    /root/biotop-vor-t4-06/bau/LESEN-S4e.txt
+- 1c5b81011f276027b8e7cd2b1189694c230d7a048ff3167bfdcd452048d7098f | 4298 B | 1 Pfade | Endungen txt | Merkmale verbotene_muster
+    /root/biotop-vor-t4-06/bau/LESEN-S4n.txt
+- 34fd9b1a992e26b1e869539febaa14c4c7ed6dbc4be501d8614898a9b1668f17 | 386372 B | 1 Pfade | Endungen txt | Merkmale WasEsIst,verbotene_muster,uebungswerk_json,VerfassungDes
+    /root/phase-4-vorbedingung-1/belege/06-vorspann.stdout.txt
+- 7ffe9bdbd37d19ae5f911625b6ae6dafd81e5e27ce2065a696a4b8a0fbf7b945 | 476591 B | 1 Pfade | Endungen json | Merkmale WasEsIst,verbotene_muster,VerfassungDes
+    /root/phase-4-vorbedingung-1/belege/CLI-AUSGABEN.json
+- 74e9d337f7ecf17d84fd6c66e05eeb68e2486b7cc96b900400a1b0becb14fe72 | 729 B | 1 Pfade | Endungen json | Merkmale verbotene_muster,uebungswerk_json
+    /root/phase-4-vorbedingung-1/privat/verfassung.regeln.json
+- effefeec0fe2ea0621d4fdca0f27bdd3dae981fd289f1e0b5d56da5aca81aefd | 78969 B | 3 Pfade | Endungen md | Merkmale WasEsIst,verbotene_muster,VerfassungDes
+    /root/phase-4-vorbedingung-1/uebergabe-quellen/MASTERPROMPT-FASSUNG-6.md
+    {LAEUFE}/biotop-gesamtstand/quellen/MASTERPROMPT-FASSUNG-6.md
+    {LAEUFE}/biotop-wiedereinstieg-2026-09-20-01/INFINITE-EVOLUTION-BIOTOP-Masterprompt-v6-01.md
+- 8cf3c751258e3811b064ddbe676edc37d943867efa09183bfafa3537c16e3404 | 17331 B | 6 Pfade | Endungen py | Merkmale tragender_pfad
+    {LAEUFE}/biotop-reparatur-01/zwischenstand-05/elternpruefung/pruefer-eichung/test_review.py
+    {LAEUFE}/biotop-reparatur-01/zwischenstand-05/reviews/pruefer-eichung/test_review.py
+    /root/reparatur-01/eltern-reviewpruefung/pruefer-eichung/test_review.py
+    /root/reparatur-01/review-01/pruefer-eichung/test_review.py
+    … 2 weitere
+- 11333ed7758f1055c154d779f09ed6b0f3c37feb2eee26bad941f774705e110c | 17371 B | 1 Pfade | Endungen py | Merkmale tragender_pfad
+    /root/reparatur-01/nachbesserung-01/wirkungskreis/repros/test_eich_review.py
+- e12f9d5cbde10afc5ccb3fffbf854f2dd139eef1711b2afc1299753d5730205e | 436618 B | 4 Pfade | Endungen json | Merkmale WasEsIst,verbotene_muster,VerfassungDes
+    {LAEUFE}/biotop-reparatur-01/ausgaben/49-vorspann-kernabschluss.json
+    {LAEUFE}/biotop-reparatur-01/zwischenstand-06/ausgaben/49-vorspann-kernabschluss.json
+    {LAEUFE}/biotop-reparatur-01/zwischenstand-07/review-02/elternbelege/49-vorspann-kernabschluss.json
+    /root/reparatur-01/review-02/pruefer-kern/elternbelege/49-vorspann-kernabschluss.json
+- 5ee2986071e5791852efc2f4487bc140b69d6cc36c9a826a3300c57d385e82c6 | 440605 B | 4 Pfade | Endungen txt | Merkmale WasEsIst,verbotene_muster,uebungswerk_json,VerfassungDes
+    {LAEUFE}/biotop-reparatur-01/ausgaben/49-vorspann-kernabschluss.stdout.txt
+    {LAEUFE}/biotop-reparatur-01/zwischenstand-06/ausgaben/49-vorspann-kernabschluss.stdout.txt
+    {LAEUFE}/biotop-reparatur-01/zwischenstand-07/review-02/elternbelege/49-vorspann-kernabschluss.stdout.txt
+    /root/reparatur-01/review-02/pruefer-kern/elternbelege/49-vorspann-kernabschluss.stdout.txt
+- cba179892b3e0f35c6e067b1ab6a2a6519d6cfeb69e3b84eac5c3ef9253e9d42 | 418003 B | 5 Pfade | Endungen json | Merkmale WasEsIst,verbotene_muster,VerfassungDes
+    {LAEUFE}/biotop-reparatur-01/ausgaben/63-vorspann-zweite-runde.json
+    {LAEUFE}/biotop-reparatur-01/eskalation-runde-02/ausgaben/63-vorspann-zweite-runde.json
+    {LAEUFE}/biotop-reparatur-01/zwischenstand-10/ausgaben/63-vorspann-zweite-runde.json
+    {LAEUFE}/biotop-reparatur-01/zwischenstand-11/ausgaben/63-vorspann-zweite-runde.json
+    … 1 weitere
+- 0b168d369c11b4e2b013f6eb398eddc3749d90c297b8fa8444088cffb4968eaa | 1748725 B | 2 Pfade | Endungen json | Merkmale uebungswerk_json,tragender_pfad
+    {LAEUFE}/biotop-reparatur-01/zwischenstand-04/teil-historie/protokoll_sicher.json
+    /root/reparatur-01/teil-historie/protokoll_sicher.json
+- 57fad3f50832a692715a7037dbe24e3e2543a702b07956f8b375730d53f3420b | 467489 B | 2 Pfade | Endungen json | Merkmale WasEsIst,verbotene_muster,VerfassungDes
+    /root/reparatur-02/belege/cli.json
+    {LAEUFE}/biotop-reparatur-02/CLI.json
+- 74d0c0b82f64df9ce85d72b2b6249e3815ebf3fab756ab3c7fb7e75d7e57282f | 461969 B | 1 Pfade | Endungen txt | Merkmale WasEsIst,verbotene_muster,uebungswerk_json,VerfassungDes
+    /root/reparatur-02/belege/cli.stdout.txt
+- bf6c2623f73897e2b10ae79fa5bd3066dbee92c524156d9955dff3c49f9f61a9 | 129171 B | 2 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/gesamtstand-01/pruefung-a/BEFUND.json
+    {LAEUFE}/biotop-gesamtstand/pruefungen/pruefung-a/BEFUND.json
+- bebc76a6d7f8abeccbba13ce1bff3d2a91fe007d1916ee2a41763e04125ad5e8 | 57569 B | 2 Pfade | Endungen md | Merkmale tragender_pfad
+    /root/gesamtstand-01/pruefung-a/BEFUND.md
+    {LAEUFE}/biotop-gesamtstand/pruefungen/pruefung-a/BEFUND.md
+- 127d61e9519e95601cf95244a3056c55b4b96636790638140e1a5f2e74c25d7a | 409080 B | 2 Pfade | Endungen json | Merkmale WasEsIst,verbotene_muster,tragender_pfad,VerfassungDes
+    /root/gesamtstand-01/pruefung-a/BELEGE.json
+    {LAEUFE}/biotop-gesamtstand/pruefungen/pruefung-a/BELEGE.json
+- c64561967ad41f256365a50fcc4fbfaba85b47a000056dd6fda19b8cb5c8d3f4 | 48692 B | 2 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/gesamtstand-01/pruefung-a/befunde-roh.json
+    {LAEUFE}/biotop-gesamtstand/pruefungen/pruefung-a/befunde-roh.json
+- dcbab10071587e88e5e274e083f341bc614d32a5368ab9a6fe83897eb671f934 | 49148 B | 2 Pfade | Endungen json | Merkmale verbotene_muster,tragender_pfad
+    /root/gesamtstand-01/pruefung-a/quellenledger.json
+    {LAEUFE}/biotop-gesamtstand/pruefungen/pruefung-a/quellenledger.json
+- 00b2230598cd4155109e9f141b5ceed1d5063d21e230c29816c542cc5404302c | 46104 B | 2 Pfade | Endungen md | Merkmale tragender_pfad
+    /root/gesamtstand-01/pruefung-b/BEFUND.md
+    {LAEUFE}/biotop-gesamtstand/pruefungen/pruefung-b/BEFUND.md
+- 92a91e7eb4f68a097f7aff71863c59faaccf70b7c49311dd8fe592706ca991a5 | 72192 B | 2 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/gesamtstand-01/pruefung-b/befund.json
+    {LAEUFE}/biotop-gesamtstand/pruefungen/pruefung-b/befund.json
+- 22c5c26f06cad54b42ba047a4f7971a6d976a1ec837601458b2ac72e66d79f50 | 185329 B | 2 Pfade | Endungen json | Merkmale tragender_pfad
+    /root/gesamtstand-01/pruefung-b/protokoll-auswahl.json
+    {LAEUFE}/biotop-gesamtstand/pruefungen/pruefung-b/protokoll-auswahl.json
+- ad14b578fdeede5ae843c8b2b46147e52a9d71e592273c353f0ff88c95ec7bc1 | 87060 B | 1 Pfade | Endungen md | Merkmale tragender_pfad
+    {LAEUFE}/biotop-gesamtstand/ABWEICHUNGEN-01.md
+- 600ed493a4c5fbc47a1d3ba2c1239d2fe0efe913d4a9a42582a3961c71e1bd48 | 10025 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    {LAEUFE}/biotop-gesamtstand/ausgaben/10-git.json
+- a44f57120224cc3a18b0899605c17e087055a4d6b52690b43917e98de7683c14 | 180593 B | 1 Pfade | Endungen json | Merkmale tragender_pfad
+    {LAEUFE}/biotop-gesamtstand/ausgaben/23-befundregister.json
+- 999a0c4867eeb9809ddb604488a1268cb0ac7baf08f7d9504fa89005d7c0e5ad | 18916 B | 1 Pfade | Endungen md | Merkmale WasEsIst,verbotene_muster,VerfassungDes
+    {LAEUFE}/biotop-phase-3-nachlauf/BERICHT.md
+- d9850cd967565c43b8e253635d6b6de5063ef1993d26c969cdc7e805f6104ba6 | 1454 B | 1 Pfade | Endungen txt | Merkmale tragender_pfad
+    {LAEUFE}/biotop-phase-3-nachlauf/ausgaben/06-eichgegenstand-verfassung-vor-groesse.txt
+- 67e8017cf8b264b7d77cc594ad2d0683a43598b691696da6ae61597b4ddc5641 | 1939 B | 1 Pfade | Endungen txt | Merkmale tragender_pfad
+    {LAEUFE}/biotop-phase-3-nachlauf/ausgaben/07-tragender-pfad-nur-uebungswerk.txt
+- 604b1be022a81f2daf87d24469c93fc142300211aa8513b15889e302887a1ca2 | 427448 B | 1 Pfade | Endungen json | Merkmale WasEsIst,verbotene_muster,VerfassungDes
+    {LAEUFE}/biotop-reparatur-01/ausgaben/41-vorspann-echt.json
+- 4def270d5012a6ca9afe841cd8318cc7c15813b6bb0633acabb0163ab6c789cf | 431079 B | 1 Pfade | Endungen txt | Merkmale WasEsIst,verbotene_muster,uebungswerk_json,VerfassungDes
+    {LAEUFE}/biotop-reparatur-01/ausgaben/41-vorspann-echt.stdout.txt
+- 90ba1e1c96b60ea41a2e5d98b9cd1e5d5f0488c1a838a7acd6297c06d144beb6 | 462090 B | 1 Pfade | Endungen txt | Merkmale WasEsIst,verbotene_muster,uebungswerk_json,VerfassungDes
+    {LAEUFE}/biotop-reparatur-02/CLI.txt
+- a3b3ac0c17371306b027591110f528018f62d5c2feb4ad82dc21823f14bd76ed | 85729 B | 1 Pfade | Endungen md | Merkmale WasEsIst,verbotene_muster,VerfassungDes
+    {LAEUFE}/biotop-t3-typescript/MASTERPROMPT-v7.md
+- 877d74fd63c2df1e707cb86a6b12a322976fed7bb439bf3933eecd3b367ac50d | 8244 B | 1 Pfade | Endungen py | Merkmale verbotene_muster,uebungswerk_json,tragender_pfad
+    {LAEUFE}/biotop-t3-typescript/abschluss-03/drahtwerk.py
+- e43f71f7ed4317fbd0029a5bcdd0ab76830bdb21b447dbd29c724c3a5a879e34 | 9871 B | 1 Pfade | Endungen py | Merkmale verbotene_muster,uebungswerk_json,tragender_pfad
+    {LAEUFE}/biotop-vor-t4/drahtwerk.py
+  Code-Dateien des Biotops (nur gezählt, Name → Anzahl Pfade): {'drahtwerk.py': 1, 'eichgegenstand.py': 197, 'eichgegenstand_betriebszweck.py': 35, 'eichgegenstand_verfassung.py': 35, 'test_bericht.test.ts': 4, 'test_t3_eichpfad.py': 3, 'test_t3_kernsperren.py': 3, 'test_vorspann.py': 36, 'verfassung.py': 197}
+=== Ende R42 ===

@@ -1,0 +1,478 @@
+EB1 · Orientierung (nur lesend)
+Beginn: 2026-09-25 23:19:46 CEST (UTC+0200)
+Ende:   2026-09-25 23:20:06 CEST (UTC+0200)
+Dauer:  19.5 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/biotop-einlagerung/arbeit/o1_orientierung.sh
+--- Inhalt von /root/biotop-einlagerung/arbeit/o1_orientierung.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-EINLAGERUNG-01 · Orientierung (nur lesend): Git-Stand /root/biotop ohne Index-Schreiben, Haken, Kammer-Aufrufweg,
+# /tmp-Inhalt, Docker-Abbilder, Größen, Prozessregister von Hermes.
+date '+== Zeitpunkt %Y-%m-%d %H:%M:%S %Z (UTC%z)'
+cd /root/biotop || exit 3
+echo "== git (--no-optional-locks): HEAD, Zweig, Zweige, Markierungen"
+git --no-optional-locks rev-parse HEAD
+git --no-optional-locks symbolic-ref -q HEAD || echo "(losgelöster HEAD)"
+git --no-optional-locks branch -a -v --no-abbrev
+echo "-- Markierungen:"; git --no-optional-locks tag -l -n1
+echo "== git status --short (Zeilen: $(git --no-optional-locks status --short | wc -l))"
+git --no-optional-locks status --short
+echo "== git status --short --untracked-files=all (Dateien in den unverfolgten Ordnern): $(git --no-optional-locks status --short --untracked-files=all | wc -l) Zeilen"
+echo "== Haken in .git/hooks (ohne *.sample)"
+ls -la .git/hooks | grep -v '\.sample$'
+echo "== git config (Name/Mail, lokal und global)"
+git config --show-origin --get-all user.name; git config --show-origin --get-all user.email
+echo "== letzte 3 Commits (Autor/Committer)"
+git --no-optional-locks log -3 --format='%h %an <%ae> | %cn <%ce> | %ci | %s'
+echo "== Kammer-Aufrufweg: docker-Aufrufe im Kern"
+grep -rn --include=*.py -E "'docker'|\"docker\"|'-v'|--mount|'run'|volume|docker cp|stdin" biotop/kammer* biotop/*/kammer* 2>/dev/null | head -40
+ls biotop | head -60
+echo "== /tmp (Name, Größe)"
+du -sh /tmp/* 2>/dev/null | sort -k2
+echo "== docker images"
+docker images --no-trunc --format '{{.Repository}}:{{.Tag}} | {{.ID}} | {{.Size}} | {{.CreatedAt}}'
+echo "== docker ps -a"
+docker ps -a --format '{{.ID}} | {{.Image}} | {{.Status}} | {{.Names}}' | head -20
+echo "== Größen der Orte (mit / ohne Abhängigkeitsordner)"
+for d in /root/biotop /root/biotop-t3 /root/biotop-vor-t4 /root/biotop-vor-t4-0{2,3,4,5,6} /root/phase-4-vorbedingung-1 /root/reparatur-01 /root/reparatur-02 /root/uebungswerk* /root/versandwerk-t3 /root/versandwerk-t3-02 /root/sicherung/biotop-lage-01 /root/.hermes /root/versiegelt /root/w7 /root/gesamtstand-01 /root/wiedereinstieg-01 /root/biotop-einstieg-20260921-0122 /root/traeger-umstellung-2026-09-20_22-32-03Z; do
+  a=$(du -sb "$d" 2>/dev/null | cut -f1)
+  b=$(du -sb --exclude=node_modules --exclude=venv --exclude=.venv --exclude=__pycache__ --exclude=.pytest_cache "$d" 2>/dev/null | cut -f1)
+  echo "$d | gesamt $a B | ohne Abhängigkeiten $b B"
+done
+echo "== biotop-lage-01 Unterordner"
+du -sb /root/sicherung/biotop-lage-01/* /root/sicherung/biotop-lage-01/sicherung/* 2>/dev/null
+echo "== df"
+df -h / /tmp
+echo "== Hermes: Prozessregister-Dateien"
+ls -la /root/.hermes/ | head -60
+--- Ende /root/biotop-einlagerung/arbeit/o1_orientierung.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== Zeitpunkt 2026-09-25 23:19:46 CEST (UTC+0200)
+== git (--no-optional-locks): HEAD, Zweig, Zweige, Markierungen
+0c2f058d57f68b8891b535d6e00214172c82fefa
+refs/heads/main
+* main 0c2f058d57f68b8891b535d6e00214172c82fefa Vor T4, Runde 5: Vollständigkeitsprüfung, fallende Zusicherung, Ausfall je Funktion, Register und Tor-4-Skript, Stufe 2 überall
+-- Markierungen:
+== git status --short (Zeilen: 25)
+ M biotop/__main__.py
+ M biotop/kern/py/verhalten.py
+ M biotop/kern/register.py
+ M biotop/lauf.py
+ M biotop/nachspiel.py
+ M biotop/organe/aegis.py
+ M biotop/organe/verhaltensvergleich.py
+ M biotop/organe/vorspann.py
+ M biotop/tor4.py
+ M tests/drahtwerk.py
+ M tests/test_nachweis_verbraucher.py
+ M tests/test_t3_eichpfad.py
+ M tests/test_t3_python_annahmen.py
+ M tests/test_t3_verhaltensvergleich.py
+ M tests/test_verdrahtung.py
+ M tests/test_vor_t4_03.py
+ M tests/test_vor_t4_04.py
+ M tests/test_vor_t4_05.py
+ M tests/test_vorspann.py
+?? biotop/organe/stufe2.py
+?? tests/test_stufe2_eichphase.py
+?? tests/test_tor4_zeilen.py
+?? tests/test_vor_t4_06.py
+?? tests/test_vor_t4_06_hermes.py
+?? tests/test_vor_t4_06_register.py
+== git status --short --untracked-files=all (Dateien in den unverfolgten Ordnern): 25 Zeilen
+== Haken in .git/hooks (ohne *.sample)
+total 72
+drwxr-xr-x 2 root root 4096 Sep 18 23:40 .
+drwxr-xr-x 8 root root 4096 Sep 25 17:50 ..
+== git config (Name/Mail, lokal und global)
+file:.git/config	Hermes (Biotop)
+file:.git/config	hermes@biotop.local
+== letzte 3 Commits (Autor/Committer)
+0c2f058 Hermes (Biotop) <hermes@biotop.local> | Hermes (Biotop) <hermes@biotop.local> | 2026-09-24 20:24:54 +0200 | Vor T4, Runde 5: Vollständigkeitsprüfung, fallende Zusicherung, Ausfall je Funktion, Register und Tor-4-Skript, Stufe 2 überall
+43b8fad Hermes (Biotop) <hermes@biotop.local> | Hermes (Biotop) <hermes@biotop.local> | 2026-09-24 15:06:29 +0200 | Vor T4, Runde 4, Nachtrag: Nachspiel repariert, Lastabbruch unter der Sonde ist Messgerätausfall, Torzeile-Tests
+1d9a5aa Hermes (Biotop) <hermes@biotop.local> | Hermes (Biotop) <hermes@biotop.local> | 2026-09-24 14:02:32 +0200 | Vor T4, Runde 4: Vergleichslast Stufe 2, Merkmale je Formvariante, Verfälschung je Merkmal, eigene Tests decken nicht
+== Kammer-Aufrufweg: docker-Aufrufe im Kern
+biotop/organe/kammer.py:65:            "docker", "run", "--rm", "--name", name,
+biotop/organe/kammer.py:87:            subprocess.run(["docker", "kill", name], capture_output=True)
+biotop/organe/kammer.py:88:            subprocess.run(["docker", "rm", "-f", name], capture_output=True)
+biotop/organe/kammer.py:121:    p = subprocess.run(["docker", "image", "inspect", IMAGE], capture_output=True, text=True)
+__init__.py
+__main__.py
+__pycache__
+anbieter
+dienst.py
+kern
+lauf.py
+nachspiel.py
+oberflaeche.py
+organe
+tor4.py
+== /tmp (Name, Größe)
+16K	/tmp/MEMORY-neu.md
+368K	/tmp/__pycache__
+6.7M	/tmp/abschluss3_l38
+8.0K	/tmp/astra_lauf_check.pyc
+24K	/tmp/aussen-BERICHT.md
+20K	/tmp/aussen-PRUEFAKTE.md
+16K	/tmp/aussen-STAND.json
+4.0K	/tmp/aussen.bin
+40K	/tmp/b02.md
+8.0K	/tmp/belege.json
+2.7M	/tmp/biotop-0aac612-scTj
+2.4M	/tmp/biotop-6243377-SEYl
+3.5M	/tmp/biotop-NACHHER-HEAD-ha2lcq4j
+3.4M	/tmp/biotop-VORHER-43b8fad-57f06qf_
+4.0K	/tmp/biotop-commit
+2.5M	/tmp/biotop-head-DhGz
+2.8M	/tmp/biotop-head-Xa8F
+88K	/tmp/biotop-phase4-lektuere-mm6_llag
+8.0K	/tmp/cachetest
+4.0K	/tmp/cc-socks
+4.0K	/tmp/cfg.py
+5.5M	/tmp/claude-0
+4.0K	/tmp/codex-bwrap-synthetic-mount-targets-0
+28K	/tmp/codexprobe
+3.5M	/tmp/data-gym-cache
+4.0K	/tmp/db.py
+4.0K	/tmp/dienst.log
+12K	/tmp/diffout.txt
+92K	/tmp/drahtwerk-probe
+92K	/tmp/drahtwerk-rauschen
+4.0K	/tmp/eff.py
+156K	/tmp/eich-diag-imfrukxt
+4.0K	/tmp/eich.txt
+8.0K	/tmp/eichprobe
+98M	/tmp/eichprobe-ocep7i85
+98M	/tmp/eichprobe-ose8x61m
+98M	/tmp/eichprobe-qvyqg_ld
+98M	/tmp/eichprobe-wnyfc8la
+20K	/tmp/f5-testausgabe.log
+12K	/tmp/f5_abschluss.py
+12K	/tmp/f5_dokumente.py
+4.0K	/tmp/g.txt
+892K	/tmp/gegenlese-1k1_ktec
+28K	/tmp/gegenlese-5s5w5c38
+20K	/tmp/gegenlese-7ds176wj
+1.1M	/tmp/gegenlese-93m1jdk_
+1008K	/tmp/gegenlese-9nobci30
+20K	/tmp/gegenlese-9pqv319l
+20K	/tmp/gegenlese-efgvgass
+12K	/tmp/gegenlese-fphj1pea
+28K	/tmp/gegenlese-ihl5lqe4
+20K	/tmp/gegenlese-n676slr4
+12K	/tmp/gegenlese-oj33yeud
+496K	/tmp/gegenlese-p0vqk8x4
+20K	/tmp/gegenlese-rn7kwjk9
+20K	/tmp/gegenlese-uvt_glsl
+492K	/tmp/gegenlese-v1g98c0g
+20K	/tmp/gegenlese-xt20t_pq
+396K	/tmp/gen0-ursache
+11M	/tmp/h-r6
+4.3M	/tmp/hermes-codex-schema-20260909
+4.0K	/tmp/hermes-dm-0
+4.0K	/tmp/hermes-fassung3-gemini-vermerken.py
+20K	/tmp/hermes-fassung4-testconsole.log
+20K	/tmp/hermes_kernel_3uoj45gk
+20K	/tmp/hermes_kernel_jn6xz_ez
+20K	/tmp/hermes_kernel_l4dxywo7
+20K	/tmp/hermes_kernel_neecs_j6
+20K	/tmp/hermes_kernel_s5mbsd8c
+20K	/tmp/hermes_kernel_tuu5lpuk
+0	/tmp/hermes_rpc_2780644003b54664a747385f84e7ee3d.sock
+0	/tmp/hermes_rpc_2cbb09b2dc3c4eb9bb5bfc14cc24d3d7.sock
+0	/tmp/hermes_rpc_4f4ec1dc2b0849b48b1af553fe88c678.sock
+0	/tmp/hermes_rpc_5fd04c84aef04798ad99a55911bec81c.sock
+0	/tmp/hermes_rpc_ad16f4c4937e4e09af98a883d5522952.sock
+0	/tmp/hermes_rpc_f0ad392bfe15449da002e8247f8ef406.sock
+700K	/tmp/hersteller
+4.0K	/tmp/k-aufnahme.json
+0	/tmp/k-gen1.err
+4.0K	/tmp/k-gen1.json
+0	/tmp/k-gen2.err
+4.0K	/tmp/k-gen2.json
+0	/tmp/k-gen3.err
+4.0K	/tmp/k-gen3.json
+4.0K	/tmp/k-gen4.err
+0	/tmp/k-gen4.json
+492K	/tmp/k3
+8.0K	/tmp/k3.diff
+284K	/tmp/k3106-probe
+4.0K	/tmp/k5-aufnahme.json
+0	/tmp/k5-gen1.err
+4.0K	/tmp/k5-gen1.json
+0	/tmp/k5-gen2.err
+4.0K	/tmp/k5-gen2.json
+4.0K	/tmp/k5-gen3.err
+0	/tmp/k5-gen3.json
+300K	/tmp/kammer-emjl83s8
+100K	/tmp/kammer-gewqiokc
+224K	/tmp/kammer-h12bconp
+312K	/tmp/kammer-yvtzyer1
+4.0K	/tmp/kanal-1.log
+4.0K	/tmp/kanal-2.log
+4.0K	/tmp/kanal-3.log
+4.0K	/tmp/kanal-4.log
+4.0K	/tmp/kanal-5.log
+4.0K	/tmp/kanal-vergleich-endmeldung.log
+4.0K	/tmp/kanal-vergleich.log
+4.0K	/tmp/kanal2.log
+4.0K	/tmp/kasse3.json
+32K	/tmp/lehren-katalog.md
+4.0K	/tmp/liste.txt
+8.0K	/tmp/m02
+60K	/tmp/mut_p3.json
+4.0K	/tmp/nach.py
+4.0K	/tmp/nachlauf.env
+4.0K	/tmp/nachprobe-tests.out
+8.0K	/tmp/nachtrag-f5.md
+8.0K	/tmp/nachtrag18.py
+7.9M	/tmp/node-compile-cache
+1016K	/tmp/paket-f3
+2.6M	/tmp/pflicht-gegenprobe
+108K	/tmp/pruef-vor-t4-03
+2.2M	/tmp/pytest-of-root
+4.0K	/tmp/q0.py
+4.0K	/tmp/q1.py
+4.0K	/tmp/q10.py
+4.0K	/tmp/q11.py
+4.0K	/tmp/q12.py
+4.0K	/tmp/q13.py
+4.0K	/tmp/q14.py
+4.0K	/tmp/q15.py
+4.0K	/tmp/q16.py
+4.0K	/tmp/q2.py
+4.0K	/tmp/q3.py
+4.0K	/tmp/q4.py
+4.0K	/tmp/q5.py
+4.0K	/tmp/q6.py
+4.0K	/tmp/q7.py
+4.0K	/tmp/q8.py
+4.0K	/tmp/q9.py
+36K	/tmp/r3-rauch
+32K	/tmp/r3-rauch-ts
+2.3M	/tmp/r5-baum-43b8fad
+2.3M	/tmp/r5-baum-head
+40K	/tmp/r5-vorprobe-e2
+40K	/tmp/r5-vorprobe-e2b
+19M	/tmp/r6-s1
+18M	/tmp/r6-s1b
+13M	/tmp/r6-s1c
+26M	/tmp/r6-s2
+111M	/tmp/r6-s3
+59M	/tmp/r6-s4
+4.0K	/tmp/res.py
+184K	/tmp/review-vor-t4
+460K	/tmp/review-vor-t4-02
+928K	/tmp/review-vor-t4-03
+596K	/tmp/review-vor-t4-04
+1.0M	/tmp/review-vor-t4-05
+296K	/tmp/review03
+4.0K	/tmp/review_prompt.txt
+2.0M	/tmp/rot-1cf2eb1
+2.5M	/tmp/rot-verdrahtung-1cf2eb1
+20K	/tmp/rv-7ndmgfmp
+8.0K	/tmp/rv02-32t8nzkt
+20K	/tmp/rv2-5ze6rrtv
+4.0K	/tmp/s1-doppelt-leer
+608K	/tmp/s1-klaerung
+1.8M	/tmp/s1-staende
+912K	/tmp/s1s5-abschluss3
+1.4M	/tmp/s1s5-zuordnung
+3.5M	/tmp/sammlung-1cf2eb1
+12K	/tmp/schwaerz-probe
+4.0K	/tmp/snap-private-tmp
+4.0K	/tmp/snap.py
+44K	/tmp/speicherwerk-diagnose
+4.0K	/tmp/sperre-gegenprobe
+296K	/tmp/stage
+8.0K	/tmp/systemd-private-f2ef1dd7c39a43839a1b6161b804a36a-ModemManager.service-q5bP3b
+8.0K	/tmp/systemd-private-f2ef1dd7c39a43839a1b6161b804a36a-caddy.service-4f0AHK
+8.0K	/tmp/systemd-private-f2ef1dd7c39a43839a1b6161b804a36a-fwupd.service-E2tUPO
+8.0K	/tmp/systemd-private-f2ef1dd7c39a43839a1b6161b804a36a-milieulux.service-9VlAqE
+8.0K	/tmp/systemd-private-f2ef1dd7c39a43839a1b6161b804a36a-polkit.service-lJPJjY
+8.0K	/tmp/systemd-private-f2ef1dd7c39a43839a1b6161b804a36a-systemd-logind.service-oz7Trs
+8.0K	/tmp/systemd-private-f2ef1dd7c39a43839a1b6161b804a36a-systemd-resolved.service-L99yWg
+8.0K	/tmp/systemd-private-f2ef1dd7c39a43839a1b6161b804a36a-systemd-timesyncd.service-p98caG
+4.0K	/tmp/t_k1165.py
+4.0K	/tmp/tk_330.txt
+4.0K	/tmp/tk_neu.txt
+196K	/tmp/tmp0uk0l4by
+172K	/tmp/tmp3vdxpk_a
+168K	/tmp/tmp5s6e2mrj
+128K	/tmp/tmpa6iy5p18
+184K	/tmp/tmpfiehwsas
+128K	/tmp/tmpigulv9sc
+168K	/tmp/tmpmyps5060
+188K	/tmp/tmpnm5y1qxr
+188K	/tmp/tmpreumw4tc
+252K	/tmp/tmpshpth9bf
+200K	/tmp/tmpu1hmekta
+200K	/tmp/tmpwfaw3aci
+4.0K	/tmp/tmux-0
+1.4M	/tmp/umformung
+0	/tmp/uv-b627a726dddf4bcb.lock
+0	/tmp/uv-setuptools-b627a726dddf4bcb.lock
+2.7M	/tmp/verdrahtung-gegenprobe-beide
+2.7M	/tmp/verdrahtung-gegenprobe-mass_roh
+2.7M	/tmp/verdrahtung-gegenprobe-phase
+2.7M	/tmp/verdrahtung-gegenprobe-schwarm
+2.7M	/tmp/verdrahtung-gegenprobe-vv
+4.0K	/tmp/vor_t4_alle.txt
+4.0K	/tmp/vor_t4_b.txt
+4.0K	/tmp/vor_t4_c.txt
+4.0K	/tmp/vor_t4_d.txt
+4.0K	/tmp/vor_t4_drei.txt
+4.0K	/tmp/vor_t4_einheit.txt
+4.0K	/tmp/vor_t4_regression_schnell.txt
+4.0K	/tmp/vor_t4_review.txt
+848K	/tmp/vv-probe
+888K	/tmp/vv-rauch
+4.0K	/tmp/w5_auth.py
+4.0K	/tmp/w5_scan.py
+4.0K	/tmp/w5b.py
+4.0K	/tmp/w7_codex.py
+4.0K	/tmp/w7_db.py
+4.0K	/tmp/w7_route.py
+4.0K	/tmp/w7_route2.py
+4.0K	/tmp/w7_slash.py
+24K	/tmp/waechter-gegenprobe-kontext_fremde_sitzung.py
+4.0K	/tmp/waechter-gegenprobe-kontext_fremde_sitzung.xml
+24K	/tmp/waechter-gegenprobe-kontext_grenzfall_echt_groesser.py
+4.0K	/tmp/waechter-gegenprobe-kontext_grenzfall_echt_groesser.xml
+24K	/tmp/waechter-gegenprobe-kontext_mehrfach.py
+8.0K	/tmp/waechter-gegenprobe-kontext_mehrfach.xml
+24K	/tmp/waechter-gegenprobe-kontext_schwelle_aus.py
+8.0K	/tmp/waechter-gegenprobe-kontext_schwelle_aus.xml
+24K	/tmp/waechter-gegenprobe-nachspiel_beendete_sitzung.py
+8.0K	/tmp/waechter-gegenprobe-nachspiel_beendete_sitzung.xml
+24K	/tmp/waechter-gegenprobe-sperrkonflikt_als_scheitern.py
+4.0K	/tmp/waechter-gegenprobe-sperrkonflikt_als_scheitern.xml
+24K	/tmp/waechter-gegenprobe-verdichtung_aus.py
+8.0K	/tmp/waechter-gegenprobe-verdichtung_aus.xml
+24K	/tmp/waechter-gegenprobe-verdichtung_fremde_sitzung.py
+4.0K	/tmp/waechter-gegenprobe-verdichtung_fremde_sitzung.xml
+24K	/tmp/waechter-gegenprobe-verdichtung_mehrfach.py
+8.0K	/tmp/waechter-gegenprobe-verdichtung_mehrfach.xml
+24K	/tmp/waechter-gegenprobe-verdichtung_vor_turnbeginn.py
+4.0K	/tmp/waechter-gegenprobe-verdichtung_vor_turnbeginn.xml
+5.0M	/tmp/waechter-nachspiel
+4.0K	/tmp/waechter-test.txt
+4.0K	/tmp/zugang-jetzt.txt
+4.0K	/tmp/zz_attr_query.py
+== docker images
+biotop-kammer:ts1 | sha256:212e6212cd165b668f5cff7a1ab12c22d739a0ab727bbedc45a87c3793754f9e | 535MB | 2026-09-21 02:47:15 +0200 CEST
+node:22-bookworm-slim | sha256:48e4b67d85f87bd551df43704e24d252f56cc5f8e9718841aace50f19948f0f9 | 329MB | 2026-09-19 02:48:56 +0200 CEST
+biotop-kammer:1 | sha256:ce7bbe9441182aea532f147defd99ca757a95d4cb3ff7c3f5c5d9a64965643ee | 231MB | 2026-09-18 23:26:54 +0200 CEST
+python:3.12-slim | sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea | 190MB | 2026-09-01 02:12:40 +0200 CEST
+== docker ps -a
+== Größen der Orte (mit / ohne Abhängigkeitsordner)
+/root/biotop | gesamt 42854486 B | ohne Abhängigkeiten 38904363 B
+/root/biotop-t3 | gesamt 693933144 B | ohne Abhängigkeiten 683868441 B
+/root/biotop-vor-t4 | gesamt 1090336 B | ohne Abhängigkeiten 1055148 B
+/root/biotop-vor-t4-02 | gesamt 584583 B | ohne Abhängigkeiten 562550 B
+/root/biotop-vor-t4-03 | gesamt 1050363 B | ohne Abhängigkeiten 1005302 B
+/root/biotop-vor-t4-04 | gesamt 896177 B | ohne Abhängigkeiten 886339 B
+/root/biotop-vor-t4-05 | gesamt 1401460 B | ohne Abhängigkeiten 1364519 B
+/root/biotop-vor-t4-06 | gesamt 2936767 B | ohne Abhängigkeiten 2668960 B
+/root/phase-4-vorbedingung-1 | gesamt 50108495 B | ohne Abhängigkeiten 50108078 B
+/root/reparatur-01 | gesamt 949914941 B | ohne Abhängigkeiten 935810430 B
+/root/reparatur-02 | gesamt 119482306 B | ohne Abhängigkeiten 115135306 B
+/root/uebungswerk | gesamt 67147 B | ohne Abhängigkeiten 67147 B
+/root/uebungswerk-nachlauf | gesamt 55353 B | ohne Abhängigkeiten 55353 B
+/root/uebungswerk-p2 | gesamt 41590 B | ohne Abhängigkeiten 41590 B
+/root/uebungswerk-p3 | gesamt 52079 B | ohne Abhängigkeiten 52079 B
+/root/uebungswerk-p3b | gesamt 54464 B | ohne Abhängigkeiten 54464 B
+/root/uebungswerk-p3c | gesamt 54337 B | ohne Abhängigkeiten 54337 B
+/root/uebungswerk-p3d | gesamt 54318 B | ohne Abhängigkeiten 54318 B
+/root/uebungswerk2 | gesamt 70336 B | ohne Abhängigkeiten 70336 B
+/root/versandwerk-t3 | gesamt 97367 B | ohne Abhängigkeiten 97367 B
+/root/versandwerk-t3-02 | gesamt 103423 B | ohne Abhängigkeiten 103423 B
+/root/sicherung/biotop-lage-01 | gesamt 10896866160 B | ohne Abhängigkeiten 10896114063 B
+/root/.hermes | gesamt 893880529 B | ohne Abhängigkeiten 805045460 B
+/root/versiegelt | gesamt 515808 B | ohne Abhängigkeiten 515808 B
+/root/w7 | gesamt 48728 B | ohne Abhängigkeiten 48728 B
+/root/gesamtstand-01 | gesamt 31699324 B | ohne Abhängigkeiten 31699324 B
+/root/wiedereinstieg-01 | gesamt 255364 B | ohne Abhängigkeiten 251034 B
+/root/biotop-einstieg-20260921-0122 | gesamt 275918 B | ohne Abhängigkeiten 275918 B
+/root/traeger-umstellung-2026-09-20_22-32-03Z | gesamt 3183245 B | ohne Abhängigkeiten 3183245 B
+== biotop-lage-01 Unterordner
+26235	/root/sicherung/biotop-lage-01/UEBERGABE.md
+15678103	/root/sicherung/biotop-lage-01/arbeit
+41239	/root/sicherung/biotop-lage-01/auftrag
+10979905	/root/sicherung/biotop-lage-01/ausgabe
+790821244	/root/sicherung/biotop-lage-01/biotop-sicherung-2026-09-25-01.tar.gz
+13990490	/root/sicherung/biotop-lage-01/entwurf
+1248837	/root/sicherung/biotop-lage-01/pruefsummen
+8138800	/root/sicherung/biotop-lage-01/rohbelege
+4548	/root/sicherung/biotop-lage-01/rueckstellung
+6823397539	/root/sicherung/biotop-lage-01/sicherung
+3054	/root/sicherung/biotop-lage-01/sperren
+1581153805	/root/sicherung/biotop-lage-01/testlauf
+1651382361	/root/sicherung/biotop-lage-01/tmp
+== df
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/vda1       116G   40G   76G  35% /
+/dev/vda1       116G   40G   76G  35% /
+== Hermes: Prozessregister-Dateien
+total 438232
+drwx------ 28 root root      4096 Sep 25 23:19 .
+drwx------ 49 root root      4096 Sep 25 23:12 ..
+-rw-r--r--  1 root root        17 Sep 14 00:42 .codex_gpt55_autoraise_notice
+drwxr-xr-x  3 root root      4096 Sep 16 23:50 .curator_backups
+-rw-------  1 root root     27173 Sep 18 23:13 .env
+-rw-------  1 root root     27099 Sep 18 23:06 .env.sicherung-2026-09-18
+-rw-r--r--  1 root root       258 Sep 21 01:04 .hermes_history
+-rw-------  1 root root         0 Sep 14 00:41 .install_id.lock
+-rw-r--r--  1 root root        84 Sep 24 02:13 .restart_last_processed.json
+-rw-r--r--  1 root root     38555 Sep 25 17:21 .skills_prompt_snapshot.json
+-rw-r--r--  1 root root       178 Sep 25 23:06 .update_check
+-rw-r--r--  1 root root       668 Sep 14 00:16 SOUL.md
+drwx------  2 root root      4096 Sep 14 00:16 audio_cache
+-rw-------  1 root root      8152 Sep 25 23:06 auth.json
+-rw-r--r--  1 root root         0 Sep 14 00:26 auth.lock
+drwxr-xr-x  3 root root      4096 Sep 14 00:16 backups
+drwxr-xr-x  2 root root      4096 Sep 14 00:34 bin
+drwxr-xr-x 16 root root      4096 Sep 25 23:07 cache
+-rw-r--r--  1 root root       211 Sep 25 23:15 channel_directory.json
+-rw-------  1 root root      6181 Sep 25 01:10 config.yaml
+-rw-------  1 root root      5468 Sep 21 00:32 config.yaml.2026-09-20_22-32-03_098161Z.bak
+-rw-------  1 root root      5468 Sep 21 00:41 config.yaml.2026-09-20_22-41-21_930603Z.einrichten.bak
+-rw-------  1 root root      5468 Sep 21 00:42 config.yaml.2026-09-20_22-42-24_006812Z.einrichten.bak
+-rw-------  1 root root      5975 Sep 21 00:42 config.yaml.2026-09-20_22-42-24_682945Z.einrichten.bak
+-rw-------  1 root root      5974 Sep 21 00:42 config.yaml.2026-09-20_22-42-25_377529Z.einrichten.bak
+-rw-------  1 root root      6006 Sep 21 00:42 config.yaml.2026-09-20_22-42-25_989823Z.einrichten.bak
+-rw-------  1 root root      5997 Sep 21 00:42 config.yaml.2026-09-20_22-42-26_710481Z.einrichten.bak
+-rw-------  1 root root      7996 Sep 25 01:08 config.yaml.20260925-vor-openrouter-verdichtung
+-rw-------  1 root root      7372 Sep 20 05:41 config.yaml.vor-astra-20260920-060104
+-rw-------  1 root root      6902 Sep 18 22:56 config.yaml.vor-fable-20260918-225608
+-rw-------  1 root root      6521 Sep 14 01:14 config.yaml.vor-moa-20260914-011419
+-rw-------  1 root root      6566 Sep 14 00:40 config.yaml.vor-modell-fix
+-rw-------  1 root root      7926 Sep 21 18:31 config.yaml.vor-opus55-20260923-201806
+-rw-r--r--  1 root root       142 Sep 21 00:47 context_length_cache.yaml
+drwx------  4 root root      4096 Sep 25 23:19 cron
+drwxr-xr-x  2 root root      4096 Sep 18 23:11 gateway
+-rw-r--r--  1 root root       214 Sep 25 23:06 gateway-starts.log
+-rw-r--r--  1 root root       177 Sep 25 23:06 gateway.lock
+-rwxr-xr-x  1 root root       177 Sep 25 23:06 gateway.pid
+srw-------  1 root root         0 Sep 25 23:06 gateway.sock
+-rw-r--r--  1 root root       663 Sep 25 23:08 gateway_state.json
+drwx------  2 root root      4096 Sep 14 00:16 hooks
+drwx------  2 root root      4096 Sep 14 00:16 image_cache
+-rw-------  1 root root        33 Sep 14 00:41 install_id
+drwxr-xr-x  2 root root      4096 Sep 14 00:41 kanban
+-rw-r--r--  1 root root    118784 Sep 14 00:41 kanban.db
+-rw-r--r--  1 root root         0 Sep 14 00:41 kanban.db.dispatch.lock
+-rw-r--r--  1 root root         0 Sep 14 00:41 kanban.db.init.lock
+drwx------  4 root root      4096 Sep 25 17:03 logs
+drwxr-xr-x  4 root root      4096 Sep 14 02:03 lsp
+drwx------  2 root root      4096 Sep 23 21:46 memories
+-rw-------  1 root root        36 Sep 25 22:31 models_dev_cache.etag
+-rw-r--r--  1 root root   4930005 Sep 25 22:31 models_dev_cache.json
+drwxr-xr-x  7 1000 1000      4096 Sep 14 00:15 node
+-rw-r--r--  1 root root       457 Sep 23 19:39 ollama_cloud_models_cache.json
+drwx------  2 root root      4096 Sep 14 00:16 pairing
+drwxr-xr-x  3 root root      4096 Sep 24 14:16 pending
+drwx------  2 root root      4096 Sep 14 00:41 pending_messages
+drwxr-xr-x  3 root root      4096 Sep 14 00:34 platforms
+=== Ende EB1 ===

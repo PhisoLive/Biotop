@@ -1,0 +1,2371 @@
+commit 58bd9f9f658358256b581821de91d2e0df74eec5
+Author: Hermes (Biotop) <hermes@biotop.local>
+Date:   Wed Sep 23 17:32:34 2026 +0200
+
+    Vor T4: Behebungsrunde — Vorbedingungen 1–11 aus Masterprompt Fassung 8
+    
+    1 Laufzeit gepaart: Vorgeneration und Kandidat abwechselnd in derselben Sitzung, Median aus 5 je Seite
+      (messgeraet.laufzeit_gepaart), nur wo die Laufzeit das Urteil entscheiden kann; Annahmepfad und Generalprobe;
+      kein historisches Minimum als Laufzeitbezug; Grenzanzeige mit drei Nachkommastellen.
+    2 Verhaltensvergleich: Randfall-Korpus aus den deklarierten Signaturen der Vorgeneration (jede exportierte Funktion
+      der geänderten Module), „x von y Funktionen beobachtet“, 0 beobachtet = Enthaltung.
+    3 Sondenausfall / Messgerätausfall an der Vorgeneration / gepaarte Laufzeit: Kandidat zurückgestellt — keine
+      Ablehnung, kein Gedächtnis, kein Bandit.
+    4 Verhandlung: lauf.paar_bestanden verlangt einen tragfähigen Verhaltensvergleich.
+    5 Maßeichung: anwenden vergleicht die Eichung, nicht nur den Marker.
+    6 Generation 0: Mehrheitsregel je Durchlauf (NichtGemessen), tsc-Meldung gespeichert, Typbau zwischen den Runden
+      und je Testkandidat.
+    7 Verdrahtungstest: Pflichtkanten an die Phase generation gebunden; Regel im sauberen Bereich des Drahtwerks
+      stillgelegt verlangt; Laufweg-Ablehnung einer ungedeckten Abweichung verlangt.
+    8 Kernmaß geeicht geführt, roh gekennzeichnet.
+    9 Behauptungen aller erzeugten Angriffstests protokolliert; Immunisierung (Anhängen) auf dem TypeScript-Pfad.
+    10 Projektgedächtnis: Laufzeitriss sperrt nur bei berührtem Bereich und gepaart bestätigter Verschlechterung.
+    11 Erreichbarkeitsführung (gedrosselte Anbieter ausgesetzt, Bandit unberührt), Verfallsbedingung der Ausnahmelisten,
+       _beschleunigen entfernt, Rohwerte der Rauschmessung gespeichert.
+    Entscheidungen Chat-Claude: Schwarm und Ankläger lesen das geeichte Maß; Befundklassen-Tests für jeden geänderten
+    Bereich (auch Anpassung des Nachbarn).
+    Die 9 roten Spezifikationen aus abschluss-03 sind grün.
+
+diff --git a/biotop/anbieter/__init__.py b/biotop/anbieter/__init__.py
+index 1d3d0c9..30e95b6 100644
+--- a/biotop/anbieter/__init__.py
++++ b/biotop/anbieter/__init__.py
+@@ -46,6 +46,12 @@ def ist_wiederholbar(fehler: 'AnbieterFehler') -> bool:
+     return bool(_WIEDERHOLBAR.search(str(fehler)))
+ 
+ 
++def ist_drosselung(fehler: 'AnbieterFehler') -> bool:
++    """Wahr, wenn der Anbieter ausdrücklich drosselt oder überlastet ist (HTTP 429/503 mit Hinweis). Eine Ablehnung
++    oder leere Antwort ist eine Entscheidung des Modells, keine Erreichbarkeitsfrage."""
++    return fehler.ausfallart == 'infrastruktur' and bool(_WIEDERHOLBAR.search(str(fehler)))
++
++
+ @dataclass
+ class Antwort:
+     text: str
+@@ -218,6 +224,11 @@ def aufrufen(
+         k = None
+         if e.verbrauch is not None:
+             k = kasse.buchen(con, lauf_id, anbieter, modell, *e.verbrauch, zweck, nr)
++        if ist_drosselung(e):
++            # Erreichbarkeit, nicht Qualität (Liste nach T3): gedrosselte Anbieter werden zeitweise ausgesetzt
++            # (nischen.waehlen liest das), der Bandit bleibt unangetastet.
++            protokoll.schreiben(con, "anbieter.gedrosselt", lauf_id=lauf_id, modell=modell,
++                                hersteller=modell.split("/", 1)[0], aufruf_nr=nr, fehler=str(e)[:200])
+         versuche = 1 + sum(1 for z in con.execute(
+             "SELECT inhalt FROM protokoll WHERE art='modell.wiederholung'")
+             if json.loads(z[0]).get('aufruf_nr') == nr)
+diff --git a/biotop/kern/messgeraet.py b/biotop/kern/messgeraet.py
+index 5f9040d..98f2818 100644
+--- a/biotop/kern/messgeraet.py
++++ b/biotop/kern/messgeraet.py
+@@ -493,7 +493,8 @@ def bestwerte(angenommene: list[dict], bereiche: list[str]) -> dict:
+ 
+ def grenzen_f2(ausgang: dict, kandidat: dict, bereiche: list[str], tausch: dict | None = None,
+                sicherheit_gesunken: set[str] = frozenset(), kernmassgewinn: bool = True,
+-               rauschtoleranz: dict | None = None) -> list[str]:
++               rauschtoleranz: dict | None = None, laufzeit_bezug: dict | None = None,
++               laufzeit_pruefen: bool = True) -> list[str]:
+     """Grenzmaße gegen den Bezug `ausgang` — seit F4 der Bestwert des Laufs (bestwerte()), nicht der Ausgang allein.
+     F4-Regel: ohne Kernmaßgewinn nur Rauschtoleranz; mit Kernmaßgewinn Tauschregel der Verfassung
+     (Vorgabe Laufzeit × 2, Speicher/Bauzeit/Zyklen +25 %). `tausch` z. B. {"laufzeit_faktor": 2,
+@@ -501,6 +502,10 @@ def grenzen_f2(ausgang: dict, kandidat: dict, bereiche: list[str], tausch: dict
+     Kandidat sicherheit_punkte senkt.
+     F5 3.5: `rauschtoleranz` = {bereich: faktor} aus der Rauschmessung vor dem Lauf (gemessene Spannweite + 10
+     Prozentpunkte, mindestens 1,15). Fehlt sie, gilt der feste Wert RAUSCH_F4 — dann steht das aber im Grund.
++    Fassung 8 (Grundsatz 14): `laufzeit_bezug` = die GEPAARTE Vorgeneration (derselbe Median mehrerer Messungen in
++    derselben Sitzung wie der Kandidat). Ist er gesetzt, misst die Laufzeitgrenze gegen ihn statt gegen den Bestwert:
++    das Minimum verrauschter Werte sinkt mit jeder Annahme und macht die Grenze allein durch Rauschen strenger
++    (T3: 34 von 207 Ablehnungen in Lauf 38 in unberührten Bereichen). Die übrigen Grenzmaße bleiben am Bestwert.
+     Rückgabe: Liste gerissener Grenzen (leer = alles innerhalb)."""
+     t = tausch or {}
+     rt = rauschtoleranz or {}
+@@ -519,11 +524,15 @@ def grenzen_f2(ausgang: dict, kandidat: dict, bereiche: list[str], tausch: dict
+             gemessen = rt.get(b)
+             b_lf = b_lf_s = b_sf = float(gemessen or RAUSCH_F4)
+             quelle = f"gemessene Rauschtoleranz {b_lf:.2f}" if gemessen else f"Rückfallwert {RAUSCH_F4} (keine Rauschmessung)"
+-        if b not in gesperrt and a.get("laufzeit_ms") and k.get("laufzeit_ms"):
++        lz_a = ((laufzeit_bezug or {}).get("bereiche", {}).get(b) or {}) if laufzeit_bezug else a
++        lz_name = f"Vorgeneration gepaart, Median aus {laufzeit_bezug.get('_paar_n')}" if laufzeit_bezug else bezug
++        if laufzeit_pruefen and b not in gesperrt and lz_a.get("laufzeit_ms") and k.get("laufzeit_ms"):
+             faktor = b_lf_s if b in sicherheit_gesunken else b_lf
+-            grenze = a["laufzeit_ms"] * faktor
++            grenze = lz_a["laufzeit_ms"] * faktor
+             if k["laufzeit_ms"] > grenze:
+-                gerissen.append(f"{b}.laufzeit_ms: {k['laufzeit_ms']} > Grenze {grenze:.1f} ({bezug} {a['laufzeit_ms']} × {faktor:.2f}"
++                # Anzeige mit drei Nachkommastellen: „4.66 > Grenze 4.7“ (gerundet) las sich wie ein Widerspruch,
++                # obwohl 4,660907 > 4,658563 galt (T3, K3121).
++                gerissen.append(f"{b}.laufzeit_ms: {k['laufzeit_ms']:.3f} > Grenze {grenze:.3f} ({lz_name} {lz_a['laufzeit_ms']:.3f} × {faktor:.3f}"
+                                 f"{'' if kernmassgewinn else ', ohne Kernmaßgewinn nur ' + quelle})")
+         # F3: größte Funktion absolut 60 Zeilen; +25 % nur, wenn sie im Ausgang schon darüber lag
+         g_abs = float(t.get("groesste_funktion_absolut", 60))
+@@ -540,16 +549,21 @@ def grenzen_f2(ausgang: dict, kandidat: dict, bereiche: list[str], tausch: dict
+ 
+ 
+ def urteil_f2(basis: dict, kandidat: dict, ausgang: dict, bereiche: list[str], wirkungskreis: list[str],
+-              tausch: dict | None = None, nische: str | None = None) -> dict:
++              tausch: dict | None = None, nische: str | None = None, laufzeit_pruefen: bool = True) -> dict:
+     """Vollständiges Maß-Urteil Fassung 2. Rückgabe mit 'ok', 'zuwachs', 'grund', Belegen."""
+     schlechter, besser = pareto_f2(basis, kandidat, bereiche)
+     sich = {b for b in bereiche if kandidat["bereiche"][b]["sicherheit_punkte"] < basis["bereiche"][b]["sicherheit_punkte"]}
+     k0, k1 = kernmass_f2(basis), kernmass_f2(kandidat)
+     # F4: `ausgang` ist der Bezug der Grenzmaße — Bestwert des Laufs (lauf.py übergibt bestwerte()); ohne Kernmaßgewinn nur +15 %
++    gepaart = kandidat.get("_laufzeit_gepaart")
+     gerissen = grenzen_f2(ausgang, kandidat, bereiche, tausch, sich, kernmassgewinn=(k1 - k0) > 0,
+-                         rauschtoleranz=(tausch or {}).get("_rauschtoleranz"))
++                         rauschtoleranz=(tausch or {}).get("_rauschtoleranz"),
++                         laufzeit_bezug=({"_paar_n": gepaart.get("n"), "bereiche": basis["bereiche"]} if gepaart else None),
++                         laufzeit_pruefen=laufzeit_pruefen)
+     r = {"kern_basis": k0, "kern_kandidat": k1, "zuwachs": k1 - k0, "pareto_schlechter": schlechter,
+-         "pareto_besser": besser, "grenzen_gerissen": gerissen, "sicherheit_gesunken_in": sorted(sich)}
++         "pareto_besser": besser, "grenzen_gerissen": gerissen, "sicherheit_gesunken_in": sorted(sich),
++         "laufzeit_bezug": (f"gepaart, Median aus {gepaart.get('n')} je Seite" if gepaart
++                            else ("Einzelmessung" if laufzeit_pruefen else "nicht geprüft (entscheidet nicht)"))}
+     gesperrt = sorted(set((tausch or {}).get("_gesperrte_bereiche") or []) & set(wirkungskreis))
+     if gesperrt:
+         r.update(ok=False, grund="Rauschmessung: Wirkungskreis gesperrt: " + ", ".join(gesperrt))
+@@ -559,7 +573,9 @@ def urteil_f2(basis: dict, kandidat: dict, ausgang: dict, bereiche: list[str], w
+         r.update(ok=False, grund="Pareto verletzt: " + "; ".join(schlechter))
+     elif gerissen:
+         r.update(ok=False, grund="Grenzmaß gerissen: " + "; ".join(gerissen))
+-    elif nische == "schnell":
++    elif nische == "schnell" and k1 - k0 < 0:
++        r.update(ok=False, grund=f"Nische schnell: Kernmaß gesunken ({k0} → {k1})")
++    elif nische == "schnell" and laufzeit_pruefen:
+         # Nischenmaß (3.5): Laufzeit; angenommen nur, wenn Kernmaß gleich bleibt oder steigt und die Laufzeit
+         # eines Bereichs im Wirkungskreis um ≥ 15 % sinkt (Kammer-Rauschen liegt unter 15 %).
+         gewinne = []
+@@ -579,3 +595,122 @@ def urteil_f2(basis: dict, kandidat: dict, ausgang: dict, bereiche: list[str], w
+     else:
+         r.update(ok=True, grund=f"Kernmaß {k0} → {k1} (+{k1 - k0}): " + "; ".join(besser))
+     return r
++
++
++# ---------------------------------------------------------------- Laufzeit gepaart (Fassung 8, Grundsatz 14)
++# Vorgeneration und Kandidat werden in DERSELBEN Sitzung abwechselnd gemessen, je Seite LAUFZEIT_PAAR Messungen, und
++# es entscheidet der Median je Seite. Jede einzelne Messung ist selbst schon robust (TypeScript: 3 Aufwärm- und 5
++# Messdurchläufe, Median; Python: Median aus 3) — die Streuung zwischen den Messungen wird so nicht innerhalb geglättet.
++# Befund T3: dieselbe S2-Behebung wurde einmal angenommen (K3091, Einzelmessung) und einmal abgelehnt (K2904).
++LAUFZEIT_PAAR = 5
++
++LAUFZEITSKRIPT = r"""
++import json, os, sys, time
++sys.path.insert(0, os.getcwd())
++ref_pfad, bereiche = sys.argv[1], json.loads(sys.argv[2])
++ns = {}
++exec(open(ref_pfad).read(), ns)
++aus = {}
++for b in bereiche:
++    fn = ns.get("last_" + b)
++    if fn is None:
++        aus[b] = {"laufzeit_ms": None, "laufzeit_fehler": "last_" + b + " fehlt"}
++        continue
++    werte = []
++    try:
++        for _ in range(3):
++            t0 = time.perf_counter(); fn(); werte.append((time.perf_counter() - t0) * 1000)
++    except Exception as e:
++        aus[b] = {"laufzeit_ms": None, "laufzeit_fehler": repr(e)[:300]}
++        continue
++    werte.sort()
++    aus[b] = {"laufzeit_ms": werte[1], "laufzeit_roh": werte}
++print("@@LAUFZEIT@@" + json.dumps(aus) + "@@ENDE@@")
++"""
++
++
++def laufzeit_messen(werk: Path, bereiche: list[str], paket: str, referenzlast: str | None,
++                    dateien: dict[str, str] | None = None, zeitlimit_s: int = 150) -> dict:
++    """EINE Laufzeitmessung je Bereich in der Kammer, ohne Tests und Statik. Rückgabe {"gueltig", "bereiche", "grund"}."""
++    from . import sprachprofil
++    if not referenzlast:
++        return {"gueltig": False, "grund": "keine Referenzlast", "bereiche": {}}
++    if sprachprofil.ist_typescript(werk):
++        from . import typescript
++        r = typescript.laufzeit(werk, referenzlast, bereiche, dateien)
++        if not r.get("gueltig"):
++            return {"gueltig": False, "grund": str(r.get("grund"))[:600], "bereiche": {}}
++        return {"gueltig": True, "grund": "", "bereiche": {b: {"laufzeit_ms": (r["bereiche"].get(b) or {}).get("laufzeit_ms"),
++                                                                "laufzeit_roh": (r["bereiche"].get(b) or {}).get("laufzeit_roh")}
++                                                            for b in bereiche}}
++    extra = {"_messgeraet/laufzeit.py": LAUFZEITSKRIPT, "_messgeraet/referenzlast.py": referenzlast, **(dateien or {})}
++    e = kammer.ausfuehren(werk, ["python", "_messgeraet/laufzeit.py", "_messgeraet/referenzlast.py", json.dumps(bereiche)],
++                          zeitlimit_s=zeitlimit_s, dateien=extra)
++    m = re.search(r"@@LAUFZEIT@@(.*)@@ENDE@@", e.stdout, re.S)
++    if e.zeitlimit or e.rc != 0 or not m:
++        return {"gueltig": False, "bereiche": {},
++                "grund": "Zeitlimit" if e.zeitlimit else f"Kammer rc={e.rc}: {(e.stderr or '')[-300:]}"}
++    return {"gueltig": True, "grund": "", "bereiche": json.loads(m.group(1))}
++
++
++def laufzeit_gepaart(werk: Path, bereiche: list[str], paket: str, referenzlast: str | None,
++                     dateien_basis: dict[str, str] | None, dateien_kandidat: dict[str, str] | None,
++                     n: int | None = None, zeitlimit_s: int = 150) -> dict:
++    """Grundsatz 14: Vorgeneration und Kandidat abwechselnd (B K, K B, B K …) in derselben Sitzung, je Seite `n`
++    Messungen, Median je Seite. Scheitert eine Messung, ist das ein Messgerätausfall (`gueltig` False, `seite`) —
++    keine Aussage über den Kandidaten; beide Seiten wurden unmittelbar davor schon gültig gemessen.
++    Rückgabe {"gueltig", "n", "bereiche": {b: {"basis", "kandidat", "basis_werte", "kandidat_werte"}}, "grund", "seite"}."""
++    n = n or LAUFZEIT_PAAR
++    werte = {b: {"basis": [], "kandidat": []} for b in bereiche}
++    for i in range(n):
++        folge = (("basis", dateien_basis), ("kandidat", dateien_kandidat))
++        for seite, dateien in (folge if i % 2 == 0 else folge[::-1]):
++            r = laufzeit_messen(werk, bereiche, paket, referenzlast, dateien, zeitlimit_s)
++            if not r["gueltig"]:
++                return {"gueltig": False, "n": n, "bereiche": {}, "seite": seite,
++                        "grund": f"Laufzeitmessung {seite}, Durchgang {i + 1} von {n}: {r['grund']}"}
++            for b in bereiche:
++                v = (r["bereiche"].get(b) or {}).get("laufzeit_ms")
++                if v is not None:
++                    werte[b][seite].append(float(v))
++    out = {}
++    for b in bereiche:
++        wb, wk = sorted(werte[b]["basis"]), sorted(werte[b]["kandidat"])
++        out[b] = {"basis": wb[len(wb) // 2] if len(wb) == n else None, "kandidat": wk[len(wk) // 2] if len(wk) == n else None,
++                  "basis_werte": [round(x, 4) for x in werte[b]["basis"]],
++                  "kandidat_werte": [round(x, 4) for x in werte[b]["kandidat"]]}
++    return {"gueltig": True, "n": n, "bereiche": out, "grund": "",
++            "regel": f"Grundsatz 14: abwechselnd in derselben Sitzung, je Seite Median aus {n} Messungen"}
++
++
++def laufzeit_einsetzen(basis: dict, kandidat: dict, gepaart: dict) -> tuple[dict, dict]:
++    """Setzt die gepaarten Mediane in beide Messungen ein (Einzelwert bleibt als `laufzeit_ms_einzel` sichtbar)."""
++    b2, k2 = dict(basis), dict(kandidat)
++    b2["bereiche"] = {b: dict(v) for b, v in basis["bereiche"].items()}
++    k2["bereiche"] = {b: dict(v) for b, v in kandidat["bereiche"].items()}
++    for b, x in (gepaart.get("bereiche") or {}).items():
++        for m, seite in ((b2, "basis"), (k2, "kandidat")):
++            if b in m["bereiche"] and x.get(seite) is not None:
++                m["bereiche"][b]["laufzeit_ms_einzel"] = m["bereiche"][b].get("laufzeit_ms")
++                m["bereiche"][b]["laufzeit_ms"] = round(x[seite], 4)
++                m["bereiche"][b]["laufzeit_werte_gepaart"] = x[seite + "_werte"]
++    marke = {"n": gepaart.get("n"), "regel": gepaart.get("regel")}
++    b2["_laufzeit_gepaart"] = marke
++    k2["_laufzeit_gepaart"] = marke
++    return b2, k2
++
++
++def laufzeit_entscheidet(u: dict, nische: str | None) -> bool:
++    """Kann die Laufzeit das Urteil `u` (gebildet mit laufzeit_pruefen=False) noch ändern?
++    Nein, wenn es schon an deterministischen Maßen scheitert (Pareto, Bau, gesperrter Wirkungskreis, ein anderes
++    Grenzmaß) oder — außerhalb der Nische schnell — das Kernmaß nicht steigt. Dann wird nicht gepaart gemessen, und die
++    Laufzeit erscheint auch nicht als Grund (T3: Laufzeitrisse am Einzelwert verdrängten „Kernmaß unverändert“ als
++    Ablehnungsgrund und sperrten über das Projektgedächtnis spätere Kandidaten).
++    `nische` 'werk' (Generalprobe): das Nischenmaß auf Werkebene lässt auch Zuwachs 0 zu."""
++    g = u.get("grund") or ""
++    if u.get("pareto_schlechter") or g.startswith(("Rauschmessung", "baut nicht")):
++        return False
++    if u.get("grenzen_gerissen"):
++        return False                                # deterministische Grenze (Funktion, Zyklen, Bauzeit) gerissen
++    z = u.get("zuwachs") or 0
++    return z >= 0 if nische in ("schnell", "werk") else z > 0
+diff --git a/biotop/kern/ts/main.mjs b/biotop/kern/ts/main.mjs
+index 3541e7d..213e297 100644
+--- a/biotop/kern/ts/main.mjs
++++ b/biotop/kern/ts/main.mjs
+@@ -23,6 +23,7 @@ try {
+   else if(req.aktion==='verbraucherzeuge') result={ergebnis:testsAst(req.code,null,{name:req.name,von:req.von,nach:req.nach})};
+   else if(req.aktion==='mutanten') result={ergebnis:mutanten(req.max_je_datei)};
+   else if(req.aktion==='ref_beobachten') result={ergebnis:referenz(req.referenzlast)};
++  else if(req.aktion==='ref_laufzeit') result={ergebnis:(({prozess,...r})=>r)(referenz(req.referenzlast,'laufzeit',req.bereiche))};
+   else if(req.aktion==='messen') result={ergebnis:messen(req)};
+   else if(req.aktion==='verhalten') result={ergebnis:verhalten(req)};
+   else throw Error('Unbekannte Adapteraktion: '+req.aktion);
+diff --git a/biotop/kern/ts/verhalten-runner.mjs b/biotop/kern/ts/verhalten-runner.mjs
+index 2d7ad4e..7f9e2b9 100644
+--- a/biotop/kern/ts/verhalten-runner.mjs
++++ b/biotop/kern/ts/verhalten-runner.mjs
+@@ -14,7 +14,8 @@ import {createHash} from 'node:crypto';
+ 
+ const req = JSON.parse(fs.readFileSync('/tmp/ts-vv-anfrage.json', 'utf8'));
+ const KAPPE = req.kappe ?? 8;
+-const beob = {}, zaehler = {};
++const RAND_KAPPE = req.rand_kappe ?? 16;
++const beob = {}, zaehler = {}, zaehlerRand = {}, beispiele = {};
+ let tiefe = 0;
+ 
+ function kan(x, anc) {
+@@ -106,28 +107,157 @@ function mutieren(args) {
+   return n;
+ }
+ 
+-globalThis.__vvAufzeichnen = (name, args, call) => {
+-  if (tiefe > 0) return call(...args);
+-  const i = zaehler[name] = (zaehler[name] ?? -1) + 1;
+-  if (i >= KAPPE) return call(...args);
++// Ein Aufruf mit den vier Mustern. Rückgabe: das Ergebnis des echten Aufrufs ({roh} oder {fehler}).
++function muster(schluessel, args, call) {
+   tiefe++;
+   try {
+     const erst = wert(() => call(...args));
+-    beob[`${name}#${i}`] = knapp(erst.text);
++    beob[schluessel] = knapp(erst.text);
+     const stand = schnappschuss(args);
+-    beob[`${name}#${i}@alias`] = knapp(wert(() => call(...args)).text);
++    beob[`${schluessel}@alias`] = knapp(wert(() => call(...args)).text);
+     zuruecksetzen(stand);
+     if (mutieren(args) > 0) {
+-      beob[`${name}#${i}@mutation`] = knapp(wert(() => call(...args)).text);
++      beob[`${schluessel}@mutation`] = knapp(wert(() => call(...args)).text);
+       zuruecksetzen(stand);
+-      beob[`${name}#${i}@nach_ruecksetzung`] = knapp(wert(() => call(...args)).text);
++      beob[`${schluessel}@nach_ruecksetzung`] = knapp(wert(() => call(...args)).text);
+       zuruecksetzen(stand);
+     }
+-    if (erst.fehler) throw erst.fehler;
+-    return erst.roh;
++    return erst;
+   } finally {
+     tiefe--;
+   }
++}
++
++// --- Beispiele und Randfälle (Fassung 8): packbare Kopien von Argumenten, damit die Kandidatenseite dieselben
++// Aufrufe bekommt wie die Vorgeneration (Beispiele reisen über Python zurück in die zweite Kammer).
++function pack(x, t = 0) {
++  if (t > 6 || x === undefined) return {__u: 1};
++  if (x === null || typeof x === 'string' || typeof x === 'boolean') return x;
++  if (typeof x === 'number') return Number.isFinite(x) ? x : {__num: String(x)};
++  if (typeof x === 'bigint') return {__big: String(x)};
++  if (typeof x === 'function' || typeof x === 'symbol') throw Error('nicht packbar');
++  if (Array.isArray(x)) return x.slice(0, 20).map(v => pack(v, t + 1));
++  if (x instanceof Map) return {__map: [...x.entries()].slice(0, 20).map(([k, v]) => [pack(k, t + 1), pack(v, t + 1)])};
++  if (x instanceof Set) return {__set: [...x.values()].slice(0, 20).map(v => pack(v, t + 1))};
++  if (x instanceof Date) return {__date: x.getTime()};
++  const proto = Object.getPrototypeOf(x);
++  if (proto !== Object.prototype && proto !== null) throw Error('Klasseninstanz nicht packbar');
++  const o = {};
++  for (const k of Object.keys(x)) o[k] = pack(x[k], t + 1);
++  return {__obj: o};
++}
++function unpack(x) {
++  if (x === null || typeof x !== 'object') return x;
++  if (Array.isArray(x)) return x.map(unpack);
++  if ('__u' in x) return undefined;
++  if ('__num' in x) return Number(x.__num);
++  if ('__big' in x) return BigInt(x.__big);
++  if ('__map' in x) return new Map(x.__map.map(([k, v]) => [unpack(k), unpack(v)]));
++  if ('__set' in x) return new Set(x.__set.map(unpack));
++  if ('__date' in x) return new Date(x.__date);
++  if ('__obj' in x) { const o = {}; for (const k of Object.keys(x.__obj)) o[k] = unpack(x.__obj[k]); return o; }
++  return x;
++}
++function blaetter(p, f) {             // packierte Struktur, Blätter umschreiben
++  if (Array.isArray(p)) return p.map(v => blaetter(v, f));
++  if (p && typeof p === 'object' && '__obj' in p) { const o = {}; for (const k of Object.keys(p.__obj)) o[k] = blaetter(p.__obj[k], f); return {__obj: o}; }
++  return f(p);
++}
++function schrumpfen(p) {            // leer, einzeln, doppelt, Grenzwerte — aus einem beobachteten Wert
++  const out = [p];
++  if (Array.isArray(p)) {
++    out.push([]);
++    if (p.length) { out.push([p[0]], [p[0], p[0]], [blaetter(p[0], v => typeof v === 'number' ? 0 : typeof v === 'string' ? '' : v)]); }
++  } else if (p && typeof p === 'object' && '__obj' in p) {
++    out.push(blaetter(p, v => typeof v === 'number' ? 0 : v), blaetter(p, v => typeof v === 'string' ? '' : v),
++             blaetter(p, v => typeof v === 'number' ? -1 : v));
++  } else if (typeof p === 'number') out.push(0, -1, 1);
++  else if (typeof p === 'string') out.push('', ' ');
++  return out;
++}
++function teilen(t, zeichen) {         // Aufteilen auf oberster Klammerebene
++  const teile = []; let tiefe_ = 0, start = 0;
++  for (let i = 0; i < t.length; i++) {
++    const c = t[i];
++    if ('<([{'.includes(c)) tiefe_++;
++    else if ('>)]}'.includes(c)) tiefe_--;
++    else if (c === zeichen && tiefe_ === 0) { teile.push(t.slice(start, i).trim()); start = i + 1; }
++  }
++  teile.push(t.slice(start).trim());
++  return teile.filter(Boolean);
++}
++function umschlossen(t) {            // '(…)' und die erste Klammer schließt erst am Ende
++  if (!t.startsWith('(') || !t.endsWith(')')) return false;
++  let tiefe_ = 0;
++  for (let i = 0; i < t.length; i++) {
++    if (t[i] === '(') tiefe_++;
++    else if (t[i] === ')') { tiefe_--; if (tiefe_ === 0 && i < t.length - 1) return false; }
++  }
++  return true;
++}
++function typKandidaten(t, b, stufe = 0) {
++  if (!t || stufe > 3) return [];
++  t = t.trim();
++  for (let alt = ''; alt !== t;) {            // readonly und umschließende Klammern abwechselnd abstreifen
++    alt = t;
++    while (t.startsWith('readonly ')) t = t.slice(9).trim();
++    if (umschlossen(t)) t = t.slice(1, -1).trim();
++  }
++  const teile = teilen(t, '|');
++  if (teile.length > 1) {
++    const ohne = teile.filter(s => s !== 'undefined' && s !== 'null');
++    const lit = ohne.filter(s => /^(['"]).*\1$/.test(s)).map(s => s.slice(1, -1));
++    const rest = ohne.filter(s => !/^(['"]).*\1$/.test(s)).flatMap(s => typKandidaten(s, b, stufe + 1)).slice(0, 6);
++    return [...lit, ...rest, ...(teile.includes('undefined') ? [{__u: 1}] : [])];
++  }
++  if (t === 'number') return [0, 1, -1, 2, 0.5, 100];
++  if (t === 'string') return ['', 'a', ' ', 'Ä-1', 'x'.repeat(40)];
++  if (t === 'boolean') return [false, true];
++  let m = t.match(/^(.+)\[\]$/), innen = m ? m[1] : null;
++  if (innen === null) { m = t.match(/^(?:Readonly)?Array<(.+)>$/); innen = m ? m[1] : null; }
++  if (innen !== null) {
++    const eb = Array.isArray(b) && b.length ? b[0] : undefined;
++    let e = typKandidaten(innen, eb, stufe + 1);
++    if (!e.length && eb !== undefined) e = schrumpfen(eb);
++    const out = [[]];
++    if (e.length) {
++      out.push([e[0]], [e[0], e[0]]);
++      for (const v of e.slice(1, 4)) out.push([v]);
++      if (e.length >= 3) out.push([e[0], e[1], e[2]]);
++    }
++    if (Array.isArray(b)) out.push(b.slice(0, 20));
++    return out;
++  }
++  if (/^(['"]).*\1$/.test(t)) return [t.slice(1, -1)];
++  if (/^-?\d+(\.\d+)?$/.test(t)) return [Number(t)];
++  return b !== undefined ? schrumpfen(b) : [];
++}
++function argumentlisten(typen, beispiel) {
++  const k = typen.map((typ, j) => {
++    const b = beispiel ? beispiel[j] : undefined;
++    let c = typKandidaten(typ, b);
++    if (b !== undefined) c = [b, ...c];
++    if (!c.length) c = [{__obj: {}}, []];             // unbekannter Typ ohne Beispiel: tastend
++    const gesehen = new Set();
++    return c.filter(v => { const s = JSON.stringify(v); if (gesehen.has(s)) return false; gesehen.add(s); return true; });
++  });
++  if (!typen.length) return [[]];
++  const grund = k.map(c => c[0]);
++  const listen = [grund];
++  for (let j = 0; j < k.length; j++) for (const v of k[j].slice(1)) { const l = grund.slice(); l[j] = v; listen.push(l); }
++  const gesehen = new Set();
++  return listen.filter(l => { const s = JSON.stringify(l); if (gesehen.has(s)) return false; gesehen.add(s); return true; })
++               .slice(0, RAND_KAPPE);
++}
++
++globalThis.__vvAufzeichnen = (name, args, call) => {
++  if (tiefe > 0) return call(...args);
++  const i = zaehler[name] = (zaehler[name] ?? -1) + 1;
++  if (i === 0 && !(name in beispiele)) { try { beispiele[name] = args.map(a => pack(a)); } catch { beispiele[name] = null; } }
++  if (i >= KAPPE) return call(...args);
++  const erst = muster(`${name}#${i}`, args, call);
++  if (erst.fehler) throw erst.fehler;
++  return erst.roh;
+ };
+ 
+ let out;
+@@ -140,7 +270,24 @@ try {
+     try { await ref[k](); beob['korpus:' + k] = 'ok'; }
+     catch (e) { beob['korpus:' + k] = 'Fehler:' + (e?.constructor?.name ?? 'unbekannt'); }
+   }
+-  out = {gueltig: true, beobachtungen: beob, korpus, aufgerufen: zaehler, kappe: KAPPE};
++  // Randfall-Korpus: jede exportierte Funktion der geänderten Module, Signaturen und Beispiele der Vorgeneration.
++  const quelleBeispiele = req.beispiele ?? beispiele;
++  for (const m of req.module ?? []) {
++    let mod;
++    try { mod = await import('/werk/dist/' + m + '.js'); } catch { continue; }
++    for (const [f, typen] of Object.entries((req.signaturen ?? {})[m] ?? {})) {
++      const fn = mod[f];
++      if (typeof fn !== 'function') continue;       // vom Kandidaten entfernt: Python weist das getrennt aus
++      const name = `${m}:${f}`;
++      argumentlisten(typen ?? [], (quelleBeispiele ?? {})[name] ?? undefined).forEach((liste, i) => {
++        const erst = muster(`${name}~rand#${i}`, unpack(liste), (...a) => fn(...a));
++        if (!erst.fehler) zaehlerRand[name] = (zaehlerRand[name] ?? 0) + 1;
++      });
++    }
++  }
++  if (req.module?.length) korpus.push('randfaelle');
++  out = {gueltig: true, beobachtungen: beob, korpus, aufgerufen: zaehler, aufgerufen_rand: zaehlerRand,
++         kappe: KAPPE, rand_kappe: RAND_KAPPE, ...(req.beispiele ? {} : {beispiele})};
+ } catch (e) {
+   // Die Referenzlast lädt die eingewickelten Module; scheitert der Import, ist das ein Befund
+   // über den gebauten Stand (z. B. Laufzeitfehler beim Modulladen), kein totes Messgerät.
+diff --git a/biotop/kern/ts/verhalten.mjs b/biotop/kern/ts/verhalten.mjs
+index 8c8f2c5..5674046 100644
+--- a/biotop/kern/ts/verhalten.mjs
++++ b/biotop/kern/ts/verhalten.mjs
+@@ -9,9 +9,14 @@
+ //   #i@nach_ruecksetzung  Eingabe zurückgesetzt, erneut aufgerufen
+ // Ein Zwischenspeicher, der an der Referenz statt am Inhalt hängt, liefert bei @mutation
+ // oder @nach_ruecksetzung ein veraltetes Ergebnis — der Einzelaufruf sieht das nie.
++//
++// Fassung 8 (Grundsatz 11): Zusätzlich bekommt jede exportierte Funktion einen Randfall-Korpus aus ihrer
++// deklarierten Signatur (Typvertrag). Die Signaturen stammen immer von der VORGENERATION (req.signaturen, sonst aus
++// dem Quelltext dieses Stands gelesen und zurückgegeben), damit beide Seiten dieselben Aufrufe bekommen.
+ import fs from 'node:fs';
+ import {lauf} from './testlauf.mjs';
+ import {quellenbau} from './bau.mjs';
++import {parse, funktionen} from './ast.mjs';
+ 
+ export function einwickeln(code, modul) {
+   const namen = [];
+@@ -27,11 +32,28 @@ export function einwickeln(code, modul) {
+   return {code: neu + anhang, namen, nicht_eingewickelt: nicht};
+ }
+ 
++// Deklarierte Parametertypen je exportierter Funktion, aus dem TypeScript-Syntaxbaum des Quellmoduls.
++export function signaturen_lesen(module) {
++  const out = {};
++  for (const m of module) {
++    const p = '/werk/src/' + m + '.ts';
++    if (!fs.existsSync(p)) continue;
++    try {
++      out[m] = {};
++      for (const f of funktionen(parse(fs.readFileSync(p, 'utf8'), p))) {
++        if (f.exportiert && /^[A-Za-z_$][\w$]*$/.test(f.name)) out[m][f.name] = f.params.map(x => x.type);
++      }
++    } catch { out[m] = {}; }
++  }
++  return out;
++}
++
+ export function verhalten(req) {
+   const bau = quellenbau();
+   if (!bau.gueltig || !bau.baut) {
+     return {gueltig: false, art: 'inhalt', grund: 'Quellbau fehlgeschlagen: ' + String(bau.prozess.stdout).slice(0, 800)};
+   }
++  const signaturen = req.signaturen ?? signaturen_lesen(req.module);
+   const eingewickelt = {}, nicht_eingewickelt = {};
+   for (const m of req.module) {
+     const p = '/werk/dist/' + m + '.js';
+@@ -42,12 +64,14 @@ export function verhalten(req) {
+     if (e.nicht_eingewickelt.length) nicht_eingewickelt[m] = e.nicht_eingewickelt;
+   }
+   fs.writeFileSync('_biotop_referenz.ts', req.referenzlast);
+-  fs.writeFileSync('/tmp/ts-vv-anfrage.json', JSON.stringify({bereiche: req.bereiche, kappe: req.kappe ?? 8}));
++  fs.writeFileSync('/tmp/ts-vv-anfrage.json', JSON.stringify({bereiche: req.bereiche, kappe: req.kappe ?? 8,
++                                                              module: req.module, signaturen, eingewickelt,
++                                                              beispiele: req.beispiele ?? null}));
+   fs.rmSync('/tmp/ts-vv-ergebnis.json', {force: true});
+   const p = lauf('node', ['--import', '/opt/biotop-ts/node_modules/tsx/dist/loader.mjs', '_messgeraet/ts/verhalten-runner.mjs']);
+   let out = {gueltig: false, art: 'infrastruktur', grund: 'Verhaltens-Runnerabbruch: rc=' + p.rc + ' ' + String(p.stderr).slice(-800)};
+   if (p.rc === 0 && !p.signal && !p.fehler && fs.existsSync('/tmp/ts-vv-ergebnis.json')) {
+     out = JSON.parse(fs.readFileSync('/tmp/ts-vv-ergebnis.json', 'utf8'));
+   }
+-  return {...out, eingewickelt, nicht_eingewickelt};
++  return {...out, eingewickelt, nicht_eingewickelt, signaturen};
+ }
+diff --git a/biotop/kern/typescript.py b/biotop/kern/typescript.py
+index 465ca37..2b38072 100644
+--- a/biotop/kern/typescript.py
++++ b/biotop/kern/typescript.py
+@@ -89,6 +89,15 @@ def messen(werk: Path, bereiche: list, paket: str, referenzlast: str | None,
+                     kammeraufrufe=1, roh=str(exc))
+ 
+ 
++def laufzeit(werk: Path, referenzlast: str, bereiche: list, dateien: dict | None = None) -> dict:
++    """Nur die Laufzeit auf der Referenzlast (Quellbau + Referenz-Runner im Modus 'laufzeit'), ohne Tests/Statik."""
++    try:
++        d, roh = _aufruf(werk, "ref_laufzeit", dateien=dateien, referenzlast=referenzlast, bereiche=list(bereiche))
++        return d
++    except TypeScriptFehler as exc:
++        return dict(gueltig=False, grund=str(exc)[:800], bereiche={})
++
++
+ def ref_beobachten(werk: Path, referenzlast: str, dateien: dict | None = None) -> dict:
+     """beobachten(): JSON-Array/-Objekt; anzahl = Top-Level-Einträge.
+ 
+diff --git a/biotop/lauf.py b/biotop/lauf.py
+index e61ce93..17d4f29 100644
+--- a/biotop/lauf.py
++++ b/biotop/lauf.py
+@@ -126,7 +126,10 @@ def mass_einfrieren(con: sqlite3.Connection, lauf_id: int, bestaetigt_von: str)
+     s = lazarus.schnappschuss(con, lauf_id, 0, Path(werk["pfad"]), mess)
+     with transaktion(con):
+         con.execute("UPDATE generationen SET tag=?, pruefsumme=? WHERE lauf_id=? AND nummer=0", (s["tag"], s["pruefsumme"], lauf_id))
+-    protokoll.schreiben(con, "mass.eingefroren", lauf_id=lauf_id, mass_sha256=mass_sha256, vorspann_sha256=nachweis["nachweis_sha256"], fassung=2, kernmass_f2=mess["kernmass_f2"], kernmass_f1=mess["kernmass"], grenzen=mass["grenzen"], bestaetigt_von=bestaetigt_von)
++    protokoll.schreiben(con, "mass.eingefroren", lauf_id=lauf_id, mass_sha256=mass_sha256, vorspann_sha256=nachweis["nachweis_sha256"], fassung=2,
++                        kernmass_f2=mess["kernmass_f2"], kernmass_f2_roh=_kernmass_f2_roh(mess),
++                        kernmass_messgeraet=mess.get("kernmass"), kernmass_messgeraet_roh=mess.get("kernmass_roh", mess.get("kernmass")),
++                        grenzen=mass["grenzen"], bestaetigt_von=bestaetigt_von)
+     return {"mass": mass, "messung": mess, "schnappschuss": s}
+ 
+ 
+@@ -228,10 +231,15 @@ def _generation_koerper(con, lauf_id, nummer, werk, mass, paket, bereiche, pfad,
+         with transaktion(con):
+             con.execute("UPDATE generationen SET status=?, grund=?, masse=?, kandidaten=? WHERE lauf_id=? AND nummer=?",
+                         (status, grund, j(mess) if mess else None, j(kandidaten or {}), lauf_id, nummer))
+-            if status == "abgelehnt":
++            if status in ("abgelehnt", "abgebrochen"):
+                 con.execute("UPDATE laeufe SET status='bereit' WHERE id=?", (lauf_id,))
++        # Vorbedingung 8 (T4): Kernmaß geeicht geführt, roh gekennzeichnet (Review 03 Nr. 21)
+         protokoll.schreiben(con, "generation.ergebnis", lauf_id=lauf_id, nummer=nummer, status=status, grund=grund[:400],
+-                            kernmass_f2=messgeraet.kernmass_f2(mess) if mess else None, kernmass_f1=mess["kernmass"] if mess else None, kasse=kasse.stand(con, lauf_id))
++                            kernmass_f2=messgeraet.kernmass_f2(mess) if mess else None,
++                            kernmass_f2_roh=_kernmass_f2_roh(mess) if mess else None,
++                            kernmass_messgeraet=mess.get("kernmass") if mess else None,
++                            kernmass_messgeraet_roh=mess.get("kernmass_roh", mess.get("kernmass")) if mess else None,
++                            kasse=kasse.stand(con, lauf_id))
+         r = {"nummer": nummer, "status": status, "grund": grund, "messung": mess, "kandidaten": kandidaten}
+         # 3.11 Entropie: je Generation zwei Zahlen; Sättigung beendet den Lauf (bei 'vorgelegt' erst nach der Freigabe, s. freigabe())
+         if status == "abgelehnt":
+@@ -254,17 +262,20 @@ def _generation_koerper(con, lauf_id, nummer, werk, mass, paket, bereiche, pfad,
+                               (lauf_id, nummer, e["bereich"], "probe", "hermes", "hermes/probe-" + e.get("probe", "probe"), e["diff"], e.get("begruendung", ""), "erzeugt", "", protokoll.jetzt(), e.get("vertraege", "keine")))
+         probe_ids.setdefault(e["bereich"], []).append(cur.lastrowid)
+         protokoll.schreiben(con, "probe.eingeschleust", lauf_id=lauf_id, generation=nummer, kandidat=cur.lastrowid, probe=e.get("probe"), bereich=e["bereich"], vertraege=e.get("vertraege"))
++    # Entscheidung Chat-Claude (Fassung 8, Grundsatz 10): Schwarm und Ankläger lesen das GEEICHTE Maß — eine
++    # stillgelegte Regel erscheint weder als statischer Befund im Auftrag noch in den harten Maßen des Bereichs.
++    basis_g = masseichung.anwenden(basis, tausch.get("_masseichung"))
+     for b in bereiche:
+         urteile[b] = []
+         if b in tausch.get("_gesperrte_bereiche", []):
+             continue
+-        befunde = [{k: v for k, v in f.items() if k in ("test", "schwere", "zeile", "text")} for f in basis["bereiche"][b].get("sicherheit_befunde", [])]
++        befunde = [{k: v for k, v in f.items() if k in ("test", "schwere", "zeile", "text")} for f in basis_g["bereiche"][b].get("sicherheit_befunde", [])]
+         vt_text = vertraege.text_fuer_bereich(con, werk["id"], b)
+         for nische in (["probe"] if einschleusen is not None else aktive_nischen):
+             if nische == "probe":
+                 ids = probe_ids.get(b, [])
+             else:
+-                ids = genesis.erzeugen(con, lauf_id, werk["id"], nummer, pfad, paket, b, messgeraet.bereich_masse(basis, b), nische=nische,
++                ids = genesis.erzeugen(con, lauf_id, werk["id"], nummer, pfad, paket, b, messgeraet.bereich_masse(basis_g, b), nische=nische,
+                                        befunde=befunde, referenzlast=ref, vertraege_text=vt_text)
+             for kid in ids:
+                 # 3.12 Projektgedächtnis: Wiederholung eines gescheiterten Wegs → ohne Kammerlauf verworfen (mechanisch, protokolliert)
+@@ -291,7 +302,8 @@ def _generation_koerper(con, lauf_id, nummer, werk, mass, paket, bereiche, pfad,
+                 kz = con.execute("SELECT modell, status FROM kandidaten WHERE id=?", (kid,)).fetchone()
+                 hersteller = (kz["modell"] or "/").split("/")[0]
+                 # Bandit (3.6 F4): „KEIN VORSCHLAG" (status leer) ist neutral — keine Wahl, kein Misserfolg; Proben zählen nicht
+-                if nische != "probe" and kz["status"] != "leer":
++                # Zurückgestellt (Messgerätausfall, Vorbedingung 3 T4) ist weder Erfolg noch Misserfolg des Modells.
++                if nische != "probe" and kz["status"] not in ("leer", aegis.ZURUECKGESTELLT):
+                     nischen.buchen(con, lauf_id, nische, hersteller, u["status"] == "ueberlebt")
+                 if u["status"] == "ueberlebt":
+                     kd = con.execute("SELECT diff, begruendung FROM kandidaten WHERE id=?", (kid,)).fetchone()
+@@ -348,17 +360,31 @@ def _generation_koerper(con, lauf_id, nummer, werk, mass, paket, bereiche, pfad,
+     # Maßeichung auch in der Generalprobe: dieselbe Zahl, die der Ankläger je Kandidat bewertet hat.
+     basis_paar = masseichung.anwenden(basis_paar, tausch.get("_masseichung"))
+     mess = masseichung.anwenden(mess, tausch.get("_masseichung"))
+-    mess["kernmass_f2"] = messgeraet.kernmass_f2(mess)
+-    mess["_basis_paar"] = {"kernmass_f2": messgeraet.kernmass_f2(basis_paar), "bereiche": {b: messgeraet.bereich_masse(basis_paar, b) for b in bereiche}}
+-    mess["_testbestand"] = sorted(testbestand)
+-
+-    # 6. Pareto + Grenzen + Zuwachs (F2)
+     wirkungskreis = set()
+     for b, kid in gewaehlt.items():
+         kz = con.execute("SELECT wirkungskreis FROM kandidaten WHERE id=?", (kid,)).fetchone()
+         wirkungskreis.update(lj(kz["wirkungskreis"]) or landkarte.wirkungskreis(b, bstrassen))
+     wirkungskreis = sorted(wirkungskreis)
+-    u = messgeraet.urteil_f2(basis_paar, mess, ausgang, bereiche, wirkungskreis, tausch)
++    # Vorbedingung 1 (T4, Grundsatz 14): Laufzeit der Generalprobe GEPAART (abwechselnd, Median je Seite) statt am
++    # Einzelwert gegen das Minimum aller angenommenen Generationen.
++    u0 = messgeraet.urteil_f2(basis_paar, mess, ausgang, bereiche, wirkungskreis, tausch, laufzeit_pruefen=False)
++    lz = None
++    if ref and messgeraet.laufzeit_entscheidet(u0, "werk"):
++        lz = messgeraet.laufzeit_gepaart(pfad, bereiche, paket, ref, {},
++                                         {p: i for p, i in dateien.items() if not p.startswith("tests/")})
++        if not lz["gueltig"]:
++            with transaktion(con):
++                for b, kid in gewaehlt.items():
++                    con.execute("UPDATE kandidaten SET status=?, grund=? WHERE id=?",
++                                (aegis.ZURUECKGESTELLT, "Generalprobe: Messgerätausfall (Laufzeit gepaart) — " + lz["grund"][:300], kid))
++            return abschluss("abgebrochen", "Generalprobe: Messgerätausfall (Laufzeit gepaart) — " + lz["grund"], mess, zusammenfassung)
++        basis_paar, mess = messgeraet.laufzeit_einsetzen(basis_paar, mess, lz)
++    mess["kernmass_f2"] = messgeraet.kernmass_f2(mess)
++    mess["_basis_paar"] = {"kernmass_f2": messgeraet.kernmass_f2(basis_paar), "bereiche": {b: messgeraet.bereich_masse(basis_paar, b) for b in bereiche}}
++    mess["_testbestand"] = sorted(testbestand)
++
++    # 6. Pareto + Grenzen + Zuwachs (F2)
++    u = messgeraet.urteil_f2(basis_paar, mess, ausgang, bereiche, wirkungskreis, tausch, laufzeit_pruefen=lz is not None)
+     # Nischenmaß auf Werkebene: Gesamtkandidat mit reinem Laufzeitgewinn (Kernmaß gleich) ist zulässig
+     if not u["ok"] and u["grund"].startswith("Kernmaß unverändert"):
+         gew = [f"{b}: {basis_paar['bereiche'][b]['laufzeit_ms']} → {mess['bereiche'][b]['laufzeit_ms']}" for b in wirkungskreis
+@@ -602,19 +628,18 @@ def _verhandeln(con, lauf_id, werk, nummer, pfad, paket, bereiche, bstrassen, ba
+             with transaktion(con):
+                 con.execute("UPDATE kandidaten SET status='erzeugt', grund='' WHERE id=?", (kid,))
+             u2 = aegis.pruefen(con, lauf_id, werk["id"], kid, pfad, paket, bereiche, bstrassen, basis, ausgang, ref, tausch, extra_code={**extra, **anp})
++            if u2["status"] == aegis.ZURUECKGESTELLT:
++                # Messgerätausfall am Paar: keine Aussage über Kandidat oder Anpassung — nicht als gescheitert buchen.
++                with transaktion(con):
++                    con.execute("UPDATE kandidaten SET status=?, grund=? WHERE id=?", (aegis.ZURUECKGESTELLT, u2["grund"][:300], aid))
++                return u2
+             with transaktion(con):
+                 con.execute("UPDATE kandidaten SET status=?, grund=? WHERE id=?", ("verhandlung", f"Anpassung für Kandidat {kid} ({bereich}): Paar {u2['status']}", aid))
+             protokoll.schreiben(con, "verhandlung.paar", lauf_id=lauf_id, generation=nummer, kandidat=kid, anpassung=aid, nachbar=nb,
+                                 status=u2["status"], grund=u2["grund"][:300], vertrag_verletzt=u2.get("vertrag_verletzt"))
+             # Verhandlung bestanden (3.8 Schritt 2): das Paar verletzt keinen Vertrag und keine Pareto-Regel mehr.
+             # Ob das Paar dann auch einen Kernmaßgewinn hat (Annahme), entscheidet das Maß wie bei jedem Kandidaten.
+-            mass = u2.get("mass")
+-            paar_ok = (isinstance(mass, dict) and type(mass.get("ok")) is bool
+-                       and isinstance(mass.get("grund"), str) and bool(mass["grund"])
+-                       and all(type(mass.get(k)) in (int, float) for k in ("kern_basis", "kern_kandidat", "zuwachs"))
+-                       and u2.get("vertrag_verletzt") == []
+-                       and mass.get("pareto_schlechter") == [] and mass.get("grenzen_gerissen") == [])
+-            if paar_ok:
++            if paar_bestanden(u2):
+                 extra.update(anp); anpassungen.append(aid)
+                 u = u2
+                 break
+@@ -632,6 +657,33 @@ def _verhandeln(con, lauf_id, werk, nummer, pfad, paket, bereiche, bstrassen, ba
+     return u
+ 
+ 
++def paar_bestanden(u: dict) -> bool:
++    """Verhandlung bestanden (3.8 Schritt 2): Das Paar verletzt keinen Vertrag, keine Pareto-Regel, kein Grenzmaß —
++    und (Vorbedingung 4, T4) der Verhaltensvergleich fand keine ungedeckte Abweichung. Ob das Paar dann auch einen
++    Kernmaßgewinn hat (Annahme), entscheidet das Maß wie bei jedem Kandidaten. Befund Review 03 Nr. 5: eine Ablehnung
++    durch den Verhaltensvergleich ließ `paar_ok` wahr, beendete die Suche und schrieb „bestanden“."""
++    if u.get("status") == aegis.ZURUECKGESTELLT:
++        return False
++    mass = u.get("mass")
++    ok = (isinstance(mass, dict) and type(mass.get("ok")) is bool
++          and isinstance(mass.get("grund"), str) and bool(mass["grund"])
++          and all(type(mass.get(k)) in (int, float) for k in ("kern_basis", "kern_kandidat", "zuwachs"))
++          and u.get("vertrag_verletzt") == []
++          and mass.get("pareto_schlechter") == [] and mass.get("grenzen_gerissen") == [])
++    v = u.get("verhalten")
++    if isinstance(v, dict) and v.get("tragfaehig") is False:
++        return False
++    return ok
++
++
++def _kernmass_f2_roh(m: dict) -> int | None:
++    """Kernmaß F2 ohne Maßeichung (stillgelegte Regeln mitgezählt) — für das Protokoll, ausdrücklich als roh."""
++    if not m or not m.get("bereiche"):
++        return None
++    return -sum(x.get("tests_fehlgeschlagen", 0) + (x.get("sicherheit_punkte_roh", x.get("sicherheit_punkte")) or 0)
++                + x.get("tote_funktionen", 0) for x in m["bereiche"].values())
++
++
+ def generation0(con: sqlite3.Connection, lauf_id: int, mutanten_json: str | None, ziel: int) -> dict:
+     """Generation 0 (3.5): Mutanten messen, blinde Flecken durch Testbau schließen, erneut messen.
+     Läuft VOR dem Einfrieren des Maßes (die Tests des Werks dürfen evolutionieren; das Messgerät nicht).
+@@ -659,7 +711,10 @@ def generation0(con: sqlite3.Connection, lauf_id: int, mutanten_json: str | None
+     # F4: äquivalente Mutanten VOR der Zählung mit Beleg aussortieren
+     ref = _referenzlast(werk["name"], paket)
+     G0.aequivalenz_pruefen(con, lauf_id, pfad, ref, mutanten)
+-    vorher = G0.messen(con, lauf_id, werk["id"], pfad, mutanten, "vorher")
++    try:
++        vorher = G0.messen(con, lauf_id, werk["id"], pfad, mutanten, "vorher")
++    except G0.NichtGemessen as e:
++        raise LaufFehler(str(e)) from e
+     if ziel <= 1:  # Anteil (3.5: ≥ 80 von 100 nicht-äquivalenten) statt absoluter Zahl
+         import math as _math
+         ziel = _math.ceil(ziel * vorher["nicht_aequivalent"])
+@@ -680,6 +735,13 @@ def generation0(con: sqlite3.Connection, lauf_id: int, mutanten_json: str | None
+                 for p in r["neue_tests"]:
+                     (pfad / p).unlink(missing_ok=True); neue_gesamt.pop(p, None)
+                 raise LaufFehler("Generation 0: neuer Testbestand am Original nicht vollständig grün; Ergänzung zurückgenommen")
++            # Vorbedingung 6 (T4): die Prüfung zwischen den Runden baut den Typbau mit (tsc über src und tests).
++            bau = typescript.baulauf(pfad)
++            if not (bau.get("gueltig") and bau.get("baut")):
++                for p in r["neue_tests"]:
++                    (pfad / p).unlink(missing_ok=True); neue_gesamt.pop(p, None)
++                raise LaufFehler("Generation 0: neuer Testbestand bricht den Typbau; Ergänzung zurückgenommen: "
++                                 + G0._tsc_meldung(bau))
+         else:
+             e = kammer.ausfuehren(pfad, ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider", "--tb=line"], zeitlimit_s=120)
+             if e.rc != 0:
+@@ -687,12 +749,18 @@ def generation0(con: sqlite3.Connection, lauf_id: int, mutanten_json: str | None
+                 for p in list(r["neue_tests"]):
+                     if p.split("/")[-1] in e.stdout:
+                         (pfad / p).unlink(missing_ok=True); neue_gesamt.pop(p, None)
+-        zwischen = G0.messen(con, lauf_id, werk["id"], pfad, mutanten, "nachher")
++        try:
++            zwischen = G0.messen(con, lauf_id, werk["id"], pfad, mutanten, "nachher")
++        except G0.NichtGemessen as e:
++            raise LaufFehler(str(e)) from e
+         blind = zwischen["blind"]
+         protokoll.schreiben(con, "generation0.runde", lauf_id=lauf_id, runde=runde, gefangen=zwischen["gefangen"], gesamt=len(mutanten), neue_tests=sorted(r["neue_tests"]))
+         if zwischen["gefangen"] >= ziel and not blind:
+             break
+-    nachher = G0.messen(con, lauf_id, werk["id"], pfad, mutanten, "nachher")
++    try:
++        nachher = G0.messen(con, lauf_id, werk["id"], pfad, mutanten, "nachher")
++    except G0.NichtGemessen as e:
++        raise LaufFehler(str(e)) from e
+     if neue_gesamt:
+         lazarus.sicherstellen_repo(pfad)
+         lazarus._git(pfad, "add", "-A")
+diff --git a/biotop/nachspiel.py b/biotop/nachspiel.py
+index aa94276..4067402 100644
+--- a/biotop/nachspiel.py
++++ b/biotop/nachspiel.py
+@@ -254,6 +254,9 @@ def spielen(fall: dict, *, verhaltensvergleich_an: bool = True) -> dict:
+                                                                   "laufzeit_gewinne")},
+              "verhalten": u.get("verhalten"),
+              "laufzeit_ms": laufzeit,
++             "laufzeit_gepaart": u.get("laufzeit_gepaart"),
++             "laufzeit_bezug": (u.get("mass") or {}).get("laufzeit_bezug"),
++             "behauptungen": u.get("behauptungen"),
+              "kernmass_kandidat": _kernmass_beleg(masse, fall["eichung"]) if masse.get("bereiche") else None,
+              "kernmass_vorgeneration": _kernmass_beleg(masse.get("_basis_paar") or {}, fall["eichung"])
+              if (masse.get("_basis_paar") or {}).get("bereiche") else None,
+diff --git a/biotop/organe/aegis.py b/biotop/organe/aegis.py
+index 95cf1a6..21dfbe3 100644
+--- a/biotop/organe/aegis.py
++++ b/biotop/organe/aegis.py
+@@ -198,12 +198,10 @@ def _anhaengen(alt: str, neu: str, behalten: set[str]) -> str | None:
+     """Alte Testdatei unverändert + die gültigen neuen Funktionen (und neue Imports) des Kandidaten angehängt."""
+     con, lauf_id = _zaehlkontext()
+     if sprachprofil.tests_ist_ts(alt) or sprachprofil.tests_ist_ts(neu):
+-        # TypeScript-Tests gehören in eine eigene Datei; vorhandenen Testkontext nicht
+-        # ersetzen. Das ist ein „nein" zu diesem Anhängeversuch, kein Messgerätfehler —
+-        # der Python-Zweig unten gibt bei unbrauchbarer Eingabe ebenfalls None zurück,
+-        # und der einzige Aufrufer (aegis.py:671) prüft genau darauf.
+-        neutralzaehler.neutral(con, lauf_id, "aegis._anhaengen", "typescript_eigene_datei")
+-        return None
++        # Vorbedingung 9 (T4): Immunisierung auf dem TypeScript-Pfad. Bis T3 gab dieser Zweig immer None zurück —
++        # 0 von 0 Fällen, die Torzeile 3.10 F3 war für TypeScript nicht belegbar. Jetzt: alte Datei unverändert,
++        # dazu die neuen Importe und die gültigen neuen test()-Blöcke (Syntaxbaum des Kerns, nicht Textanker).
++        return _anhaengen_ts(con, lauf_id, alt, neu, behalten)
+     try:
+         ba, bn = ast.parse(alt), ast.parse(neu)
+     except SyntaxError:
+@@ -220,6 +218,41 @@ def _anhaengen(alt: str, neu: str, behalten: set[str]) -> str | None:
+     return alt.rstrip("\n") + "\n\n\n" + ast.unparse(ast.Module(body=zusatz, type_ignores=[])) + "\n"
+ 
+ 
++_IMPORT_TS = re.compile(r"^import\b[\s\S]*?\bfrom\s*['\"][^'\"]+['\"]\s*;?[ \t]*$|^import\s*['\"][^'\"]+['\"]\s*;?[ \t]*$", re.M)
++
++
++def _anhaengen_ts(con, lauf_id, alt: str, neu: str, behalten: set[str]) -> str | None:
++    from ..kern import typescript
++    try:
++        alt_namen = {t["name"] for t in typescript.testfunktionen(alt)}
++    except typescript.TypeScriptFehler:
++        alt_namen = set()
++    neu_namen = sorted(set(behalten) - alt_namen)
++    if not alt_namen and alt.strip():
++        neutralzaehler.neutral(con, lauf_id, "aegis._anhaengen", "syntaxfehler")
++        return None
++    nur = typescript.nur_tests(neu, set(neu_namen)) if neu_namen else None
++    if not nur:
++        neutralzaehler.neutral(con, lauf_id, "aegis._anhaengen", "nichts_anzuhaengen")
++        return None
++    alt_imports = {" ".join(m.group(0).split()) for m in _IMPORT_TS.finditer(alt)}
++    neue_imports = [m.group(0) for m in _IMPORT_TS.finditer(nur) if " ".join(m.group(0).split()) not in alt_imports]
++    rumpf = _IMPORT_TS.sub("", nur).strip()
++    kopf_ende = max((m.end() for m in _IMPORT_TS.finditer(alt)), default=0)
++    ergebnis = (alt[:kopf_ende] + ("\n" if kopf_ende else "") + "\n".join(neue_imports) + "\n" + alt[kopf_ende:].rstrip()
++                + "\n\n" + rumpf + "\n")
++    try:
++        namen = {t["name"] for t in typescript.testfunktionen(ergebnis)}
++    except typescript.TypeScriptFehler:
++        namen = set()
++    if namen != alt_namen | set(neu_namen):
++        # Zusammenfügen gescheitert (z. B. doppelte Bindung) — nie eine halbe Datei ins Werk
++        neutralzaehler.neutral(con, lauf_id, "aegis._anhaengen", "zusammenfuegen_gescheitert")
++        return None
++    neutralzaehler.geurteilt(con, lauf_id, "aegis._anhaengen", ", ".join(neu_namen[:3]))
++    return ergebnis
++
++
+ def _namen(r: dict, praefix: str, **filt) -> set[str]:
+     out = set()
+     for n, x in r.items():
+@@ -596,6 +629,16 @@ def wirkungskreis_dateien(bereich, dateien, paket, bstrassen):
+     return sorted({b for a in betroffen for b in landkarte.wirkungskreis(a, bstrassen)})
+ 
+ 
++ZURUECKGESTELLT = "zurueckgestellt"
++
++
++def _zurueckstellen(fertig, kandidat_id: int, grund: str) -> dict:
++    """Messgerätausfall (Sonde, Kammer an der Vorgeneration, gepaarte Laufzeit): der Kandidat wird zurückgestellt.
++    Kein Urteil über ihn — der Lauf bucht ihn weder als Ablehnung noch ins Projekt- oder Artgedächtnis noch in den
++    Bandit (Vorbedingung 3, T4)."""
++    return fertig(ZURUECKGESTELLT, "Messgerätausfall — zurückgestellt: " + grund)
++
++
+ def pruefen(con: sqlite3.Connection, lauf_id: int, werk_id: int, kandidat_id: int, werk: Path, paket: str,
+             bereiche: list[str], bstrassen: list[tuple[str, str]], basis: dict, ausgang: dict,
+             referenzlast: str | None, tausch: dict | None, extra_code: dict[str, str] | None = None,
+@@ -632,6 +675,7 @@ def pruefen(con: sqlite3.Connection, lauf_id: int, werk_id: int, kandidat_id: in
+                             # rekonstruierbar — gemessen in Lauf 37: 0 von 210 Urteilen trugen sie,
+                             # obwohl 42 Angriffe liefen.
+                             behauptungen=urteil.get("behauptungen") or {},
++                            behauptungen_treffer=urteil.get("behauptungen_treffer") or [],
+                             aufnahmesperre=urteil.get("aufnahmesperre") or {},
+                             # Verhaltensvergleich und Maßeichung stehen im Protokoll, damit jede Annahme
+                             # zeigt, ob das Verhalten verglichen und welche Regeln nicht gezählt wurden.
+@@ -669,10 +713,20 @@ def pruefen(con: sqlite3.Connection, lauf_id: int, werk_id: int, kandidat_id: in
+ 
+     # Testbestand des Kandidaten aufbauen
+     testbestand: dict[str, str] = {}
+-    # a) Befundklassen-Immuntests (Bereich trägt in der Vorgeneration einen statischen Befund)
+-    bk = befundklassen_tests(con, werk_id, bereich, basis)
++    # a) Befundklassen-Immuntests (Bereich trägt in der Vorgeneration einen statischen Befund). Entscheidung
++    #    Chat-Claude (Fassung 8, Grundsatz 10): Schwarm und Ankläger lesen das GEEICHTE Maß — eine stillgelegte Regel
++    #    löst weder Befundklassen-Tests noch das schwere Angriffsmodell aus.
++    basis_g = masseichung.anwenden(basis, (tausch or {}).get("_masseichung"))
++    # Befundklassen-Immuntests für JEDEN Bereich, dessen Quelltext der Kandidat ändert — auch über `extra_code`
++    # (Anpassung des Nachbarn in der Verhandlung). Befund vor T4: Die S1-Behebung K2867+K2868 kam über den Nachbarn
++    # `tarife` ins Werk, geprüft wurden nur die Befundklassen von `zahlen`; die Randfälle des Verhaltensvergleichs
++    # zeigten die beabsichtigte Verhaltensänderung von `ausdruck`, und kein Test deckte sie.
++    bk = {}
++    for b_ in sorted({bereich} | {p.split("/")[1] for p in code if p.startswith(paket + "/") and p.count("/") >= 2}):
++        if b_ in basis_g["bereiche"]:
++            bk.update(befundklassen_tests(con, werk_id, b_, basis_g))
+     testbestand.update(bk)
+-    urteil["befundklassen"] = sorted({b["test"] for b in basis["bereiche"][bereich].get("sicherheit_befunde", [])})
++    urteil["befundklassen"] = sorted({b["test"] for b in basis_g["bereiche"][bereich].get("sicherheit_befunde", [])})
+     # b) offene Immuntests des Bereichs
+     for z in con.execute("SELECT name, code FROM immunsystem WHERE werk_id=? AND bereich=? AND status IN ('gefunden','offen')", (werk_id, bereich)):
+         testbestand[f"tests/test_{bereich}_immun_{z['name']}" + sprachprofil.testendung(werk)] = z["code"]
+@@ -768,7 +822,10 @@ def pruefen(con: sqlite3.Connection, lauf_id: int, werk_id: int, kandidat_id: in
+         einzig, doppel = _doppelungen(treffer, {**r_k, **{k2: v for k2, v in r_b.items() if k2 not in r_k or r_k[k2]["ok"]}},
+                                       ad, con, werk_id, bereich, code=angriff, paket=paket)
+         urteil["doppelungen"] = sorted(doppel)
+-        urteil["behauptungen"] = {n: behauptung(angriff, n, paket) for n in sorted(treffer)}
++        # Vorbedingung 9 (T4): Behauptung für ALLE erzeugten Angriffstests, nicht nur die Treffer — nur so ist der
++        # Doppelungsanteil nach der Methode aus Vorbedingung 1 messbar (T3 Lauf 38: 9 von 87 aufgezeichnet).
++        urteil["behauptungen"] = {n: behauptung(angriff, n, paket) for n in sorted(_namen(r_k, ad) | _namen(r_b, ad))}
++        urteil["behauptungen_treffer"] = sorted(treffer)
+         gefunden = einzig
+         if gefunden:
+             # Aufnahmesperre C (F7): der Schlüssel des GESCHRIEBENEN Tests gegen den Vorrat, vor der Aufnahme.
+@@ -828,13 +885,27 @@ def pruefen(con: sqlite3.Connection, lauf_id: int, werk_id: int, kandidat_id: in
+     mess = messgeraet.messen(werk, bereiche, paket, referenzlast, dateien={**code, **testbestand_mit_vertraegen})
+     for name, mm in (("Vorgeneration", basis_paar), ("Kandidat", mess)):
+         if not mm["gueltig"]:
+-            return fertig("abgelehnt", f"Kammer ({name}): {mm['grund']} (rc={mm.get('rc')})", mess if name == "Kandidat" else None)
++            if name == "Vorgeneration":
++                # Die Vorgeneration ist nicht der Kandidat: ihr Messausfall ist ein Messgerätausfall (Review 03 Nr. 3).
++                return _zurueckstellen(fertig, kandidat_id, f"Kammer (Vorgeneration): {mm['grund']} (rc={mm.get('rc')})")
++            return fertig("abgelehnt", f"Kammer ({name}): {mm['grund']} (rc={mm.get('rc')})", mess)
+     # Maßeichung (T3, Befund Lauf 37/38): Regeln, die im sauberen Vergleichsbereich anschlagen, zählen nicht.
+     # Beide Seiten des Paars werden mit derselben, vor dem Lauf versiegelten Eichung bewertet.
+     eichung_mass = (tausch or {}).get("_masseichung")
+     basis_paar = masseichung.anwenden(basis_paar, eichung_mass)
+     mess = masseichung.anwenden(mess, eichung_mass)
+-    u = messgeraet.urteil_f2(basis_paar, mess, ausgang, bereiche, urteil["wirkungskreis"], tausch, nische=k["nische"])
++    # Vorbedingung 1 (T4, Grundsatz 14): zuerst ohne Laufzeit urteilen. Nur wenn die Laufzeit das Urteil noch
++    # entscheiden kann, Vorgeneration und Kandidat GEPAART messen (abwechselnd, je Seite Median) und damit urteilen —
++    # nie gegen ein historisches Minimum und nie am Einzelwert.
++    u = messgeraet.urteil_f2(basis_paar, mess, ausgang, bereiche, urteil["wirkungskreis"], tausch, nische=k["nische"],
++                             laufzeit_pruefen=False)
++    if referenzlast and messgeraet.laufzeit_entscheidet(u, k["nische"]):
++        lz = messgeraet.laufzeit_gepaart(werk, bereiche, paket, referenzlast, {}, code)
++        urteil["laufzeit_gepaart"] = lz
++        if not lz["gueltig"]:
++            return _zurueckstellen(fertig, kandidat_id, "Laufzeitmessung gepaart: " + lz["grund"])
++        basis_paar, mess = messgeraet.laufzeit_einsetzen(basis_paar, mess, lz)
++        u = messgeraet.urteil_f2(basis_paar, mess, ausgang, bereiche, urteil["wirkungskreis"], tausch, nische=k["nische"])
+     urteil["mass"] = u
+     fb = set(basis_paar["werk"]["tests_fehlgeschlagen_liste"]); fk = set(mess["werk"]["tests_fehlgeschlagen_liste"])
+     urteil["vertrag_verletzt"] = vertraege.verletzt(fb, fk)
+@@ -859,9 +930,15 @@ def pruefen(con: sqlite3.Connection, lauf_id: int, werk_id: int, kandidat_id: in
+     # aber falsch" geprüft — Vorgeneration und Kandidat laufen durch dieselbe Sonde. Jede Abweichung braucht
+     # einen Test, der an der Vorgeneration fällt, am Kandidaten besteht und die Funktion aufruft.
+     behoben = fb - fk
+-    vv = verhaltensvergleich.pruefen(
+-        werk, code, referenzlast, bereiche,
+-        lambda: verhaltensvergleich.deckende_tests(werk, testbestand_mit_vertraegen, behoben))
++    try:
++        vv = verhaltensvergleich.pruefen(
++            werk, code, referenzlast, bereiche,
++            lambda: verhaltensvergleich.deckende_tests(werk, testbestand_mit_vertraegen, behoben))
++    except verhaltensvergleich.SondeAusgefallen as e:
++        # Vorbedingung 3 (T4): Ein Sondenausfall ist ein Messgerätausfall — keine Ablehnung, kein Gedächtniseintrag.
++        z_con, z_lauf = _zaehlkontext()
++        neutralzaehler.neutral(z_con, z_lauf, "verhaltensvergleich", "sonde_ausgefallen", f"K{kandidat_id}")
++        return _zurueckstellen(fertig, kandidat_id, f"Verhaltenssonde ausgefallen: {e}")
+     urteil["verhalten"] = verhaltensvergleich.kurz(vv)
+     z_con, z_lauf = _zaehlkontext()
+     if vv.get("geurteilt"):
+diff --git a/biotop/organe/eichproben.py b/biotop/organe/eichproben.py
+index cd97578..1954ec9 100644
+--- a/biotop/organe/eichproben.py
++++ b/biotop/organe/eichproben.py
+@@ -94,35 +94,6 @@ def _lahmlegen(pfad: Path, paket: str, bereich: str, alle: bool = False) -> tupl
+                     for datei, alt in quellen.items()), "; ".join(reversed(beschreibung)))
+ 
+ 
+-def _beschleunigen(pfad: Path, paket: str, bereich: str) -> tuple[str, str]:
+-    """Eine reine Funktion des Bereichs mit einem Merkspeicher versehen → Laufzeit sinkt messbar."""
+-    for datei, fn in _funktionen(pfad, paket, bereich):
+-        if fn.args.args and not any(a.arg == "self" for a in fn.args.args):
+-            quelle = datei.read_text()
+-            zeilen = quelle.splitlines()
+-            speicher = f"_eichprobe_speicher_{fn.name}"
+-            einzug = " " * (fn.col_offset + 4)
+-            args = ", ".join(a.arg for a in fn.args.args)
+-            ziel = fn.body[0].lineno - 1
+-            if isinstance(fn.body[0], ast.Expr) and isinstance(getattr(fn.body[0], "value", None), ast.Constant) \
+-                    and isinstance(fn.body[0].value.value, str):
+-                ziel = (fn.body[0].end_lineno or fn.body[0].lineno)
+-            kopf = [f"{einzug}_s = {speicher}",
+-                    f"{einzug}try:",
+-                    f"{einzug}    _k = ({args},)",
+-                    f"{einzug}    if _k in _s:",
+-                    f"{einzug}        return _s[_k]",
+-                    f"{einzug}except TypeError:",
+-                    f"{einzug}    _k = None"]
+-            rumpf = zeilen[ziel:]
+-            # Rückgaben durch Merken ersetzen: nur die erste Ebene, sonst zu invasiv
+-            neu = zeilen[:ziel] + kopf + rumpf
+-            neu = [f"{speicher} = {{}}", ""] + neu
+-            rel = str(datei.relative_to(pfad))
+-            return _diff(rel, quelle, "\n".join(neu) + "\n"), f"{rel}::{fn.name} bekommt einen Merkspeicher"
+-    raise RuntimeError(f"Bereich {bereich} hat keine geeignete Funktion — Probe nicht baubar")
+-
+-
+ def _gruene_tests(bereich: str, n: int = 3, werk: Path | None = None) -> tuple[str, str]:
+     from ..kern import sprachprofil
+     if werk is not None and sprachprofil.ist_typescript(werk):
+diff --git a/biotop/organe/eichung.py b/biotop/organe/eichung.py
+index 7543d38..fe7a0a4 100644
+--- a/biotop/organe/eichung.py
++++ b/biotop/organe/eichung.py
+@@ -212,6 +212,9 @@ def rauschmessung(con: sqlite3.Connection, lauf_id: int, werk_id: int, pfad: Pat
+                         bereiche={b: {k: ergebnis[b].get(k) for k in ("toleranz", "spannweite", "median", "werte",
+                                                                       "aussetzer", "serie", "befund_referenzlast")}
+                                   for b in bereiche},
++                        # Liste nach T3: die Einzelwerte ungerundet, in Messreihenfolge — die gerundeten, sortierten
++                        # `werte` ließen Drift (bericht, Lauf 28) nicht von Aufwärmung unterscheiden.
++                        rohwerte={b: roh[b] for b in bereiche},
+                         regel="Fassung 6: 5 Werte, getrimmte Spannweite, Deckel 2,0, Meldeschwelle 1,5, "
+                               "Aussetzer über 5x Median verworfen und einmal nachgemessen; Sperre bereichsweise")
+     if not startet:
+diff --git a/biotop/organe/gedaechtnis.py b/biotop/organe/gedaechtnis.py
+index c3637a5..907d5bc 100644
+--- a/biotop/organe/gedaechtnis.py
++++ b/biotop/organe/gedaechtnis.py
+@@ -191,6 +191,27 @@ def werkname(con, werk_id: int) -> str:
+     return (b or {}).get("werkidentitaet") or (b or {}).get("paket") or "werk"
+ 
+ 
++def _beruehrte_bereiche(diff: str) -> set[str]:
++    """Bereiche, deren Quelltext der Diff ändert (zweites Pfadsegment unter der Quellwurzel, z. B. src/<bereich>/…)."""
++    return {m.group(1) for d in re.findall(r"^\+\+\+ b/(\S+)", diff or "", re.M)
++            if (m := re.match(r"[^/]+/([^/]+)/", d)) and not d.startswith("tests/")}
++
++
++def laufzeit_sperrt(grund: str, diff: str) -> bool:
++    """Vorbedingung 10 (T4): Ein Laufzeit-Grenzmaß sperrt einen Weg nur, wenn der Kandidat den Bereich berührt hat
++    UND die gepaarte Messung die Verschlechterung bestätigt. Risse in unberührten Bereichen sperren nie.
++    Befund T3: 17 von 207 Ablehnungen in Lauf 38 waren Sperren über das Gedächtnis, deren Ursprung ein Laufzeitriss
++    am Einzelwert war — 34 von 41 in Bereichen, die der Kandidat nicht berührt hatte."""
++    risse = re.findall(r"(\w+)\.laufzeit_ms: [^;]*", grund or "")
++    if not risse:
++        return True
++    beruehrt = _beruehrte_bereiche(diff)
++    for m in re.finditer(r"(\w+)\.laufzeit_ms: ([^;]*)", grund):
++        if m.group(1) in beruehrt and "gepaart" in m.group(2):
++            return True
++    return False
++
++
+ def projekt_merken(con, werk_id: int, lauf_id: int, kandidat_id: int, werk_pfad, dateien_neu: dict | None = None) -> None:
+     """Nach einer Ablehnung: den gescheiterten Weg aufnehmen. Probenkandidaten NICHT (Fassung 6)."""
+     tabellen(con)
+@@ -202,11 +223,15 @@ def projekt_merken(con, werk_id: int, lauf_id: int, kandidat_id: int, werk_pfad,
+                             gedaechtnis="projekt", nische=k["nische"], bereich=k["bereich"],
+                             grund="Probenkandidat — kommt in kein Gedächtnis (Fassung 6); bleibt in der Datenbank sichtbar")
+         return
++    klasse = grundklasse(k["grund"])
++    if klasse == "grenzmass" and not laufzeit_sperrt(k["grund"], k["diff"]):
++        # sichtbar im Gedächtnis, sperrt aber nicht (wie 'technisch' von gescheiterte_wege/wiederholung ausgenommen)
++        klasse = "laufzeit_unbestaetigt"
+     dateien, funktionen, ansatz = aenderungsziel(werk_pfad, k["diff"], dateien_neu)
+     with transaktion(con):
+         con.execute("INSERT OR IGNORE INTO projektgedaechtnis(werk, werk_id, lauf_id, generation, kandidat_id, bereich, nische, dateien, funktionen, ansatz, grund, grundklasse, begruendung, erstellt_am) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                     (werkname(con, werk_id), werk_id, lauf_id, k["generation"], kandidat_id, k["bereich"], k["nische"], j(dateien), j(funktionen), j(ansatz),
+-                     (k["grund"] or "")[:400], grundklasse(k["grund"]), (k["begruendung"] or "")[:400], protokoll.jetzt()))
++                     (k["grund"] or "")[:400], klasse, (k["begruendung"] or "")[:400], protokoll.jetzt()))
+ 
+ 
+ def gescheiterte_wege(con, werk_id: int, bereich: str, limit: int = 15) -> list[dict]:
+@@ -217,7 +242,8 @@ def gescheiterte_wege(con, werk_id: int, bereich: str, limit: int = 15) -> list[
+     tabellen(con)
+     return [dict(z) for z in con.execute(
+         "SELECT p.* FROM projektgedaechtnis p JOIN laeufe l ON l.id = p.lauf_id "
+-        "WHERE p.werk=? AND p.bereich=? AND p.grundklasse!='technisch' AND l.status != 'verworfen' ORDER BY p.id DESC LIMIT ?",
++        "WHERE p.werk=? AND p.bereich=? AND p.grundklasse NOT IN ('technisch','laufzeit_unbestaetigt') "
++        "AND l.status != 'verworfen' ORDER BY p.id DESC LIMIT ?",
+         (werkname(con, werk_id), bereich, limit))]
+ 
+ 
+@@ -235,7 +261,8 @@ def wiederholung(con, werk_id: int, bereich: str, werk_pfad, diff: str, dateien_
+     dateien, funktionen, ansatz = aenderungsziel(werk_pfad, diff, dateien_neu)
+     beste = None
+     for w in con.execute("SELECT p.* FROM projektgedaechtnis p JOIN laeufe l ON l.id = p.lauf_id "
+-                         "WHERE p.werk=? AND p.bereich=? AND p.grundklasse!='technisch' AND l.status != 'verworfen'",
++                         "WHERE p.werk=? AND p.bereich=? AND p.grundklasse NOT IN ('technisch','laufzeit_unbestaetigt') "
++                         "AND l.status != 'verworfen'",
+                          (werkname(con, werk_id), bereich)):
+         wf, wd, wa = set(lj(w["funktionen"]) or []), set(lj(w["dateien"]) or []), lj(w["ansatz"]) or []
+         ziel_gleich = bool(wf & set(funktionen)) or (not wf and not funktionen and bool(wd & set(dateien)))
+diff --git a/biotop/organe/generation0.py b/biotop/organe/generation0.py
+index c471992..76575f9 100644
+--- a/biotop/organe/generation0.py
++++ b/biotop/organe/generation0.py
+@@ -121,8 +121,27 @@ def zaehlkontext_setzen(con, lauf_id) -> None:
+     _ZAEHLKONTEXT = (con, lauf_id)
+ 
+ 
++def _tsc_meldung(bau: dict, n: int = 3) -> str:
++    """Die ersten `n` Fehlerzeilen des Typbaus (Vorbedingung 6, T4: in T3 trugen 200 von 200 Neutralfällen keine
++    Meldung — welche Datei den Typbau brach, war nicht rekonstruierbar)."""
++    text = str(((bau.get("prozess") or {}).get("stdout")) or bau.get("grund") or "")
++    zeilen = [z.strip() for z in text.splitlines() if "error TS" in z]
++    return " | ".join(zeilen[:n])[:600] or text.strip()[:300]
++
++
++class NichtGemessen(RuntimeError):
++    """Grundsatz 13: Ein Mutanten-Durchlauf, in dem überwiegend neutral geurteilt wurde, ist nicht gemessen."""
++
++
+ def _testlauf(werk: Path, dateien: dict[str, str]) -> tuple[bool, str]:
+     """True = mindestens ein Test fällt (Mutant gefangen). Rückgabe (gefangen, fallende Tests)."""
++    r = _testlauf_urteil(werk, dateien)
++    return r["gefangen"], r["von"]
++
++
++def _testlauf_urteil(werk: Path, dateien: dict[str, str]) -> dict:
++    """Wie _testlauf, aber mit ausdrücklichem Merkmal `neutral` (kein Verhaltensfang, aber auch kein Urteil) —
++    `messen` zählt daran die Mehrheitsregel je Durchlauf, nicht am Meldungstext (Grundsatz 6)."""
+     con, lauf_id = _zaehlkontext()
+     if sprachprofil.ist_typescript(werk):
+         from ..kern import typescript
+@@ -136,28 +155,35 @@ def _testlauf(werk: Path, dateien: dict[str, str]) -> tuple[bool, str]:
+         if not bau.get("gueltig"):
+             raise RuntimeError("Mutantenfang: Typbau nicht ausgeführt: " + str(bau.get("grund")))
+         if not bau.get("baut"):
+-            neutralzaehler.neutral(con, lauf_id, "generation0._testlauf", "typbau_nicht_bestanden")
+-            return False, "Typbau nicht bestanden (kein Verhaltensfang): " + str(bau.get("grund") or "")[:120]
++            meldung = _tsc_meldung(bau)
++            neutralzaehler.neutral(con, lauf_id, "generation0._testlauf", "typbau_nicht_bestanden", meldung)
++            return {"gefangen": False, "neutral": True, "grund": "typbau_nicht_bestanden",
++                    "von": "Typbau nicht bestanden (kein Verhaltensfang): " + meldung[:300]}
+         r = typescript.testlauf(werk, dateien)
+         if not r.get("gueltig"):
+             if r.get("art") == "inhalt":
+-                neutralzaehler.neutral(con, lauf_id, "generation0._testlauf", "testnachweis_unbrauchbar")
+-                return False, "Testnachweis unbrauchbar (kein Verhaltensfang): " + str(r.get("grund"))[:120]
++                neutralzaehler.neutral(con, lauf_id, "generation0._testlauf", "testnachweis_unbrauchbar", str(r.get("grund"))[:300])
++                return {"gefangen": False, "neutral": True, "grund": "testnachweis_unbrauchbar",
++                        "von": "Testnachweis unbrauchbar (kein Verhaltensfang): " + str(r.get("grund"))[:120]}
+             raise RuntimeError("Mutantenfang: Vitest-Nachweis fehlt/abgebrochen: " + str(r.get("grund")))
+         if not r.get("faelle"):
+             neutralzaehler.neutral(con, lauf_id, "generation0._testlauf", "keine_testfaelle")
+-            return False, "keine ausgeführten Testfälle (kein Verhaltensfang)"
++            return {"gefangen": False, "neutral": True, "grund": "keine_testfaelle",
++                    "von": "keine ausgeführten Testfälle (kein Verhaltensfang)"}
+         if any(not x["ok"] and not x.get("bestaetigt") for x in r["faelle"].values()):
+             unbestaetigt = sorted(n for n, x in r["faelle"].items() if not x["ok"] and not x.get("bestaetigt"))
+             neutralzaehler.neutral(con, lauf_id, "generation0._testlauf", "ohne_bestaetigung",
+                                    ", ".join(unbestaetigt[:3]))
+-            return False, "Testfehler ohne Bestätigung im Werk (kein Verhaltensfang): " + ", ".join(unbestaetigt[:3])
++            return {"gefangen": False, "neutral": True, "grund": "ohne_bestaetigung",
++                    "von": "Testfehler ohne Bestätigung im Werk (kein Verhaltensfang): " + ", ".join(unbestaetigt[:3])}
+         fallen = sorted(n for n, x in r["faelle"].items() if not x["ok"] and x["bestaetigt"])
+         neutralzaehler.geurteilt(con, lauf_id, "generation0._testlauf", ", ".join(fallen[:3]))
+-        return bool(fallen), ", ".join(fallen)
++        return {"gefangen": bool(fallen), "neutral": False, "grund": None, "von": ", ".join(fallen)}
+     e = kammer.ausfuehren(werk, ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider", "--tb=no", "-x", "-q"], zeitlimit_s=90, dateien=dateien)
+     fallen = re.findall(r"^FAILED (\S+)", e.stdout, re.M)
+     gefangen = e.rc != 0
++    return {"gefangen": gefangen, "neutral": False, "grund": None,
++            "von": ", ".join(fallen[:3]) or ("Zeitlimit/Absturz" if gefangen and not fallen else "")}
+     return gefangen, ", ".join(fallen[:3]) or ("Zeitlimit/Absturz" if gefangen and not fallen else "")
+ 
+ 
+@@ -261,9 +287,14 @@ def _aequivalenz_typescript(con, lauf_id, werk, ref, mutanten):
+ def messen(con: sqlite3.Connection, lauf_id: int, werk_id: int, werk: Path, mutanten: list[dict], phase: str) -> dict:
+     """Lässt jeden Mutanten gegen den aktuellen Testbestand laufen. phase: 'vorher' | 'nachher'."""
+     _tabelle(con)
+-    gefangen = 0
++    gefangen = neutral = 0
++    neutral_gruende: dict[str, int] = {}
+     for i, m in enumerate(mutanten, 1):
+-        g, von = _testlauf(werk, {m["datei"]: m["code"]})
++        tu = _testlauf_urteil(werk, {m["datei"]: m["code"]})
++        g, von = tu["gefangen"], tu["von"]
++        if tu["neutral"]:
++            neutral += 1
++            neutral_gruende[tu["grund"]] = neutral_gruende.get(tu["grund"], 0) + 1
+         if not m.get("aequivalent"):
+             gefangen += g
+         with transaktion(con):
+@@ -275,9 +306,20 @@ def messen(con: sqlite3.Connection, lauf_id: int, werk_id: int, werk: Path, muta
+         m["gefangen_" + phase] = g
+         m["gefangen_von"] = von
+     nicht_aeq = [m for m in mutanten if not m.get("aequivalent")]
++    # Grundsatz 13 (Vorbedingung 6, T4): Mehrheitsregel JE DURCHLAUF. Wurde überwiegend neutral geurteilt, ist der
++    # Durchlauf „nicht gemessen“ — nie „nichts gefangen“. Er liefert keine Blindenliste und löst keine Entscheidung aus.
++    gemessen = not (mutanten and neutral * 2 > len(mutanten))
+     protokoll.schreiben(con, f"generation0.{phase}", lauf_id=lauf_id, gefangen=gefangen, gesamt=len(mutanten), nicht_aequivalent=len(nicht_aeq),
+-                        blind=[f"#{i} {m['datei']}:{m['zeile']} {m['beschreibung']}" for i, m in enumerate(mutanten, 1) if not m["gefangen_" + phase] and not m.get("aequivalent")])
+-    return {"gefangen": gefangen, "gesamt": len(mutanten), "nicht_aequivalent": len(nicht_aeq),
++                        neutral=neutral, neutral_gruende=neutral_gruende, gemessen=gemessen,
++                        bezugsgroesse=f"{len(mutanten) - neutral} von {len(mutanten)} Mutantenläufen geurteilt",
++                        blind=[f"#{i} {m['datei']}:{m['zeile']} {m['beschreibung']}" for i, m in enumerate(mutanten, 1) if not m["gefangen_" + phase] and not m.get("aequivalent")] if gemessen else None)
++    if not gemessen:
++        protokoll.schreiben(con, "generation0.nicht_gemessen", lauf_id=lauf_id, phase=phase, neutral=neutral,
++                            gesamt=len(mutanten), gruende=neutral_gruende,
++                            regel="Grundsatz 13: überwiegend neutral = nicht gemessen; keine Entscheidung")
++        raise NichtGemessen(f"Generation 0, Durchlauf {phase}: {neutral} von {len(mutanten)} Mutantenläufen neutral "
++                            f"({neutral_gruende}) — nicht gemessen, keine Entscheidung (Grundsatz 13)")
++    return {"gefangen": gefangen, "gesamt": len(mutanten), "nicht_aequivalent": len(nicht_aeq), "neutral": neutral,
+             "blind": [m for m in nicht_aeq if not m["gefangen_" + phase]]}
+ 
+ 
+@@ -375,6 +417,14 @@ def _tests_typescript(con, lauf_id, werk_id, werk, paket, blind, nummern):
+                 r0 = typescript.testlauf(werk, {**neu, pfad: code}, [pfad])
+                 r1 = typescript.testlauf(werk, {**neu, pfad: code, m['datei']: m['code']}, [pfad])
+                 besteht = bool(r0.get('gueltig') and r0.get('faelle') and all(x['ok'] for x in r0['faelle'].values()))
++                if besteht:
++                    # Vorbedingung 6 (T4): Vitest prüft keine Typen — ein Test, der unter Vitest besteht und den Typbau
++                    # (tsc über src UND tests) bricht, machte in T3 jeden folgenden Mutantenlauf neutral.
++                    bau = typescript.baulauf(werk, {**neu, pfad: code})
++                    if not (bau.get('gueltig') and bau.get('baut')):
++                        protokoll.schreiben(con, 'generation0.testkandidat_typbau', lauf_id=lauf_id, mutant=nummern[id(m)],
++                                            modell=modell, meldung=_tsc_meldung(bau))
++                        besteht = False
+                 faengt = bool(r1.get('gueltig') and r1.get('faelle') and
+                               any(not x['ok'] and x.get('bestaetigt') for x in r1['faelle'].values()) and
+                               all(x['ok'] or x.get('bestaetigt') for x in r1['faelle'].values()))
+diff --git a/biotop/organe/masseichung.py b/biotop/organe/masseichung.py
+index 21f9da8..cce764e 100644
+--- a/biotop/organe/masseichung.py
++++ b/biotop/organe/masseichung.py
+@@ -109,7 +109,18 @@ def anwenden(messung: dict, eichung: dict | None) -> dict:
+     rechnen Kernmaß, Pareto und jeder spätere Leser mit derselben geeichten Zahl.
+     Idempotent: eine bereits geeichte Messung wird nicht ein zweites Mal verändert.
+     """
+-    if not messung or not eichung or not eichung.get("stillgelegt") or messung.get("_masseichung"):
++    if not messung:
++        return messung
++    schon = messung.get("_masseichung")
++    if schon:
++        # Vorbedingung 5 (T4): „schon geeicht“ nur, wenn es DIESELBE Eichung war — sonst bliebe eine andere
++        # Eichung still wirkungslos (Review 03 Nr. 20). Ohne übergebene Eichung wird nichts behauptet.
++        if eichung is not None and (sorted(eichung.get("stillgelegt") or []) != list(schon.get("stillgelegt") or [])
++                                    or eichung.get("sauberer_bereich") != schon.get("sauberer_bereich")):
++            raise MasseichungFehler(f"Messung trägt eine andere Eichung ({schon}) als die übergebene "
++                                    f"({ {k: eichung.get(k) for k in ('sauberer_bereich', 'stillgelegt')} })")
++        return messung
++    if not eichung or not eichung.get("stillgelegt"):
+         return messung
+     still = set(eichung["stillgelegt"])
+     out = dict(messung)
+@@ -123,9 +134,37 @@ def anwenden(messung: dict, eichung: dict | None) -> dict:
+                               "sicherheit_befunde": zaehlt, "sicherheit_stillgelegt": ruht}
+     out["_masseichung"] = {"sauberer_bereich": eichung.get("sauberer_bereich"),
+                            "stillgelegt": sorted(still)}
++    # Vorbedingung 8 (T4): Das Kernmaß wird geeicht geführt, das rohe gekennzeichnet (Review 03 Nr. 21: `kernmass`
++    # blieb roh und stand ungekennzeichnet neben dem geeichten `kernmass_f2`).
++    formel = _kernmass_formel(messung)
++    out["kernmass_roh"] = messung.get("kernmass")
++    out["kernmass_formel"] = formel or "unbekannt — Feld kernmass bleibt roh"
++    if formel:
++        out["kernmass"] = _kernmass(out, formel)
+     return out
+ 
+ 
++def _kernmass(m: dict, formel: str) -> int:
++    b = (m.get("bereiche") or {}).values()
++    if formel == "f2":      # TypeScript-Messgerät (messen.mjs): −Fehlschläge − Sicherheitspunkte − tote Funktionen
++        return -sum(x.get("tests_fehlgeschlagen", 0) + (x.get("sicherheit_punkte") or 0) + x.get("tote_funktionen", 0) for x in b)
++    return sum(x.get("tests_bestanden", 0) - x.get("tests_fehlgeschlagen", 0) - 3 * (x.get("sicherheit_punkte") or 0)
++               - x.get("tote_funktionen", 0) for x in b)          # Python-Messgerät (messgeraet.kernmass)
++
++
++def _kernmass_formel(messung: dict) -> str | None:
++    """Mit welcher Formel hat das Messgerät `kernmass` gebildet? Das TS-Messgerät trägt Vitest-Belege; sonst die Formel,
++    die den gemessenen Wert reproduziert. Keine → None (dann wird `kernmass` nicht umgerechnet, sondern gekennzeichnet)."""
++    if "vitest" in (messung.get("belege") or {}):
++        return "f2"
++    k = messung.get("kernmass")
++    if k is not None and k == _kernmass(messung, "f1"):
++        return "f1"
++    if k is not None and k == _kernmass(messung, "f2"):
++        return "f2"
++    return None
++
++
+ def kernmass_bereinigt(messung: dict, eichung: dict) -> int:
+     """Kernmaß F2 ohne die Punkte stillgelegter Regeln. Höchstwert 0."""
+     summe = 0
+diff --git a/biotop/organe/nischen.py b/biotop/organe/nischen.py
+index 3e30398..67f8d4d 100644
+--- a/biotop/organe/nischen.py
++++ b/biotop/organe/nischen.py
+@@ -66,12 +66,51 @@ def _tabelle(con: sqlite3.Connection) -> None:
+     """)
+ 
+ 
++AUSSETZEN_NACH = 3      # Drosselungen in Folge, …
++AUSSETZEN_MINUTEN = 10  # … danach so lange ausgesetzt (Erreichbarkeit, nicht Qualität)
++
++
++def ausgesetzt(con: sqlite3.Connection, lauf_id: int, jetzt: str | None = None) -> dict[str, str]:
++    """Hersteller, die gerade gedrosselt sind: {hersteller: bis}. Liste nach T3 — qwen fiel in Lauf 36/37 111-mal
++    aus, ohne dass der Bandit es lernen durfte (Ausfall ist kein Qualitätsurteil, Satz 8). Stattdessen eine getrennte
++    Erreichbarkeitsführung: AUSSETZEN_NACH Drosselungen in Folge (ohne Antwort dazwischen) setzen den Hersteller
++    AUSSETZEN_MINUTEN aus; der Bandit bleibt unangetastet. Gelesen wird nur das Protokoll dieses Laufs."""
++    import json as _json
++    from datetime import datetime, timedelta
++    jetzt_t = datetime.fromisoformat(jetzt or protokoll.jetzt())
++    folge: dict[str, list[str]] = {}
++    for z in con.execute("SELECT zeit, art, inhalt FROM protokoll WHERE art IN ('anbieter.gedrosselt','modell.antwort') ORDER BY nr"):
++        d = _json.loads(z["inhalt"])
++        if d.get("lauf_id") != lauf_id:
++            continue
++        h = (d.get("hersteller") or (d.get("modell") or "/").split("/", 1)[0])
++        if z["art"] == "modell.antwort":
++            folge[h] = []
++        else:
++            folge.setdefault(h, []).append(z["zeit"])
++    aus = {}
++    for h, zeiten in folge.items():
++        if len(zeiten) >= AUSSETZEN_NACH:
++            bis = datetime.fromisoformat(zeiten[-1]) + timedelta(minutes=AUSSETZEN_MINUTEN)
++            if bis > jetzt_t:
++                aus[h] = bis.isoformat(timespec="milliseconds")
++    return aus
++
++
+ def waehlen(con: sqlite3.Connection, lauf_id: int, nische: str, anzahl: int = 2, rng: random.Random | None = None) -> list[tuple[str, str]]:
+-    """Wählt `anzahl` Hersteller (paarweise verschieden) per Thompson-Stichprobe. Rückgabe [(hersteller, modell)]."""
++    """Wählt `anzahl` Hersteller (paarweise verschieden) per Thompson-Stichprobe. Rückgabe [(hersteller, modell)].
++    Gedrosselte Hersteller (ausgesetzt()) nehmen nicht teil, solange genug andere da sind."""
+     _tabelle(con)
+     rng = rng or random.Random()
++    pause = ausgesetzt(con, lauf_id)
++    kandidaten = [h for h in HERSTELLER_MODELLE if h not in pause]
++    if len(kandidaten) < anzahl:
++        kandidaten = list(HERSTELLER_MODELLE)          # nie unter die Mindestzahl der Anbieter
++    if pause:
++        protokoll.schreiben(con, "anbieter.ausgesetzt", lauf_id=lauf_id, nische=nische, ausgesetzt=pause,
++                            regel=f"{AUSSETZEN_NACH} Drosselungen in Folge → {AUSSETZEN_MINUTEN} min; Bandit unberührt")
+     proben = []
+-    for h in HERSTELLER_MODELLE:
++    for h in kandidaten:
+         z = con.execute("SELECT versuche, erfolge FROM bandit WHERE lauf_id=? AND nische=? AND hersteller=?", (lauf_id, nische, h)).fetchone()
+         v, e = (z["versuche"], z["erfolge"]) if z else (0, 0)
+         proben.append((rng.betavariate(e + 1, v - e + 1), h))
+diff --git a/biotop/organe/verhaltensvergleich.py b/biotop/organe/verhaltensvergleich.py
+index ede52d9..6637659 100644
+--- a/biotop/organe/verhaltensvergleich.py
++++ b/biotop/organe/verhaltensvergleich.py
+@@ -26,6 +26,19 @@ der Kandidat wird abgelehnt. Reine Beschleunigung bei identischen Ausgaben bleib
+ 
+ Die Sonde gibt es bisher nur für TypeScript. Für andere Sprachen enthält sich das Organ —
+ gezählt im Neutralzähler, so dass keine Torzeile auf einem schweigenden Organ ruht.
++
++Fassung 8 (Grundsatz 11, Vorbedingungen 2 und 3 für T4):
++- Korpus: Zusätzlich zur Referenzlast ruft die Sonde JEDE exportierte Funktion der geänderten Module mit Randfällen
++  auf, die aus ihrem Typvertrag (der deklarierten Signatur der Vorgeneration) erzeugt werden: leer, einzeln, doppelt,
++  Grenzwerte (0, −1, leere Zeichenkette …); für Objekttypen aus den beobachteten Aufrufen geschrumpft. Befund T3:
++  K3106 änderte `tabellenbreiten` für Tabellen aus leeren Zellen, und die Referenzlast rief keine der 7 Funktionen
++  des Moduls — das Organ urteilte trotzdem „keine Abweichung“.
++- Eine Funktion, die der Vergleich nicht erreicht hat, ist eine Enthaltung, kein bestandenes Urteil: jedes Urteil
++  trägt „x von y Funktionen beobachtet“; ohne eine einzige beobachtete Funktion enthält sich das Organ (gezählt).
++- Ein Sondenausfall (Kammerabbruch, Zeitlimit, beschädigter Transport — `art` 'infrastruktur'; fehlende Referenzlast)
++  ist ein Messgerätausfall: `SondeAusgefallen` wird geworfen, der Aufrufer stellt den Kandidaten zurück. Keine
++  Ablehnung, kein Gedächtniseintrag. Scheitert die Sonde mit Inhalt an der VORGENERATION, betrifft das den Kandidaten
++  nicht: Enthaltung. Nur ein Inhaltsbefund am KANDIDATEN (Modul lädt nicht, Last bricht ab) bleibt ein Urteil über ihn.
+ """
+ from __future__ import annotations
+ 
+@@ -38,6 +51,10 @@ KAPPE = 8   # je Funktion die ersten äußeren Aufrufe mit Alias-, Mutations- un
+ ORGAN = "verhaltensvergleich"
+ 
+ 
++class SondeAusgefallen(RuntimeError):
++    """Die Sonde konnte nicht messen — ein Messgerätausfall, keine Aussage über den Kandidaten."""
++
++
+ def vergleichen(alt: dict, neu: dict, gedeckt: set[str]) -> dict:
+     """Vergleicht zwei Beobachtungsmengen. Rückgabe: Befund mit Tragfähigkeitsurteil.
+ 
+@@ -84,11 +101,16 @@ def geaenderte_module(code: dict[str, str]) -> list[str]:
+ 
+ 
+ def funktion_von(beobachtung: str) -> str | None:
+-    """'zahlen/statistik:quantil#0@mutation' → 'quantil'; Korpuszeilen haben keine Funktion."""
+-    m = re.match(r"^[^:]+:([A-Za-z_$][\w$]*)#\d+", beobachtung)
++    """'zahlen/statistik:quantil#0@mutation' → 'quantil' (auch Randfälle 'quantil~rand#3'); Korpuszeilen haben keine."""
++    m = re.match(r"^[^:]+:([A-Za-z_$][\w$]*)(?:~rand)?#\d+", beobachtung)
+     return m.group(1) if m else None
+ 
+ 
++def _modul_funktion(beobachtung: str) -> tuple[str, str] | None:
++    m = re.match(r"^([^:]+):([A-Za-z_$][\w$]*)(?:~rand)?#\d+", beobachtung)
++    return (m.group(1), m.group(2)) if m else None
++
++
+ def deckung(abweichungen: list[str], deckende_tests: dict[str, str]) -> dict[str, list[str]]:
+     """{beobachtung: [test]} — ein Test deckt eine Abweichung, wenn er an der Vorgeneration fällt,
+     am Kandidaten besteht (das stellt der Aufrufer sicher) und die abweichende Funktion aufruft."""
+@@ -158,13 +180,15 @@ def deckende_tests(werk: Path, testbestand: dict[str, str], behoben: set[str]) -
+ 
+ 
+ def beobachten(werk: Path, dateien: dict[str, str], referenzlast: str, module: list[str],
+-               bereiche: list[str]) -> dict:
+-    """Ein Kammerlauf: Stand bauen, Module einwickeln, Referenzlast ausführen."""
++               bereiche: list[str], signaturen: dict | None = None, beispiele: dict | None = None) -> dict:
++    """Ein Kammerlauf: Stand bauen, Module einwickeln, Referenzlast und Randfall-Korpus ausführen.
++    `signaturen` (von der Vorgeneration): welche Funktionen mit welchen Parametertypen Randfälle bekommen —
++    beide Seiten erhalten dieselben Aufrufe. Ohne Angabe liest die Sonde sie aus dem Quelltext dieses Stands."""
+     from ..kern import typescript
+     try:
+         d, _ = typescript._aufruf(Path(werk), "verhalten", dateien=dateien, zeitlimit_s=240,
+                                   referenzlast=referenzlast, module=module, bereiche=list(bereiche),
+-                                  kappe=KAPPE)
++                                  kappe=KAPPE, signaturen=signaturen, beispiele=beispiele)
+     except typescript.TypeScriptFehler as e:
+         return {"gueltig": False, "art": "infrastruktur", "grund": str(e)[:800]}
+     return d
+@@ -194,22 +218,33 @@ def pruefen(werk: Path, code: dict[str, str], referenzlast: str | None, bereiche
+                 "grund": "Kandidat ändert keine Quellmodule — Verhalten der Quellen unverändert",
+                 "beobachtungen": 0, "abweichungen": [], "ungedeckt": [], "gedeckt": {}}
+     if not referenzlast:
+-        return {**basis, "ausgefuehrt": False, "geurteilt": False, "tragfaehig": False,
+-                "grund_art": "ohne_referenzlast",
+-                "grund": "keine Referenzlast — Verhalten nicht beobachtbar, Gleichheit unbelegt"}
++        # Konfiguration, kein Urteil über den Kandidaten (Review 03 Nr. 3): ohne Referenzlast misst die Sonde nicht.
++        raise SondeAusgefallen("keine Referenzlast — die Verhaltenssonde kann nicht messen")
+     alt = beobachten(werk, {}, referenzlast, module, bereiche)
+     if not alt.get("gueltig"):
+-        return {**basis, "ausgefuehrt": False, "geurteilt": False, "tragfaehig": False,
+-                "grund_art": f"sonde_vorgeneration_{alt.get('art', 'unbekannt')}",
+-                "grund": f"Sonde an der Vorgeneration nicht ausführbar ({alt.get('art')}): {str(alt.get('grund'))[:300]}"}
+-    neu = beobachten(werk, dict(code), referenzlast, module, bereiche)
++        if alt.get("art") != "inhalt":
++            raise SondeAusgefallen(f"Sonde an der Vorgeneration ausgefallen ({alt.get('art')}): {str(alt.get('grund'))[:300]}")
++        return {**basis, "ausgefuehrt": False, "geurteilt": False, "tragfaehig": True,
++                "grund_art": "sonde_vorgeneration_inhalt",
++                "grund": f"Vorgeneration nicht beobachtbar — Enthaltung, betrifft den Kandidaten nicht: {str(alt.get('grund'))[:300]}"}
++    neu = beobachten(werk, dict(code), referenzlast, module, bereiche, signaturen=alt.get("signaturen"),
++                     beispiele=alt.get("beispiele"))
+     if not neu.get("gueltig"):
+-        # Die Vorgeneration war eben beobachtbar; scheitert der Kandidat an derselben Sonde, ist das ein
+-        # Befund über den Kandidaten (Modul lädt nicht, Last bricht ab, Zeitlimit), kein totes Messgerät.
++        if neu.get("art") != "inhalt":
++            raise SondeAusgefallen(f"Sonde am Kandidaten ausgefallen ({neu.get('art')}): {str(neu.get('grund'))[:300]}")
++        # Die Vorgeneration war eben beobachtbar; scheitert der Kandidat mit Inhalt an derselben Sonde (Modul lädt
++        # nicht, Last bricht ab), ist das ein Befund über den Kandidaten.
+         return {**basis, "ausgefuehrt": False, "geurteilt": False, "tragfaehig": False,
+-                "grund_art": f"sonde_kandidat_{neu.get('art', 'unbekannt')}",
++                "grund_art": "sonde_kandidat_inhalt",
+                 "grund": f"Sonde am Kandidaten nicht ausführbar ({neu.get('art')}): {str(neu.get('grund'))[:300]}"}
+-    a, n = alt["beobachtungen"], neu["beobachtungen"]
++    a, n = dict(alt["beobachtungen"]), dict(neu["beobachtungen"])
++    # Randfälle einer Funktion, die der Kandidat nicht mehr exportiert (entfernt/umbenannt), sind kein Verhalten
++    # des verbliebenen Codes: sie werden getrennt ausgewiesen; ob die Entfernung zulässig ist, entscheiden Tests,
++    # Verträge und das Maß (tote Funktion), nicht diese Sonde.
++    neu_exporte = {(m, f) for m, fs in (neu.get("eingewickelt") or {}).items() for f in (fs or [])}
++    entfernt = sorted({f"{mf[0]}:{mf[1]}" for k in a if "~rand#" in k and (mf := _modul_funktion(k)) and mf not in neu_exporte})
++    for k in [k for k in a if "~rand#" in k and (mf := _modul_funktion(k)) and f"{mf[0]}:{mf[1]}" in entfernt]:
++        a.pop(k)
+     roh = vergleichen(a, n, gedeckt=set())
+     decke: dict[str, list[str]] = {}
+     tests: dict[str, str] = {}
+@@ -218,10 +253,22 @@ def pruefen(werk: Path, code: dict[str, str], referenzlast: str | None, bereiche
+         decke = deckung(roh["abweichungen"], tests)
+     r = vergleichen(a, n, gedeckt=set(decke))
+     eingewickelt = alt.get("eingewickelt") or {}
+-    gerufen = set(alt.get("aufgerufen") or {}) | set(neu.get("aufgerufen") or {})
+-    unbeobachtet = sorted(f"{m}:{f}" for m, fs in eingewickelt.items() for f in (fs or [])
+-                          if f"{m}:{f}" not in gerufen)
+-    return {**basis, "ausgefuehrt": True, "geurteilt": True, "tragfaehig": r["tragfaehig"], "grund": r["grund"],
++    gerufen = (set(alt.get("aufgerufen") or {}) | set(neu.get("aufgerufen") or {})
++               | set(alt.get("aufgerufen_rand") or {}) | set(neu.get("aufgerufen_rand") or {}))
++    alle = [f"{m}:{f}" for m, fs in eingewickelt.items() for f in (fs or [])]
++    unbeobachtet = sorted(x for x in alle if x not in gerufen)
++    x_von_y = f"{len(alle) - len(unbeobachtet)} von {len(alle)}"
++    unbeobachtete_module = sorted(m for m, fs in eingewickelt.items() if fs and not any(f"{m}:{f}" in gerufen for f in fs))
++    extra = {"beobachtete_funktionen": x_von_y, "unbeobachtet": unbeobachtet, "unbeobachtete_module": unbeobachtete_module,
++             "entfernte_funktionen": entfernt, "randfaelle": len([k for k in n if "~rand#" in k and "@" not in k])}
++    if r["tragfaehig"] and len(alle) - len(unbeobachtet) == 0:
++        # Keine Abweichung, aber auch keine einzige Funktion erreicht: das ist kein bestandenes Urteil.
++        return {**basis, **extra, "ausgefuehrt": True, "geurteilt": False, "tragfaehig": True, "grund_art": "unbeobachtet",
++                "grund": f"Enthaltung: 0 von {len(alle)} Funktionen der geänderten Module beobachtet",
++                "beobachtungen": r["beobachtungen"], "anzahl_abweichungen": 0, "abweichungen": [], "ungedeckt": [],
++                "gedeckt": {}, "korpus": alt.get("korpus"), "eingewickelt": eingewickelt}
++    return {**basis, **extra, "ausgefuehrt": True, "geurteilt": True, "tragfaehig": r["tragfaehig"],
++            "grund": r["grund"] + f" ({x_von_y} Funktionen beobachtet)",
+             "grund_art": "geurteilt", "beobachtungen": r["beobachtungen"],
+             "anzahl_abweichungen": len(r["abweichungen"]), "abweichungen": r["abweichungen"][:20],
+             "ungedeckt": r["ungedeckt"][:20], "gedeckt": decke,
+@@ -236,5 +283,6 @@ def kurz(e: dict) -> dict:
+     """Protokollform: ohne Beobachtungswerte außer den ersten Abweichungen."""
+     schluessel = ("ausgefuehrt", "geurteilt", "tragfaehig", "grund", "grund_art", "module", "bereiche", "beobachtungen",
+                   "anzahl_abweichungen", "abweichungen", "ungedeckt", "gedeckt", "werte", "korpus",
+-                  "eingewickelt", "unbeobachtet", "deckende_tests")
++                  "eingewickelt", "unbeobachtet", "deckende_tests", "beobachtete_funktionen", "unbeobachtete_module",
++                  "entfernte_funktionen", "randfaelle")
+     return {k: e[k] for k in schluessel if k in e}
+diff --git a/tests/drahtwerk.py b/tests/drahtwerk.py
+index 305c4a3..6472d71 100644
+--- a/tests/drahtwerk.py
++++ b/tests/drahtwerk.py
+@@ -12,6 +12,14 @@ Aufbau, mit Begründung je Teil (der Vorspann verlangt vier bestandene Eichprobe
+                      private Defekt bricht, ein Test auf gesamt, den der Eingriff in B bricht. Damit sinkt alpha
+                      in der Nebenwirkungsprobe von 2 auf 1 fallende Tests, während beta steigt.
+ - tests/test_beta.test.ts prüft plus und halb genau.
++- Vorbedingung 7 (T4): `an(werte, i)` in beta greift mit variablem Index zu — die Regel
++  `security/detect-object-injection` schlägt damit im SAUBEREN Bereich an. Die Maßeichung legt sie still; der
++  Verdrahtungstest verlangt, dass die gespeicherte Messung der Generation die Regel stillgelegt trägt (Wirkung, nicht
++  nur Aufruf) und dass der Schwarm sie nicht als Befund vorgelegt bekommt (geeicht lesen). `an` steht zuletzt und hat
++  einen Feldparameter — die Eichproben wählen weiter halb (erste) und plus (letzte reine Zahlenfunktion).
++- `gesamt_leer_falsch()`: eine Variante, die neben dem toten Code auch gesamt([]) von 0 auf −1 ändert. Kein Test und
++  keine Referenzlast ruft gesamt([]) — nur der Randfall-Korpus des Verhaltensvergleichs sieht es. Der Lauf muss sie
++  mit „Verhaltensvergleich:“ ablehnen (Laufweg-Test einer ungedeckten Abweichung).
+ - tests/vertraege/test_vertrag_alpha_beta.test.ts expliziter Grenzvertrag (zählt zu beta).
+ - Referenzlast: last_alpha/last_beta mit Arbeit im Bereich einiger zehn Millisekunden (sonst sperrt die
+   Rauschmessung, wie in T3 gemessen), beobachten() als Verhaltensraster.
+@@ -33,7 +41,9 @@ LISTE = ("import { plus } from '../beta/wert.js';\n\n"
+          "function ungenutzt(x: number): number {\n  return x * 3;\n}\n")
+ 
+ WERT = ("/** Halbiert eine Zahl. */\nexport function halb(x: number): number {\n  return x / 2;\n}\n\n"
+-        "/** Addiert zwei Zahlen. */\nexport function plus(a: number, b: number): number {\n  return a + b;\n}\n")
++        "/** Addiert zwei Zahlen. */\nexport function plus(a: number, b: number): number {\n  return a + b;\n}\n\n"
++        "/** Wert an Position i, außerhalb 0. */\nexport function an(werte: number[], i: number): number {\n"
++        "  return werte[i] ?? 0;\n}\n")
+ 
+ DATEIEN = {
+     "package.json": json.dumps({"name": NAME, "version": "0.1.0", "private": True, "type": "module",
+@@ -51,9 +61,10 @@ DATEIEN = {
+                                  "test('test_alpha_werte', () => {\n  expect(summen([1, 2])).toEqual([2, 3]);\n});\n\n"
+                                  "test('test_alpha_drei', () => {\n  expect(summen([5])).toEqual([6]);\n});\n\n"
+                                  "test('test_alpha_gesamt', () => {\n  expect(gesamt([1, 2])).toBe(3);\n});\n"),
+-    "tests/test_beta.test.ts": ("import { test, expect } from 'vitest';\nimport { plus, halb } from '../src/beta/wert.js';\n\n"
++    "tests/test_beta.test.ts": ("import { test, expect } from 'vitest';\nimport { plus, halb, an } from '../src/beta/wert.js';\n\n"
+                                 "test('test_beta_plus', () => {\n  expect(plus(2, 3)).toBe(5);\n});\n\n"
+-                                "test('test_beta_halb', () => {\n  expect(halb(8)).toBe(4);\n});\n"),
++                                "test('test_beta_halb', () => {\n  expect(halb(8)).toBe(4);\n});\n\n"
++                                "test('test_beta_an', () => {\n  expect(an([4, 5], 1)).toBe(5);\n});\n"),
+ }
+ 
+ VERTRAG = ("import { test, expect } from 'vitest';\nimport { summen } from '../../src/alpha/liste.js';\n"
+@@ -117,6 +128,14 @@ def toter_code_entfernt(variante: int) -> str:
+     return diff("src/alpha/liste.ts", LISTE, neu)
+ 
+ 
++def gesamt_leer_falsch() -> str:
++    """Toter Code entfernt (Kernmaß +1, besteht das Maß) UND gesamt([]) liefert −1 statt 0 — ungedeckt."""
++    neu = LISTE.replace("\n\nfunction ungenutzt(x: number): number {\n  return x * 3;\n}\n", "\n")
++    neu = neu.replace("  let s = 0;\n  for (const w of werte) {", "  if (werte.length === 0) return -1;\n  let s = 0;\n  for (const w of werte) {")
++    assert neu != LISTE and "return -1" in neu
++    return diff("src/alpha/liste.ts", LISTE, neu)
++
++
+ def anlegen(ziel: Path) -> dict:
+     """Legt Werk, Vertragsverzeichnis, Referenzlast, Verfassung und Mutantenplan unter `ziel` an."""
+     werk = ziel / "quelle"
+diff --git a/tests/test_eichproben.py b/tests/test_eichproben.py
+index 73b93ac..4286dc9 100644
+--- a/tests/test_eichproben.py
++++ b/tests/test_eichproben.py
+@@ -298,7 +298,13 @@ def test_normmechanik_bleibt_getrennt_vom_tatsaechlichen_laufzeitbefund(werk, tm
+     e = eichproben._einzelprobe(con, 1, 1, werk, "beispiel", ["lieferant"], [], basis, basis, ref, {}, 0,
+                                {"von_bereich": "abnehmer", "nach_bereich": "lieferant"}, "norm", gegenprobe)
+     print("NORM MIT ECHTEM ZEITBEFUND", gegenprobe, e["grund"])
+-    assert e["belege"]["urteil"]["mass"]["grenzen_gerissen"]
++    # Geändert mit Vorbedingung 1 (T4, Grundsatz 14): Die Laufzeit wird nur noch gemessen — gepaart —, wo sie das
++    # Urteil entscheiden kann. Ein Norm-Kandidat bringt nie Kernmaß (Zuwachs 0); der echte Zeitbefund der Referenzlast
++    # erreicht sein Urteil deshalb gar nicht mehr. Die Trennung, die dieser Test bewacht, ist damit strukturell: Das
++    # Urteil kommt ohne Laufzeitbefund zustande, und die Probe hängt allein am Norm-Mechanismus. (Bis T3 verdrängte ein
++    # Laufzeitriss am Einzelwert „Kernmaß unverändert“ als Ablehnungsgrund — Befund Lauf 38, 41 von 207 Ablehnungen.)
++    assert e["belege"]["urteil"]["mass"]["grenzen_gerissen"] == []
++    assert e["belege"]["urteil"]["mass"]["laufzeit_bezug"].startswith("nicht geprüft")
+     assert e["belege"]["urteil"]["mass"]["zuwachs"] == 0
+     assert e["bestanden"] is (not gegenprobe)
+     con.close()
+diff --git a/tests/test_t3_generation0.py b/tests/test_t3_generation0.py
+index 975f6bd..4da0a19 100644
+--- a/tests/test_t3_generation0.py
++++ b/tests/test_t3_generation0.py
+@@ -80,7 +80,9 @@ def test_ts_blinder_mutant_erhaelt_vitest_statt_pytest(w,db_lauf,monkeypatch):
+     def testlauf(werk,dateien,testdateien=None,**kw):
+         ok='src/alpha/a.ts' not in dateien
+         return {'gueltig':True,'faelle':{'tests/test_alpha_gen0_m1.test.ts::test_a':{'ok':ok,'bestaetigt':not ok}}}
+-    m=SimpleNamespace(testlauf=testlauf)
++    # Geändert mit Vorbedingung 6 (T4): der Testbau prüft jeden aufgenommenen Test zusätzlich im Typbau (tsc über src
++    # und tests) — der Ersatz des TS-Moduls liefert deshalb auch baulauf (hier: baut).
++    m=SimpleNamespace(testlauf=testlauf, baulauf=lambda *a,**kw:{'gueltig':True,'baut':True,'prozess':{'stdout':''}})
+     import biotop.kern
+     monkeypatch.setitem(sys.modules,'biotop.kern.typescript',m)
+     monkeypatch.setattr(biotop.kern,'typescript',m,raising=False)
+diff --git a/tests/test_t3_masseichung.py b/tests/test_t3_masseichung.py
+index a65aaf7..0cde625 100644
+--- a/tests/test_t3_masseichung.py
++++ b/tests/test_t3_masseichung.py
+@@ -140,3 +140,16 @@ def test_eichung_meldet_jede_regel_mit_nenner():
+     assert e['funde_im_sauberen'] == {'security/detect-object-injection': 2}
+     assert e['regeln_geprueft'] == 2
+     assert e['regeln_stillgelegt'] == 1
++
++
++def test_anwenden_mit_anderer_eichung_ist_ein_fehler():
++    """REVIEW-03 Nr. 20: „schon geeicht“ wurde nur am Marker erkannt — eine andere Eichung blieb still wirkungslos."""
++    messung = _messung({'zahlen': [_befund('security/detect-object-injection', 'src/zahlen/a.ts')],
++                        'tarife': [_befund('no-new-func', 'src/tarife/b.ts', 10, 'HIGH')]})
++    e1 = {'sauberer_bereich': 'zahlen', 'stillgelegt': ['security/detect-object-injection']}
++    einmal = masseichung.anwenden(messung, e1)
++    assert masseichung.anwenden(einmal, e1) is einmal                      # dieselbe Eichung: idempotent
++    with pytest.raises(masseichung.MasseichungFehler, match='andere'):
++        masseichung.anwenden(einmal, {'sauberer_bereich': 'zahlen', 'stillgelegt': ['no-new-func']})
++    with pytest.raises(masseichung.MasseichungFehler, match='andere'):
++        masseichung.anwenden(einmal, {'sauberer_bereich': 'zahlen', 'stillgelegt': []})
+diff --git a/tests/test_t3_neutralzaehler.py b/tests/test_t3_neutralzaehler.py
+index 6bdccf2..9b68ca7 100644
+--- a/tests/test_t3_neutralzaehler.py
++++ b/tests/test_t3_neutralzaehler.py
+@@ -101,13 +101,17 @@ def test_gegenprobe_behauptung_ableitbar_zaehlt_als_geurteilt(con, monkeypatch):
+ 
+ 
+ def test_gegenprobe_anhaengen_none_wird_gezaehlt(con, monkeypatch):
++    # Geändert mit Vorbedingung 9 (T4): TypeScript hängt jetzt an (bis T3 immer None, 'typescript_eigene_datei').
++    # Ein neutraler Fall ist weiterhin gezählt — wenn nichts Neues zu behalten ist.
+     alt = "import {test, expect} from 'vitest';\ntest('a', () => expect(1).toBe(1));\n"
+     neu = "import {test, expect} from 'vitest';\ntest('b', () => expect(2).toBe(2));\n"
+     monkeypatch.setattr(aegis, '_zaehlkontext', lambda: (con, 35))
+-    assert aegis._anhaengen(alt, neu, {'b'}) is None
++    assert aegis._anhaengen(alt, neu, {'a'}) is None
+     z = neutralzaehler.stand(con, 35)
+     assert z['aegis._anhaengen']['neutral'] == 1
+-    assert z['aegis._anhaengen']['gruende'] == {'typescript_eigene_datei': 1}
++    assert z['aegis._anhaengen']['gruende'] == {'nichts_anzuhaengen': 1}
++    assert aegis._anhaengen(alt, neu, {'b'}) is not None
++    assert neutralzaehler.stand(con, 35)['aegis._anhaengen']['geurteilt'] == 1
+ 
+ 
+ def test_gegenprobe_anhaengen_python_zaehlt_als_geurteilt(con, monkeypatch):
+diff --git a/tests/test_t3_python_annahmen.py b/tests/test_t3_python_annahmen.py
+index 364d759..7bf8ad9 100644
+--- a/tests/test_t3_python_annahmen.py
++++ b/tests/test_t3_python_annahmen.py
+@@ -33,7 +33,8 @@ WEICHE = re.compile(r'ist_typescript|sprachprofil|typescript|TypeScript|\.ts["\'
+                     r'Vitest|testendung|testname_ohne|\.mjs|tests_ist_ts')
+ 
+ # Ungerufen und deshalb ohne Laufrisiko; benannt, damit es auffällt, wenn sich das ändert.
+-UNGERUFEN_ERLAUBT = {'biotop/organe/eichproben.py::_beschleunigen'}
++# (`eichproben._beschleunigen` ist vor T4 entfernt — der Eintrag wäre verfallen.)
++UNGERUFEN_ERLAUBT: set[str] = set()
+ 
+ # Von Hand geprüft: Die Weiche steht weiter oben in der Aufrufkette, als eine
+ # Textsuche zuverlässig auflöst. Jeder Eintrag nennt die Weiche mit Zeilennachweis.
+@@ -45,9 +46,8 @@ GEPRUEFT = {
+         'immuntest_typescript. Die Weiche steht damit zwei Ebenen höher.',
+     'biotop/organe/eichproben.py::_funktionen':
+         'Die Treffer in eichproben_ts.py:32 und :113 gelten dessen EIGENEM _funktionen '
+-        '(eichproben_ts.py:6), nicht diesem — Namensgleichheit. Der Treffer in '
+-        'eichproben.py:99 steht in _beschleunigen, das nirgends gerufen wird. Die echten '
+-        'Aufrufer eichproben.py:71, :149 und :411 haben die Weiche unmittelbar davor.',
++        '(eichproben_ts.py:6), nicht diesem — Namensgleichheit. Die echten Aufrufer in '
++        'eichproben.py (Probenbau je Sprache) haben die Sprachweiche unmittelbar davor.',
+ }
+ 
+ 
+@@ -127,15 +127,48 @@ def test_keine_ungeschuetzte_python_annahme_im_kern():
+                        + '\n  '.join(offen))
+ 
+ 
+-def test_geprueft_liste_enthaelt_nur_noch_vorhandene_stellen():
+-    """Die Ausnahmeliste darf nicht veralten: jeder Eintrag muss noch existieren."""
+-    vorhanden = {f'{d}::{n}' for (d, n, _) in _funktionen_mit_annahme(KERN)}
+-    veraltet = set(GEPRUEFT) - vorhanden
+-    assert not veraltet, f'Einträge ohne Fundstelle — bitte entfernen: {sorted(veraltet)}'
++def verfallen(wurzel, geprueft, ungerufen_erlaubt) -> list[str]:
++    """Verfallsbedingung der Ausnahmelisten (Liste nach T3): Ein Eintrag verfällt, sobald er nicht mehr gebraucht
++    wird — GEPRUEFT, wenn die Fundstelle nicht mehr existiert oder inzwischen selbst eine Weiche trägt;
++    UNGERUFEN_ERLAUBT, wenn die Funktion verschwunden ist oder inzwischen gerufen wird. Ein verfallener Eintrag macht
++    den Wächter rot, damit die Liste nie still veraltet und neue Fundstellen verdeckt."""
++    vorhanden = {f'{d}::{n}': (d, n) for (d, n, _) in _funktionen_mit_annahme(wurzel)}
++    aus = [f'GEPRUEFT {s}: keine ungeschützte Fundstelle mehr' for s in geprueft if s not in vorhanden]
++    for s in ungerufen_erlaubt:
++        if s not in vorhanden:
++            aus.append(f'UNGERUFEN_ERLAUBT {s}: Funktion ohne Fundstelle/entfernt')
++        elif _aufrufstellen(wurzel, vorhanden[s][1], vorhanden[s][0]):
++            aus.append(f'UNGERUFEN_ERLAUBT {s}: wird inzwischen gerufen — gehört geprüft, nicht erlaubt')
++    return aus
++
++
++def test_ausnahmelisten_verfallen_nicht_still():
++    """Die Ausnahmelisten dürfen nicht veralten: jeder Eintrag muss noch gebraucht werden."""
++    alt = verfallen(KERN, GEPRUEFT, UNGERUFEN_ERLAUBT)
++    assert not alt, 'Verfallene Ausnahmeeinträge — bitte entfernen:\n  ' + '\n  '.join(alt)
+     for schluessel, grund in GEPRUEFT.items():
+         assert len(grund) > 80, f'{schluessel}: Begründung zu dünn'
+ 
+ 
++def test_verfallsbedingung_meldet_entfernte_und_gerufene_eintraege(tmp_path):
++    """Gegenprobe: ein Eintrag für eine entfernte Funktion und einer für eine inzwischen gerufene verfallen;
++    ein noch gebrauchter Eintrag (ungerufene Funktion mit Annahme) verfällt nicht."""
++    fake = _fake_kern(tmp_path,
++                      'import ast\n'
++                      'def still(code):\n'
++                      '    return ast.parse(code)\n'
++                      'def gerufen(code):\n'
++                      '    return ast.parse(code)\n'
++                      'def ruft():\n'
++                      '    return gerufen("x")\n')
++    alt = verfallen(fake, {'biotop/organe/weg.py::weg': 'x' * 90},
++                    {'biotop/organe/x.py::still', 'biotop/organe/x.py::gerufen', 'biotop/organe/x.py::entfernt'})
++    assert any('GEPRUEFT biotop/organe/weg.py::weg' in a for a in alt), alt
++    assert any('x.py::gerufen: wird inzwischen gerufen' in a for a in alt), alt
++    assert any('x.py::entfernt: Funktion ohne Fundstelle' in a for a in alt), alt
++    assert not any('x.py::still' in a for a in alt), alt
++
++
+ def _fake_kern(tmp_path, quelltext):
+     fake = tmp_path / 'biotop'
+     (fake / 'organe').mkdir(parents=True)
+diff --git a/tests/test_t3_verhaltensvergleich.py b/tests/test_t3_verhaltensvergleich.py
+index d5e4f4d..1036aed 100644
+--- a/tests/test_t3_verhaltensvergleich.py
++++ b/tests/test_t3_verhaltensvergleich.py
+@@ -134,10 +134,11 @@ def test_ohne_quellaenderung_nichts_zu_vergleichen(ts_werk):
+     assert r['geurteilt'] is True
+ 
+ 
+-def test_ohne_referenzlast_ist_gleichheit_unbelegt(ts_werk):
+-    r = vv.pruefen(ts_werk, {'src/zahlen/a.ts': 'x'}, None, ['zahlen'], {})
+-    assert r['ausgefuehrt'] is False and r['tragfaehig'] is False
+-    assert r['grund_art'] == 'ohne_referenzlast'
++def test_ohne_referenzlast_haelt_an(ts_werk):
++    # Geändert mit REVIEW-03 Nr. 3: früher „tragfähig False“ — eine fehlende Referenzlast ist Konfiguration, kein
++    # Urteil über den Kandidaten, und käme als Ablehnung ins Projektgedächtnis.
++    with pytest.raises(vv.SondeAusgefallen, match='Referenzlast'):
++        vv.pruefen(ts_werk, {'src/zahlen/a.ts': 'x'}, None, ['zahlen'], {})
+ 
+ 
+ def test_unausfuehrbare_sonde_ist_kein_beleg_fuer_gleichheit(ts_werk, monkeypatch):
+@@ -167,3 +168,75 @@ def test_abweichung_ohne_deckenden_test_ist_ablehnung(ts_werk, monkeypatch):
+     r = vv.pruefen(ts_werk, {'src/m/a.ts': 'x'}, 'last', ['m'], {})
+     assert r['tragfaehig'] is False and r['ungedeckt'] == ['m/a:f#0@mutation']
+     assert r['werte']['m/a:f#0@mutation'] == ['300', '3']
++
++
++# ---------------------------------------------------------------- REVIEW-03 Nr. 2, 3, 5
++def _seite(beob, eingewickelt, aufgerufen):
++    return {'gueltig': True, 'beobachtungen': beob, 'eingewickelt': eingewickelt, 'aufgerufen': aufgerufen}
++
++
++def test_unbeobachtetes_modul_ist_enthaltung_kein_urteil(ts_werk, monkeypatch):
++    """Nr. 2 (K3106): 7 Funktionen eingewickelt, 0 gerufen — und doch „geurteilt, keine Abweichung“."""
++    korpus = {'korpus:last_bericht#0': '42'}
++    eing = {'bericht/tabelle': ['breiten', 'zeile']}
++    seiten = iter([_seite(korpus, eing, {}), _seite(korpus, eing, {})])
++    monkeypatch.setattr(vv, 'beobachten', lambda *a, **k: next(seiten))
++    r = vv.pruefen(ts_werk, {'src/bericht/tabelle.ts': 'x'}, 'last', ['bericht'], {})
++    assert r['geurteilt'] is False and r['tragfaehig'] is True
++    assert r['grund_art'] == 'unbeobachtet'
++    assert r['unbeobachtete_module'] == ['bericht/tabelle']
++    assert r['beobachtete_funktionen'] == '0 von 2'
++
++
++def test_gegenprobe_beobachtetes_modul_wird_geurteilt(ts_werk, monkeypatch):
++    beob = {'bericht/tabelle:breiten#0': '[0,0]'}
++    eing = {'bericht/tabelle': ['breiten', 'zeile']}
++    seiten = iter([_seite(beob, eing, {'bericht/tabelle:breiten': 1}), _seite(beob, eing, {'bericht/tabelle:breiten': 1})])
++    monkeypatch.setattr(vv, 'beobachten', lambda *a, **k: next(seiten))
++    r = vv.pruefen(ts_werk, {'src/bericht/tabelle.ts': 'x'}, 'last', ['bericht'], {})
++    assert r['geurteilt'] is True and r['tragfaehig'] is True and r['grund_art'] == 'geurteilt'
++    assert r['unbeobachtete_module'] == [] and r['beobachtete_funktionen'] == '1 von 2'
++
++
++def test_ungedeckte_abweichung_lehnt_ab_auch_neben_einem_unbeobachteten_modul(ts_werk, monkeypatch):
++    alt = {'zahlen/statistik:quantil#0@mutation': '300'}
++    neu = {'zahlen/statistik:quantil#0@mutation': '3'}
++    eing = {'zahlen/statistik': ['quantil'], 'bericht/tabelle': ['breiten']}
++    seiten = iter([_seite(alt, eing, {'zahlen/statistik:quantil': 1}), _seite(neu, eing, {'zahlen/statistik:quantil': 1})])
++    monkeypatch.setattr(vv, 'beobachten', lambda *a, **k: next(seiten))
++    r = vv.pruefen(ts_werk, {'src/zahlen/statistik.ts': 'x', 'src/bericht/tabelle.ts': 'y'}, 'last', ['zahlen'], {})
++    assert r['geurteilt'] is True and r['tragfaehig'] is False
++    assert r['unbeobachtete_module'] == ['bericht/tabelle']
++
++
++@pytest.mark.parametrize('seite', ['vorgeneration', 'kandidat'])
++def test_ausgefallene_sonde_haelt_an_statt_abzulehnen(ts_werk, monkeypatch, seite):
++    """Nr. 3: Kammerabbruch/Zeitlimit (art 'infrastruktur') ist ein totes Messgerät, kein Urteil über den Kandidaten."""
++    ok = _seite({'m/a:f#0': '1'}, {'m/a': ['f']}, {'m/a:f': 1})
++    tot = {'gueltig': False, 'art': 'infrastruktur', 'grund': 'Kammer: Zeitlimit 240 s'}
++    seiten = iter([tot, ok] if seite == 'vorgeneration' else [ok, tot])
++    monkeypatch.setattr(vv, 'beobachten', lambda *a, **k: next(seiten))
++    with pytest.raises(vv.SondeAusgefallen, match='Zeitlimit'):
++        vv.pruefen(ts_werk, {'src/m/a.ts': 'x'}, 'last', ['m'], {})
++
++
++def test_unbeobachtbare_vorgeneration_ist_enthaltung(ts_werk, monkeypatch):
++    """Nr. 3(b): scheitert die Sonde mit Inhalt an der Vorgeneration, betrifft das den Kandidaten nicht."""
++    seiten = iter([{'gueltig': False, 'art': 'inhalt', 'grund': 'Modul lässt sich nicht einwickeln'}])
++    monkeypatch.setattr(vv, 'beobachten', lambda *a, **k: next(seiten))
++    r = vv.pruefen(ts_werk, {'src/m/a.ts': 'x'}, 'last', ['m'], {})
++    assert r['geurteilt'] is False and r['tragfaehig'] is True
++    assert r['grund_art'] == 'sonde_vorgeneration_inhalt'
++
++
++def test_verhandlung_besteht_nicht_mit_ungedeckter_verhaltensabweichung():
++    """Nr. 5: paar_ok sah nur Vertrag, Pareto und Grenzmaße — eine Ablehnung durch den Verhaltensvergleich beendete die
++    Suche nach einer passenden Anpassung und wurde als „Verhandlung bestanden“ protokolliert."""
++    from biotop import lauf as L
++    mass = {'ok': False, 'grund': 'Verhaltensvergleich: 1 von 1 Abweichung(en) ungedeckt', 'kern_basis': -1,
++            'kern_kandidat': 0, 'zuwachs': 1, 'pareto_schlechter': [], 'grenzen_gerissen': []}
++    u = {'vertrag_verletzt': [], 'mass': mass, 'verhalten': {'tragfaehig': False, 'geurteilt': True}}
++    assert L.paar_bestanden(u) is False
++    assert L.paar_bestanden({**u, 'verhalten': {'tragfaehig': True, 'geurteilt': True}}) is True
++    assert L.paar_bestanden({**u, 'verhalten': None}) is True     # Maß lehnte vorher ab: kein Verhaltensurteil
++    assert L.paar_bestanden({**u, 'verhalten': None, 'vertrag_verletzt': ['v1']}) is False
+diff --git a/tests/test_t3_zweigklasse.py b/tests/test_t3_zweigklasse.py
+index 469abde..e677e93 100644
+--- a/tests/test_t3_zweigklasse.py
++++ b/tests/test_t3_zweigklasse.py
+@@ -26,14 +26,16 @@ WERK = Path('/root/biotop/daten/werke/versandwerk-t3-02')
+ 
+ # ---------------------------------------------------------------- _anhaengen
+ def test_anhaengen_ts_gibt_none_statt_zu_werfen():
+-    """TS-Tests gehören in eine eigene Datei — das ist ein 'nein', kein Absturz.
++    """Unbrauchbare TS-Eingabe ist ein 'nein', kein Absturz — wie im Python-Zweig.
+ 
+-    Der Python-Zweig gibt bei unbrauchbarer Eingabe None zurück (SyntaxError,
+-    keine neuen Funktionen). Der Aufrufer aegis.py:671 prüft auf Falschheit.
++    Geändert mit Vorbedingung 9 (T4): gültige TS-Tests werden jetzt angehängt; None bleibt die Antwort auf
++    kaputten Code oder fehlende neue Tests, und nichts davon wirft.
+     """
+     alt = "import {test, expect} from 'vitest';\ntest('a', () => expect(1).toBe(1));\n"
++    kaputt = "import {test, expect} from 'vitest';\ntest('b', () => { expect(2).toBe(2);\n"
++    assert aegis._anhaengen(alt, kaputt, {'b'}) is None
+     neu = "import {test, expect} from 'vitest';\ntest('b', () => expect(2).toBe(2));\n"
+-    assert aegis._anhaengen(alt, neu, {'b'}) is None
++    assert aegis._anhaengen(alt, neu, {'a'}) is None
+ 
+ 
+ def test_anhaengen_python_bleibt_unveraendert():
+diff --git a/tests/test_verdrahtung.py b/tests/test_verdrahtung.py
+index d16cc3d..4fd7d9c 100644
+--- a/tests/test_verdrahtung.py
++++ b/tests/test_verdrahtung.py
+@@ -38,6 +38,7 @@ ORGANE = Path(__file__).resolve().parents[1] / "biotop" / "organe"
+ # Die Funktion, die ein Lauf je Kandidat zur Annahme ruft (lauf._generation_koerper und lauf._verhandeln).
+ ANNAHMEPFAD = "biotop.organe.aegis:pruefen"
+ PFLICHT_IM_ANNAHMEPFAD = ("masseichung.anwenden", "verhaltensvergleich.pruefen")
++REGEL_SAUBER = "security/detect-object-injection"   # schlägt im Drahtwerk im sauberen Bereich beta an
+ 
+ 
+ # ---------------------------------------------------------------- Prüfwerkzeug (Wurzel als Argument)
+@@ -46,7 +47,7 @@ def organe_finden(wurzel: Path) -> list[str]:
+     return sorted(p.stem for p in Path(wurzel).glob("*.py") if p.stem != "__init__")
+ 
+ 
+-def aufzeichnen(module: dict, monkeypatch, kanten: set | None = None) -> dict[str, str]:
++def aufzeichnen(module: dict, monkeypatch, kanten: set | None = None, phase: dict | None = None) -> dict[str, str]:
+     """Umhüllt jede im Modul definierte Funktion. Rückgabe: {organ: erster Aufrufer} — füllt sich beim Laufen.
+ 
+     Mit `kanten` wird zusätzlich jede Aufrufkante „organ.funktion ← aufrufendes_modul:funktion" gesammelt (der
+@@ -71,7 +72,9 @@ def aufzeichnen(module: dict, monkeypatch, kanten: set | None = None) -> dict[st
+                     rahmen = rahmen.f_back
+                 gerufen.setdefault(organ, f"{organ}.{name} ← {aufrufer}")
+                 if kanten is not None:
+-                    kanten.add(f"{organ}.{name} ← {aufrufer}")
++                    # Vorbedingung 7 (T4): jede Kante trägt die Laufphase (den Befehlsschritt), in der sie entstand —
++                    # sonst erfüllt ein Aufruf aus den Eichproben des Vorspanns die Pflicht der Generationen.
++                    kanten.add(f"{organ}.{name} ← {aufrufer}" + (f" @ {phase.get('schritt')}" if phase is not None else ""))
+             return f(*a, **k)
+         return aufgezeichnet
+ 
+@@ -86,9 +89,11 @@ def nie_gerufen(organe: list[str], gerufen: dict) -> list[str]:
+     return sorted(o for o in organe if o not in gerufen)
+ 
+ 
+-def nicht_im_annahmepfad(kanten: set, annahmepfad: str, pflicht: tuple[str, ...]) -> list[str]:
+-    """Pflichtfunktionen, die in keinem Aufruf aus der Annahmefunktion vorkommen (irgendwo anders gerufen zählt nicht)."""
+-    return sorted(p for p in pflicht if not any(k == f"{p} ← {annahmepfad}" for k in kanten))
++def nicht_im_annahmepfad(kanten: set, annahmepfad: str, pflicht: tuple[str, ...], phase: str | None = None) -> list[str]:
++    """Pflichtfunktionen, die in keinem Aufruf aus der Annahmefunktion vorkommen (irgendwo anders gerufen zählt nicht).
++    Mit `phase` zählt nur ein Aufruf in dieser Laufphase."""
++    ende = f" @ {phase}" if phase else ""
++    return sorted(p for p in pflicht if not any(k == f"{p} ← {annahmepfad}{ende}" for k in kanten))
+ 
+ 
+ # ---------------------------------------------------------------- Gegenproben des Prüfwerkzeugs (schnell)
+@@ -135,6 +140,11 @@ def test_pruefwerkzeug_verlangt_den_aufruf_aus_der_annahmefunktion():
+     assert nicht_im_annahmepfad(halb, pfad, pflicht) == ["verhaltensvergleich.pruefen"]
+     voll = halb | {f"verhaltensvergleich.pruefen ← {pfad}"}
+     assert nicht_im_annahmepfad(voll, pfad, pflicht) == []
++    # Vorbedingung 7: dieselben Kanten nur in der Phase des Vorspanns erfüllen die Pflicht der Generationen nicht.
++    vorspann = {f"{p} ← {pfad} @ vorspann" for p in pflicht}
++    assert nicht_im_annahmepfad(vorspann, pfad, pflicht, phase="generation") == sorted(pflicht)
++    beides = vorspann | {f"{p} ← {pfad} @ generation" for p in pflicht}
++    assert nicht_im_annahmepfad(beides, pfad, pflicht, phase="generation") == []
+ 
+ 
+ def test_organliste_kommt_aus_dem_verzeichnis():
+@@ -153,6 +163,7 @@ class GestellteGrenze:
+         self.aegis, self.gedaechtnis, self.genesis, self.jury = aegis, gedaechtnis, genesis, jury
+         self.anfragen: list[str] = []
+         self.schwarm: dict[tuple[str, str], int] = {}
++        self.schwarm_texte: list[tuple[tuple[str, str], str]] = []
+         self._melder = None
+ 
+     def senden(self, modell, system, nutzer, max_tokens, temperatur):
+@@ -162,9 +173,14 @@ class GestellteGrenze:
+             schluessel = (bereich.group(1) if bereich else "?", nische)
+             n = self.schwarm[schluessel] = self.schwarm.get(schluessel, 0) + 1
+             self.anfragen.append(f"schwarm {schluessel} #{n}")
++            self.schwarm_texte.append((schluessel, nutzer))
+             if schluessel == ("alpha", "sicher") and n <= 2:
+                 return ("BEGRÜNDUNG: Entfernt die nie aufgerufene Funktion; tote_funktionen sinkt.\nVERTRÄGE: keine\n"
+                         f"```diff\n{drahtwerk.toter_code_entfernt(n)}```\n", 0, 0)
++            if schluessel == ("alpha", "andere") and n == 1:
++                # Vorbedingung 7: fehlerhafte Variante — besteht das Maß, ändert ungedeckt gesamt([])
++                return ("BEGRÜNDUNG: Entfernt die nie aufgerufene Funktion und prüft leere Eingaben früher.\nVERTRÄGE: keine\n"
++                        f"```diff\n{drahtwerk.gesamt_leer_falsch()}```\n", 0, 0)
+             return "KEIN VORSCHLAG — in diesem Bereich hebt nichts ein Maß.", 0, 0
+         if system == self.aegis.ANSAGE_SYSTEM:
+             self.anfragen.append("ansage")
+@@ -209,7 +225,8 @@ def test_jedes_organ_wird_im_lauf_aufgerufen(tmp_path, monkeypatch, capsys):
+     organe = organe_finden(ORGANE)
+     module = {o: importlib.import_module(f"biotop.organe.{o}") for o in organe}
+     kanten: set = set()
+-    gerufen = aufzeichnen(module, monkeypatch, kanten)
++    phase: dict = {"schritt": None}
++    gerufen = aufzeichnen(module, monkeypatch, kanten, phase)
+ 
+     schritte = [
+         ["lauf", "anlegen", "--budget", "1"],
+@@ -224,6 +241,7 @@ def test_jedes_organ_wird_im_lauf_aufgerufen(tmp_path, monkeypatch, capsys):
+     ]
+     protokoll = []
+     for s in schritte:
++        phase["schritt"] = s[0]
+         rc = cli.main(s)
+         aus = capsys.readouterr()
+         protokoll.append({"schritt": s[0], "rc": rc, "stderr": aus.err[-1500:]})
+@@ -232,15 +250,34 @@ def test_jedes_organ_wird_im_lauf_aufgerufen(tmp_path, monkeypatch, capsys):
+     con = verbinden()
+     g = con.execute("SELECT nummer, status FROM generationen WHERE lauf_id=1 ORDER BY nummer DESC LIMIT 1").fetchone()
+     assert tuple(g) == (1, "vorgelegt"), tuple(g)
++    phase["schritt"] = "freigabe"
+     rc = cli.main(["freigabe", "1", "1", "frei", "--von", "Verdrahtungsnachweis", "--grund", "Nachspiel"])
+     capsys.readouterr()
+     assert rc == 0
+ 
+     fehlend = nie_gerufen(organe, gerufen)
+     jury_zeilen = con.execute("SELECT einstimmig, gewinner FROM jury").fetchall()
+-    annahmepfad = sorted(k for k in kanten if k.endswith("← " + ANNAHMEPFAD))
++    annahmepfad = sorted(k for k in kanten if ("← " + ANNAHMEPFAD + " @ ") in k)
++    # Wirkung statt Aufruf (Vorbedingung 7, Review 03 Nr. 6): die Regel, die im sauberen Bereich anschlägt, muss in
++    # der GESPEICHERTEN Messung der Generation stillgelegt sein — und im gewählten Kandidaten — und der Schwarm
++    # bekommt sie nicht als Befund vorgelegt (Schwarm und Ankläger lesen geeicht, Entscheidung Chat-Claude).
++    import json as _json
++    gen_masse = _json.loads(con.execute("SELECT masse FROM generationen WHERE lauf_id=1 AND nummer=1").fetchone()[0])
++    eich_gen = gen_masse.get("_masseichung") or {}
++    beta_gen = gen_masse["bereiche"]["beta"]
++    gewaehlt = _json.loads(con.execute("SELECT kandidaten FROM generationen WHERE lauf_id=1 AND nummer=1").fetchone()[0])["_gewaehlt"]
++    k_masse = _json.loads(con.execute("SELECT masse FROM kandidaten WHERE id=?", (gewaehlt["alpha"],)).fetchone()[0])
++    falsch = [dict(z) for z in con.execute("SELECT id, status, grund FROM kandidaten WHERE lauf_id=1 AND diff LIKE '%return -1%'")]
++    beta_texte = [t for (b, _), t in grenze.schwarm_texte if b == "beta"]
++    wirkung = {"stillgelegt_generation": eich_gen.get("stillgelegt"), "beta_punkte": beta_gen.get("sicherheit_punkte"),
++               "beta_punkte_roh": beta_gen.get("sicherheit_punkte_roh"),
++               "beta_stillgelegt": [x.get("test") for x in beta_gen.get("sicherheit_stillgelegt") or []],
++               "kandidat_eichung": (k_masse.get("_masseichung") or {}).get("stillgelegt"),
++               "fehlerhafte_variante": falsch,
++               "schwarm_beta_texte": len(beta_texte),
++               "schwarm_beta_mit_regel": sum("detect-object-injection" in t for t in beta_texte)}
+     beleg = {"organe": len(organe), "gerufen": len(organe) - len(fehlend), "nie_gerufen": fehlend,
+-             "erster_aufruf": dict(sorted(gerufen.items())), "annahmepfad": annahmepfad,
++             "erster_aufruf": dict(sorted(gerufen.items())), "annahmepfad": annahmepfad, "wirkung": wirkung,
+              "kanten": sorted(kanten), "schritte": protokoll,
+              "anbietergrenze": grenze.anfragen, "jury": [tuple(z) for z in jury_zeilen],
+              "modellkosten_eur": con.execute("SELECT COALESCE(SUM(kosten_eur),0) FROM kasse").fetchone()[0]}
+@@ -250,7 +287,14 @@ def test_jedes_organ_wird_im_lauf_aufgerufen(tmp_path, monkeypatch, capsys):
+     assert fehlend == [], f"Organ existiert und wird im Lauf nie gerufen: {fehlend} (gerufen {len(organe) - len(fehlend)} von {len(organe)})"
+     # Gerufen irgendwo genügt für die zwei Abwehrorgane nicht: Sie müssen in der Funktion laufen, die über die
+     # Annahme entscheidet (Befund Lauf 38 — gebaut, getestet, aber nirgends im Annahmepfad).
+-    fehlt_im_pfad = nicht_im_annahmepfad(kanten, ANNAHMEPFAD, PFLICHT_IM_ANNAHMEPFAD)
+-    assert fehlt_im_pfad == [], f"{fehlt_im_pfad} wird nicht aus {ANNAHMEPFAD} gerufen — Kanten dort: {annahmepfad}"
++    fehlt_im_pfad = nicht_im_annahmepfad(kanten, ANNAHMEPFAD, PFLICHT_IM_ANNAHMEPFAD, phase="generation")
++    assert fehlt_im_pfad == [], f"{fehlt_im_pfad} wird in der Phase generation nicht aus {ANNAHMEPFAD} gerufen — Kanten dort: {annahmepfad}"
++    assert eich_gen.get("stillgelegt") == [REGEL_SAUBER], f"Maßeichung wirkt nicht in der Generation: {wirkung}"
++    assert beta_gen.get("sicherheit_punkte") == 0 and (beta_gen.get("sicherheit_punkte_roh") or 0) >= 1, \
++        f"Regel im sauberen Bereich nicht angeschlagen oder nicht stillgelegt: {wirkung}"
++    assert (k_masse.get("_masseichung") or {}).get("stillgelegt") == [REGEL_SAUBER], f"Kandidat ungeeicht bewertet: {wirkung}"
++    assert beta_texte and not wirkung["schwarm_beta_mit_regel"], f"Schwarm liest die stillgelegte Regel: {wirkung}"
++    assert len(falsch) == 1 and falsch[0]["status"] == "abgelehnt" and falsch[0]["grund"].startswith("Verhaltensvergleich:"), \
++        f"Ungedeckte Abweichung am Laufweg nicht abgelehnt: {falsch}"
+     assert beleg["modellkosten_eur"] == 0
+     assert jury_zeilen, "Die Jury hat nicht entschieden — der Gleichstand kam nicht zustande"
+diff --git a/tests/test_vor_t4.py b/tests/test_vor_t4.py
+new file mode 100644
+index 0000000..d3a13d7
+--- /dev/null
++++ b/tests/test_vor_t4.py
+@@ -0,0 +1,383 @@
++"""Behebungsrunde vor T4 (Masterprompt Fassung 8, Abschnitt 8, Vorbedingungen 1–11) — Einheitstests mit Gegenproben.
++
++Die Gegenproben durch den Laufweg (Nachspiel der aufgezeichneten T3-Kandidaten durch aegis.pruefen, Kammer) stehen
++in /root/biotop-vor-t4/; hier stehen die schnellen Nachweise, die in jeder Regression laufen. Jede Probe hat eine
++Gegenprobe, die an der vorgesehenen Zusicherung scheitern muss (Grundsatz 8).
++"""
++import json
++import sqlite3
++from datetime import datetime, timedelta, timezone
++
++import pytest
++
++from biotop import lauf as L
++from biotop.anbieter import AnbieterFehler, ist_drosselung
++from biotop.kern import datenbank, messgeraet as M, protokoll
++from biotop.organe import aegis, gedaechtnis, masseichung, nischen
++
++
++# ================================================================ 1. Laufzeit gepaart (Grundsatz 14)
++def test_1_grenze_misst_gegen_die_gepaarte_vorgeneration_nicht_gegen_das_minimum(messung):
++    """T3 K3121: Bestwert (Minimum) 3,82 ms × 1,219 = 4,6586 < 4,6609 → gerissen, obwohl die Vorgeneration derselben
++    Sitzung 4,80 ms lief. Gepaart ist die Grenze 4,80 × 1,219."""
++    bestwert, basis, kandidat = messung(), messung(), messung()
++    bestwert["bereiche"]["alpha"]["laufzeit_ms"] = 3.8216
++    basis["bereiche"]["alpha"]["laufzeit_ms"] = 4.80
++    kandidat["bereiche"]["alpha"]["laufzeit_ms"] = 4.6609
++    tausch = {"_rauschtoleranz": {"alpha": 1.219, "beta": 1.15}}
++    einzel = M.urteil_f2(basis, kandidat, bestwert, ["alpha", "beta"], ["alpha"], tausch)
++    assert einzel["grenzen_gerissen"] and "alpha.laufzeit_ms" in einzel["grenzen_gerissen"][0]   # Gegenprobe: alter Weg
++    b2, k2 = M.laufzeit_einsetzen(basis, kandidat, {"n": 5, "regel": "x", "bereiche": {
++        "alpha": {"basis": 4.80, "kandidat": 4.6609, "basis_werte": [4.8] * 5, "kandidat_werte": [4.66] * 5}}})
++    gepaart = M.urteil_f2(b2, k2, bestwert, ["alpha", "beta"], ["alpha"], tausch)
++    assert gepaart["grenzen_gerissen"] == [] and gepaart["laufzeit_bezug"].startswith("gepaart")
++
++
++def test_1_gepaart_reisst_eine_echte_verschlechterung_weiterhin(messung):
++    """Gegenprobe: gepaart heißt nicht nachsichtig — Kandidat 2× langsamer als die gepaarte Vorgeneration reißt."""
++    basis, kandidat = messung(), messung()
++    b2, k2 = M.laufzeit_einsetzen(basis, kandidat, {"n": 5, "regel": "x", "bereiche": {
++        "alpha": {"basis": 5.0, "kandidat": 10.0, "basis_werte": [5.0] * 5, "kandidat_werte": [10.0] * 5}}})
++    u = M.urteil_f2(b2, k2, basis, ["alpha", "beta"], ["alpha"], {"_rauschtoleranz": {"alpha": 1.2, "beta": 1.2}})
++    assert u["ok"] is False and "alpha.laufzeit_ms: 10.000 > Grenze 6.000" in u["grund"], u["grund"]
++
++
++def test_1_grenzanzeige_ohne_irrefuehrende_rundung(messung):
++    """T3: „4.66 > Grenze 4.7“ — die Anzeige hatte eine Nachkommastelle. Jetzt drei."""
++    bestwert, kandidat = messung(), messung()
++    bestwert["bereiche"]["alpha"]["laufzeit_ms"] = 3.8216269999999213
++    kandidat["bereiche"]["alpha"]["laufzeit_ms"] = 4.660906999999952
++    g = M.grenzen_f2(bestwert, kandidat, ["alpha"], {}, kernmassgewinn=False, rauschtoleranz={"alpha": 1.219})
++    assert g == [] or "4.661 > Grenze 4.659" in g[0], g
++    assert g and "Grenze 4.7 " not in g[0]
++
++
++@pytest.mark.parametrize("u,nische,erwartet", [
++    ({"zuwachs": 0, "grund": "x", "pareto_schlechter": [], "grenzen_gerissen": []}, "schnell", True),
++    ({"zuwachs": 0, "grund": "x", "pareto_schlechter": [], "grenzen_gerissen": []}, "sicher", False),
++    ({"zuwachs": 2, "grund": "x", "pareto_schlechter": [], "grenzen_gerissen": []}, "sicher", True),
++    ({"zuwachs": 2, "grund": "Pareto verletzt", "pareto_schlechter": ["a"], "grenzen_gerissen": []}, "sicher", False),
++    ({"zuwachs": 2, "grund": "x", "pareto_schlechter": [], "grenzen_gerissen": ["alpha.groesste_funktion"]}, "sicher", False),
++    ({"zuwachs": 0, "grund": "x", "pareto_schlechter": [], "grenzen_gerissen": []}, "werk", True),
++])
++def test_1_laufzeit_wird_nur_gemessen_wo_sie_entscheidet(u, nische, erwartet):
++    assert M.laufzeit_entscheidet(u, nische) is erwartet
++
++
++def test_1_gepaarte_messung_wechselt_die_reihenfolge_und_bildet_median(monkeypatch):
++    folge = []
++    werte = {"basis": iter([10, 50, 11, 12, 13]), "kandidat": iter([7, 8, 90, 9, 7.5])}
++
++    def messen(werk, bereiche, paket, ref, dateien, zeitlimit_s=150):
++        seite = "kandidat" if dateien else "basis"
++        folge.append(seite)
++        return {"gueltig": True, "grund": "", "bereiche": {"alpha": {"laufzeit_ms": next(werte[seite])}}}
++    monkeypatch.setattr(M, "laufzeit_messen", messen)
++    r = M.laufzeit_gepaart("/w", ["alpha"], "src", "last", {}, {"src/a.ts": "x"}, n=5)
++    assert folge[:4] == ["basis", "kandidat", "kandidat", "basis"]          # abwechselnd, nicht blockweise
++    assert r["bereiche"]["alpha"]["basis"] == 12 and r["bereiche"]["alpha"]["kandidat"] == 8   # Median, Ausreißer egal
++
++
++def test_1_messausfall_ist_kein_urteil(monkeypatch):
++    monkeypatch.setattr(M, "laufzeit_messen", lambda *a, **k: {"gueltig": False, "grund": "Zeitlimit", "bereiche": {}})
++    r = M.laufzeit_gepaart("/w", ["alpha"], "src", "last", {}, {"src/a.ts": "x"}, n=3)
++    assert r["gueltig"] is False and r["seite"] == "basis" and "Zeitlimit" in r["grund"]
++
++
++# ================================================================ 4. paar_bestanden
++def test_4_paar_bestanden_verlangt_tragfaehigen_verhaltensvergleich():
++    mass = {"ok": True, "grund": "Kernmaß -1 → 0", "kern_basis": -1, "kern_kandidat": 0, "zuwachs": 1,
++            "pareto_schlechter": [], "grenzen_gerissen": []}
++    u = {"status": "ueberlebt", "vertrag_verletzt": [], "mass": mass, "verhalten": {"tragfaehig": True, "geurteilt": True}}
++    assert L.paar_bestanden(u) is True
++    assert L.paar_bestanden({**u, "verhalten": {"tragfaehig": False, "geurteilt": True}}) is False
++    assert L.paar_bestanden({**u, "status": aegis.ZURUECKGESTELLT}) is False
++
++
++# ================================================================ 8. Kernmaß geeicht, roh gekennzeichnet
++def test_8_kernmass_geeicht_und_roh_gekennzeichnet():
++    m = {"gueltig": True, "belege": {"vitest": {}}, "kernmass": -11, "bereiche": {
++        "zahlen": {"tests_bestanden": 5, "tests_fehlgeschlagen": 0, "sicherheit_punkte": 8, "tote_funktionen": 0,
++                   "sicherheit_befunde": [{"test": "security/detect-object-injection", "punkte": 1}] * 8},
++        "tarife": {"tests_bestanden": 5, "tests_fehlgeschlagen": 0, "sicherheit_punkte": 3, "tote_funktionen": 0,
++                   "sicherheit_befunde": [{"test": "security/detect-object-injection", "punkte": 1}] * 3}}}
++    g = masseichung.anwenden(m, {"sauberer_bereich": "zahlen", "stillgelegt": ["security/detect-object-injection"]})
++    assert g["kernmass"] == 0 and g["kernmass_roh"] == -11 and g["kernmass_formel"] == "f2"
++    assert L._kernmass_f2_roh(g) == -11 and M.kernmass_f2(g) == 0
++
++
++def test_8_gegenprobe_ohne_eichung_bleibt_das_kernmass_unberuehrt():
++    m = {"gueltig": True, "kernmass": -3, "bereiche": {"a": {"tests_bestanden": 0, "tests_fehlgeschlagen": 0,
++                                                             "sicherheit_punkte": 3, "tote_funktionen": 0, "sicherheit_befunde": []}}}
++    assert masseichung.anwenden(m, None) is m and "kernmass_roh" not in m
++
++
++# ================================================================ 10. Gedächtnissperre nur bei berührtem Bereich
++import difflib  # noqa: E402
++
++PRUEFEN_ALT = ("export function pruefe(liste: string[]): number {\n  let doppelt = 0;\n"
++               "  for (let i = 0; i < liste.length; i++) {\n    for (let j = 0; j < i; j++) {\n"
++               "      if (liste[i] === liste[j]) doppelt++;\n    }\n  }\n  return doppelt;\n}\n")
++PRUEFEN_NEU = ("export function pruefe(liste: string[]): number {\n  const gesehen = new Set<string>();\n  let doppelt = 0;\n"
++               "  for (const kennung of liste) {\n    if (gesehen.has(kennung)) doppelt++;\n    gesehen.add(kennung);\n  }\n"
++               "  return doppelt;\n}\n")
++DIFF_PLANUNG = "".join(difflib.unified_diff(PRUEFEN_ALT.splitlines(True), PRUEFEN_NEU.splitlines(True),
++                                            "a/src/planung/pruefen.ts", "b/src/planung/pruefen.ts"))
++
++
++@pytest.mark.parametrize("grund,erwartet", [
++    ("Grenzmaß gerissen: tarife.laufzeit_ms: 6.414 > Grenze 5.945 (Bestwert 5.169 × 1.150)", False),        # unberührt
++    ("Grenzmaß gerissen: planung.laufzeit_ms: 12.000 > Grenze 10.000 (Bestwert 8.000 × 1.250)", False),      # berührt, nicht gepaart
++    ("Grenzmaß gerissen: planung.laufzeit_ms: 12.000 > Grenze 10.000 (Vorgeneration gepaart, Median aus 5 8.000 × 1.250)", True),
++    ("Grenzmaß gerissen: tarife.laufzeit_ms: 9.000 > Grenze 6.000 (Vorgeneration gepaart, Median aus 5 5.000 × 1.200)", False),
++    ("Grenzmaß gerissen: planung.groesste_funktion: 80 > Grenze 60", True),                                    # kein Laufzeitriss
++])
++def test_10_laufzeitriss_sperrt_nur_beruehrt_und_gepaart(grund, erwartet):
++    assert gedaechtnis.laufzeit_sperrt(grund, DIFF_PLANUNG) is erwartet
++
++
++def _gedaechtnis_werk(tmp_path):
++    con = datenbank.verbinden(tmp_path / "g.db")
++    (tmp_path / "src" / "planung").mkdir(parents=True)
++    (tmp_path / "src" / "planung" / "pruefen.ts").write_text(PRUEFEN_ALT)
++    con.execute("INSERT INTO werke(id,name,pfad,bericht,status) VALUES(1,'w',?,?,?)", (str(tmp_path), datenbank.j({"paket": "src"}), "x"))
++    con.execute("INSERT INTO laeufe(id,werk_id,budget_eur,status) VALUES(1,1,1,'laeuft')")
++    return con
++
++
++@pytest.mark.parametrize("grund,sperrt", [
++    # T3 K3242: Riss in `tarife`, Diff ändert nur `planung` — darf später gleiche Kandidaten nicht sperren
++    ("Grenzmaß gerissen: tarife.laufzeit_ms: 6.414 > Grenze 5.945 (Bestwert 5.169 × 1.150)", False),
++    ("Grenzmaß gerissen: planung.laufzeit_ms: 12.000 > Grenze 10.000 (Bestwert 8.000 × 1.250)", False),
++    # Gegenprobe: berührt UND gepaart bestätigt — sperrt (derselbe Diff, derselbe Laufweg)
++    ("Grenzmaß gerissen: planung.laufzeit_ms: 12.000 > Grenze 10.000 (Vorgeneration gepaart, Median aus 5 8.000 × 1.250)", True),
++    # Gegenprobe: eine andere Ablehnungsart sperrt wie bisher
++    ("Kernmaß unverändert (0 → 0); bestandene Tests zählen nicht", True),
++])
++def test_10_sperre_am_laufweg_projekt_merken_und_wiederholung(tmp_path, grund, sperrt):
++    """Durch projekt_merken + wiederholung, die Funktionen, die der Lauf ruft (lauf._generation_koerper)."""
++    con = _gedaechtnis_werk(tmp_path)
++    neu = {"src/planung/pruefen.ts": PRUEFEN_NEU}
++    con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,diff,status,grund) VALUES(1,1,1,'planung','schnell',?,'abgelehnt',?)",
++                (DIFF_PLANUNG, grund))
++    gedaechtnis.projekt_merken(con, 1, 1, 1, tmp_path, neu)
++    w = gedaechtnis.wiederholung(con, 1, "planung", tmp_path, DIFF_PLANUNG, neu, 1)
++    assert (w is not None) is sperrt, (grund, w, [dict(r) for r in con.execute("SELECT grundklasse, funktionen FROM projektgedaechtnis")])
++    assert con.execute("SELECT COUNT(*) FROM projektgedaechtnis").fetchone()[0] == 1   # immer gemerkt, sichtbar
++
++
++# ================================================================ 11a. Erreichbarkeitsführung
++def _db(tmp_path):
++    con = datenbank.verbinden(tmp_path / "n.db")
++    return con
++
++
++def test_11_gedrosselter_anbieter_wird_ausgesetzt_bandit_bleibt(tmp_path):
++    con = _db(tmp_path)
++    for _ in range(nischen.AUSSETZEN_NACH):
++        protokoll.schreiben(con, "anbieter.gedrosselt", lauf_id=7, modell="qwen/qwen3.8-flash", hersteller="qwen", fehler="HTTP 429")
++    assert "qwen" in nischen.ausgesetzt(con, 7)
++    for _ in range(20):
++        gew = [h for h, _ in nischen.waehlen(con, 7, "sicher")]
++        assert "qwen" not in gew and len(gew) == 2
++    assert con.execute("SELECT COUNT(*) FROM bandit").fetchone()[0] == 0          # Bandit unberührt
++
++
++def test_11_gegenprobe_antwort_beendet_die_folge_und_zeit_laeuft_ab(tmp_path):
++    con = _db(tmp_path)
++    for _ in range(nischen.AUSSETZEN_NACH - 1):
++        protokoll.schreiben(con, "anbieter.gedrosselt", lauf_id=7, modell="qwen/qwen3.8-flash", hersteller="qwen", fehler="HTTP 429")
++    protokoll.schreiben(con, "modell.antwort", lauf_id=7, modell="qwen/qwen3.8-flash")
++    protokoll.schreiben(con, "anbieter.gedrosselt", lauf_id=7, modell="qwen/qwen3.8-flash", hersteller="qwen", fehler="HTTP 429")
++    assert nischen.ausgesetzt(con, 7) == {}                                         # Folge unterbrochen
++    for _ in range(nischen.AUSSETZEN_NACH):
++        protokoll.schreiben(con, "anbieter.gedrosselt", lauf_id=7, modell="qwen/qwen3.8-flash", hersteller="qwen", fehler="HTTP 429")
++    spaeter = (datetime.now(timezone.utc) + timedelta(minutes=nischen.AUSSETZEN_MINUTEN + 1)).isoformat(timespec="milliseconds")
++    assert nischen.ausgesetzt(con, 7, jetzt=spaeter) == {}                          # Zeit abgelaufen
++    assert nischen.ausgesetzt(con, 8) == {}                                         # anderer Lauf
++
++
++def test_11_drosselung_ist_nicht_ablehnung():
++    assert ist_drosselung(AnbieterFehler("x: HTTP 429 temporarily rate-limited upstream"))
++    assert not ist_drosselung(AnbieterFehler("x: ablehnung — kein nutzbarer Beitrag", ausfallart="ablehnung"))
++    assert not ist_drosselung(AnbieterFehler("x: HTTP 500 interner Fehler"))
++
++
++# ================================================================ 11b. _beschleunigen entfernt
++def test_11_beschleunigen_ist_entfernt():
++    from biotop.organe import eichproben
++    assert not hasattr(eichproben, "_beschleunigen")
++
++
++
++# ================================================================ 6. Generation 0: nicht gemessen je Durchlauf
++def _g0_con(tmp_path):
++    from biotop.organe import generation0 as G0
++    con = datenbank.verbinden(tmp_path / "g0.db")
++    G0.zaehlkontext_setzen(con, 1)
++    return con, G0
++
++
++@pytest.mark.parametrize("neutral_anzahl,gemessen", [(3, False), (2, True), (0, True)])
++def test_6_durchlauf_ueberwiegend_neutral_heisst_nicht_gemessen(tmp_path, monkeypatch, neutral_anzahl, gemessen):
++    """Durch G0.messen — die Funktion, die lauf.generation0 je Durchlauf ruft. T3 Lauf 37: 100 von 100 neutral
++    (Typbau gebrochen) wurden als „0 von 100 gefangen“ gebucht und lösten Tests für alle 100 Mutanten aus."""
++    con, G0 = _g0_con(tmp_path)
++    urteile = iter([{"gefangen": False, "neutral": True, "grund": "typbau_nicht_bestanden", "von": "x"}] * neutral_anzahl
++                   + [{"gefangen": True, "neutral": False, "grund": None, "von": "t"}] * (4 - neutral_anzahl))
++    monkeypatch.setattr(G0, "_testlauf_urteil", lambda werk, dateien: next(urteile))
++    mut = [{"datei": "src/a/x.ts", "zeile": 1, "art": "a", "beschreibung": "b", "code": "c"} for _ in range(4)]
++    if gemessen:
++        r = G0.messen(con, 1, 1, tmp_path, mut, "vorher")
++        assert r["neutral"] == neutral_anzahl and r["gefangen"] == 4 - neutral_anzahl
++    else:
++        with pytest.raises(G0.NichtGemessen, match="3 von 4 Mutantenläufen neutral"):
++            G0.messen(con, 1, 1, tmp_path, mut, "vorher")
++        z = [json.loads(r[0]) for r in con.execute("SELECT inhalt FROM protokoll WHERE art='generation0.nicht_gemessen'")]
++        assert z and z[0]["neutral"] == 3
++
++
++def test_6_tsc_meldung_wird_im_neutralfall_gespeichert(tmp_path, monkeypatch):
++    con, G0 = _g0_con(tmp_path)
++    from biotop.kern import sprachprofil, typescript
++    monkeypatch.setattr(sprachprofil, "ist_typescript", lambda w: True)
++    monkeypatch.setattr(typescript, "baulauf", lambda w, d=None: {"gueltig": True, "baut": False, "prozess": {
++        "stdout": "tests/x.test.ts(4,9): error TS2322: Type 'string[]' is not assignable to type 'number[]'.\n"}})
++    r = G0._testlauf_urteil(tmp_path, {})
++    assert r["neutral"] is True and "TS2322" in r["von"]
++    e = con.execute("SELECT einzelheit FROM neutralzaehler WHERE organ='generation0._testlauf'").fetchone()[0]
++    assert "TS2322" in e and "tests/x.test.ts(4,9)" in e
++
++
++@pytest.mark.parametrize("baut,aufgenommen", [(False, False), (True, True)])
++def test_6_testkandidat_der_den_typbau_bricht_wird_nicht_aufgenommen(tmp_path, monkeypatch, baut, aufgenommen):
++    """Durch G0._tests_typescript (der Testbau, den lauf.generation0 ruft). Gegenprobe: baut der Typbau, wird der Test
++    aufgenommen — die Prüfung sperrt nicht pauschal."""
++    con, G0 = _g0_con(tmp_path)
++    from biotop.kern import typescript
++    w = tmp_path / "werk"
++    (w / "src" / "a").mkdir(parents=True)
++    (w / "tests").mkdir()
++    (w / "package.json").write_text('{"type":"module"}')
++    (w / "src" / "a" / "wert.ts").write_text("export function wert(): number { return 2; }\n")
++
++    class Antwort:
++        text = "```typescript\nimport {test,expect} from 'vitest';\ntest('t', () => { expect(1).toBe(1); });\n```"
++    monkeypatch.setattr(G0, "aufrufen", lambda *a, **k: Antwort())
++    monkeypatch.setattr(G0.nischen, "waehlen", lambda *a, **k: [("qwen", "qwen/qwen3.8-flash")])
++    monkeypatch.setattr(G0.nischen, "buchen", lambda *a, **k: None)
++    monkeypatch.setattr(typescript, "testlauf", lambda werk, dateien=None, tests=None: {
++        "gueltig": True, "faelle": {"tests/t.test.ts::t": {"ok": "src/a/wert.ts" not in (dateien or {}), "bestaetigt": True}}})
++    monkeypatch.setattr(typescript, "baulauf", lambda werk, dateien=None: {"gueltig": True, "baut": baut, "prozess": {"stdout": "error TS1: x"}})
++    m = {"datei": "src/a/wert.ts", "zeile": 1, "art": "zahl", "beschreibung": "2 → 3", "code": "export function wert(): number { return 3; }\n"}
++    r = G0._tests_typescript(con, 1, 1, w, "src", [m], {id(m): 1})
++    assert bool(r["neue_tests"]) is aufgenommen, r
++    typbau = con.execute("SELECT COUNT(*) FROM protokoll WHERE art='generation0.testkandidat_typbau'").fetchone()[0]
++    assert (typbau > 0) is (not baut)
++
++
++# ================================================================ 9. Immunisierung auf dem TypeScript-Pfad
++ALT_TS = "import { test, expect } from 'vitest';\nimport { plus } from '../src/beta/wert.js';\n\ntest('test_alt', () => {\n  expect(plus(1, 1)).toBe(2);\n});\n"
++NEU_TS = ("import { test, expect } from 'vitest';\nimport { plus } from '../src/beta/wert.js';\nimport { halb } from '../src/beta/wert.js';\n\n"
++          "test('test_alt', () => {\n  expect(plus(1, 1)).toBe(2);\n});\n\ntest('test_neu', () => {\n  expect(halb(4)).toBe(2);\n});\n")
++
++
++def test_9_anhaengen_auf_dem_typescript_pfad_haengt_an_und_zaehlt(tmp_path, monkeypatch):
++    """T3: 0 von 0 Fällen, jeder TS-Aufruf endete neutral 'typescript_eigene_datei'. Jetzt echt angehängt (Kammer)."""
++    from biotop.kern import typescript
++    from biotop.organe import neutralzaehler
++    con = datenbank.verbinden(tmp_path / "a.db")
++    monkeypatch.setattr(aegis, "_zaehlkontext", lambda: (con, 9))
++    g = aegis._anhaengen(ALT_TS, NEU_TS, {"test_neu"})
++    assert g is not None and g.startswith(ALT_TS.split("\n\ntest(")[0])
++    assert {t["name"] for t in typescript.testfunktionen(g)} == {"test_alt", "test_neu"}
++    assert "import { halb }" in g and g.count("import { plus }") == 1
++    assert neutralzaehler.stand(con, 9)["aegis._anhaengen"]["geurteilt"] == 1
++    # Gegenprobe: nichts Neues zu behalten → nichts angehängt, neutral gezählt
++    assert aegis._anhaengen(ALT_TS, NEU_TS, {"test_alt"}) is None
++    assert neutralzaehler.stand(con, 9)["aegis._anhaengen"]["neutral"] == 1
++
++
++# ================================================================ Entscheidung Chat-Claude: geeicht lesen
++def test_geeicht_lesen_befundklassen_nur_aus_geeichter_messung(tmp_path, monkeypatch):
++    """aegis.pruefen bildet die Befundklassen (und damit die Wahl des schweren Angriffsmodells) aus der geeichten
++    Vorgeneration. Gegenprobe: ohne Eichung erscheint die Regel."""
++    basis = {"bereiche": {"zahlen": {"sicherheit_punkte": 1, "sicherheit_befunde": [
++        {"test": "security/detect-object-injection", "punkte": 1, "schwere": "LOW"}]}}}
++    eich = {"sauberer_bereich": "zahlen", "stillgelegt": ["security/detect-object-injection"]}
++    g = masseichung.anwenden(basis, eich)
++    assert sorted({b["test"] for b in g["bereiche"]["zahlen"]["sicherheit_befunde"]}) == []
++    assert sorted({b["test"] for b in masseichung.anwenden(basis, None)["bereiche"]["zahlen"]["sicherheit_befunde"]}) == \
++        ["security/detect-object-injection"]
++    import inspect
++    quelle = inspect.getsource(aegis.pruefen)
++    assert "basis_g = masseichung.anwenden(basis" in quelle and "befundklassen_tests(con, werk_id, b_, basis_g)" in quelle
++    assert "basis_g = masseichung.anwenden(basis" in inspect.getsource(L._generation_koerper)
++
++
++
++# ================================================================ Befundklassen auch für den Bereich des Nachbarn
++def test_befundklassen_tests_fuer_jeden_geaenderten_bereich(monkeypatch):
++    """aegis.pruefen legt Befundklassen-Immuntests für jeden Bereich an, dessen Quelltext der Kandidat (einschließlich
++    der Anpassung des Nachbarn) ändert — nicht nur für den eigenen. Geprüft am Quelltext des Annahmepfads und an der
++    Auswahl der Bereiche; die Wirkung zeigt das Nachspiel K2867+K2868 (Lauf 37) durch aegis.pruefen."""
++    import inspect
++    quelle = inspect.getsource(aegis.pruefen)
++    assert 'for b_ in sorted({bereich} | {p.split("/")[1] for p in code' in quelle
++    assert "bk.update(befundklassen_tests(con, werk_id, b_, basis_g))" in quelle
++    code = {"src/zahlen/geld.ts": "x", "src/tarife/ausdruck.ts": "y", "tests/test_x.test.ts": "z"}
++    bereiche = sorted({"zahlen"} | {p.split("/")[1] for p in code if p.startswith("src/") and p.count("/") >= 2})
++    assert bereiche == ["tarife", "zahlen"]
++
++
++
++# ================================================================ 3. Sondenausfall am Laufweg (aegis.pruefen)
++def _pruefen_bis_zur_sonde(tmp_path, monkeypatch, beobachtung):
++    """aegis.pruefen — die Funktion, die ein Lauf zur Annahme ruft — mit gestellten Außenwirkungen: Modell (kein
++    Angriff), Messgerät (beide Seiten gültig, Kernmaß +1), Kammer der Verhaltenssonde (`beobachten`). Gestellt ist die
++    GRENZE, die das Organ überquert (Kammer), nie das Organ selbst."""
++    import sqlite3 as _sql
++    from types import SimpleNamespace
++    from biotop.organe import verhaltensvergleich as vv
++    con = _sql.connect(":memory:", isolation_level=None)
++    con.row_factory = _sql.Row
++    con.executescript(datenbank.SCHEMA)
++    w = tmp_path / "w"
++    (w / "src" / "alpha").mkdir(parents=True)
++    (w / "package.json").write_text('{"type":"module"}')
++    (w / "src" / "alpha" / "a.ts").write_text("export function a(x: number): number {\n  return x;\n}\n")
++    diff = ("--- a/src/alpha/a.ts\n+++ b/src/alpha/a.ts\n@@ -1,3 +1,3 @@\n export function a(x: number): number {\n"
++            "-  return x;\n+  return x + 0;\n }\n")
++    con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'alpha','sicher','erzeugt',?)", (diff,))
++    monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
++
++    def messen(werk, bereiche, paket, ref, dateien=None, **k):
++        kand = any(p.startswith("src/") for p in (dateien or {}))
++        return {"gueltig": True, "kernmass": 0, "werk": {"baut": True, "zyklen": 0, "bauzeit_ms": 100,
++                "tests_fehlgeschlagen_liste": [], "tests_fehlgeschlagen_ids": []},
++                "bereiche": {"alpha": {"tests_bestanden": 1, "tests_fehlgeschlagen": 0, "sicherheit_punkte": 0,
++                                       "sicherheit_befunde": [], "tote_funktionen": 0 if kand else 1,
++                                       "laufzeit_ms": None, "groesste_funktion": 3}}}
++    monkeypatch.setattr(aegis.messgeraet, "messen", messen)
++    # Grenze Kammer auch für die gepaarte Laufzeit: beide Seiten gleich schnell (die Laufzeit entscheidet hier nichts)
++    monkeypatch.setattr(aegis.messgeraet, "laufzeit_messen",
++                        lambda *a, **k: {"gueltig": True, "grund": "", "bereiche": {"alpha": {"laufzeit_ms": 10.0}}})
++    monkeypatch.setattr(vv, "beobachten", beobachtung)
++    basis = messen(w, ["alpha"], "src", None)
++    u = aegis.pruefen(con, 1, 1, 7, w, "src", ["alpha"], [], basis, basis, "// last", {})
++    return con, u
++
++
++def test_3_sondenausfall_am_laufweg_wird_zurueckgestellt_nicht_abgelehnt(tmp_path, monkeypatch):
++    con, u = _pruefen_bis_zur_sonde(tmp_path, monkeypatch,
++                                    lambda *a, **k: {"gueltig": False, "art": "infrastruktur", "grund": "Kammer: Zeitlimit 240 s"})
++    assert u["status"] == aegis.ZURUECKGESTELLT and "Zeitlimit" in u["grund"], u["grund"]
++    assert con.execute("SELECT status FROM kandidaten WHERE id=7").fetchone()[0] == aegis.ZURUECKGESTELLT
++
++
++def test_3_gegenprobe_inhaltsbefund_am_kandidaten_bleibt_ablehnung(tmp_path, monkeypatch):
++    seiten = iter([{"gueltig": True, "beobachtungen": {"alpha/a:a#0": "1"}, "eingewickelt": {"alpha/a": ["a"]},
++                    "aufgerufen": {"alpha/a:a": 1}},
++                   {"gueltig": False, "art": "inhalt", "grund": "Modul lädt nicht"}])
++    con, u = _pruefen_bis_zur_sonde(tmp_path, monkeypatch, lambda *a, **k: next(seiten))
++    assert u["status"] == "abgelehnt" and u["grund"].startswith("Verhaltensvergleich:"), u["grund"]

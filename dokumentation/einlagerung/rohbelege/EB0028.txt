@@ -1,0 +1,127 @@
+EB28 · Schritt 3: Arbeitsdokumente der Runde 6 geschwärzt nach ausgabe/RUNDE6-DOKUMENTE-01/
+Beginn: 2026-09-26 00:23:20 CEST (UTC+0200)
+Ende:   2026-09-26 00:23:21 CEST (UTC+0200)
+Dauer:  0.4 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/biotop-einlagerung/arbeit/s3_runde6.py
+--- Inhalt von /root/biotop-einlagerung/arbeit/s3_runde6.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-EINLAGERUNG-01 · Schritt 3: Arbeitsdokumente der Runde 6 (bisher unveröffentlicht) geschwärzt nach
+ausgabe/RUNDE6-DOKUMENTE-01/ legen — veröffentlicht wird danach mit pk.py (Geheimnissuche, exklusiv, Abruf).
+- Schwärzung: jedes Schlüsselmuster (geheimnis.MUSTER) → „[GESCHWÄRZT: <Muster>]“, jeder Wert aus .env (≥ 8) und
+  auth.json (≥ 12) → „[GESCHWÄRZT]“; gezählt je Datei.
+- Dateien über 38.000 B werden an Zeilengrenzen in Teile geteilt (…-TEILk…); .py/.sh bekommen „.txt“ angehängt.
+- Die Teile tragen keinen Kopf: ihre Verkettung ist die geschwärzte Datei, bei 0 Schwärzungen byte-gleich das Original.
+  Quelle, Bytes, SHA-256 und Teile stehen in VERZEICHNIS.md.
+- Jede Zieldatei wird exklusiv angelegt."""
+import hashlib
+import os
+import re
+import sys
+from pathlib import Path
+
+sys.path.insert(0, '/root/biotop-einlagerung/arbeit')
+import geheimnis  # noqa: E402
+
+A = Path('/root/biotop-einlagerung/ausgabe/RUNDE6-DOKUMENTE-01')
+V6 = Path('/root/biotop-vor-t4-06')
+GRENZE = 38_000
+WERTE = geheimnis.werte()
+QUELLEN = [
+    (V6 / 'UEBERGABE.md', 'Übergabe der Runde 6: Auftrag, Plan, Stand (neueste zuletzt), zuletzt geschrieben 25.09. 12:52'),
+    (V6 / 'BAU-S1C-UNBEOBACHTET.md', 'Bauauftrag S1c (Klasse „tragfähig ohne Beobachtung“, Teile A–F)'),
+    (V6 / 'bau' / 'S1C-PLAN.md', 'Plan- und Standdatei des Baus S1c'),
+    (Path('/root/sicherung/biotop-lage-01/arbeit/berichte/BERICHT-S1c-deleg_c88798ee.txt'),
+     'Schlussbericht S1c im Wortlaut (Delegation deleg_c88798ee; gesichert in BIOTOP-LAGE-01, R175/R193)'),
+    (Path('/root/biotop-vor-t4-05/SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md'),
+     'Spezifikationen für Runde 6 aus Runde 5 (R6-1 … R6-15, U-1 … U-4)'),
+    (V6 / 'bau' / 'S1C-BAU-SPEZ.txt', 'Protokoll: rote Spezifikationen S1c geschrieben'),
+    (V6 / 'bau' / 'S1B-BAU-SPEZ.txt', 'Protokoll: rote Spezifikationen S1b (1)'),
+    (V6 / 'bau' / 'S1B-BAU-SPEZ2.txt', 'Protokoll: rote Spezifikationen S1b (2)'),
+    (V6 / 'bau' / 'S1B-BAU-SPEZ3.txt', 'Protokoll: rote Spezifikationen S1b (3)'),
+    (V6 / 'bau' / 'R6-S4-SPEZIFIKATION.txt', 'Protokoll: Spezifikation S4'),
+    (Path('/root/biotop/tests/test_vor_t4_06.py'),
+     'Spezifikationen und Tests der Runde 6, darunter die roten test_w_g_* (Befund G); Stand Commit e8401af'),
+    (V6 / 'BAU-S1-SONDE.md', 'Bauauftrag S1'), (V6 / 'BAU-S1-FORTSETZUNG.md', 'Bauauftrag S1-Fortsetzung'),
+    (V6 / 'BAU-S1B-M2B.md', 'Bauauftrag S1b'), (V6 / 'BAU-S2-TOR4.md', 'Bauauftrag S2'),
+    (V6 / 'BAU-S3-STUFE2.md', 'Bauauftrag S3'), (V6 / 'BAU-S4-VERDRAHTUNG.md', 'Bauauftrag S4'),
+]
+sha = lambda b: hashlib.sha256(b).hexdigest()
+
+
+def maske(t: str):
+    n = 0
+    for name, m in geheimnis.MUSTER.items():
+        t, k = re.subn(m, f'[GESCHWÄRZT: {name}]', t)
+        n += k
+    for v in WERTE:
+        if v in t:
+            n += t.count(v)
+            t = t.replace(v, '[GESCHWÄRZT]')
+    return t, n
+
+
+def teile(b: bytes):
+    if len(b) <= GRENZE:
+        return [b]
+    out, akt = [], b''
+    for z in b.splitlines(keepends=True):
+        if akt and len(akt) + len(z) > GRENZE:
+            out.append(akt)
+            akt = b''
+        akt += z
+    out.append(akt)
+    return out
+
+
+A.mkdir(parents=True, exist_ok=False)
+zeilen = ['# BIOTOP-EINLAGERUNG-01 · RUNDE6-DOKUMENTE-01 · Verzeichnis', '',
+          'Arbeitsdokumente der Behebungsrunde 6, bisher unveröffentlicht (Auftrag Schritt 3). Geschwärzt: Schlüsselmuster '
+          'und Werte aus `.env`/`auth.json` (Werkzeug `arbeit/geheimnis.py`). Teile haben keinen Kopf; ihre Verkettung ist '
+          'die geschwärzte Datei, bei 0 Schwärzungen byte-gleich das Original.', '',
+          '| Quelle | Zweck | Bytes | SHA-256 Original | geschwärzt | veröffentlichte Teile (Bytes, SHA-256) |', '|---|---|---|---|---|---|']
+gesamt = 0
+for q, zweck in QUELLEN:
+    orig = q.read_bytes()
+    text, n = maske(orig.decode('utf-8'))
+    neu = text.encode('utf-8')
+    tt = teile(neu)
+    assert b''.join(tt) == neu
+    endung = q.suffix + ('.txt' if q.suffix in ('.py', '.sh') else '')
+    namen = [q.stem + endung] if len(tt) == 1 else [f'{q.stem}-TEIL{k}{endung}' for k in range(1, len(tt) + 1)]
+    for name, b in zip(namen, tt):
+        fd = os.open(A / name, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+        with os.fdopen(fd, 'wb') as f:
+            f.write(b)
+        gesamt += 1
+    gleich = 'Verkettung = Original' if n == 0 and b''.join(tt) == orig else f'{n} Stellen'
+    zeilen.append(f'| `{q}` | {zweck} | {len(orig)} | `{sha(orig)}` | {gleich} | '
+                  + '; '.join(f'`{nm}` {len(b)} B `{sha(b)[:16]}…`' for nm, b in zip(namen, tt)) + ' |')
+    print(f'{q} · {len(orig)} B · SHA-256 {sha(orig)} · geschwärzt {n} · Teile {len(tt)}: {namen}')
+text = '\n'.join(zeilen) + '\n'
+fd = os.open(A / 'VERZEICHNIS.md', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+with os.fdopen(fd, 'w') as f:
+    f.write(text)
+print(f'Quellen {len(QUELLEN)} · Dateien {gesamt} + VERZEICHNIS.md ({len(text.encode())} B)')
+--- Ende /root/biotop-einlagerung/arbeit/s3_runde6.py ---
+Ausgabe (vollständig, stdout und stderr):
+/root/biotop-vor-t4-06/UEBERGABE.md · 24382 B · SHA-256 09e213d6d916c7610d910c4d0b5906df264d7ac87cca642e73942ebbf287d047 · geschwärzt 0 · Teile 1: ['UEBERGABE.md']
+/root/biotop-vor-t4-06/BAU-S1C-UNBEOBACHTET.md · 10219 B · SHA-256 341e5869a1c3ef0da244eb8b0fadab87ccf9733d3112a51a95c5acabcf209a79 · geschwärzt 0 · Teile 1: ['BAU-S1C-UNBEOBACHTET.md']
+/root/biotop-vor-t4-06/bau/S1C-PLAN.md · 29446 B · SHA-256 84d07b9ed7e71dea46aac6ec6ad54b6c22b527c7aedb4d2a613186140ec6f5b5 · geschwärzt 0 · Teile 1: ['S1C-PLAN.md']
+/root/sicherung/biotop-lage-01/arbeit/berichte/BERICHT-S1c-deleg_c88798ee.txt · 11293 B · SHA-256 8a1602433f2d77119d37cf05f3125a09172980f3002d0a25653495bb3e3e4382 · geschwärzt 0 · Teile 1: ['BERICHT-S1c-deleg_c88798ee.txt']
+/root/biotop-vor-t4-05/SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md · 6682 B · SHA-256 e8906c54ccc84efa7b910b8aec33cd07c260bebbef280911812f224d9d85f94d · geschwärzt 0 · Teile 1: ['SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md']
+/root/biotop-vor-t4-06/bau/S1C-BAU-SPEZ.txt · 7895 B · SHA-256 7e8a02f67c269d9c89ede6e7a6d0cb2046f5dbe6e8a5948affbbbe8fa4633ab8 · geschwärzt 0 · Teile 1: ['S1C-BAU-SPEZ.txt']
+/root/biotop-vor-t4-06/bau/S1B-BAU-SPEZ.txt · 1337 B · SHA-256 0c5ccb00866c1013ef7786a9ed48549593aa781a6ae2e97956594b82a5593b4d · geschwärzt 0 · Teile 1: ['S1B-BAU-SPEZ.txt']
+/root/biotop-vor-t4-06/bau/S1B-BAU-SPEZ2.txt · 1163 B · SHA-256 742b7ff084d1755def5e04bf19e14eb14286589ae0c533ea6ead2cd2ceebe121 · geschwärzt 0 · Teile 1: ['S1B-BAU-SPEZ2.txt']
+/root/biotop-vor-t4-06/bau/S1B-BAU-SPEZ3.txt · 1163 B · SHA-256 c1b1e903e8a92c0045a38caa7c1ac6de6375ceee01d617de16a8bc75f1c0ae17 · geschwärzt 0 · Teile 1: ['S1B-BAU-SPEZ3.txt']
+/root/biotop-vor-t4-06/bau/R6-S4-SPEZIFIKATION.txt · 746 B · SHA-256 ad9b752b64ae372e71046c611a6ef742cb624290f1e005633844ee7d1b5417b9 · geschwärzt 0 · Teile 1: ['R6-S4-SPEZIFIKATION.txt']
+/root/biotop/tests/test_vor_t4_06.py · 111290 B · SHA-256 67bb6b458527a30b91ac54e0e8aed560f0ad758d0c874cee882801c5866c8710 · geschwärzt 0 · Teile 3: ['test_vor_t4_06-TEIL1.py.txt', 'test_vor_t4_06-TEIL2.py.txt', 'test_vor_t4_06-TEIL3.py.txt']
+/root/biotop-vor-t4-06/BAU-S1-SONDE.md · 12558 B · SHA-256 1ca56afa889ca4538cf8c75561ce40f6cd5521e182e0131c358d2e1c13fddb4a · geschwärzt 0 · Teile 1: ['BAU-S1-SONDE.md']
+/root/biotop-vor-t4-06/BAU-S1-FORTSETZUNG.md · 6107 B · SHA-256 4b49e45e1bb1def3e544f879f870b711411aadb9fee41b560952f0f7187965b7 · geschwärzt 0 · Teile 1: ['BAU-S1-FORTSETZUNG.md']
+/root/biotop-vor-t4-06/BAU-S1B-M2B.md · 9495 B · SHA-256 8fdac4b10952a5f787adb5d31ebad0b413f52202e3e4123e15d54fd9bdfa747f · geschwärzt 0 · Teile 1: ['BAU-S1B-M2B.md']
+/root/biotop-vor-t4-06/BAU-S2-TOR4.md · 8949 B · SHA-256 2bf51fa55f3d0106181c1be9a05e47a02fd180220c32a3c7148215e7d666fa3c · geschwärzt 0 · Teile 1: ['BAU-S2-TOR4.md']
+/root/biotop-vor-t4-06/BAU-S3-STUFE2.md · 5948 B · SHA-256 9dd730081a30224e5a30f3aff5731bd1ee08959b261afd317ac85c42500ed7a0 · geschwärzt 0 · Teile 1: ['BAU-S3-STUFE2.md']
+/root/biotop-vor-t4-06/BAU-S4-VERDRAHTUNG.md · 12420 B · SHA-256 741cdb0f5f8db88d3d1b63b5947d488ea9e66532652389c004383a44925c3438 · geschwärzt 0 · Teile 1: ['BAU-S4-VERDRAHTUNG.md']
+Quellen 17 · Dateien 19 + VERZEICHNIS.md (4904 B)
+=== Ende EB28 ===

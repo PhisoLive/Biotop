@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="9.494" timestamp="2026-09-20T17:20:40.646116+02:00" hostname="ubuntu"><testcase classname="tests.test_review_vertrag" name="test_test_eigener_fehler_ist_keine_pruefbare_vertragsgegenprobe" time="9.451"><failure message="AssertionError: Gültige Messhülle verdeckt defekten benannten Vertrag&#10;assert True is False">vertragswerk = PosixPath('/root/reparatur-01/nachbesserung-01/vertrag/tmp/03-pruefbar-rot/test_test_eigener_fehler_ist_k0/werk')
+vertragspruefung = &lt;function vertragspruefung.&lt;locals&gt;.pruefen at 0x70c2bd72f420&gt;
+
+    def test_test_eigener_fehler_ist_keine_pruefbare_vertragsgegenprobe(vertragswerk, vertragspruefung):
+        """Echter Setupfehler nur des benannten Vertrages; Verbraucher bleibt gültig."""
+        (vertragswerk / 'tests/conftest.py').write_text(
+            'def pytest_runtest_setup(item):\n'
+            "    if item.name == 'test_eichprobe_vertrag_neue_zusicherung':\n"
+            "        raise NameError('EINGABE fehlt im Vertragsfixture')\n")
+        rows = [vertragspruefung(g) for g in (False, True)]
+        for row in rows:
+            print('DEFEKTER VERTRAG', row)
+            assert row['belege']['messung']['gueltig'] is True
+            assert row['ausgefuehrt'] is True
+&gt;           assert row['pruefbar'] is False, 'Gültige Messhülle verdeckt defekten benannten Vertrag'
+E           AssertionError: Gültige Messhülle verdeckt defekten benannten Vertrag
+E           assert True is False
+
+tests/test_review_vertrag.py:82: AssertionError</failure></testcase></testsuite></testsuites>

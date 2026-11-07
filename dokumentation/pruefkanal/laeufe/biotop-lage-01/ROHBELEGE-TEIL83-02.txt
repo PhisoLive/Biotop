@@ -1,0 +1,718 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 83 (Teile 4–165 dieses Stands) · enthält R100 bis R105
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R100 · Teil E: Freigaben, Mentorwahl, Maß je Lauf aus dem Protokoll (STAMM immutable, T3 ro)
+Beginn: 2026-09-25 16:52:27 CEST (UTC+0200)
+Ende:   2026-09-25 16:52:28 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/soll-ist/e7_freigaben.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/soll-ist/e7_freigaben.py (wörtlich) ---
+#!/usr/bin/env python3
+"""Teil E (SOLL-IST), nur lesend: Protokollzeilen `freigabe.frei`, `mentor.gewaehlt`, `mass.eingefroren` je Lauf
+(Feld lauf_id im JSON-Inhalt) und ob der Grund „Vollmacht“ nennt. Zweck: Masterprompt v8 Abschnitt 4 (Freigabe,
+Vollmacht, Richtungswahl) und 3.5 (Maß bestätigt).
+STAMM: nur mode=ro&immutable=1 und nur bei leerer WAL; T3: mode=ro. Ausgegeben werden Zählungen und die ersten
+120 Zeichen des Grundes je Gruppe — keine Geheimnisse (Protokoll enthält keine Schlüssel). Schreibt nichts."""
+import json
+import os
+import sqlite3
+from collections import Counter, defaultdict
+
+STAMM = '/root/biotop/daten/biotop.db'
+wal = os.path.getsize(STAMM + '-wal') if os.path.exists(STAMM + '-wal') else None
+print(f'Kammer-Sperre vorhanden: {os.path.exists("/tmp/biotop-kammer-exklusiv")}; STAMM-WAL: {wal} Bytes')
+QUELLEN = [('T3', 'file:/root/biotop-t3/t3.db?mode=ro')]
+if wal in (None, 0):
+    QUELLEN.insert(0, ('STAMM', f'file:{STAMM}?mode=ro&immutable=1'))
+else:
+    print('STAMM NICHT GEÖFFNET (WAL nicht leer)')
+
+for name, uri in QUELLEN:
+    con = sqlite3.connect(uri, uri=True)
+    print(f'\n===== {name}')
+    for art in ('freigabe.frei', 'mentor.gewaehlt', 'mass.eingefroren'):
+        je_lauf = Counter()
+        vollmacht = Counter()
+        gruende = defaultdict(Counter)
+        for (inhalt,) in con.execute('SELECT inhalt FROM protokoll WHERE art=? ORDER BY nr', (art,)):
+            try:
+                d = json.loads(inhalt)
+            except (json.JSONDecodeError, TypeError):
+                d = {}
+            lid = d.get('lauf_id', d.get('lauf'))
+            je_lauf[lid] += 1
+            text = json.dumps(d, ensure_ascii=False)
+            if 'ollmacht' in text:
+                vollmacht[lid] += 1
+            g = str(d.get('grund', d.get('von', d.get('bestaetigt_von', ''))))[:120]
+            gruende[lid][g] += 1
+        gesamt = sum(je_lauf.values())
+        print(f'\n{art}: {gesamt} Zeilen; davon mit „Vollmacht“ im Inhalt: {sum(vollmacht.values())}')
+        for lid in sorted(je_lauf, key=lambda x: (x is None, x if isinstance(x, int) else 0)):
+            print(f'   Lauf {lid}: {je_lauf[lid]} (Vollmacht {vollmacht[lid]})')
+        if art != 'freigabe.frei':
+            continue
+        print('   Gründe ohne „Vollmacht“ (erste 120 Zeichen, je Lauf):')
+        for lid in sorted(je_lauf, key=lambda x: (x is None, x if isinstance(x, int) else 0)):
+            if je_lauf[lid] != vollmacht[lid]:
+                for g, n in gruende[lid].items():
+                    if 'ollmacht' not in g:
+                        print(f'      Lauf {lid}: {n}× {g}')
+    con.close()
+--- Ende /root/sicherung/biotop-lage-01/entwurf/soll-ist/e7_freigaben.py ---
+Ausgabe (vollständig, stdout und stderr):
+Kammer-Sperre vorhanden: False; STAMM-WAL: 0 Bytes
+
+===== STAMM
+
+freigabe.frei: 48 Zeilen; davon mit „Vollmacht“ im Inhalt: 41
+   Lauf 2: 3 (Vollmacht 0)
+   Lauf 4: 2 (Vollmacht 0)
+   Lauf 5: 2 (Vollmacht 0)
+   Lauf 6: 6 (Vollmacht 6)
+   Lauf 7: 3 (Vollmacht 3)
+   Lauf 8: 3 (Vollmacht 3)
+   Lauf 9: 4 (Vollmacht 4)
+   Lauf 10: 1 (Vollmacht 1)
+   Lauf 12: 4 (Vollmacht 4)
+   Lauf 13: 7 (Vollmacht 7)
+   Lauf 16: 2 (Vollmacht 2)
+   Lauf 17: 4 (Vollmacht 4)
+   Lauf 18: 1 (Vollmacht 1)
+   Lauf 19: 1 (Vollmacht 1)
+   Lauf 20: 1 (Vollmacht 1)
+   Lauf 23: 2 (Vollmacht 2)
+   Lauf 24: 1 (Vollmacht 1)
+   Lauf 25: 1 (Vollmacht 1)
+   Gründe ohne „Vollmacht“ (erste 120 Zeichen, je Lauf):
+      Lauf 2: 1× Diff entfernt 2 unbenutzte Funktionen in preise/rabatt.py; tote_funktionen 2→0, Kernmaß 39→41, 50 von 50 Tests
+      Lauf 2: 1× 3 Einzeiler-Fixes (eval-builtins leer, Reservierung beim Einlösen reduziert, Staffel >=), 8 neue Tests aus dem Ankläger,
+      Lauf 2: 1× Messung: siehe 30-lauf2-gen5.json
+      Lauf 4: 2× Kassenprobe
+      Lauf 5: 2× Kassenprobe
+
+mentor.gewaehlt: 11 Zeilen; davon mit „Vollmacht“ im Inhalt: 11
+   Lauf 16: 2 (Vollmacht 2)
+   Lauf 17: 1 (Vollmacht 1)
+   Lauf 18: 1 (Vollmacht 1)
+   Lauf 19: 1 (Vollmacht 1)
+   Lauf 20: 1 (Vollmacht 1)
+   Lauf 22: 2 (Vollmacht 2)
+   Lauf 23: 1 (Vollmacht 1)
+   Lauf 24: 1 (Vollmacht 1)
+   Lauf 25: 1 (Vollmacht 1)
+
+mass.eingefroren: 23 Zeilen; davon mit „Vollmacht“ im Inhalt: 0
+   Lauf 1: 1 (Vollmacht 0)
+   Lauf 2: 1 (Vollmacht 0)
+   Lauf 4: 1 (Vollmacht 0)
+   Lauf 5: 1 (Vollmacht 0)
+   Lauf 6: 2 (Vollmacht 0)
+   Lauf 7: 1 (Vollmacht 0)
+   Lauf 8: 1 (Vollmacht 0)
+   Lauf 9: 1 (Vollmacht 0)
+   Lauf 10: 1 (Vollmacht 0)
+   Lauf 12: 1 (Vollmacht 0)
+   Lauf 13: 1 (Vollmacht 0)
+   Lauf 14: 1 (Vollmacht 0)
+   Lauf 15: 1 (Vollmacht 0)
+   Lauf 16: 1 (Vollmacht 0)
+   Lauf 17: 1 (Vollmacht 0)
+   Lauf 18: 1 (Vollmacht 0)
+   Lauf 19: 1 (Vollmacht 0)
+   Lauf 20: 1 (Vollmacht 0)
+   Lauf 22: 1 (Vollmacht 0)
+   Lauf 23: 1 (Vollmacht 0)
+   Lauf 24: 1 (Vollmacht 0)
+   Lauf 25: 1 (Vollmacht 0)
+
+===== T3
+
+freigabe.frei: 66 Zeilen; davon mit „Vollmacht“ im Inhalt: 59
+   Lauf 2: 3 (Vollmacht 0)
+   Lauf 4: 2 (Vollmacht 0)
+   Lauf 5: 2 (Vollmacht 0)
+   Lauf 6: 6 (Vollmacht 6)
+   Lauf 7: 3 (Vollmacht 3)
+   Lauf 8: 3 (Vollmacht 3)
+   Lauf 9: 4 (Vollmacht 4)
+   Lauf 10: 1 (Vollmacht 1)
+   Lauf 12: 4 (Vollmacht 4)
+   Lauf 13: 7 (Vollmacht 7)
+   Lauf 16: 2 (Vollmacht 2)
+   Lauf 17: 4 (Vollmacht 4)
+   Lauf 18: 1 (Vollmacht 1)
+   Lauf 19: 1 (Vollmacht 1)
+   Lauf 20: 1 (Vollmacht 1)
+   Lauf 23: 2 (Vollmacht 2)
+   Lauf 24: 1 (Vollmacht 1)
+   Lauf 25: 1 (Vollmacht 1)
+   Lauf 32: 2 (Vollmacht 2)
+   Lauf 36: 2 (Vollmacht 2)
+   Lauf 37: 6 (Vollmacht 6)
+   Lauf 38: 8 (Vollmacht 8)
+   Gründe ohne „Vollmacht“ (erste 120 Zeichen, je Lauf):
+      Lauf 2: 1× Diff entfernt 2 unbenutzte Funktionen in preise/rabatt.py; tote_funktionen 2→0, Kernmaß 39→41, 50 von 50 Tests
+      Lauf 2: 1× 3 Einzeiler-Fixes (eval-builtins leer, Reservierung beim Einlösen reduziert, Staffel >=), 8 neue Tests aus dem Ankläger,
+      Lauf 2: 1× Messung: siehe 30-lauf2-gen5.json
+      Lauf 4: 2× Kassenprobe
+      Lauf 5: 2× Kassenprobe
+
+mentor.gewaehlt: 11 Zeilen; davon mit „Vollmacht“ im Inhalt: 11
+   Lauf 16: 2 (Vollmacht 2)
+   Lauf 17: 1 (Vollmacht 1)
+   Lauf 18: 1 (Vollmacht 1)
+   Lauf 19: 1 (Vollmacht 1)
+   Lauf 20: 1 (Vollmacht 1)
+   Lauf 22: 2 (Vollmacht 2)
+   Lauf 23: 1 (Vollmacht 1)
+   Lauf 24: 1 (Vollmacht 1)
+   Lauf 25: 1 (Vollmacht 1)
+
+mass.eingefroren: 28 Zeilen; davon mit „Vollmacht“ im Inhalt: 0
+   Lauf 1: 1 (Vollmacht 0)
+   Lauf 2: 1 (Vollmacht 0)
+   Lauf 4: 1 (Vollmacht 0)
+   Lauf 5: 1 (Vollmacht 0)
+   Lauf 6: 2 (Vollmacht 0)
+   Lauf 7: 1 (Vollmacht 0)
+   Lauf 8: 1 (Vollmacht 0)
+   Lauf 9: 1 (Vollmacht 0)
+   Lauf 10: 1 (Vollmacht 0)
+   Lauf 12: 1 (Vollmacht 0)
+   Lauf 13: 1 (Vollmacht 0)
+   Lauf 14: 1 (Vollmacht 0)
+   Lauf 15: 1 (Vollmacht 0)
+   Lauf 16: 1 (Vollmacht 0)
+   Lauf 17: 1 (Vollmacht 0)
+   Lauf 18: 1 (Vollmacht 0)
+   Lauf 19: 1 (Vollmacht 0)
+   Lauf 20: 1 (Vollmacht 0)
+   Lauf 22: 1 (Vollmacht 0)
+   Lauf 23: 1 (Vollmacht 0)
+   Lauf 24: 1 (Vollmacht 0)
+   Lauf 25: 1 (Vollmacht 0)
+   Lauf 31: 1 (Vollmacht 0)
+   Lauf 32: 1 (Vollmacht 0)
+   Lauf 36: 1 (Vollmacht 0)
+   Lauf 37: 1 (Vollmacht 0)
+   Lauf 38: 1 (Vollmacht 0)
+=== Ende R100 ===
+
+
+R101 · Teil A: Belegzählung FK16/FK18 — Wendungen in v7, v8, REGELN-01, MEMORY.md
+Beginn: 2026-09-25 16:55:07 CEST (UTC+0200)
+Ende:   2026-09-25 16:55:07 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/entscheidungen/a9_belegzaehlung.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/entscheidungen/a9_belegzaehlung.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil A (nur lesend) — Belegzählung für FK16 und FK18.
+Öffnet die Fassungen v7/v8 (Extrakte in arbeit/dokumente), REGELN-01 (Prüfkanal) und MEMORY.md intern und zählt,
+wie oft kennzeichnende Wendungen darin vorkommen (Groß-/Kleinschreibung beachtet, Teilzeichenkette).
+Teil 1: Kandidaten für FK16 (Anweisungen nach v8) — kommt die Wendung in v8 vor?
+Teil 2: Punkte der Liste „Änderungsverzeichnis für Fassung 7“ (ABNAHME Vorbedingung 1, Abschnitt 7) und Regeln 25–27 —
+        kommen sie in v7, v8, REGELN-01, MEMORY.md vor?
+Ausgabe nur Zählungen und Zeilennummern, kein Nachrichtentext."""
+from pathlib import Path
+
+D = Path('/root/sicherung/biotop-lage-01/arbeit/dokumente')
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+L = Path(f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe')
+Q = {
+    'v7': next(D.glob('2026-09-21_*Masterprompt-v7.md')),
+    'v8': next(D.glob('2026-09-23_*Masterprompt-v8.md')),
+    'REGELN-01': L / 'gedaechtnis/REGELN-01.md',
+    'MEMORY': Path('/root/.hermes/memories/MEMORY.md'),
+}
+T = {k: p.read_text(errors='replace').splitlines() for k, p in Q.items()}
+
+
+def fund(k, w):
+    return [i for i, z in enumerate(T[k], 1) if w in z]
+
+
+def zeige(titel, liste, quellen):
+    print(f'\n== {titel}')
+    print('Kennung | Wendung | ' + ' | '.join(quellen))
+    for kenn, w in liste:
+        teile = []
+        for k in quellen:
+            f = fund(k, w)
+            teile.append(f'{len(f)}' + (f' (Z. {",".join(map(str, f[:6]))})' if f else ''))
+        print(f'{kenn} | „{w}“ | ' + ' | '.join(teile))
+
+
+FK16 = [
+    ('K01 Arbeitsregel 23.09.', 'Normalfall'), ('K01', 'harte Linie'), ('K01', 'Formatsperre'),
+    ('K02 Python-Sonde', 'Python-Sonde'), ('K03 Deckung je Muster', 'je Muster'), ('K03', 'Deckung je'),
+    ('K04 Bestätigungsmessung', 'nachgemessen'), ('K05 Methoden von Klassen', 'Methoden'),
+    ('K06 Vergleichslast Stufe 2', 'Vergleichslast'), ('K06', 'Stufe-2'), ('K07 eigene Tests decken nicht', 'beglaubigt'),
+    ('K08 Register', 'Register'), ('K09 Tor-4-Skript', 'Tor-4-Skript'), ('K09', 'tor4'),
+    ('K10 typtreue Verfälschung', 'typtreu'), ('K10', 'Verfälschung'), ('K11 undurchsichtige Objekte', 'C-Typen'),
+    ('K12 Startregel T4', 'Startregel'), ('K12', 'stillen Durchlass'), ('K12', 'stiller Durchlass'),
+    ('K13 eigener Ordner je Review', 'eigenen Ordner'), ('K14 Verdichtung', 'Verdichtung'),
+    ('K15 Wächter 80 % Kontext', 'Kontextfüllung'), ('K15', '80 %'), ('K16 Behebungsrunden', 'Behebungsrunde'),
+    ('K16', 'Runde 2'), ('K16', 'vor-t4'), ('K17 Zwischenbericht 120/150', '120 von 150'),
+    ('K18 Übergabe nachführen', 'Übergabe'), ('K19 zweites Review gilt', 'verworfen'),
+]
+ABN = [
+    ('A1 Zeile Bauteil B', 'gezeigtem Mindestanteil'), ('A2 A und C getrennte Zeilen', 'getrennte Zeilen'),
+    ('A3 Zeile 8 unter 20 Funden', 'unterhalb von 20'), ('A4 V9 Zähler', 'aegis.abweichung'),
+    ('A5 Zustrom', 'Zustrom'), ('A6 Sperre ohne Sperrung', 'Sperre ohne Sperrung'),
+    ('A7 Pfadnachweis je Eintrittsstelle', 'Pfadnachweis'), ('A8 Filtergüte', 'Filtergüte'),
+    ('B9 Protokollabfrage', 'Protokollabfrage'), ('B10 Menge im Satz', 'Menge im Satz'),
+    ('B11 Herkunft', 'gestellte Prüfung oder Rekonstruktion'), ('B12 berichtigte Zahl', 'berichtigte Zahl'),
+    ('B13 gestellter Fall zweimal', 'zweimal durchlaufen'), ('B14 vollständig oder Auszug', 'ein Auszug'),
+    ('B15 Abbrüche im Kassenblatt', 'Kassenblatt'), ('B16 .err-Dateien', '.err'), ('B17 laut scheitern', 'Laut scheitern'),
+    ('C18 Summe der Einzelläufe', 'Summe der Einzelläufe'), ('C19 Abschnittszuordnung', 'Abschnittszuordnung'),
+    ('D20 nummerierte Namen', 'nummerierte'), ('D20', 'überschreiben'), ('D21 Melden und Abliefern', 'Melden und Abliefern'),
+    ('D22 ganze URL in eigener Zeile', 'ganze URL in eigener Zeile'), ('E23 Größe, die es nicht gibt', 'noch nicht gibt'),
+    ('E24 leerer Gegenstand', 'leerem Gegenstand'), ('R25 Abfrage kostet', 'etwas kostet'),
+    ('R26 abgeleitete Zahl', 'abgeleitete Zahl'), ('R27 Frage an dich', 'Frage an dich'),
+    ('V17 Sitzung, ein Auftrag', 'ein Auftrag'), ('V19 Gedächtnisordner', 'gedaechtnis'),
+    ('Rolle Freigabe ab Phase 4', 'ab Phase 4 allein frei'),
+]
+for k, p in Q.items():
+    print(f'{k}: {p.name if k.startswith("v") else "(Pfad intern)"} · {len(T[k])} Zeilen')
+zeige('Teil 1 — Kandidaten FK16 in Fassung 8', FK16, ['v8'])
+zeige('Teil 2 — Liste ABNAHME §7, Regeln 25–27, V17/V19 in v7, v8, REGELN-01, MEMORY', ABN, ['v7', 'v8', 'REGELN-01', 'MEMORY'])
+--- Ende /root/sicherung/biotop-lage-01/entwurf/entscheidungen/a9_belegzaehlung.py ---
+Ausgabe (vollständig, stdout und stderr):
+v7: 2026-09-21_021434_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v7.md · 512 Zeilen
+v8: 2026-09-23_155353_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v8.md · 551 Zeilen
+REGELN-01: (Pfad intern) · 49 Zeilen
+MEMORY: (Pfad intern) · 7 Zeilen
+
+== Teil 1 — Kandidaten FK16 in Fassung 8
+Kennung | Wendung | v8
+K01 Arbeitsregel 23.09. | „Normalfall“ | 0
+K01 | „harte Linie“ | 0
+K01 | „Formatsperre“ | 0
+K02 Python-Sonde | „Python-Sonde“ | 0
+K03 Deckung je Muster | „je Muster“ | 0
+K03 | „Deckung je“ | 0
+K04 Bestätigungsmessung | „nachgemessen“ | 2 (Z. 39,184)
+K05 Methoden von Klassen | „Methoden“ | 0
+K06 Vergleichslast Stufe 2 | „Vergleichslast“ | 0
+K06 | „Stufe-2“ | 0
+K07 eigene Tests decken nicht | „beglaubigt“ | 0
+K08 Register | „Register“ | 0
+K09 Tor-4-Skript | „Tor-4-Skript“ | 0
+K09 | „tor4“ | 0
+K10 typtreue Verfälschung | „typtreu“ | 0
+K10 | „Verfälschung“ | 0
+K11 undurchsichtige Objekte | „C-Typen“ | 0
+K12 Startregel T4 | „Startregel“ | 0
+K12 | „stillen Durchlass“ | 0
+K12 | „stiller Durchlass“ | 0
+K13 eigener Ordner je Review | „eigenen Ordner“ | 0
+K14 Verdichtung | „Verdichtung“ | 0
+K15 Wächter 80 % Kontext | „Kontextfüllung“ | 0
+K15 | „80 %“ | 2 (Z. 440,458)
+K16 Behebungsrunden | „Behebungsrunde“ | 1 (Z. 476)
+K16 | „Runde 2“ | 0
+K16 | „vor-t4“ | 0
+K17 Zwischenbericht 120/150 | „120 von 150“ | 1 (Z. 450)
+K18 Übergabe nachführen | „Übergabe“ | 1 (Z. 3)
+K19 zweites Review gilt | „verworfen“ | 13 (Z. 28,38,74,161,184,208)
+
+== Teil 2 — Liste ABNAHME §7, Regeln 25–27, V17/V19 in v7, v8, REGELN-01, MEMORY
+Kennung | Wendung | v7 | v8 | REGELN-01 | MEMORY
+A1 Zeile Bauteil B | „gezeigtem Mindestanteil“ | 0 | 0 | 0 | 0
+A2 A und C getrennte Zeilen | „getrennte Zeilen“ | 0 | 0 | 0 | 0
+A3 Zeile 8 unter 20 Funden | „unterhalb von 20“ | 0 | 0 | 0 | 0
+A4 V9 Zähler | „aegis.abweichung“ | 0 | 0 | 0 | 0
+A5 Zustrom | „Zustrom“ | 0 | 0 | 1 (Z. 19) | 0
+A6 Sperre ohne Sperrung | „Sperre ohne Sperrung“ | 0 | 0 | 1 (Z. 18) | 0
+A7 Pfadnachweis je Eintrittsstelle | „Pfadnachweis“ | 0 | 0 | 0 | 0
+A8 Filtergüte | „Filtergüte“ | 0 | 0 | 0 | 0
+B9 Protokollabfrage | „Protokollabfrage“ | 0 | 0 | 1 (Z. 8) | 0
+B10 Menge im Satz | „Menge im Satz“ | 0 | 0 | 1 (Z. 9) | 0
+B11 Herkunft | „gestellte Prüfung oder Rekonstruktion“ | 0 | 0 | 1 (Z. 10) | 0
+B12 berichtigte Zahl | „berichtigte Zahl“ | 0 | 0 | 1 (Z. 12) | 0
+B13 gestellter Fall zweimal | „zweimal durchlaufen“ | 0 | 0 | 0 | 0
+B14 vollständig oder Auszug | „ein Auszug“ | 0 | 0 | 1 (Z. 13) | 0
+B15 Abbrüche im Kassenblatt | „Kassenblatt“ | 0 | 0 | 3 (Z. 24,32,42) | 0
+B16 .err-Dateien | „.err“ | 0 | 0 | 1 (Z. 25) | 0
+B17 laut scheitern | „Laut scheitern“ | 2 (Z. 98,353) | 2 (Z. 105,366) | 1 (Z. 17) | 0
+C18 Summe der Einzelläufe | „Summe der Einzelläufe“ | 0 | 0 | 1 (Z. 26) | 0
+C19 Abschnittszuordnung | „Abschnittszuordnung“ | 0 | 0 | 1 (Z. 27) | 0
+D20 nummerierte Namen | „nummerierte“ | 0 | 0 | 0 | 1 (Z. 3)
+D20 | „überschreiben“ | 0 | 0 | 2 (Z. 30,41) | 1 (Z. 5)
+D21 Melden und Abliefern | „Melden und Abliefern“ | 0 | 0 | 1 (Z. 31) | 0
+D22 ganze URL in eigener Zeile | „ganze URL in eigener Zeile“ | 0 | 0 | 1 (Z. 32) | 0
+E23 Größe, die es nicht gibt | „noch nicht gibt“ | 0 | 0 | 0 | 0
+E24 leerer Gegenstand | „leerem Gegenstand“ | 0 | 0 | 0 | 0
+R25 Abfrage kostet | „etwas kostet“ | 0 | 0 | 1 (Z. 43) | 0
+R26 abgeleitete Zahl | „abgeleitete Zahl“ | 0 | 0 | 1 (Z. 44) | 0
+R27 Frage an dich | „Frage an dich“ | 0 | 0 | 0 | 0
+V17 Sitzung, ein Auftrag | „ein Auftrag“ | 0 | 0 | 1 (Z. 39) | 1 (Z. 3)
+V19 Gedächtnisordner | „gedaechtnis“ | 0 | 0 | 1 (Z. 41) | 1 (Z. 3)
+Rolle Freigabe ab Phase 4 | „ab Phase 4 allein frei“ | 0 | 0 | 1 (Z. 36) | 0
+=== Ende R101 ===
+
+
+R102 · Teil F: Kasse-Ergänzung (spätere Buchungen, Lauf 22/23 Zeitschnitt, kasse.abbruch, Höchstfall, T3 kumuliert; lesend)
+Beginn: 2026-09-25 16:58:22 CEST (UTC+0200)
+Ende:   2026-09-25 16:58:22 CEST (UTC+0200)
+Dauer:  0.2 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/chronik/f_kasse2.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/chronik/f_kasse2.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil F (nur lesend): Ergänzung zu R64 (Kasse).
+1. STAMM: Buchungen der Läufe 13 und 16–20 nach der jeweiligen Endmeldung (Phase 2: 19.09. 05:37:13 CEST,
+   Phase 3: 19.09. 18:37:34 CEST) je Stunde (UTC) und Zweck-Präfix.
+2. STAMM: Buchungen der Läufe 22 und 23 bis zur Nachlauf-3-Endmeldung (20.09. 00:00:28 CEST) und danach, je Zweck-Präfix.
+3. Je Zweig: Protokolleinträge art='kasse.abbruch' (nr, Lauf, Zweck, Meldung) und art='kasse.ausfall_geklaert'
+   (Anzahl, Summe) sowie Kassenzeilen mit zweck='ausfall.hoechstfall' je Lauf.
+4. T3: Kassenzeilen mit lauf_id < 26 (übernommener Altbestand) gegen STAMM.
+5. T3 je Lauf 26–38: Summe und kumulierter Stand des Auftragsbudgets (Läufe >= 26).
+STAMM nur mit mode=ro&immutable=1 und nur bei WAL = 0 Bytes; andere Zweige mode=ro. Zeiten der Kasse sind UTC.
+Schreibt nichts."""
+import json
+import os
+import sqlite3
+from collections import defaultdict
+
+STAMM = '/root/biotop/daten/biotop.db'
+ZW = {'VB1': '/root/phase-4-vorbedingung-1/privat/biotop.db', 'R02': '/root/reparatur-02/privat-cli/privat.db',
+      'T3': '/root/biotop-t3/t3.db'}
+wal = os.path.getsize(STAMM + '-wal') if os.path.exists(STAMM + '-wal') else -1
+print(f'== 0. WAL {STAMM}-wal: {wal} Bytes (Öffnen nur bei 0)')
+con = {}
+if wal == 0:
+    con['STAMM'] = sqlite3.connect(f'file:{STAMM}?mode=ro&immutable=1', uri=True)
+for k, v in ZW.items():
+    con[k] = sqlite3.connect(f'file:{v}?mode=ro', uri=True)
+
+
+def praefix(z):
+    t = (z or '').split('.')
+    return '.'.join(t[:2]) if t and t[0] in ('schwer', 'aegis', 'schwarm', 'landkarte', 'mentor') else t[0]
+
+
+print('\n== 1. STAMM: Buchungen nach der Endmeldung, je Stunde (UTC) und Zweck-Präfix')
+if 'STAMM' in con:
+    for ids, schnitt in (([13], '2026-09-19T03:37:13'), ([16, 17, 18, 19, 20], '2026-09-19T16:37:34')):
+        for i in ids:
+            g = defaultdict(lambda: [0, 0.0])
+            for zeit, zweck, k in con['STAMM'].execute(
+                    'SELECT zeit, zweck, kosten_eur FROM kasse WHERE lauf_id=? AND zeit>?', (i, schnitt)):
+                e = g[(zeit[:13], praefix(zweck))]
+                e[0] += 1
+                e[1] += k
+            print(f'Lauf {i} (Schnitt {schnitt} UTC):', {f'{a}|{b}': (n, round(s, 6)) for (a, b), (n, s) in sorted(g.items())})
+
+print('\n== 2. STAMM: Läufe 22 und 23 bis/nach 2026-09-19T22:00:28 UTC, je Zweck-Präfix')
+if 'STAMM' in con:
+    for i in (22, 23):
+        for op, name in (('<=', 'bis'), ('>', 'nach')):
+            g = defaultdict(lambda: [0, 0.0])
+            for zweck, k in con['STAMM'].execute(
+                    f'SELECT zweck, kosten_eur FROM kasse WHERE lauf_id=? AND zeit{op}?', (i, '2026-09-19T22:00:28')):
+                e = g[praefix(zweck)]
+                e[0] += 1
+                e[1] += k
+            print(f'Lauf {i} {name}:', {a: (n, round(s, 6)) for a, (n, s) in sorted(g.items())})
+
+print('\n== 3. Je Zweig: kasse.abbruch, kasse.ausfall_geklaert, ausfall.hoechstfall')
+for zw, c in con.items():
+    ab = []
+    for nr, inhalt in c.execute("SELECT nr, inhalt FROM protokoll WHERE art='kasse.abbruch' ORDER BY nr"):
+        d = json.loads(inhalt)
+        ab.append((nr, d.get('lauf_id'), d.get('zweck'), (d.get('meldung') or '')[:70]))
+    print(f'{zw}: kasse.abbruch {len(ab)}')
+    for a in ab:
+        print('   ', a)
+    kl = [json.loads(x[0]) for x in c.execute("SELECT inhalt FROM protokoll WHERE art='kasse.ausfall_geklaert'")]
+    je = defaultdict(lambda: [0, 0.0, 0])
+    for d in kl:
+        e = je[d.get('lauf_id')]
+        e[0] += 1
+        e[1] += float(d.get('gebucht_eur') or 0)
+        e[2] += 1 if d.get('automatisch') else 0
+    print(f'{zw}: kasse.ausfall_geklaert {len(kl)}; je Lauf (Anzahl, Summe €, automatisch):',
+          {k: (n, round(s, 6), a) for k, (n, s, a) in sorted(je.items(), key=lambda x: x[0] or 0)})
+    hf = c.execute("SELECT lauf_id, count(*), round(sum(kosten_eur), 6) FROM kasse WHERE zweck='ausfall.hoechstfall' "
+                   "GROUP BY lauf_id").fetchall()
+    print(f'{zw}: Kassenzeilen ausfall.hoechstfall je Lauf:', hf)
+
+print('\n== 4. T3: Altbestand (lauf_id < 26) gegen STAMM')
+t = con['T3'].execute('SELECT count(*), round(sum(kosten_eur), 6), max(rowid) FROM kasse WHERE lauf_id<26').fetchone()
+print('T3 lauf_id<26:', t)
+if 'STAMM' in con:
+    print('STAMM gesamt:', con['STAMM'].execute('SELECT count(*), round(sum(kosten_eur), 6), max(rowid) FROM kasse').fetchone())
+print('VB1 lauf_id<26:', con['VB1'].execute('SELECT count(*), round(sum(kosten_eur), 6) FROM kasse WHERE lauf_id<26').fetchone())
+print('R02 lauf_id<26:', con['R02'].execute('SELECT count(*), round(sum(kosten_eur), 6) FROM kasse WHERE lauf_id<26').fetchone())
+
+print('\n== 5. T3 je Lauf 26–38: Buchungen, Summe, kumuliert (Auftragsbudget 10 €, Läufe >= 26)')
+kum = 0.0
+for i in range(26, 39):
+    n, s = con['T3'].execute('SELECT count(*), coalesce(sum(kosten_eur), 0) FROM kasse WHERE lauf_id=?', (i,)).fetchone()
+    kum += s
+    print(f'Lauf {i}: {n} Buchungen, {s:.6f} €, kumuliert {kum:.6f} €, Rest {10 - kum:.6f} €')
+--- Ende /root/sicherung/biotop-lage-01/entwurf/chronik/f_kasse2.py ---
+Ausgabe (vollständig, stdout und stderr):
+== 0. WAL /root/biotop/daten/biotop.db-wal: 0 Bytes (Öffnen nur bei 0)
+
+== 1. STAMM: Buchungen nach der Endmeldung, je Stunde (UTC) und Zweck-Präfix
+Lauf 13 (Schnitt 2026-09-19T03:37:13 UTC): {'2026-09-19T21|gedaechtnis': (9, 0.001476)}
+Lauf 16 (Schnitt 2026-09-19T16:37:34 UTC): {'2026-09-19T21|gedaechtnis': (1, 0.000128)}
+Lauf 17 (Schnitt 2026-09-19T16:37:34 UTC): {'2026-09-19T21|gedaechtnis': (5, 0.00095)}
+Lauf 18 (Schnitt 2026-09-19T16:37:34 UTC): {'2026-09-19T21|gedaechtnis': (2, 0.000258)}
+Lauf 19 (Schnitt 2026-09-19T16:37:34 UTC): {'2026-09-19T21|gedaechtnis': (1, 0.000121)}
+Lauf 20 (Schnitt 2026-09-19T16:37:34 UTC): {'2026-09-19T20|aegis.angriff': (10, 0.013912), '2026-09-19T21|gedaechtnis': (1, 0.000104)}
+
+== 2. STAMM: Läufe 22 und 23 bis/nach 2026-09-19T22:00:28 UTC, je Zweck-Präfix
+Lauf 22 bis: {'aegis.angriff': (43, 0.058804), 'aufnahme': (1, 0.000184), 'landkarte.stufe0': (1, 0.000283), 'landkarte.stufe1': (4, 0.000686), 'landkarte.stufe2': (11, 0.002331), 'schwarm.elegant': (32, 0.061862), 'schwarm.schnell': (32, 0.086132), 'schwarm.sicher': (32, 0.060388), 'schwarm.wild': (31, 0.06692), 'schwer.mentor': (2, 0.060174)}
+Lauf 22 nach: {'aegis.angriff': (4, 0.005907), 'aegis.ansage': (5, 0.004423), 'schwarm.elegant': (8, 0.014911), 'schwarm.schnell': (8, 0.021482), 'schwarm.sicher': (10, 0.023494), 'schwarm.wild': (8, 0.020051), 'schwer.mentor': (1, 0.028576)}
+Lauf 23 bis: {'aufnahme': (1, 0.000176), 'landkarte.stufe0': (1, 0.000322), 'landkarte.stufe1': (4, 0.000748), 'landkarte.stufe2': (11, 0.002165), 'schwer.mentor': (1, 0.035528)}
+Lauf 23 nach: {'aegis.angriff': (22, 0.037633), 'aegis.ansage': (33, 0.026462), 'gedaechtnis': (3, 0.000463), 'jury': (3, 0.001035), 'schwarm.elegant': (40, 0.063702), 'schwarm.schnell': (40, 0.101042), 'schwarm.sicher': (40, 0.059912), 'schwarm.wild': (40, 0.064427)}
+
+== 3. Je Zweig: kasse.abbruch, kasse.ausfall_geklaert, ausfall.hoechstfall
+STAMM: kasse.abbruch 3
+    (652, 4, 'schwarm.sicher.formeln.gen4', 'Budget erschöpft — Aufruf NICHT ausgeführt')
+    (800, 5, 'generation.vorpruefung', 'Budget reicht nicht für Generation 3 — kein Modellaufruf ausgeführt')
+    (2623, 10, 'generation.vorpruefung', 'Budget reicht nicht für Generation 2 — kein Modellaufruf ausgeführt')
+STAMM: kasse.ausfall_geklaert 0; je Lauf (Anzahl, Summe €, automatisch): {}
+STAMM: Kassenzeilen ausfall.hoechstfall je Lauf: []
+VB1: kasse.abbruch 3
+    (652, 4, 'schwarm.sicher.formeln.gen4', 'Budget erschöpft — Aufruf NICHT ausgeführt')
+    (800, 5, 'generation.vorpruefung', 'Budget reicht nicht für Generation 3 — kein Modellaufruf ausgeführt')
+    (2623, 10, 'generation.vorpruefung', 'Budget reicht nicht für Generation 2 — kein Modellaufruf ausgeführt')
+VB1: kasse.ausfall_geklaert 0; je Lauf (Anzahl, Summe €, automatisch): {}
+VB1: Kassenzeilen ausfall.hoechstfall je Lauf: []
+R02: kasse.abbruch 3
+    (652, 4, 'schwarm.sicher.formeln.gen4', 'Budget erschöpft — Aufruf NICHT ausgeführt')
+    (800, 5, 'generation.vorpruefung', 'Budget reicht nicht für Generation 3 — kein Modellaufruf ausgeführt')
+    (2623, 10, 'generation.vorpruefung', 'Budget reicht nicht für Generation 2 — kein Modellaufruf ausgeführt')
+R02: kasse.ausfall_geklaert 0; je Lauf (Anzahl, Summe €, automatisch): {}
+R02: Kassenzeilen ausfall.hoechstfall je Lauf: []
+T3: kasse.abbruch 3
+    (652, 4, 'schwarm.sicher.formeln.gen4', 'Budget erschöpft — Aufruf NICHT ausgeführt')
+    (800, 5, 'generation.vorpruefung', 'Budget reicht nicht für Generation 3 — kein Modellaufruf ausgeführt')
+    (2623, 10, 'generation.vorpruefung', 'Budget reicht nicht für Generation 2 — kein Modellaufruf ausgeführt')
+T3: kasse.ausfall_geklaert 115; je Lauf (Anzahl, Summe €, automatisch): {29: (1, 0.0028, 0), 30: (1, 0.0028, 0), 35: (1, 0.0028, 0), 36: (75, 0.332296, 75), 37: (36, 0.112641, 36), 38: (1, 0.008682, 1)}
+T3: Kassenzeilen ausfall.hoechstfall je Lauf: [(29, 1, 0.0028), (30, 1, 0.0028), (35, 1, 0.0028), (36, 75, 0.332297), (37, 36, 0.112645), (38, 1, 0.008682)]
+
+== 4. T3: Altbestand (lauf_id < 26) gegen STAMM
+T3 lauf_id<26: (4070, 8.639305, 4070)
+STAMM gesamt: (4070, 8.639305, 4070)
+VB1 lauf_id<26: (4070, 8.639305)
+R02 lauf_id<26: (4070, 8.639305)
+
+== 5. T3 je Lauf 26–38: Buchungen, Summe, kumuliert (Auftragsbudget 10 €, Läufe >= 26)
+Lauf 26: 31 Buchungen, 0.007099 €, kumuliert 0.007099 €, Rest 9.992901 €
+Lauf 27: 1 Buchungen, 0.000137 €, kumuliert 0.007236 €, Rest 9.992764 €
+Lauf 28: 1 Buchungen, 0.000138 €, kumuliert 0.007374 €, Rest 9.992626 €
+Lauf 29: 4 Buchungen, 0.005917 €, kumuliert 0.013291 €, Rest 9.986709 €
+Lauf 30: 4 Buchungen, 0.005989 €, kumuliert 0.019281 €, Rest 9.980719 €
+Lauf 31: 107 Buchungen, 0.127728 €, kumuliert 0.147009 €, Rest 9.852991 €
+Lauf 32: 246 Buchungen, 1.072688 €, kumuliert 1.219696 €, Rest 8.780304 €
+Lauf 33: 1 Buchungen, 0.000136 €, kumuliert 1.219832 €, Rest 8.780168 €
+Lauf 34: 1 Buchungen, 0.000141 €, kumuliert 1.219973 €, Rest 8.780027 €
+Lauf 35: 3 Buchungen, 0.003841 €, kumuliert 1.223814 €, Rest 8.776186 €
+Lauf 36: 326 Buchungen, 1.186430 €, kumuliert 2.410244 €, Rest 7.589756 €
+Lauf 37: 895 Buchungen, 3.066764 €, kumuliert 5.477008 €, Rest 4.522992 €
+Lauf 38: 983 Buchungen, 4.251629 €, kumuliert 9.728638 €, Rest 0.271362 €
+=== Ende R102 ===
+
+
+R103 · Teil E: schwere Modelle, Landkarte-Spalten, lagerhaus-Regeln Biotop gegen VB1, Kurvendateien T3
+Beginn: 2026-09-25 17:01:04 CEST (UTC+0200)
+Ende:   2026-09-25 17:01:04 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/soll-ist/e8_ergaenzung.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/soll-ist/e8_ergaenzung.py (wörtlich) ---
+#!/usr/bin/env python3
+"""Teil E (SOLL-IST), nur lesend, ergänzende Belege:
+(1) Kasse STAMM/T3: Anbieter der Modelle `anthropic/%` (Masterprompt v8 Abschnitt 6: schwere Aufrufe).
+(2) Spalten der Tabellen `landkarte` und `werke` (3.2: Zusammenfassung mit Prüfsumme der Quelldatei).
+(3) lagerhaus.regeln.json im Biotop gegen den VB1-Zweig: Schlüssel und abweichende Werte (Anhang A, 3.3).
+(4) Dateien mit „kurve“ im Namen unter /root/biotop-t3 (3.5 Verlaufskurve), nur Namen.
+STAMM: mode=ro&immutable=1 nur bei leerer WAL; T3: mode=ro. Kein Import von Biotop-Code. Schreibt nichts."""
+import json
+import os
+import sqlite3
+from pathlib import Path
+
+STAMM = '/root/biotop/daten/biotop.db'
+wal = os.path.getsize(STAMM + '-wal') if os.path.exists(STAMM + '-wal') else None
+print(f'Kammer-Sperre vorhanden: {os.path.exists("/tmp/biotop-kammer-exklusiv")}; STAMM-WAL: {wal} Bytes')
+QUELLEN = [('T3', 'file:/root/biotop-t3/t3.db?mode=ro')]
+if wal in (None, 0):
+    QUELLEN.insert(0, ('STAMM', f'file:{STAMM}?mode=ro&immutable=1'))
+for name, uri in QUELLEN:
+    con = sqlite3.connect(uri, uri=True)
+    print(f'\n===== {name} (1) Kasse, Modelle anthropic/%: anbieter, modell, Buchungen, zweck (Anzahl)')
+    for z in con.execute("SELECT anbieter, modell, COUNT(*) FROM kasse WHERE modell LIKE 'anthropic/%' "
+                         "GROUP BY 1, 2 ORDER BY 2"):
+        print(f'   anbieter={z[0]} modell={z[1]} buchungen={z[2]}')
+    for z in con.execute("SELECT modell, zweck, COUNT(*) FROM kasse WHERE modell LIKE 'anthropic/%' "
+                         "GROUP BY 1, 2 ORDER BY 1, 3 DESC"):
+        print(f'      {z[0]} zweck={z[1]}: {z[2]}')
+    print(f'   Anbieter über alle Buchungen: '
+          f'{[tuple(r) for r in con.execute("SELECT anbieter, COUNT(*) FROM kasse GROUP BY 1")]}')
+    print(f'===== {name} (2) Spalten')
+    for tab in ('landkarte', 'werke'):
+        print(f'   {tab}: {[r[1] for r in con.execute(f"PRAGMA table_info({tab})")]}')
+    con.close()
+
+print('\n===== (3) lagerhaus.regeln.json: Biotop gegen VB1-Zweig')
+a = json.loads(Path('/root/biotop/verfassungen/lagerhaus.regeln.json').read_text())
+b = json.loads(Path('/root/phase-4-vorbedingung-1/privat/verfassung.regeln.json').read_text())
+print(f'   Biotop Schlüssel: {list(a)}')
+print(f'   VB1    Schlüssel: {list(b)}')
+for k in sorted(set(a) | set(b)):
+    if a.get(k) != b.get(k):
+        print(f'   ABWEICHUNG {k}:\n      Biotop: {json.dumps(a.get(k), ensure_ascii=False)[:300]}\n'
+              f'      VB1:    {json.dumps(b.get(k), ensure_ascii=False)[:300]}')
+
+print('\n===== (4) Dateien mit „kurve“ im Namen unter /root/biotop-t3 (ohne node_modules), nur Namen')
+n = 0
+for wurzel, ordner, dateien in os.walk('/root/biotop-t3'):
+    ordner[:] = [o for o in ordner if o not in ('node_modules', '.git', '__pycache__')]
+    for d in dateien:
+        if 'kurve' in d.lower():
+            n += 1
+            if n <= 15:
+                print(f'   {os.path.join(wurzel, d)}')
+print(f'   Anzahl: {n}')
+--- Ende /root/sicherung/biotop-lage-01/entwurf/soll-ist/e8_ergaenzung.py ---
+Ausgabe (vollständig, stdout und stderr):
+Kammer-Sperre vorhanden: False; STAMM-WAL: 0 Bytes
+
+===== STAMM (1) Kasse, Modelle anthropic/%: anbieter, modell, Buchungen, zweck (Anzahl)
+   anbieter=openrouter modell=anthropic/claude-sonnet-4.5 buchungen=27
+   anbieter=openrouter modell=anthropic/claude-sonnet-5 buchungen=31
+      anthropic/claude-sonnet-4.5 zweck=schwer.aegis.angriff.formeln: 27
+      anthropic/claude-sonnet-5 zweck=schwer.mentor: 15
+      anthropic/claude-sonnet-5 zweck=schwer.aegis.angriff.filtern: 15
+      anthropic/claude-sonnet-5 zweck=phase2.rauchtest: 1
+   Anbieter über alle Buchungen: [('openrouter', 4070)]
+===== STAMM (2) Spalten
+   landkarte: ['id', 'werk_id', 'stufe', 'schluessel', 'inhalt', 'pruefsumme', 'erstellt_am', 'herkunft']
+   werke: ['id', 'name', 'pfad', 'quelle', 'aufgenommen_am', 'bericht', 'sprache', 'status']
+
+===== T3 (1) Kasse, Modelle anthropic/%: anbieter, modell, Buchungen, zweck (Anzahl)
+   anbieter=openrouter modell=anthropic/claude-sonnet-4.5 buchungen=27
+   anbieter=openrouter modell=anthropic/claude-sonnet-5 buchungen=294
+      anthropic/claude-sonnet-4.5 zweck=schwer.aegis.angriff.formeln: 27
+      anthropic/claude-sonnet-5 zweck=aegis.ansage.zahlen: 60
+      anthropic/claude-sonnet-5 zweck=aegis.ansage.tarife: 50
+      anthropic/claude-sonnet-5 zweck=aegis.ansage.bericht: 35
+      anthropic/claude-sonnet-5 zweck=schwer.aegis.angriff.bericht: 29
+      anthropic/claude-sonnet-5 zweck=schwer.aegis.angriff.zahlen: 26
+      anthropic/claude-sonnet-5 zweck=schwer.aegis.angriff.tarife: 24
+      anthropic/claude-sonnet-5 zweck=aegis.ansage.planung: 23
+      anthropic/claude-sonnet-5 zweck=schwer.aegis.angriff.planung: 16
+      anthropic/claude-sonnet-5 zweck=schwer.mentor: 15
+      anthropic/claude-sonnet-5 zweck=schwer.aegis.angriff.filtern: 15
+      anthropic/claude-sonnet-5 zweck=phase2.rauchtest: 1
+   Anbieter über alle Buchungen: [('openrouter', 6673)]
+===== T3 (2) Spalten
+   landkarte: ['id', 'werk_id', 'stufe', 'schluessel', 'inhalt', 'pruefsumme', 'erstellt_am', 'herkunft']
+   werke: ['id', 'name', 'pfad', 'quelle', 'aufgenommen_am', 'bericht', 'sprache', 'status']
+
+===== (3) lagerhaus.regeln.json: Biotop gegen VB1-Zweig
+   Biotop Schlüssel: ['uebungswerk', 'quelle', 'tausch', 'verbotene_muster', 'einstiege']
+   VB1    Schlüssel: ['uebungswerk', 'quelle', 'tausch', 'verbotene_muster', 'einstiege']
+
+===== (4) Dateien mit „kurve“ im Namen unter /root/biotop-t3 (ohne node_modules), nur Namen
+   /root/biotop-t3/repo-sicherung-vor-commits/pruefung/kurve.py
+   /root/biotop-t3/arbeitsstand-sicherung/pruefung/kurve.py
+   Anzahl: 2
+=== Ende R103 ===
+
+
+R104 · Teil D: letzte Lücken — TS-Versionen laut package-lock, Zeit der Regression R5, VB1-Lazarus Lauf 26, Dienst GET / (FK35, FK36, FK38)
+Beginn: 2026-09-25 17:02:46 CEST (UTC+0200)
+Ende:   2026-09-25 17:02:46 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/sicherung/biotop-lage-01/entwurf/aufbau/d13_schluss.sh
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/aufbau/d13_schluss.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-LAGE-01 Teil D (nur lesend): letzte Lücken schließen (FK35, FK36, FK38).
+# Nur git show am Commit 0c2f058, ls (Metadaten), VB1-DB mit mode=ro über d13_vb1.py.
+C=0c2f058
+G="git -C /root/biotop"
+date '+== Zeitpunkt %Y-%m-%d %H:%M:%S %Z (UTC%z)'
+echo "== 1. kammer/typescript/package-lock.json am Commit: aufgelöste Versionen"
+$G show $C:kammer/typescript/package-lock.json | grep -n -A3 -E '"node_modules/(typescript|vitest|eslint|knip|tsx|eslint-plugin-security)": \{' | grep -E 'node_modules/|"version"'
+echo "== 2. Zeitstempel der Regression Runde 5 (nur Metadaten)"
+ls -l --time-style='+%Y-%m-%d %H:%M:%S %z' /root/biotop-vor-t4-05/REGRESSION.txt /root/biotop-vor-t4-05/REGRESSION.junit.xml 2>&1
+echo "== 3. VB1: Lazarus-Archive des Laufs 26"
+python3 /root/sicherung/biotop-lage-01/entwurf/aufbau/d13_vb1.py
+echo "== 4. dienst.py am Commit: Anmeldezwang und Behandlung von GET / (Zeilen)"
+$G show $C:biotop/dienst.py | grep -n -E '401|Anmeldemaske|def do_GET|def do_POST|oberflaeche\.|pruefen\(|if pfad == "/"|== "/"' | head -30
+--- Ende /root/sicherung/biotop-lage-01/entwurf/aufbau/d13_schluss.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== Zeitpunkt 2026-09-25 17:02:46 CEST (UTC+0200)
+== 1. kammer/typescript/package-lock.json am Commit: aufgelöste Versionen
+1713:    "node_modules/eslint": {
+1714-      "version": "9.17.0",
+1773:    "node_modules/eslint-plugin-security": {
+1774-      "version": "3.0.1",
+2215:    "node_modules/knip": {
+2216-      "version": "5.41.1",
+2920:    "node_modules/tsx": {
+2921-      "version": "4.19.2",
+2951:    "node_modules/typescript": {
+2952-      "version": "5.7.3",
+3489:    "node_modules/vitest": {
+3490-      "version": "2.1.8",
+== 2. Zeitstempel der Regression Runde 5 (nur Metadaten)
+-rw-r--r-- 1 root root 81922 2026-09-24 21:05:52 +0200 /root/biotop-vor-t4-05/REGRESSION.junit.xml
+-rw-r--r-- 1 root root  1911 2026-09-24 21:05:52 +0200 /root/biotop-vor-t4-05/REGRESSION.txt
+== 3. VB1: Lazarus-Archive des Laufs 26
+VB1 lazarus lauf_id=26: 3 Zeilen
+    (0, '/root/phase-4-vorbedingung-1/privat/lazarus/lauf26-gen0.tar.gz', '2026-09-20T19:36:16.262+00:00')
+    (1, '/root/phase-4-vorbedingung-1/privat/lazarus/lauf26-gen1.tar.gz', '2026-09-20T19:45:15.308+00:00')
+    (3, '/root/phase-4-vorbedingung-1/privat/lazarus/lauf26-gen3.tar.gz', '2026-09-20T19:59:10.778+00:00')
+== 4. dienst.py am Commit: Anmeldezwang und Behandlung von GET / (Zeilen)
+4:`Authorization: Bearer <token>`; ohne gültigen Token → 401. Es gibt keinen
+34:    ("GET", r"^/$"),  # Oberfläche (HTML); ohne Token wird nur die Anmeldemaske geliefert, alle Daten-Routen bleiben 401
+79:        return anmeldung.pruefen(self.con, h[7:].strip())
+88:    def do_POST(self):
+95:                return self._senden(401, {"fehler": "Anmeldung fehlgeschlagen"})
+99:            return self._senden(401, {"fehler": "Anmeldung erforderlich"})
+144:    def do_GET(self):
+146:        if pfad == "/":
+147:            # Die Seite selbst enthält keine Daten; sie zeigt ohne Token nur die Anmeldemaske. Jede Daten-Route unten verlangt den Token.
+148:            return self._html(oberflaeche.HTML)
+149:        # Anmeldezwang VOR jeder Routenauflösung — auch unbekannte Pfade antworten 401 ohne Token.
+151:            return self._senden(401, {"fehler": "Anmeldung erforderlich"})
+=== Ende R104 ===
+
+
+R105 · Teil C: Liegt bb8eb0f (eigene_ansage_nr) auf dem Weg zum T3-Kern 1cf2eb1? git log --ancestry-path (nur lesend)
+Beginn: 2026-09-25 17:04:02 CEST (UTC+0200)
+Ende:   2026-09-25 17:04:02 CEST (UTC+0200)
+Dauer:  0.0 s
+Exit-Code: 0
+Befehl (wörtlich):
+git -C /root/biotop log --ancestry-path --pretty=format:%h%x09%ad%x09%s --date=iso bb8eb0f..1cf2eb1
+Ausgabe (vollständig, stdout und stderr):
+1cf2eb1	2026-09-22 15:42:35 +0200	T3: Abwehr gegen "schneller, aber falsch" + Tor 2 Zeile 8 messbar machen
+8c7dcdc	2026-09-22 00:20:54 +0200	T3: Kaputter Modellcode ist Befund, kein Laufabbruch — zweite Bauart der Klasse
+5b4066f	2026-09-21 20:25:46 +0200	T3: Ausfallklaerung laeuft automatisch — die Regel mechanisch angewandt
+d6e6f8c	2026-09-21 19:15:12 +0200	T3: Neutralzaehler — Schweigen eines Organs messbar machen, mit Nenner und Massstab
+c214d1d	2026-09-21 18:45:41 +0200	T3: Fehlerklasse geschlossen — TS-Zweig liefert Ergebnis, wo Python eines liefert
+2e21059	2026-09-21 18:23:04 +0200	T3: Unbrauchbarer Angriffstest ist Kandidatenbefund, kein Laufabbruch
+a97eb45	2026-09-21 15:19:22 +0200	T3: Unbrauchbarer TS-Diff ist Kandidatenbefund, kein Laufabbruch
+18f78f1	2026-09-21 13:10:46 +0200	T3: Wiederholung wiederholbarer Anbieterfehler, Startsperre ohne scharfe Auftragsgrenze
+e259e9f	2026-09-21 12:09:40 +0200	T3 TypeScript: Messgeraet fuer eine zweite Sprache, Kernstand vor Lauf 31
+=== Ende R105 ===

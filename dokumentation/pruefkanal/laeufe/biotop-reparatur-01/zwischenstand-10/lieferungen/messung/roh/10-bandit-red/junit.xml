@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="7" skipped="0" tests="11" time="9.927" timestamp="2026-09-20T18:35:24.407722+02:00" hostname="ubuntu"><testcase classname="tests.test_messnachweise" name="test_ausgefuehrter_erfolg_und_fehlschlag_bleiben_messbar[1]" time="1.054" /><testcase classname="tests.test_messnachweise" name="test_ausgefuehrter_erfolg_und_fehlschlag_bleiben_messbar[2]" time="1.027" /><testcase classname="tests.test_messnachweise" name="test_bandit_ohne_ausgefuehrten_scan_ist_nicht_sicherheit_null[rc2-leer]" time="0.792"><failure message="AssertionError: {'bereiche': {'alpha': {'tests_bestanden': 1, 'tests_fehlgeschlagen': 0, 'tests_gesamt': 1, 'sicherheit_punkte': 0, .....uzeit_ms': 19.2, 'baut': True, 'bau_fehler': '', 'tests_ohne_bereich': [], ...}, 'gueltig': True, 'dauer_s': 0.79, ...}&#10;assert True is False">messen_werk = &lt;function messen_werk.&lt;locals&gt;.messen at 0x7ee853b29ee0&gt;, rc = 2
+out = ''
+
+    @pytest.mark.integration
+    @pytest.mark.parametrize("rc,out", [(2, ""), (0, ""), (0, "kein JSON"), (0, "{}"),
+        (2, json.dumps(_BANDIT_LEER)),
+        (0, json.dumps({**_BANDIT_LEER, "errors": [{"filename": "demo/alpha", "reason": "abgebrochen"}]})),
+        (0, json.dumps({**_BANDIT_LEER, "metrics": {}}))], ids=["rc2-leer", "rc0-leer", "kaputt", "feld-fehlt", "rc2", "scanfehler", "nichts-gescannt"])
+    def test_bandit_ohne_ausgefuehrten_scan_ist_nicht_sicherheit_null(messen_werk, rc, out):
+        m, roh = messen_werk(dateien=scanner_double("bandit", rc, out))
+        assert "@@ROHDATEI@@/tmp/scanner-aufrufe:bandit:" in roh["stdout"]
+        assert "demo/alpha" in roh["stdout"]
+&gt;       assert m["gueltig"] is False, m
+E       AssertionError: {'bereiche': {'alpha': {'tests_bestanden': 1, 'tests_fehlgeschlagen': 0, 'tests_gesamt': 1, 'sicherheit_punkte': 0, .....uzeit_ms': 19.2, 'baut': True, 'bau_fehler': '', 'tests_ohne_bereich': [], ...}, 'gueltig': True, 'dauer_s': 0.79, ...}
+E       assert True is False
+
+tests/test_messnachweise.py:165: AssertionError</failure></testcase><testcase classname="tests.test_messnachweise" name="test_bandit_ohne_ausgefuehrten_scan_ist_nicht_sicherheit_null[rc0-leer]" time="0.797"><failure message="AssertionError: {'bereiche': {'alpha': {'tests_bestanden': 1, 'tests_fehlgeschlagen': 0, 'tests_gesamt': 1, 'sicherheit_punkte': 0, .....uzeit_ms': 24.2, 'baut': True, 'bau_fehler': '', 'tests_ohne_bereich': [], ...}, 'gueltig': True, 'dauer_s': 0.79, ...}&#10;assert True is False">messen_werk = &lt;function messen_werk.&lt;locals&gt;.messen at 0x7ee853b2ad40&gt;, rc = 0
+out = ''
+
+    @pytest.mark.integration
+    @pytest.mark.parametrize("rc,out", [(2, ""), (0, ""), (0, "kein JSON"), (0, "{}"),
+        (2, json.dumps(_BANDIT_LEER)),
+        (0, json.dumps({**_BANDIT_LEER, "errors": [{"filename": "demo/alpha", "reason": "abgebrochen"}]})),
+        (0, json.dumps({**_BANDIT_LEER, "metrics": {}}))], ids=["rc2-leer", "rc0-leer", "kaputt", "feld-fehlt", "rc2", "scanfehler", "nichts-gescannt"])
+    def test_bandit_ohne_ausgefuehrten_scan_ist_nicht_sicherheit_null(messen_werk, rc, out):
+        m, roh = messen_werk(dateien=scanner_double("bandit", rc, out))
+        assert "@@ROHDATEI@@/tmp/scanner-aufrufe:bandit:" in roh["stdout"]
+        assert "demo/alpha" in roh["stdout"]
+&gt;       assert m["gueltig"] is False, m
+E       AssertionError: {'bereiche': {'alpha': {'tests_bestanden': 1, 'tests_fehlgeschlagen': 0, 'tests_gesamt': 1, 'sicherheit_punkte': 0, .....uzeit_ms': 24.2, 'baut': True, 'bau_fehler': '', 'tests_ohne_bereich': [], ...}, 'gueltig': True, 'dauer_s': 0.79, ...}
+E       assert True is False
+
+tests/test_messnachweise.py:165: AssertionError</failure></testcase><testcase classname="tests.test_messnachweise" name="test_bandit_ohne_ausgefuehrten_scan_ist_nicht_sicherheit_null[kaputt]" time="0.817"><failure message="AssertionError: {'bereiche': {'alpha': {'tests_bestanden': 1, 'tests_fehlgeschlagen': 0, 'tests_gesamt': 1, 'sicherheit_punkte': 0, .....uzeit_ms': 21.0, 'baut': True, 'bau_fehler': '', 'tests_ohne_bereich': [], ...}, 'gueltig': True, 'dauer_s': 0.81, ...}&#10;assert True is False">messen_werk = &lt;function messen_werk.&lt;locals&gt;.messen at 0x7ee853b2aac0&gt;, rc = 0
+out = 'kein JSON'
+
+    @pytest.mark.integration
+    @pytest.mark.parametrize("rc,out", [(2, ""), (0, ""), (0, "kein JSON"), (0, "{}"),
+        (2, json.dumps(_BANDIT_LEER)),
+        (0, json.dumps({**_BANDIT_LEER, "errors": [{"filename": "demo/alpha", "reason": "abgebrochen"}]})),
+        (0, json.dumps({**_BANDIT_LEER, "metrics": {}}))], ids=["rc2-leer", "rc0-leer", "kaputt", "feld-fehlt", "rc2", "scanfehler", "nichts-gescannt"])
+    def test_bandit_ohne_ausgefuehrten_scan_ist_nicht_sicherheit_null(messen_werk, rc, out):
+        m, roh = messen_werk(dateien=scanner_double("bandit", rc, out))
+        assert "@@ROHDATEI@@/tmp/scanner-aufrufe:bandit:" in roh["stdout"]
+        assert "demo/alpha" in roh["stdout"]
+&gt;       assert m["gueltig"] is False, m
+E       AssertionError: {'bereiche': {'alpha': {'tests_bestanden': 1, 'tests_fehlgeschlagen': 0, 'tests_gesamt': 1, 'sicherheit_punkte': 0, .....uzeit_ms': 21.0, 'baut': True, 'bau_fehler': '', 'tests_ohne_bereich': [], ...}, 'gueltig': True, 'dauer_s': 0.81, ...}
+E       assert True is False
+
+tests/test_messnachweise.py:165: AssertionError</failure></testcase><testcase classname="tests.test_messnachweise" name="test_bandit_ohne_ausgefuehrten_scan_ist_nicht_sicherheit_null[feld-fehlt]" time="0.808"><failure message="AssertionError: {'bereiche': {'alpha': {'tests_bestanden': 1, 'tests_fehlgeschlagen': 0, 'tests_gesamt': 1, 'sicherheit_punkte': 0, .....auzeit_ms': 22.8, 'baut': True, 'bau_fehler': '', 'tests_ohne_bereich': [], ...}, 'gueltig': True, 'dauer_s': 0.8, ...}&#10;assert True is False">messen_werk = &lt;function messen_werk.&lt;locals&gt;.messen at 0x7ee853b29c60&gt;, rc = 0
+out = '{}'
+
+    @pytest.mark.integration
+    @pytest.mark.parametrize("rc,out", [(2, ""), (0, ""), (0, "kein JSON"), (0, "{}"),
+        (2, json.dumps(_BANDIT_LEER)),
+        (0, json.dumps({**_BANDIT_LEER, "errors": [{"filename": "demo/alpha", "reason": "abgebrochen"}]})),
+        (0, json.dumps({**_BANDIT_LEER, "metrics": {}}))], ids=["rc2-leer", "rc0-leer", "kaputt", "feld-fehlt", "rc2", "scanfehler", "nichts-gescannt"])
+    def test_bandit_ohne_ausgefuehrten_scan_ist_nicht_sicherheit_null(messen_werk, rc, out):
+        m, roh = messen_werk(dateien=scanner_double("bandit", rc, out))
+        assert "@@ROHDATEI@@/tmp/scanner-aufrufe:bandit:" in roh["stdout"]
+        assert "demo/alpha" in roh["stdout"]
+&gt;       assert m["gueltig"] is False, m
+E       AssertionError: {'bereiche': {'alpha': {'tests_bestanden': 1, 'tests_fehlgeschlagen': 0, 'tests_gesamt': 1, 'sicherheit_punkte': 0, .....auzeit_ms': 22.8, 'baut': True, 'bau_fehler': '', 'tests_ohne_bereich': [], ...}, 'gueltig': True, 'dauer_s': 0.8, ...}
+E       assert True is False
+
+tests/test_messnachweise.py:165: AssertionError</failure></testcase><testcase classname="tests.test_messnachweise" name="test_bandit_ohne_ausgefuehrten_scan_ist_nicht_sicherheit_null[rc2]" time="0.799"><failure message="AssertionError: {'bereiche': {'alpha': {'tests_bestanden': 1, 'tests_fehlgeschlagen': 0, 'tests_gesamt': 1, 'sicherheit_punkte': 0, .....uzeit_ms': 21.8, 'baut': True, 'bau_fehler': '', 'tests_ohne_bereich': [], ...}, 'gueltig': True, 'dauer_s': 0.79, ...}&#10;assert True is False">messen_werk = &lt;function messen_werk.&lt;locals&gt;.messen at 0x7ee853b2bc40&gt;, rc = 2
+out = '{"results": [], "errors": [], "metrics": {"_totals": {"loc": 2}, "demo/alpha/__init__.py": {"loc": 2}}}'
+
+    @pytest.mark.integration
+    @pytest.mark.parametrize("rc,out", [(2, ""), (0, ""), (0, "kein JSON"), (0, "{}"),
+        (2, json.dumps(_BANDIT_LEER)),
+        (0, json.dumps({**_BANDIT_LEER, "errors": [{"filename": "demo/alpha", "reason": "abgebrochen"}]})),
+        (0, json.dumps({**_BANDIT_LEER, "metrics": {}}))], ids=["rc2-leer", "rc0-leer", "kaputt", "feld-fehlt", "rc2", "scanfehler", "nichts-gescannt"])
+    def test_bandit_ohne_ausgefuehrten_scan_ist_nicht_sicherheit_null(messen_werk, rc, out):
+        m, roh = messen_werk(dateien=scanner_double("bandit", rc, out))
+        assert "@@ROHDATEI@@/tmp/scanner-aufrufe:bandit:" in roh["stdout"]
+        assert "demo/alpha" in roh["stdout"]
+&gt;       assert m["gueltig"] is False, m
+E       AssertionError: {'bereiche': {'alpha': {'tests_bestanden': 1, 'tests_fehlgeschlagen': 0, 'tests_gesamt': 1, 'sicherheit_punkte': 0, .....uzeit_ms': 21.8, 'baut': True, 'bau_fehler': '', 'tests_ohne_bereich': [], ...}, 'gueltig': True, 'dauer_s': 0.79, ...}
+E       assert True is False
+
+tests/test_messnachweise.py:165: AssertionError</failure></testcase><testcase classname="tests.test_messnachweise" name="test_bandit_ohne_ausgefuehrten_scan_ist_nicht_sicherheit_null[scanfehler]" time="0.817"><failure message="AssertionError: {'bereiche': {'alpha': {'tests_bestanden': 1, 'tests_fehlgeschlagen': 0, 'tests_gesamt': 1, 'sicherheit_punkte': 0, .....uzeit_ms': 25.8, 'baut': True, 'bau_fehler': '', 'tests_ohne_bereich': [], ...}, 'gueltig': True, 'dauer_s': 0.81, ...}&#10;assert True is False">messen_werk = &lt;function messen_werk.&lt;locals&gt;.messen at 0x7ee853b29da0&gt;, rc = 0
+out = '{"results": [], "errors": [{"filename": "demo/alpha", "reason": "abgebrochen"}], "metrics": {"_totals": {"loc": 2}, "demo/alpha/__init__.py": {"loc": 2}}}'
+
+    @pytest.mark.integration
+    @pytest.mark.parametrize("rc,out", [(2, ""), (0, ""), (0, "kein JSON"), (0, "{}"),
+        (2, json.dumps(_BANDIT_LEER)),
+        (0, json.dumps({**_BANDIT_LEER, "errors": [{"filename": "demo/alpha", "reason": "abgebrochen"}]})),
+        (0, json.dumps({**_BANDIT_LEER, "metrics": {}}))], ids=["rc2-leer", "rc0-leer", "kaputt", "feld-fehlt", "rc2", "scanfehler", "nichts-gescannt"])
+    def test_bandit_ohne_ausgefuehrten_scan_ist_nicht_sicherheit_null(messen_werk, rc, out):
+        m, roh = messen_werk(dateien=scanner_double("bandit", rc, out))
+        assert "@@ROHDATEI@@/tmp/scanner-aufrufe:bandit:" in roh["stdout"]
+        assert "demo/alpha" in roh["stdout"]
+&gt;       assert m["gueltig"] is False, m
+E       AssertionError: {'bereiche': {'alpha': {'tests_bestanden': 1, 'tests_fehlgeschlagen': 0, 'tests_gesamt': 1, 'sicherheit_punkte': 0, .....uzeit_ms': 25.8, 'baut': True, 'bau_fehler': '', 'tests_ohne_bereich': [], ...}, 'gueltig': True, 'dauer_s': 0.81, ...}
+E       assert True is False
+
+tests/test_messnachweise.py:165: AssertionError</failure></testcase><testcase classname="tests.test_messnachweise" name="test_bandit_ohne_ausgefuehrten_scan_ist_nicht_sicherheit_null[nichts-gescannt]" time="0.808"><failure message="AssertionError: {'bereiche': {'alpha': {'tests_bestanden': 1, 'tests_fehlgeschlagen': 0, 'tests_gesamt': 1, 'sicherheit_punkte': 0, .....auzeit_ms': 22.5, 'baut': True, 'bau_fehler': '', 'tests_ohne_bereich': [], ...}, 'gueltig': True, 'dauer_s': 0.8, ...}&#10;assert True is False">messen_werk = &lt;function messen_werk.&lt;locals&gt;.messen at 0x7ee853afc540&gt;, rc = 0
+out = '{"results": [], "errors": [], "metrics": {}}'
+
+    @pytest.mark.integration
+    @pytest.mark.parametrize("rc,out", [(2, ""), (0, ""), (0, "kein JSON"), (0, "{}"),
+        (2, json.dumps(_BANDIT_LEER)),
+        (0, json.dumps({**_BANDIT_LEER, "errors": [{"filename": "demo/alpha", "reason": "abgebrochen"}]})),
+        (0, json.dumps({**_BANDIT_LEER, "metrics": {}}))], ids=["rc2-leer", "rc0-leer", "kaputt", "feld-fehlt", "rc2", "scanfehler", "nichts-gescannt"])
+    def test_bandit_ohne_ausgefuehrten_scan_ist_nicht_sicherheit_null(messen_werk, rc, out):
+        m, roh = messen_werk(dateien=scanner_double("bandit", rc, out))
+        assert "@@ROHDATEI@@/tmp/scanner-aufrufe:bandit:" in roh["stdout"]
+        assert "demo/alpha" in roh["stdout"]
+&gt;       assert m["gueltig"] is False, m
+E       AssertionError: {'bereiche': {'alpha': {'tests_bestanden': 1, 'tests_fehlgeschlagen': 0, 'tests_gesamt': 1, 'sicherheit_punkte': 0, .....auzeit_ms': 22.5, 'baut': True, 'bau_fehler': '', 'tests_ohne_bereich': [], ...}, 'gueltig': True, 'dauer_s': 0.8, ...}
+E       assert True is False
+
+tests/test_messnachweise.py:165: AssertionError</failure></testcase><testcase classname="tests.test_messnachweise" name="test_echte_scannerbefunde_bleiben_gueltige_negative_masse[bandit]" time="1.051" /><testcase classname="tests.test_messnachweise" name="test_echte_scannerbefunde_bleiben_gueltige_negative_masse[vulture]" time="1.024" /></testsuite></testsuites>

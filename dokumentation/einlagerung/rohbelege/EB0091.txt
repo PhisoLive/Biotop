@@ -1,0 +1,136 @@
+EB91 · Schritt 6.7: Prüfsummenliste der Originale NACHHER
+Beginn: 2026-09-26 03:13:20 CEST (UTC+0200)
+Ende:   2026-09-26 03:13:47 CEST (UTC+0200)
+Dauer:  27.0 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/biotop-einlagerung/arbeit/s6_original.py liste NACHHER-PROBE
+--- Inhalt von /root/biotop-einlagerung/arbeit/s6_original.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-EINLAGERUNG-01 · Schritt 6.1/6.7: Prüfsummenliste der Originale vor und nach der Probe (nur lesend).
+
+Umfang (Obermenge dessen, was der Auftrag verlangt):
+  Gruppe A: /root/biotop vollständig (auch .git; Verweise mit Ziel)
+  Gruppe B: alle Biotop-Datenbanken aus paket/dbliste.json, Teile 1–3 (ohne Hermes' eigene Datenbanken und ohne die
+            Kopien dieses Auftrags), jeweils mit -wal/-shm/-journal
+  Gruppe C: alle übrigen Dateien der Biotop-Arbeitsordner und /root/sicherung/biotop-lage-01 (ohne dessen
+            Reproduktionskopien sicherung/{stufe,probe,gegenprobe} und testlauf/baum; das alte Archiv ist dabei)
+Datenbanken werden nur als Datei gelesen (kein SQLite-Öffnen, also kein -shm-Schreiben).
+Aufruf: s6_original.py liste <name> | vergleich <a> <b>
+Listen: /root/biotop-einlagerung/pruefsummen/ORIGINAL-<name>.txt (exklusiv).
+"""
+import hashlib
+import json
+import os
+import stat
+import sys
+import time
+from pathlib import Path
+
+E = Path('/root/biotop-einlagerung')
+Z = E / 'pruefsummen'
+ARB = ['biotop-t3', 'biotop-vor-t4', 'biotop-vor-t4-02', 'biotop-vor-t4-03', 'biotop-vor-t4-04', 'biotop-vor-t4-05',
+       'biotop-vor-t4-06', 'phase-4-vorbedingung-1', 'reparatur-01', 'reparatur-02', 'gesamtstand-01', 'wiedereinstieg-01',
+       'biotop-einstieg-20260921-0122', 'traeger-umstellung-2026-09-20_22-32-03Z', 'uebungswerk', 'uebungswerk2',
+       'uebungswerk-nachlauf', 'uebungswerk-p2', 'uebungswerk-p3', 'uebungswerk-p3b', 'uebungswerk-p3c', 'uebungswerk-p3d',
+       'versandwerk-t3', 'versandwerk-t3-02', 'versiegelt', 'w7']
+L1 = '/root/sicherung/biotop-lage-01'
+OHNE = {f'{L1}/sicherung/stufe', f'{L1}/sicherung/probe', f'{L1}/sicherung/gegenprobe', f'{L1}/testlauf/baum'}
+
+
+def sha(p):
+    h = hashlib.sha256()
+    with open(p, 'rb') as f:
+        for b in iter(lambda: f.read(1 << 20), b''):
+            h.update(b)
+    return h.hexdigest()
+
+
+def eintrag(p):
+    st = os.lstat(p)
+    if stat.S_ISLNK(st.st_mode):
+        return f'VERWEIS->{os.readlink(p)}'
+    if stat.S_ISREG(st.st_mode):
+        return f'{sha(p)} {st.st_size}'
+    return 'SONDER'
+
+
+def laufe(w):
+    for d, ds, fs in os.walk(w):
+        ds[:] = sorted(x for x in ds if os.path.join(d, x) not in OHNE and not os.path.islink(os.path.join(d, x)))
+        for x in os.listdir(d):
+            q = os.path.join(d, x)
+            if os.path.islink(q) and os.path.isdir(q):
+                yield q
+        for f in sorted(fs):
+            yield os.path.join(d, f)
+
+
+def liste(name):
+    t0 = time.time()
+    dbs = json.loads((E / 'paket' / 'dbliste.json').read_text())
+    b = set()
+    for p, v in dbs.items():
+        if v['teil'] in ('1-biotop', '2-arbeitsordner', '3-sicherung-lage-01'):
+            b.add(p)
+            for e in ('-wal', '-shm', '-journal'):
+                if os.path.exists(p + e):
+                    b.add(p + e)
+    zeilen, n = [], {'A': 0, 'B': 0, 'C': 0}
+    gesehen = set()
+    for p in laufe('/root/biotop'):
+        g = 'B' if p in b else 'A'
+        zeilen.append(f'{g}\t{eintrag(p)}\t{p}')
+        n[g] += 1
+        gesehen.add(p)
+    for p in sorted(b - gesehen):
+        if os.path.lexists(p):
+            zeilen.append(f'B\t{eintrag(p)}\t{p}')
+            n['B'] += 1
+            gesehen.add(p)
+    for w in [f'/root/{a}' for a in ARB] + [L1]:
+        for p in laufe(w):
+            if p in gesehen:
+                continue
+            zeilen.append(f'C\t{eintrag(p)}\t{p}')
+            n['C'] += 1
+    zeilen.sort(key=lambda z: z.split('\t')[2])
+    text = '\n'.join(zeilen) + '\n'
+    ziel = Z / f'ORIGINAL-{name}.txt'
+    fd = os.open(ziel, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, 'w', encoding='utf-8', errors='surrogateescape') as f:
+        f.write(text)
+    print(f'{time.strftime("%Y-%m-%d %H:%M:%S %Z")} · Liste {ziel} · Einträge {len(zeilen)} (A /root/biotop {n["A"]}, '
+          f'B Datenbanken samt Begleitern {n["B"]}, C übrige Arbeitsordner {n["C"]}) · Dauer {time.time() - t0:.1f} s · '
+          f'SHA-256 der Liste {hashlib.sha256(text.encode(errors="surrogateescape")).hexdigest()}')
+
+
+def vergleich(a, b):
+    def lade(x):
+        m = {}
+        for z in (Z / f'ORIGINAL-{x}.txt').read_text(errors='surrogateescape').splitlines():
+            g, w, p = z.split('\t')
+            m[p] = (g, w)
+        return m
+    ma, mb = lade(a), lade(b)
+    nur_a = sorted(set(ma) - set(mb))
+    nur_b = sorted(set(mb) - set(ma))
+    anders = sorted(p for p in set(ma) & set(mb) if ma[p] != mb[p])
+    for g in 'ABC':
+        print(f'Gruppe {g}: {a} {sum(1 for v in ma.values() if v[0] == g)} · {b} {sum(1 for v in mb.values() if v[0] == g)}')
+    print(f'gesamt: {a} {len(ma)} · {b} {len(mb)} · nur {a}: {len(nur_a)} · nur {b}: {len(nur_b)} · verschieden: {len(anders)}')
+    for p in nur_a[:30]:
+        print(f'  NUR {a}: {p}')
+    for p in nur_b[:30]:
+        print(f'  NUR {b}: {p}')
+    for p in anders[:30]:
+        print(f'  VERSCHIEDEN: {p} ({ma[p][0]})')
+    print('ERGEBNIS: Unterschied leer' if not (nur_a or nur_b or anders) else 'ERGEBNIS: Unterschied NICHT leer')
+
+
+if __name__ == '__main__':
+    {'liste': liste, 'vergleich': vergleich}[sys.argv[1]](*sys.argv[2:])
+--- Ende /root/biotop-einlagerung/arbeit/s6_original.py ---
+Ausgabe (vollständig, stdout und stderr):
+2026-09-26 03:13:47 CEST · Liste /root/biotop-einlagerung/pruefsummen/ORIGINAL-NACHHER-PROBE.txt · Einträge 46605 (A /root/biotop 4081, B Datenbanken samt Begleitern 6540, C übrige Arbeitsordner 35984) · Dauer 26.9 s · SHA-256 der Liste 551fd3a6bc6fd17ef3ee3d2a103adbd534429b8944c0ad89f27568f6d3f2d05b
+=== Ende EB91 ===

@@ -1,0 +1,613 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 24 (Teile 4–165 dieses Stands) · enthält R34 bis R35
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R34 · Teil D: Code am Commit 0c2f058 zählen (FK31, FK35)
+Beginn: 2026-09-25 16:12:31 CEST (UTC+0200)
+Ende:   2026-09-25 16:12:31 CEST (UTC+0200)
+Dauer:  0.2 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/aufbau/d1_code.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/aufbau/d1_code.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil D (nur lesend): Code am Commit 0c2f058 zählen — FK31 und FK35.
+
+Liest ausschließlich über `git ls-tree` und `git cat-file --batch` (kein Checkout, kein Index, kein Import von Biotop-Code).
+Ausgabe:
+  A. Commit, Anzahl Dateien, Bytes
+  B. Verzeichnisbaum bis Tiefe 3 (ohne node_modules, .venv, venv, __pycache__, .pytest_cache): Ordner mit Anzahl Dateien
+     und Zeilen darunter; Dateien bis Tiefe 3 einzeln mit Zeilen
+  C. Sprachen (nach Dateiendung): Dateien und Zeilen, gesamt und je Bauteil (Ordner bis Tiefe 3)
+  D. Tests: je Testdatei die Zahl der Testfunktionen (def test_…), Klassen Test…, Marker integration
+"""
+import collections
+import re
+import subprocess
+
+REPO = '/root/biotop'
+C = '0c2f058'
+AUS = ('node_modules', '.venv', 'venv', '__pycache__', '.pytest_cache')
+
+
+def git(*a) -> bytes:
+    return subprocess.run(['git', '-C', REPO, *a], check=True, stdout=subprocess.PIPE).stdout
+
+
+voll = git('rev-parse', C).decode().strip()
+kopf = git('log', '-1', '--format=%H | %ci | %an | %s', C).decode().strip()
+eintraege = []  # (pfad, objekt, groesse)
+for z in git('ls-tree', '-r', '-l', C).decode('utf-8', 'replace').splitlines():
+    meta, pfad = z.split('\t', 1)
+    modus, typ, obj, groesse = meta.split()
+    if typ != 'blob':
+        continue
+    if any(t in AUS for t in pfad.split('/')):
+        continue
+    eintraege.append((pfad, obj, int(groesse) if groesse != '-' else 0))
+
+# Inhalte über cat-file --batch lesen
+p = subprocess.Popen(['git', '-C', REPO, 'cat-file', '--batch'], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+eingabe = ''.join(f'{o}\n' for _, o, _ in eintraege).encode()
+aus, _ = p.communicate(eingabe)
+inhalt = {}
+i = 0
+for pfad, obj, _ in eintraege:
+    nl = aus.index(b'\n', i)
+    k = aus[i:nl].split()
+    n = int(k[2])
+    inhalt[pfad] = aus[nl + 1:nl + 1 + n]
+    i = nl + 1 + n + 1
+
+
+def zeilen(b: bytes) -> int:
+    if not b:
+        return 0
+    return b.count(b'\n') + (0 if b.endswith(b'\n') else 1)
+
+
+SPR = {'.py': 'Python', '.ts': 'TypeScript', '.tsx': 'TypeScript', '.js': 'JavaScript', '.mjs': 'JavaScript',
+       '.md': 'Markdown', '.json': 'JSON', '.sh': 'Shell', '.html': 'HTML', '.css': 'CSS', '.txt': 'Text',
+       '.ini': 'INI', '.toml': 'TOML', '.yaml': 'YAML', '.yml': 'YAML', '.sql': 'SQL', '.cfg': 'INI'}
+
+
+def sprache(pfad: str) -> str:
+    name = pfad.rsplit('/', 1)[-1]
+    if name == 'Dockerfile':
+        return 'Dockerfile'
+    if name.startswith('.git'):
+        return 'git-Konfiguration'
+    for e, s in SPR.items():
+        if name.endswith(e):
+            return s
+    return 'sonstige (' + (name.rsplit('.', 1)[-1] if '.' in name else name) + ')'
+
+
+binär = {pf for pf, b in inhalt.items() if b'\x00' in b[:8000]}
+print('== A. Commit')
+print(f'{C} = {voll}')
+print(kopf)
+print(f'Dateien (Blobs) am Commit ohne Abhängigkeitsordner: {len(eintraege)}; davon binär: {len(binär)}')
+print(f'Bytes gesamt: {sum(g for _, _, g in eintraege)}')
+print(f'Zeilen gesamt (Textdateien): {sum(zeilen(b) for pf, b in inhalt.items() if pf not in binär)}')
+
+print('\n== B. Verzeichnisbaum bis Tiefe 3 (Ordner: Dateien/Zeilen darunter; Dateien bis Tiefe 3 mit Zeilen)')
+ordner = collections.defaultdict(lambda: [0, 0])
+for pf, b in inhalt.items():
+    teile = pf.split('/')
+    for t in range(1, min(len(teile), 4)):
+        if t < len(teile):
+            key = '/'.join(teile[:t]) + '/'
+            ordner[key][0] += 1
+            ordner[key][1] += 0 if pf in binär else zeilen(b)
+knoten = set(ordner)
+for pf in inhalt:
+    if pf.count('/') <= 2:
+        knoten.add(pf)
+for k in sorted(knoten):
+    tiefe = k.rstrip('/').count('/')
+    einr = '  ' * tiefe
+    name = k.rstrip('/').rsplit('/', 1)[-1] + ('/' if k.endswith('/') else '')
+    if k.endswith('/'):
+        print(f'{einr}{name}  [{ordner[k][0]} Dateien, {ordner[k][1]} Zeilen]')
+    else:
+        print(f'{einr}{name}  ({"binär" if k in binär else str(zeilen(inhalt[k])) + " Zeilen"})')
+
+print('\n== C1. Sprachen gesamt (Dateien, Zeilen)')
+spr = collections.defaultdict(lambda: [0, 0])
+for pf, b in inhalt.items():
+    s = sprache(pf)
+    spr[s][0] += 1
+    spr[s][1] += 0 if pf in binär else zeilen(b)
+for s, (n, z) in sorted(spr.items(), key=lambda x: -x[1][1]):
+    print(f'{s}: {n} Dateien, {z} Zeilen')
+
+
+def bauteil(pf: str) -> str:
+    t = pf.split('/')
+    if len(t) == 1:
+        return '(Wurzel)'
+    if t[0] == 'biotop' and len(t) == 2:
+        return 'biotop/ (Paketwurzel, Module direkt im Paket)'
+    if t[0] == 'biotop' and len(t) >= 3:
+        return f'biotop/{t[1]}/'
+    if t[0] == 'tests' and len(t) >= 3:
+        return f'tests/{t[1]}/'
+    return t[0] + '/'
+
+
+print('\n== C2. Sprachen je Bauteil (Bauteil: Sprache Dateien/Zeilen)')
+bt = collections.defaultdict(lambda: collections.defaultdict(lambda: [0, 0]))
+for pf, b in inhalt.items():
+    x = bt[bauteil(pf)][sprache(pf)]
+    x[0] += 1
+    x[1] += 0 if pf in binär else zeilen(b)
+for k in sorted(bt):
+    summe_n = sum(v[0] for v in bt[k].values())
+    summe_z = sum(v[1] for v in bt[k].values())
+    teile = '; '.join(f'{s} {v[0]}/{v[1]}' for s, v in sorted(bt[k].items(), key=lambda x: -x[1][1]))
+    print(f'{k}: gesamt {summe_n} Dateien/{summe_z} Zeilen — {teile}')
+
+print('\n== C3. Python-Module unter biotop/ einzeln (Zeilen)')
+for pf in sorted(inhalt):
+    if pf.startswith('biotop/') and pf.endswith(('.py', '.ts', '.js', '.html', '.css', '.json')):
+        print(f'{pf}: {zeilen(inhalt[pf])}')
+
+print('\n== D. Tests je Datei (def test_… / Klassen Test… / @pytest.mark.integration / parametrize)')
+RT = re.compile(rb'^[ \t]*(?:async[ \t]+)?def[ \t]+(test\w*)[ \t]*\(', re.M)
+RK = re.compile(rb'^[ \t]*class[ \t]+(Test\w*)', re.M)
+RTS = re.compile(rb'^[ \t]*(?:it|test)(?:\.each\([^)]*\))?\(\s*[\'"`]', re.M)
+gesamt = 0
+je_ordner = collections.Counter()
+for pf in sorted(inhalt):
+    name = pf.rsplit('/', 1)[-1]
+    istest = (name.startswith('test_') and name.endswith('.py')) or name.endswith(('.test.ts', '.spec.ts'))
+    if not istest:
+        continue
+    b = inhalt[pf]
+    if name.endswith('.py'):
+        n = len(RT.findall(b))
+    else:
+        n = len(RTS.findall(b))
+    kl = len(RK.findall(b))
+    integ = b.count(b'pytest.mark.integration')
+    para = b.count(b'pytest.mark.parametrize')
+    gesamt += n
+    je_ordner['/'.join(pf.split('/')[:-1]) or '(Wurzel)'] += n
+    print(f'{pf}: {n} Testfunktionen, {kl} Klassen, integration-Marker {integ}, parametrize {para}, {zeilen(b)} Zeilen')
+print(f'Summe Testfunktionen: {gesamt}')
+print('Je Ordner:', dict(sorted(je_ordner.items())))
+print('\n== E. pytest.ini und requirements-test.txt am Commit (Wortlaut)')
+for pf in ('pytest.ini', 'requirements-test.txt', '.gitignore'):
+    print(f'--- {pf} ---')
+    print(inhalt.get(pf, b'(nicht am Commit)').decode('utf-8', 'replace'))
+--- Ende /root/sicherung/biotop-lage-01/entwurf/aufbau/d1_code.py ---
+Ausgabe (vollständig, stdout und stderr):
+== A. Commit
+0c2f058 = 0c2f058d57f68b8891b535d6e00214172c82fefa
+0c2f058d57f68b8891b535d6e00214172c82fefa | 2026-09-24 20:24:54 +0200 | Hermes (Biotop) | Vor T4, Runde 5: Vollständigkeitsprüfung, fallende Zusicherung, Ausfall je Funktion, Register und Tor-4-Skript, Stufe 2 überall
+Dateien (Blobs) am Commit ohne Abhängigkeitsordner: 222; davon binär: 0
+Bytes gesamt: 1850710
+Zeilen gesamt (Textdateien): 32347
+
+== B. Verzeichnisbaum bis Tiefe 3 (Ordner: Dateien/Zeilen darunter; Dateien bis Tiefe 3 mit Zeilen)
+.gitignore  (6 Zeilen)
+README.md  (47 Zeilen)
+biotop/  [69 Dateien, 14221 Zeilen]
+  __init__.py  (0 Zeilen)
+  __main__.py  (166 Zeilen)
+  anbieter/  [1 Dateien, 246 Zeilen]
+    __init__.py  (246 Zeilen)
+  dienst.py  (245 Zeilen)
+  kern/  [37 Dateien, 5581 Zeilen]
+    __init__.py  (0 Zeilen)
+    anmeldung.py  (50 Zeilen)
+    befundklassen.py  (158 Zeilen)
+    datenbank.py  (101 Zeilen)
+    diffwerk.py  (128 Zeilen)
+    gegenzeugen.py  (79 Zeilen)
+    kasse.py  (313 Zeilen)
+    messgeraet.py  (878 Zeilen)
+    protokoll.py  (57 Zeilen)
+    py/  [1 Dateien, 1769 Zeilen]
+    referenzlast/  [4 Dateien, 454 Zeilen]
+    register.py  (56 Zeilen)
+    sprachprofil.py  (38 Zeilen)
+    ts/  [20 Dateien, 1315 Zeilen]
+    typescript.py  (185 Zeilen)
+  lauf.py  (854 Zeilen)
+  nachspiel.py  (298 Zeilen)
+  oberflaeche.py  (172 Zeilen)
+  organe/  [24 Dateien, 6514 Zeilen]
+    __init__.py  (0 Zeilen)
+    aegis.py  (1174 Zeilen)
+    aufnahme.py  (196 Zeilen)
+    eichgegenstand.py  (199 Zeilen)
+    eichproben.py  (634 Zeilen)
+    eichproben_ts.py  (122 Zeilen)
+    eichung.py  (267 Zeilen)
+    entropie.py  (103 Zeilen)
+    fundpruefung.py  (193 Zeilen)
+    gedaechtnis.py  (595 Zeilen)
+    generation0.py  (469 Zeilen)
+    genesis.py  (185 Zeilen)
+    jury.py  (62 Zeilen)
+    kammer.py  (124 Zeilen)
+    landkarte.py  (273 Zeilen)
+    lazarus.py  (110 Zeilen)
+    masseichung.py  (186 Zeilen)
+    mentor.py  (136 Zeilen)
+    neutralzaehler.py  (99 Zeilen)
+    nischen.py  (161 Zeilen)
+    verfassung.py  (69 Zeilen)
+    verhaltensvergleich.py  (754 Zeilen)
+    vertraege.py  (85 Zeilen)
+    vorspann.py  (318 Zeilen)
+  tor4.py  (145 Zeilen)
+kammer/  [4 Dateien, 3675 Zeilen]
+  Dockerfile  (4 Zeilen)
+  typescript/  [3 Dateien, 3671 Zeilen]
+    Dockerfile  (18 Zeilen)
+    package-lock.json  (3638 Zeilen)
+    package.json  (15 Zeilen)
+pruefung/  [63 Dateien, 4422 Zeilen]
+  abbruch_pruefen.py  (81 Zeilen)
+  anklaeger_vielfalt.py  (65 Zeilen)
+  archivierung_pruefen.py  (95 Zeilen)
+  aufnahmesperre_gegenprobe.py  (62 Zeilen)
+  aufnahmesperre_pruefen.py  (131 Zeilen)
+  bauteilA_mechanik.py  (84 Zeilen)
+  behauptungen_nachtragen.py  (52 Zeilen)
+  doppelungen_befund.py  (90 Zeilen)
+  doppelungen_neu.py  (81 Zeilen)
+  eichgegenstand_betriebszweck.py  (60 Zeilen)
+  eichgegenstand_pruefen.py  (61 Zeilen)
+  eichgegenstand_verfassung.py  (59 Zeilen)
+  eichproben_pruefen.py  (28 Zeilen)
+  eichung_falld.py  (44 Zeilen)
+  eichung_pruefen.py  (51 Zeilen)
+  eichung_zeitraum_pruefen.py  (59 Zeilen)
+  funde_neubewerten.py  (46 Zeilen)
+  funde_uebernehmen.py  (36 Zeilen)
+  fundpruefung_pruefen.py  (65 Zeilen)
+  generationen.sh  (43 Zeilen)
+  jury_mechanik.py  (46 Zeilen)
+  jury_probe.py  (64 Zeilen)
+  kurve.py  (56 Zeilen)
+  lauf16_verwerfen.py  (18 Zeilen)
+  lauf18_verwerfen.py  (23 Zeilen)
+  lauf19_verwerfen.py  (23 Zeilen)
+  lauf25_auswertung.py  (123 Zeilen)
+  lauf25_pfadnachweis.py  (142 Zeilen)
+  lauf7.sh  (13 Zeilen)
+  lauf_nachlauf.sh  (23 Zeilen)
+  lauf_p2.sh  (15 Zeilen)
+  lauf_p3_anlegen.sh  (16 Zeilen)
+  lauf_p3_lauf18.sh  (23 Zeilen)
+  lauf_p3_lauf19.sh  (23 Zeilen)
+  lauf_p3_lauf20.sh  (23 Zeilen)
+  lauf_p3_werk2.sh  (15 Zeilen)
+  muster_nachtragen.py  (54 Zeilen)
+  nachgang_n1.py  (74 Zeilen)
+  nachgang_n10.py  (126 Zeilen)
+  nachgang_n12.py  (80 Zeilen)
+  nachgang_n13_n14.py  (138 Zeilen)
+  nachgang_n2_n3.py  (213 Zeilen)
+  nachgang_n4_n5.py  (109 Zeilen)
+  nachgang_n7_n9.py  (121 Zeilen)
+  nachprobe_zeile7.py  (120 Zeilen)
+  proben_ausserhalb_gedaechtnis.py  (78 Zeilen)
+  proben_tor2.py  (215 Zeilen)
+  probenmerkmal_pruefen.py  (71 Zeilen)
+  projektgedaechtnis_differenz.py  (73 Zeilen)
+  rauschprobe_lauf19.py  (25 Zeilen)
+  rauschregeln_pruefen.py  (31 Zeilen)
+  schwaechen_pruefen.py  (28 Zeilen)
+  tor1.py  (134 Zeilen)
+  tor1_f2.py  (71 Zeilen)
+  tor2.py  (112 Zeilen)
+  tor3.py  (99 Zeilen)
+  tor3_geschmack.py  (60 Zeilen)
+  tor3_oberflaeche.py  (90 Zeilen)
+  verhandlungsprobe.py  (75 Zeilen)
+  vorbedingung1.py  (110 Zeilen)
+  vorspann.py  (32 Zeilen)
+  zeile8_messung.py  (98 Zeilen)
+  zwischenbericht.py  (46 Zeilen)
+pruefung_vorbedingung1/  [11 Dateien, 924 Zeilen]
+  auswerten.py  (96 Zeilen)
+  bauteile_pruefen.py  (24 Zeilen)
+  bestand_erheben.py  (103 Zeilen)
+  lauf_kommando.py  (72 Zeilen)
+  liefern.py  (150 Zeilen)
+  messen.py  (80 Zeilen)
+  schlussdiagnose.py  (97 Zeilen)
+  uebergabe_schreiben.py  (161 Zeilen)
+  vorbereiten.py  (86 Zeilen)
+  zaehlen.py  (33 Zeilen)
+  zaehler_pruefen.py  (22 Zeilen)
+pytest.ini  (6 Zeilen)
+requirements-test.txt  (1 Zeilen)
+tests/  [60 Dateien, 8750 Zeilen]
+  conftest.py  (67 Zeilen)
+  drahtwerk.py  (179 Zeilen)
+  speicherwerk.py  (187 Zeilen)
+  test_ansage_aufnahme.py  (165 Zeilen)
+  test_artvorlage.py  (75 Zeilen)
+  test_doppelungsschluessel.py  (24 Zeilen)
+  test_eichproben.py  (473 Zeilen)
+  test_junit_zeugen.py  (96 Zeilen)
+  test_kernmass_pareto.py  (74 Zeilen)
+  test_messnachweise.py  (394 Zeilen)
+  test_nachweis_verbraucher.py  (295 Zeilen)
+  test_rauschmessung.py  (107 Zeilen)
+  test_review_vertrag.py  (285 Zeilen)
+  test_t3_aenderungsziel.py  (44 Zeilen)
+  test_t3_aequivalenz.py  (21 Zeilen)
+  test_t3_anbieter_wiederholung.py  (219 Zeilen)
+  test_t3_angriff_unbrauchbar.py  (77 Zeilen)
+  test_t3_auftragsgrenze.py  (64 Zeilen)
+  test_t3_ausfall_automatisch.py  (123 Zeilen)
+  test_t3_ausfall_klaerung.py  (105 Zeilen)
+  test_t3_ausfall_schwarm.py  (25 Zeilen)
+  test_t3_befundklasse.py  (35 Zeilen)
+  test_t3_behauptungen_protokoll.py  (92 Zeilen)
+  test_t3_bindung.py  (49 Zeilen)
+  test_t3_budgetgrenze.py  (8 Zeilen)
+  test_t3_eichpfad.py  (49 Zeilen)
+  test_t3_fundpruefung.py  (30 Zeilen)
+  test_t3_gedaechtnis.py  (29 Zeilen)
+  test_t3_generation0.py  (92 Zeilen)
+  test_t3_integration_dispatch.py  (70 Zeilen)
+  test_t3_kaputter_modellcode.py  (96 Zeilen)
+  test_t3_kernsperren.py  (35 Zeilen)
+  test_t3_masseichung.py  (155 Zeilen)
+  test_t3_modellvorlagen.py  (14 Zeilen)
+  test_t3_mutantentyp.py  (19 Zeilen)
+  test_t3_neutralzaehler.py  (186 Zeilen)
+  test_t3_normpraedikat.py  (23 Zeilen)
+  test_t3_python_annahmen.py  (229 Zeilen)
+  test_t3_rausch_nachmessung.py  (14 Zeilen)
+  test_t3_referenzwarmup.py  (48 Zeilen)
+  test_t3_sprachwege.py  (37 Zeilen)
+  test_t3_statik_luecken.py  (29 Zeilen)
+  test_t3_testoperationen.py  (34 Zeilen)
+  test_t3_transport.py  (18 Zeilen)
+  test_t3_verbundausfall.py  (116 Zeilen)
+  test_t3_verhaltensvergleich.py  (278 Zeilen)
+  test_t3_vorfreeze_vertrag.py  (17 Zeilen)
+  test_t3_wirkungskreis.py  (18 Zeilen)
+  test_t3_zaehlkontext.py  (62 Zeilen)
+  test_t3_zweigklasse.py  (122 Zeilen)
+  test_testreihenfolge.py  (20 Zeilen)
+  test_typescript_adapter.py  (331 Zeilen)
+  test_verdrahtung.py  (367 Zeilen)
+  test_vor_t4.py  (723 Zeilen)
+  test_vor_t4_02.py  (298 Zeilen)
+  test_vor_t4_03.py  (549 Zeilen)
+  test_vor_t4_04.py  (487 Zeilen)
+  test_vor_t4_05.py  (362 Zeilen)
+  test_vorspann.py  (456 Zeilen)
+  test_vorspann_cli.py  (54 Zeilen)
+verfassungen/  [11 Dateien, 295 Zeilen]
+  lagerhaus.md  (7 Zeilen)
+  lagerhaus.regeln.json  (12 Zeilen)
+  logmuehle.md  (7 Zeilen)
+  logmuehle.regeln.json  (10 Zeilen)
+  vertraege-lagerhaus/  [3 Dateien, 126 Zeilen]
+    test_vertrag_bericht_lager.py  (48 Zeilen)
+    test_vertrag_bericht_preise.py  (39 Zeilen)
+    test_vertrag_preise_formeln.py  (39 Zeilen)
+  vertraege-logmuehle/  [4 Dateien, 133 Zeilen]
+    test_vertrag_ausgabe_filtern.py  (43 Zeilen)
+    test_vertrag_ausgabe_zaehlen.py  (33 Zeilen)
+    test_vertrag_filtern_lesen.py  (40 Zeilen)
+    test_vertrag_zaehlen_lesen.py  (17 Zeilen)
+
+== C1. Sprachen gesamt (Dateien, Zeilen)
+Python: 179 Dateien, 26872 Zeilen
+JSON: 4 Dateien, 3675 Zeilen
+JavaScript: 22 Dateien, 1510 Zeilen
+Shell: 9 Dateien, 194 Zeilen
+Markdown: 3 Dateien, 61 Zeilen
+Dockerfile: 2 Dateien, 22 Zeilen
+git-Konfiguration: 1 Dateien, 6 Zeilen
+INI: 1 Dateien, 6 Zeilen
+Text: 1 Dateien, 1 Zeilen
+
+== C2. Sprachen je Bauteil (Bauteil: Sprache Dateien/Zeilen)
+(Wurzel): gesamt 4 Dateien/60 Zeilen — Markdown 1/47; git-Konfiguration 1/6; INI 1/6; Text 1/1
+biotop/ (Paketwurzel, Module direkt im Paket): gesamt 7 Dateien/1880 Zeilen — Python 7/1880
+biotop/anbieter/: gesamt 1 Dateien/246 Zeilen — Python 1/246
+biotop/kern/: gesamt 37 Dateien/5581 Zeilen — Python 15/4071; JavaScript 22/1510
+biotop/organe/: gesamt 24 Dateien/6514 Zeilen — Python 24/6514
+kammer/: gesamt 4 Dateien/3675 Zeilen — JSON 2/3653; Dockerfile 2/22
+pruefung/: gesamt 63 Dateien/4422 Zeilen — Python 54/4228; Shell 9/194
+pruefung_vorbedingung1/: gesamt 11 Dateien/924 Zeilen — Python 11/924
+tests/: gesamt 60 Dateien/8750 Zeilen — Python 60/8750
+verfassungen/: gesamt 11 Dateien/295 Zeilen — Python 7/259; JSON 2/22; Markdown 2/14
+
+== C3. Python-Module unter biotop/ einzeln (Zeilen)
+biotop/__init__.py: 0
+biotop/__main__.py: 166
+biotop/anbieter/__init__.py: 246
+biotop/dienst.py: 245
+biotop/kern/__init__.py: 0
+biotop/kern/anmeldung.py: 50
+biotop/kern/befundklassen.py: 158
+biotop/kern/datenbank.py: 101
+biotop/kern/diffwerk.py: 128
+biotop/kern/gegenzeugen.py: 79
+biotop/kern/kasse.py: 313
+biotop/kern/messgeraet.py: 878
+biotop/kern/protokoll.py: 57
+biotop/kern/py/verhalten.py: 1769
+biotop/kern/referenzlast/lagerhaus.py: 119
+biotop/kern/referenzlast/logmuehle.py: 140
+biotop/kern/register.py: 56
+biotop/kern/sprachprofil.py: 38
+biotop/kern/typescript.py: 185
+biotop/lauf.py: 854
+biotop/nachspiel.py: 298
+biotop/oberflaeche.py: 172
+biotop/organe/__init__.py: 0
+biotop/organe/aegis.py: 1174
+biotop/organe/aufnahme.py: 196
+biotop/organe/eichgegenstand.py: 199
+biotop/organe/eichproben.py: 634
+biotop/organe/eichproben_ts.py: 122
+biotop/organe/eichung.py: 267
+biotop/organe/entropie.py: 103
+biotop/organe/fundpruefung.py: 193
+biotop/organe/gedaechtnis.py: 595
+biotop/organe/generation0.py: 469
+biotop/organe/genesis.py: 185
+biotop/organe/jury.py: 62
+biotop/organe/kammer.py: 124
+biotop/organe/landkarte.py: 273
+biotop/organe/lazarus.py: 110
+biotop/organe/masseichung.py: 186
+biotop/organe/mentor.py: 136
+biotop/organe/neutralzaehler.py: 99
+biotop/organe/nischen.py: 161
+biotop/organe/verfassung.py: 69
+biotop/organe/verhaltensvergleich.py: 754
+biotop/organe/vertraege.py: 85
+biotop/organe/vorspann.py: 318
+biotop/tor4.py: 145
+
+== D. Tests je Datei (def test_… / Klassen Test… / @pytest.mark.integration / parametrize)
+tests/test_ansage_aufnahme.py: 10 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 5, 165 Zeilen
+tests/test_artvorlage.py: 4 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 1, 75 Zeilen
+tests/test_doppelungsschluessel.py: 2 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 1, 24 Zeilen
+tests/test_eichproben.py: 17 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 6, 473 Zeilen
+tests/test_junit_zeugen.py: 2 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 2, 96 Zeilen
+tests/test_kernmass_pareto.py: 9 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 3, 74 Zeilen
+tests/test_messnachweise.py: 25 Testfunktionen, 0 Klassen, integration-Marker 20, parametrize 17, 394 Zeilen
+tests/test_nachweis_verbraucher.py: 11 Testfunktionen, 0 Klassen, integration-Marker 5, parametrize 5, 295 Zeilen
+tests/test_rauschmessung.py: 11 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 8, 107 Zeilen
+tests/test_review_vertrag.py: 6 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 2, 285 Zeilen
+tests/test_t3_aenderungsziel.py: 3 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 0, 44 Zeilen
+tests/test_t3_aequivalenz.py: 1 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 0, 21 Zeilen
+tests/test_t3_anbieter_wiederholung.py: 8 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 0, 219 Zeilen
+tests/test_t3_angriff_unbrauchbar.py: 4 Testfunktionen, 0 Klassen, integration-Marker 2, parametrize 0, 77 Zeilen
+tests/test_t3_auftragsgrenze.py: 6 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 0, 64 Zeilen
+tests/test_t3_ausfall_automatisch.py: 6 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 0, 123 Zeilen
+tests/test_t3_ausfall_klaerung.py: 5 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 0, 105 Zeilen
+tests/test_t3_ausfall_schwarm.py: 2 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 0, 25 Zeilen
+tests/test_t3_befundklasse.py: 1 Testfunktionen, 0 Klassen, integration-Marker 1, parametrize 0, 35 Zeilen
+tests/test_t3_behauptungen_protokoll.py: 4 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 0, 92 Zeilen
+tests/test_t3_bindung.py: 3 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 1, 49 Zeilen
+tests/test_t3_budgetgrenze.py: 1 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 0, 8 Zeilen
+tests/test_t3_eichpfad.py: 1 Testfunktionen, 0 Klassen, integration-Marker 1, parametrize 1, 49 Zeilen
+tests/test_t3_fundpruefung.py: 2 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 1, 30 Zeilen
+tests/test_t3_gedaechtnis.py: 2 Testfunktionen, 0 Klassen, integration-Marker 1, parametrize 0, 29 Zeilen
+tests/test_t3_generation0.py: 4 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 2, 92 Zeilen
+tests/test_t3_integration_dispatch.py: 5 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 0, 70 Zeilen
+tests/test_t3_kaputter_modellcode.py: 10 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 0, 96 Zeilen
+tests/test_t3_kernsperren.py: 3 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 1, 35 Zeilen
+tests/test_t3_masseichung.py: 11 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 0, 155 Zeilen
+tests/test_t3_modellvorlagen.py: 2 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 0, 14 Zeilen
+tests/test_t3_mutantentyp.py: 1 Testfunktionen, 0 Klassen, integration-Marker 1, parametrize 0, 19 Zeilen
+tests/test_t3_neutralzaehler.py: 12 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 1, 186 Zeilen
+tests/test_t3_normpraedikat.py: 1 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 0, 23 Zeilen
+tests/test_t3_python_annahmen.py: 5 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 0, 229 Zeilen
+tests/test_t3_rausch_nachmessung.py: 1 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 0, 14 Zeilen
+tests/test_t3_referenzwarmup.py: 1 Testfunktionen, 0 Klassen, integration-Marker 1, parametrize 0, 48 Zeilen
+tests/test_t3_sprachwege.py: 4 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 0, 37 Zeilen
+tests/test_t3_statik_luecken.py: 1 Testfunktionen, 0 Klassen, integration-Marker 1, parametrize 0, 29 Zeilen
+tests/test_t3_testoperationen.py: 3 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 0, 34 Zeilen
+tests/test_t3_transport.py: 2 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 0, 18 Zeilen
+tests/test_t3_verbundausfall.py: 4 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 2, 116 Zeilen
+tests/test_t3_verhaltensvergleich.py: 22 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 1, 278 Zeilen
+tests/test_t3_vorfreeze_vertrag.py: 1 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 0, 17 Zeilen
+tests/test_t3_wirkungskreis.py: 2 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 0, 18 Zeilen
+tests/test_t3_zaehlkontext.py: 3 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 0, 62 Zeilen
+tests/test_t3_zweigklasse.py: 9 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 0, 122 Zeilen
+tests/test_testreihenfolge.py: 1 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 0, 20 Zeilen
+tests/test_typescript_adapter.py: 18 Testfunktionen, 0 Klassen, integration-Marker 18, parametrize 2, 331 Zeilen
+tests/test_verdrahtung.py: 6 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 0, 367 Zeilen
+tests/test_vor_t4.py: 39 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 10, 723 Zeilen
+tests/test_vor_t4_02.py: 11 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 4, 298 Zeilen
+tests/test_vor_t4_03.py: 32 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 3, 549 Zeilen
+tests/test_vor_t4_04.py: 26 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 7, 487 Zeilen
+tests/test_vor_t4_05.py: 20 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 7, 362 Zeilen
+tests/test_vorspann.py: 23 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 13, 456 Zeilen
+tests/test_vorspann_cli.py: 3 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 1, 54 Zeilen
+verfassungen/vertraege-lagerhaus/test_vertrag_bericht_lager.py: 6 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 0, 48 Zeilen
+verfassungen/vertraege-lagerhaus/test_vertrag_bericht_preise.py: 5 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 0, 39 Zeilen
+verfassungen/vertraege-lagerhaus/test_vertrag_preise_formeln.py: 6 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 0, 39 Zeilen
+verfassungen/vertraege-logmuehle/test_vertrag_ausgabe_filtern.py: 4 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 0, 43 Zeilen
+verfassungen/vertraege-logmuehle/test_vertrag_ausgabe_zaehlen.py: 3 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 0, 33 Zeilen
+verfassungen/vertraege-logmuehle/test_vertrag_filtern_lesen.py: 5 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 0, 40 Zeilen
+verfassungen/vertraege-logmuehle/test_vertrag_zaehlen_lesen.py: 2 Testfunktionen, 0 Klassen, integration-Marker 0, parametrize 0, 17 Zeilen
+Summe Testfunktionen: 463
+Je Ordner: {'tests': 432, 'verfassungen/vertraege-lagerhaus': 17, 'verfassungen/vertraege-logmuehle': 14}
+
+== E. pytest.ini und requirements-test.txt am Commit (Wortlaut)
+--- pytest.ini ---
+[pytest]
+testpaths = tests
+python_files = test_*.py
+addopts = -ra --strict-markers -p no:cacheprovider
+markers =
+    integration: führt echte Kammerläufe aus; benötigt Docker und biotop-kammer:1
+
+--- requirements-test.txt ---
+pytest==9.1.1
+
+--- .gitignore ---
+daten/
+__pycache__/
+*.pyc
+.env*
+.venv/
+.pytest_cache/
+
+=== Ende R34 ===
+
+
+R35 · Teil A: Volltext der gekürzten Philipp-Nachrichten 15154, 16482, 16769, 16901 (wortlaut.jsonl)
+Beginn: 2026-09-25 16:12:40 CEST (UTC+0200)
+Ende:   2026-09-25 16:12:40 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/entscheidungen/a1_nachrichten.py 15154 16482 16769 16901
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/entscheidungen/a1_nachrichten.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil A (nur lesend): Volltext ausgewählter Nachrichten aus arbeit/verlauf/wortlaut.jsonl
+(geschwärzt). Aufruf: python3 a1_nachrichten.py <id> [<id> ...] — gibt je id Zeit, Absender, Sitzung und Text aus."""
+import json
+import sys
+from pathlib import Path
+
+Q = Path('/root/sicherung/biotop-lage-01/arbeit/verlauf/wortlaut.jsonl')
+ids = {int(x) for x in sys.argv[1:]}
+gefunden = set()
+with Q.open(encoding='utf-8') as f:
+    for zeile in f:
+        d = json.loads(zeile)
+        if int(d.get('id', -1)) in ids:
+            gefunden.add(int(d['id']))
+            print(f"=== id {d['id']} · {d.get('zeit')} · {d.get('absender')} · {d.get('sitzung')} · {len(d.get('text') or '')} Zeichen")
+            print(d.get('text'))
+            print()
+print('Nicht gefunden:', sorted(ids - gefunden) or 'keine')
+--- Ende /root/sicherung/biotop-lage-01/entwurf/entscheidungen/a1_nachrichten.py ---
+Ausgabe (vollständig, stdout und stderr):
+=== id 15154 · 2026-09-24 02:14:45 · Philipp · 20260923_194003_92313ee1 · 3434 Zeichen
+Richtig nicht abgenommen, und die Lücken der Python-Sonde gehören zu den wichtigsten Befunden vor T4. Entscheidungen Chat-Claude: (1) Deckung je Muster (deine Option 1) — je Eingabe ist zu fein, ein richtiger Test deckt 2 von 28; je Funktion zu grob, dahinter lag die Weißraum-Lücke. Gegenproben: K2868 scheitert am ungedeckten Weißraum-Muster; eine richtige Behebung mit einem Test je Muster kommt durch; K2868 wird einmal nur mit erweitertem Korpus und einmal nur mit neuer Deckungsregel gemessen, damit getrennt ist, was was bewirkt. (2) Gewinnschwelle der Nische „schnell" in beiden Richtungen nachmessen, nur innerhalb der Rauschtoleranz um die Schwelle; Gegenprobe K2904/K3091 drei von drei gleich — kippt es trotzdem, meld es, dann liegt es an der Größe der Vergleichslast. (3) Methoden von Klassen vor T4 beobachten, Instanzen aus den Verträgen, Zustand von self vor und nach dem Aufruf verglichen; Enthaltung nur für wirklich Unbeobachtbares, gezählt. (4) S1 nicht neu versiegeln — nach der Messung ändert man kein Kriterium; für jedes künftige Testwerk prüft jeder Gegenzeuge zweierlei: Schwäche weg und gültiges Verhalten gegen die Normalversion unverändert. Auftrag Behebungsrunde 3: deine 13 Spezifikationen aus SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md plus diese vier Entscheidungen, jede mit Gegenprobe durch den Laufweg; die fünf Lücken der Python-Sonde je mit einem Fall, der vorher unentdeckt blieb oder Fehlalarm gab. Der Reviewer ist an dieselbe Regel gebunden wie du: bei einer Sicherheitssperre anhalten und melden, nie auf anderem Weg lesen. Kein Lauf, kein Modellgeld, ein Review, eigener Commit, Abschlussordner laeufe/biotop-vor-t4-03/, Endmeldung mit Abholadresse als ganze Zeile und Prüfsumme.Richtig nicht abgenommen, und die Lücken der Python-Sonde gehören zu den wichtigsten Befunden vor T4. Entscheidungen Chat-Claude: (1) Deckung je Muster (deine Option 1) — je Eingabe ist zu fein, ein richtiger Test deckt 2 von 28; je Funktion zu grob, dahinter lag die Weißraum-Lücke. Gegenproben: K2868 scheitert am ungedeckten Weißraum-Muster; eine richtige Behebung mit einem Test je Muster kommt durch; K2868 wird einmal nur mit erweitertem Korpus und einmal nur mit neuer Deckungsregel gemessen, damit getrennt ist, was was bewirkt. (2) Gewinnschwelle der Nische „schnell" in beiden Richtungen nachmessen, nur innerhalb der Rauschtoleranz um die Schwelle; Gegenprobe K2904/K3091 drei von drei gleich — kippt es trotzdem, meld es, dann liegt es an der Größe der Vergleichslast. (3) Methoden von Klassen vor T4 beobachten, Instanzen aus den Verträgen, Zustand von self vor und nach dem Aufruf verglichen; Enthaltung nur für wirklich Unbeobachtbares, gezählt. (4) S1 nicht neu versiegeln — nach der Messung ändert man kein Kriterium; für jedes künftige Testwerk prüft jeder Gegenzeuge zweierlei: Schwäche weg und gültiges Verhalten gegen die Normalversion unverändert. Auftrag Behebungsrunde 3: deine 13 Spezifikationen aus SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md plus diese vier Entscheidungen, jede mit Gegenprobe durch den Laufweg; die fünf Lücken der Python-Sonde je mit einem Fall, der vorher unentdeckt blieb oder Fehlalarm gab. Der Reviewer ist an dieselbe Regel gebunden wie du: bei einer Sicherheitssperre anhalten und melden, nie auf anderem Weg lesen. Kein Lauf, kein Modellgeld, ein Review, eigener Commit, Abschlussordner laeufe/biotop-vor-t4-03/, Endmeldung mit Abholadresse als ganze Zeile und Prüfsumme.
+
+=== id 16482 · 2026-09-24 16:48:07 · Philipp · 20260924_150913_a9326d · 2208 Zeichen
+Runde 4 hat den wichtigsten Punkt geschafft: K2904 und K3091 an der größeren Last drei von drei gleich, weit von der Schwelle. Aber das Review sagt es selbst — geschlossen für die Probenfälle, nicht als Fehlerklasse. Runde 5 schließt Klassen, nicht Fälle; Entscheidungen Chat-Claude: (1) Vollständigkeitsprüfung: Nach jedem Erfassen eines Objekts wird geprüft, ob alle Datenattribute erfasst sind; fehlt eines, ist das eine gezählte Enthaltung, nie „0 Abweichungen, tragfähig". Die Fälle aus Review-Nr. 2, 3, 5 und 10 sind die Gegenproben; os.PathLike wird über os.fspath als Wert geführt. (2) Festhalten heißt fallende Zusicherung, keine beliebige Ausnahme (Nr. 1). (3) Ein Sondenausfall trifft nur die betroffene Funktion — ihre Beobachtungen enthalten sich, der Lauf geht weiter (Nr. 4); ersetzt werden nur echte Iteratoren, keine Objekte mit Attributen. (4) Kappe der Verfälschungsläufe: zurückstellen mit Grund und gezählt, gemessen an einem Kandidaten in T4-Größe (Nr. 6). (5) Verdrahtung über ein Register: Jede Funktion, deren Aufruf der Entwurf verlangt — Organe, Torzeilen, das Tor-4-Skript —, steht in einem Register, und der Verdrahtungstest verlangt jeden Eintrag im echten Lauf; das Tor-4-Skript wird gebaut und ruft die Torzeile „Schwächen" (Nr. 7) — zum dritten Mal war etwas gebaut und nie gerufen. Für T4 gilt als Normalvergleich einer Altlast das Verhalten der Vorgeneration über den Verhaltensvergleich; eine verhaltensändernde Altlast braucht einen unabhängigen Test aus der Altlastenliste. (6) Der Vorspann verweigert den Lauf ohne Stufe 2, mit Test bei gestellter Dauer über 60 s (Nr. 8); Stufe-2-Lasten werden wie Stufe 1 bemessen und geeicht, bis eingang nicht mehr sperrt. (7) Lastaufrufe tragen die Formmerkmale ihrer Eingabe (Nr. 9). (8) Aus den niedrigen: dieselbe Stufe für Eichproben, Toleranz und gespeicherte Maße (Nr. 14, 15); Ausschluss eigener Tests nach Testkennung einschließlich Parametrisierung (Nr. 16) — sonst unterläuft ein parametrisierter Test Entscheidung 4; das Nachspiel als echter Durchlauf in der Regression (Nr. 18). Kein Lauf, kein Modellgeld, ein Review, eigener Commit, laeufe/biotop-vor-t4-05/, Endmeldung mit Abholadresse als ganze Zeile und Prüfsumme.
+
+=== id 16769 · 2026-09-24 21:00:41 · Philipp · 20260924_150913_a9326d · 784 Zeichen
+Kein Eingriff in den laufenden Job, nur zwei Punkte für den Bericht: (1) Die Abweichung „bei unvollständiger Erfassung enthält sich der ganze Vergleich" widerspricht Entscheidung 3 und schafft denselben Totalausfall wie Review-Nr. 4 — ein einziges schwer erfassbares Objekt stellt jeden Kandidaten zurück; als rote Spezifikation vor T4: Enthalten muss sich nur die betroffene Beobachtung. (2) Für eingang an Stufe 2 die Stichprobendauer bei 60 und bei 240 Wiederholungen — mein Auftrag „bis eingang nicht mehr sperrt" war ein Fehler, er richtet die Last nach dem Ergebnis; nur die Dauer zeigt, ob 240 nach Maß gewählt ist. Und auf die Liste vor T4: Das Tor-4-Skript berechnet jede Zeile, die aus der Datenbank berechenbar ist — die meisten Berichtsfehler in T3 waren Torzeilen von Han
+
+=== id 16901 · 2026-09-24 23:15:27 · Philipp · 20260924_203120_e6c401 · 2395 Zeichen
+Zuerst Runde 5 abschließen: Es gilt das zweite Review (/tmp/review-vor-t4-05/REVIEW.md) — seine Messungen sind nachweislich eigene; beim ersten ist nicht auszuschließen, dass es das überschriebene Skript ausgeführt hat. Das erste bleibt im Ordner als verworfen; was nur es fand, kommt als unbestätigt auf die Liste. Erklär im Bericht, wie zwei Reviews entstehen konnten; künftig bekommt jedes Review einen eigenen Ordner, und du prüfst vor dem Start, dass keines läuft. Dann §11 und §12 füllen, veröffentlichen, Endmeldung. Dann Runde 6 — Entscheidungen Chat-Claude: (1) R6-4 nur zusammen mit einer typtreuen Verfälschung: verfälscht wird mit einem Wert desselben Typs und anderen Inhalts, nie mit einem Objekt, das beim Weiterrechnen wirft; ein Test hält nur fest, wenn seine Zusicherung am geänderten Wert fällt (Review-Nr. 1, Proben x5 und x5b). (2) Undurchsichtige Objekte: Zustand aus C-Typen wird über eine bekannte Darstellung erfasst (etwa getvalue, str, pickle), sonst ist die Beobachtung eine gezählte Enthaltung — nie „0 Abweichungen" (Nr. 2, p24b, p25). (3) R6-1 zusammen mit der Lücke aus Nr. 3: Enthält sich eine geänderte Funktion, wird der Kandidat zurückgestellt; enthalten sich nur unveränderte, wird am Rest geurteilt — meine Entscheidung 3 ließ das offen. Dasselbe für eine hängende Last: Zeitgrenze je Funktion, nicht je Kandidat. (4) Stufe-2-Last (R6-3): in einer eigenen Eichphase so bemessen, dass die Spannweite über acht Messungen unter 0,25 liegt, bei mindestens 10 ms je Stichprobe, dann versiegelt; die Rauschmessung im Vorspann bleibt getrennt und darf sperren — keine reine Dauerregel, denn zahlen läuft mit 19 ms ruhig, eingang mit 35 ms nicht. (5) Tor-4-Skript (R6-2): jede Zeile berechnet, die drei nicht aus der Datenbank berechenbaren aus ihren Belegdateien; der Zweig für verhaltensändernde Altlasten muss erreichbar sein. (6) Register vollständig, einschließlich Verhandlung. (7) Ausnahmen nach Typ und Inhalt vergleichen. (8) Kappe am echten T4-Werk messen; TypeScript-Proben vor T5. Regel für den Start von T4, vorab gesetzt: T4 beginnt, sobald das Review dieser Runde keinen stillen Durchlass mehr findet — jede bekannte Lücke muss eine gezählte Enthaltung sein; Lücken, die sich nur enthalten, behebt T4 im Lauf. Kein Lauf, kein Modellgeld, ein Review, eigener Commit, laeufe/biotop-vor-t4-06/, Endmeldung mit Abholadresse als ganze Zeile und Prüfsumme.
+
+Nicht gefunden: keine
+=== Ende R35 ===

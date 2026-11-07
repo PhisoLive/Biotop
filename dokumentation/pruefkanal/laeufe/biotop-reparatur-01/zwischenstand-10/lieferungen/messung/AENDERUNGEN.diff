@@ -1,0 +1,541 @@
+--- a/biotop/kern/messgeraet.py
++++ b/biotop/kern/messgeraet.py
+@@ -66,6 +66,8 @@
+ # --- Tests je Bereich (Datei-Zuordnung über Namen) ---
+ tests_dir = os.path.join(werk, "tests")
+ testdateien = sorted(f for f in os.listdir(tests_dir) if f.startswith("test_") and f.endswith(".py")) if os.path.isdir(tests_dir) else []
++erwartete_testdateien = {os.path.relpath(os.path.join(w, f), werk)
++    for w, _, dateien in os.walk(tests_dir) for f in dateien if f.startswith("test_") and f.endswith(".py")}
+ def zuordnung(f):
+     # Vertragstests (tests/vertraege/test_vertrag_<konsument>_<lieferant>.py) zaehlen beim Lieferanten
+     if f.startswith("test_vertrag_"):
+@@ -76,38 +78,83 @@
+             return b
+     return None
+ ergebnis["werk"]["tests_ohne_bereich"] = [f for f in testdateien if zuordnung(f) is None]
+-rc, out, err = lauf([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "--tb=short", "-rN", "tests", "--junitxml=/tmp/junit.xml"], timeout=110)
++# Begleitbeleg aus DEM Testlauf: rc=1 kann ein vollständiger Fehlschlag oder
++# ein abgebrochener Teillauf sein; JUnit allein nennt nur die berichteten Fälle.
++pytest_start = r"""
++import json, pytest, sys
++nachweis = {"gesammelt": [], "aufrufe": [], "beendet": [], "sammlungsfehler": [], "abgewaehlt": []}
++class Nachweis:
++    def pytest_deselected(self, items):
++        nachweis["abgewaehlt"].extend(item.nodeid for item in items)
++    def pytest_collection_finish(self, session):
++        nachweis["gesammelt"] = [item.nodeid for item in session.items]
++    def pytest_collectreport(self, report):
++        if report.failed:
++            nachweis["sammlungsfehler"].append(report.nodeid)
++    def pytest_runtest_logreport(self, report):
++        if report.when == "call":
++            nachweis["aufrufe"].append(report.nodeid)
++        if report.when == "teardown":
++            nachweis["beendet"].append(report.nodeid)
++rc = pytest.main(sys.argv[1:], plugins=[Nachweis()])
++with open('/tmp/pytest-nachweis.json', 'w') as f:
++    json.dump(nachweis, f)
++sys.exit(rc)
++"""
++rc, out, err = lauf([sys.executable, "-c", pytest_start, "-q", "-p", "no:cacheprovider", "--tb=short", "-rN", "tests", "-o", "junit_family=xunit1", "--junitxml=/tmp/junit.xml"], timeout=110)
+ ergebnis["werk"]["pytest_rc"] = rc
+ ergebnis["werk"]["pytest_tail"] = out[-3000:]
+ import xml.etree.ElementTree as ET
+ je_datei = {}
+ fehler_liste = []
+-if os.path.exists("/tmp/junit.xml"):
+-    for tc in ET.parse("/tmp/junit.xml").getroot().iter("testcase"):
+-        datei = (tc.get("classname") or "").split(".")[-1] + ".py"
+-        if datei.startswith("tests."): datei = datei[6:]
+-        ok = tc.find("failure") is None and tc.find("error") is None
+-        b = zuordnung(datei)
+-        je_datei.setdefault(b, [0, 0])
+-        je_datei[b][0 if ok else 1] += 1
+-        if not ok:
+-            fehler_liste.append(f"{datei}::{tc.get('name')}")
+-ergebnis["werk"]["tests_fehlgeschlagen_liste"] = fehler_liste[:100]
++if rc not in (0, 1):
++    raise ValueError(f"pytest-Nachweis abgebrochen/leer (rc={rc}): {out[-1000:]} {err[-1000:]}")
++testfaelle = list(ET.parse("/tmp/junit.xml").getroot().iter("testcase"))
++if not testfaelle:
++    raise ValueError("JUnit-Nachweis leer")
++with open('/tmp/pytest-nachweis.json') as f:
++    nachweis = json.load(f)
++gesammelt = sorted(nachweis["gesammelt"])
++if (nachweis["sammlungsfehler"] or nachweis["abgewaehlt"] or not gesammelt
++        or len(testfaelle) != len(gesammelt)
++        or not erwartete_testdateien <= {n.split("::")[0] for n in gesammelt}
++        or sorted(nachweis["aufrufe"]) != gesammelt or sorted(nachweis["beendet"]) != gesammelt):
++    raise ValueError("pytest-Nachweis unvollständig/abgebrochen: " + repr(nachweis))
++for tc in testfaelle:
++    # xunit1 liefert die tatsächliche Datei auch bei Methoden in Testklassen.
++    datei = os.path.basename(tc.attrib["file"])
++    if tc.find("skipped") is not None:
++        raise ValueError("JUnit-Nachweis übersprungen: " + str(tc.get("name")))
++    ok = tc.find("failure") is None and tc.find("error") is None
++    b = zuordnung(datei)
++    je_datei.setdefault(b, [0, 0])
++    je_datei[b][0 if ok else 1] += 1
++    if not ok:
++        fehler_liste.append(f"{datei}::{tc.get('name')}")
++ergebnis["werk"]["tests_fehlgeschlagen_liste"] = fehler_liste
+ 
+ # --- bandit / vulture / groesste Funktion je Bereich ---
+ def bandit(pfad):
+     rc, out, err = lauf([sys.executable, "-m", "bandit", "-q", "-r", pfad, "-f", "json"])
+-    try:
+-        d = json.loads(out)
+-    except Exception:
+-        return 0, [], out[-500:] + err[-500:]
++    if rc not in (0, 1):
++        raise ValueError(f"Bandit abgebrochen (rc={rc}): {out[-500:]} {err[-500:]}")
++    d = json.loads(out)
++    if (not isinstance(d["results"], list) or d["errors"] != []
++            or not any(f.startswith(pfad + "/") for f in d["metrics"])):
++        raise ValueError("Bandit-Nachweis fehlt/unvollständig: " + out[-1000:])
+     gew = {"HIGH": 10, "MEDIUM": 3, "LOW": 1}
+-    befunde = [{"test": r["test_id"], "schwere": r["issue_severity"], "datei": r["filename"], "zeile": r["line_number"], "text": r["issue_text"][:160]} for r in d.get("results", [])]
++    befunde = [{"test": r["test_id"], "schwere": r["issue_severity"], "datei": r["filename"], "zeile": r["line_number"], "text": r["issue_text"][:160]} for r in d["results"]]
+     return sum(gew.get(b["schwere"], 0) for b in befunde), befunde, ""
+ 
+ def vulture(pfad):
+     rc, out, err = lauf([sys.executable, "-m", "vulture", pfad, "tests", "--min-confidence", "60"])
+-    zeilen = [z for z in out.splitlines() if pfad in z and ("function" in z or "method" in z or "class" in z)]
++    import re
++    meldungen = [z for z in out.splitlines() if z.strip()]
++    # Vulture: 0 = sauber (leere stdout ist regulär), 3 = Befunde, 1/2 = Fehler.
++    if (rc not in (0, 3) or (rc == 3 and not meldungen)
++            or any(not re.match(r"^.+:\d+: (?:unused .+|unreachable code .+) \(\d+% confidence\)$", z) for z in meldungen)):
++        raise ValueError(f"Vulture-Nachweis fehlt/abgebrochen (rc={rc}): {out[-1000:]} {err[-1000:]}")
++    zeilen = [z for z in meldungen if pfad in z and ("function" in z or "method" in z or "class" in z)]
+     return len(zeilen), zeilen[:50]
+ 
+ def groesste_funktion(pfad):
+@@ -127,6 +174,8 @@
+     return m, name
+ 
+ for b in bereiche:
++    if b not in je_datei:
++        raise ValueError("Testnachweis für Bereich fehlt: " + b)
+     pfad = os.path.join(paket, b)
+     sp, befunde, sfehler = bandit(pfad)
+     tf, tote = vulture(pfad)
+@@ -206,13 +255,31 @@
+         zeitlimit_s=zeitlimit_s, dateien=extra,
+     )
+     m = re.search(r"@@MESSUNG@@(.*)@@ENDE@@", e.stdout, re.S)
+-    if e.zeitlimit or not m:
+-        return {"gueltig": False, "grund": "Zeitlimit" if e.zeitlimit else "keine Messausgabe",
+-                "rc": e.rc, "stdout": e.stdout[-4000:], "stderr": e.stderr[-4000:], "dauer_s": e.dauer_s}
+-    d = json.loads(m.group(1))
++    ungueltig = {"gueltig": False, "rc": e.rc, "stdout": e.stdout[-4000:],
++                 "stderr": e.stderr[-4000:], "dauer_s": e.dauer_s}
++    if e.zeitlimit or e.rc != 0 or not m:
++        ungueltig["grund"] = "Zeitlimit" if e.zeitlimit else (f"Kammer abgebrochen (rc={e.rc})" if e.rc != 0 else "keine Messausgabe")
++        return ungueltig
++    try:
++        d = json.loads(m.group(1))
++        if not bereiche or set(d["bereiche"]) != set(bereiche):
++            raise ValueError("angeforderte Bereiche fehlen in der Messausgabe")
++        w = d["werk"]
++        for k in ("baut", "pytest_rc", "tests_fehlgeschlagen_liste", "zyklen", "bauzeit_ms"):
++            if k not in w or w[k] is None:
++                raise ValueError("Werk-Pflichtnachweis fehlt: " + k)
++        if w["pytest_rc"] not in (0, 1) or not isinstance(w["tests_fehlgeschlagen_liste"], list):
++            raise ValueError("pytest-/Einzeltestnachweis unbrauchbar")
++        if referenzlast:
++            for b in bereiche:
++                if d["bereiche"][b].get("laufzeit_ms") is None:
++                    raise ValueError("angeforderter Laufzeitnachweis fehlt/abgebrochen: " + b)
++        d["kernmass"] = kernmass(d)
++    except (ValueError, KeyError, TypeError) as exc:
++        ungueltig["grund"] = "unvollständige Messausgabe: " + str(exc)
++        return ungueltig
+     d["gueltig"] = True
+     d["dauer_s"] = round(e.dauer_s, 2)
+-    d["kernmass"] = kernmass(d)
+     return d
+ 
+ 
+@@ -289,8 +356,12 @@
+         schlechter.append("werk.baut: True → False")
+     # JE TEST (Lehre aus Lauf 7): ein Test, der an der Vorgeneration besteht und am Kandidaten fällt, ist eine
+     # Regression — auch wenn die Fehlschlags-Summe des Bereichs sinkt. Tests, die an beiden fallen, sind offen, keine Regression.
+-    fehl_basis = set(basis["werk"].get("tests_fehlgeschlagen_liste") or [])
+-    fehl_kand = set(kandidat["werk"].get("tests_fehlgeschlagen_liste") or [])
++    for name, messung in (("Basis", basis), ("Kandidat", kandidat)):
++        if not isinstance(messung["werk"].get("tests_fehlgeschlagen_liste"), list):
++            schlechter.append(f"{name}: Nachweis je Test fehlt/unbrauchbar (tests_fehlgeschlagen_liste)")
++            return schlechter, besser
++    fehl_basis = set(basis["werk"]["tests_fehlgeschlagen_liste"])
++    fehl_kand = set(kandidat["werk"]["tests_fehlgeschlagen_liste"])
+     regress = sorted(fehl_kand - fehl_basis)
+     if regress:
+         schlechter.append("Regression je Test (bestand an der Vorgeneration, fällt am Kandidaten): " + ", ".join(regress[:6]) + (" …" if len(regress) > 6 else ""))
+--- /dev/null
++++ b/tests/test_messnachweise.py
+@@ -0,0 +1,364 @@
++"""Fassung 7: ausgeführte Nachweise statt Abwesenheit von Fehlern.
++
++Produkt-MESSSKRIPT, Werk-Tests und Scanner laufen ausschließlich in der Kammer.
++Die optionale Belegablage erfasst echte Kammerzähler einschließlich Fehlversuchen.
++"""
++import hashlib
++import json
++import os
++from pathlib import Path
++import re
++
++import pytest
++
++from biotop.kern import messgeraet as M
++from biotop.organe import kammer
++
++
++GUTER_TEST = '''from pathlib import Path
++from demo.alpha import wert
++
++def test_wert():
++    Path('/tmp/ausgefuehrt').write_text('test_wert')
++    assert wert() == 1
++'''
++
++
++@pytest.fixture
++def messen_werk(tmp_path, request):
++    werk = tmp_path / "werk"
++    (werk / "demo" / "alpha").mkdir(parents=True)
++    (werk / "tests").mkdir()
++    (werk / "demo" / "__init__.py").write_text("")
++    (werk / "demo" / "alpha" / "__init__.py").write_text("def wert():\n    return 1\n")
++    belege = []
++
++    def messen(test=GUTER_TEST, dateien=None, ref=None, bereiche=None):
++        (werk / "tests" / "test_alpha.py").write_text(test)
++        # Nur Belegtransport: exakt das aktuelle Produkt-MESSSKRIPT ausführen,
++        # anschließend JUnit und wirkliche Ausführungsmarker sichtbar halten.
++        huelle = ("from pathlib import Path\nscript = " + repr(M.MESSSKRIPT) + "\ntry:\n    exec(script)\nfinally:\n"
++                  "    print('@@PYTEST_RC@@' + str(globals().get('ergebnis', {}).get('werk', {}).get('pytest_rc')))\n"
++                  "    for p in ['/tmp/junit.xml', '/tmp/pytest-nachweis.json', '/tmp/junit-vor-eingriff.xml', '/tmp/ausgefuehrt', '/tmp/scanner-aufrufe', '/tmp/referenz-aufrufe']:\n"
++                  "        f = Path(p)\n"
++                  "        text = f.read_text() if f.exists() else '<fehlt>'\n"
++                  "        if len(text) > 3000:\n"
++                  "            import zlib, base64\n"
++                  "            text = '<zlib-base64>' + base64.b64encode(zlib.compress(text.encode())).decode()\n"
++                  "        print('@@ROHDATEI@@' + p + ':' + text)\n")
++        extra = {"_messgeraet/messen.py": huelle, **(dateien or {})}
++        with kammer.zaehlung() as aufrufe:
++            ergebnis = M.messen(werk, bereiche or ["alpha"], "demo", ref, dateien=extra)
++        belege.append({"test": test, "dateien": dateien or {}, "referenzlast": ref,
++                       "ergebnis": ergebnis, "kammer": aufrufe})
++        assert len(aufrufe) == 1, "kein ausgeführter Kammerlauf"
++        return ergebnis, aufrufe[0]
++
++    yield messen
++    if os.environ.get("MESSNACHWEIS_BELEGE"):
++        ziel = Path(os.environ["MESSNACHWEIS_BELEGE"])
++        ziel.mkdir(parents=True, exist_ok=True)
++        name = hashlib.sha256(request.node.nodeid.encode()).hexdigest()
++        (ziel / (name + ".json")).write_text(json.dumps({"nodeid": request.node.nodeid,
++            "versuche": belege, "kammer": [k for b in belege for k in b["kammer"]]}, indent=2))
++
++
++def messausgabe(roh):
++    m = re.search(r"@@MESSUNG@@(.*)@@ENDE@@", roh["stdout"], re.S)
++    return json.loads(m.group(1)) if m else None
++
++
++@pytest.mark.integration
++@pytest.mark.parametrize("skip", ["@pytest.mark.skip(reason='keine Ausfuehrung')", "@pytest.mark.xfail(reason='nicht ausgefuehrt', run=False)"])
++def test_skipped_junit_ist_keine_gueltige_messung(messen_werk, skip):
++    test = GUTER_TEST.replace("def test_wert():", skip + "\ndef test_wert():")
++    m, roh = messen_werk("import pytest\n" + test)
++    assert "@@PYTEST_RC@@0" in roh["stdout"] and "<skipped" in roh["stdout"]
++    assert "@@ROHDATEI@@/tmp/ausgefuehrt:<fehlt>" in roh["stdout"]
++    assert m["gueltig"] is False, m
++    assert "kernmass" not in m
++
++
++@pytest.mark.integration
++@pytest.mark.parametrize("erwartet", [1, 2])
++def test_ausgefuehrter_erfolg_und_fehlschlag_bleiben_messbar(messen_werk, erwartet):
++    m, roh = messen_werk(GUTER_TEST.replace("wert() == 1", f"wert() == {erwartet}"))
++    assert m["gueltig"] is True, m
++    assert "@@ROHDATEI@@/tmp/ausgefuehrt:test_wert" in roh["stdout"]
++    assert "<testcase " in roh["stdout"] and "<skipped" not in roh["stdout"]
++    assert m["werk"]["pytest_rc"] == (0 if erwartet == 1 else 1)
++    b = m["bereiche"]["alpha"]
++    assert b["tests_gesamt"] == 1
++    assert b["tests_bestanden"] == (1 if erwartet == 1 else 0)
++    assert b["tests_fehlgeschlagen"] == (0 if erwartet == 1 else 1)
++    assert bool(m["werk"]["tests_fehlgeschlagen_liste"]) is (erwartet != 1)
++    assert b["sicherheit_punkte"] == 0 and b["tote_funktionen"] == 0
++
++
++def junit_eingriff(anweisung):
++    return ("from pathlib import Path\nimport pytest\n"
++            "@pytest.hookimpl(hookwrapper=True, tryfirst=True)\n"
++            "def pytest_sessionfinish(session, exitstatus):\n"
++            "    yield\n"
++            "    p = Path('/tmp/junit.xml')\n"
++            "    Path('/tmp/junit-vor-eingriff.xml').write_text(p.read_text())\n"
++            "    " + anweisung + "\n")
++
++
++@pytest.mark.integration
++@pytest.mark.parametrize("anweisung", ["p.unlink()", "p.write_text('<testsuites/>')"])
++def test_fehlendes_oder_leeres_junit_ist_rot(messen_werk, anweisung):
++    m, roh = messen_werk(dateien={"tests/conftest.py": junit_eingriff(anweisung)})
++    assert "@@PYTEST_RC@@0" in roh["stdout"]
++    assert "@@ROHDATEI@@/tmp/junit-vor-eingriff.xml:<?xml" in roh["stdout"]
++    assert "@@ROHDATEI@@/tmp/ausgefuehrt:test_wert" in roh["stdout"]
++    assert m["gueltig"] is False, m
++
++
++@pytest.mark.integration
++@pytest.mark.parametrize("test,pytest_rc", [("", 5), ("raise RuntimeError('Sammlung abgebrochen')\n", 2),
++    (GUTER_TEST + "\ndef test_z_abbruch():\n    raise KeyboardInterrupt()\n", 2),
++    ("import os\nos._exit(0)\n", 0)])
++def test_leer_oder_abgebrochen_ist_keine_messung(messen_werk, test, pytest_rc):
++    m, roh = messen_werk(test)
++    assert f"@@PYTEST_RC@@{pytest_rc}" in roh["stdout"]
++    assert m["gueltig"] is False, m
++
++
++@pytest.mark.integration
++@pytest.mark.parametrize("art", ["maxfail", "exit1", "setupfehler", "sammlungsfehler"])
++def test_teilabbruch_mit_pytest_rc1_bleibt_rot(messen_werk, art):
++    dateien = {}
++    if art == "maxfail":
++        test = GUTER_TEST.replace("wert() == 1", "wert() == 2") + "\ndef test_z_nie():\n    assert True\n"
++        dateien["pytest.ini"] = "[pytest]\naddopts = --maxfail=1\n"
++    elif art == "exit1":
++        test = GUTER_TEST + "\ndef test_z_nie():\n    import pytest\n    pytest.exit('Abbruch', returncode=1)\n"
++    elif art == "setupfehler":
++        test = GUTER_TEST
++        dateien["tests/conftest.py"] = "import pytest\n@pytest.fixture(autouse=True)\ndef kaputt():\n    raise RuntimeError('Setup, Testkoerper nie ausgefuehrt')\n"
++    else:
++        test = GUTER_TEST
++        dateien["pytest.ini"] = "[pytest]\naddopts = --continue-on-collection-errors\n"
++        dateien["tests/test_alpha_kaputt.py"] = "raise RuntimeError('Sammlungsfehler')\n"
++    m, roh = messen_werk(test, dateien)
++    assert "@@PYTEST_RC@@1" in roh["stdout"]
++    assert "<testcase " in roh["stdout"]
++    assert m["gueltig"] is False, m
++
++
++def scanner_double(modul, rc, out):
++    """Gestellte Ausgabe, aber durch den echten Scanner-Subprozess eingespeist."""
++    return {modul + ".py": "from pathlib import Path\nimport sys\n"
++            f"with Path('/tmp/scanner-aufrufe').open('a') as f: f.write({modul!r} + ':' + repr(sys.argv) + '\\n')\n"
++            f"print({out!r})\nsys.exit({rc})\n"}
++
++
++_BANDIT_LEER = {"results": [], "errors": [], "metrics": {"_totals": {"loc": 2}, "demo/alpha/__init__.py": {"loc": 2}}}
++
++
++@pytest.mark.integration
++@pytest.mark.parametrize("rc,out", [(2, ""), (0, ""), (0, "kein JSON"), (0, "{}"),
++    (2, json.dumps(_BANDIT_LEER)),
++    (0, json.dumps({**_BANDIT_LEER, "errors": [{"filename": "demo/alpha", "reason": "abgebrochen"}]})),
++    (0, json.dumps({**_BANDIT_LEER, "metrics": {}}))], ids=["rc2-leer", "rc0-leer", "kaputt", "feld-fehlt", "rc2", "scanfehler", "nichts-gescannt"])
++def test_bandit_ohne_ausgefuehrten_scan_ist_nicht_sicherheit_null(messen_werk, rc, out):
++    m, roh = messen_werk(dateien=scanner_double("bandit", rc, out))
++    assert "@@ROHDATEI@@/tmp/scanner-aufrufe:bandit:" in roh["stdout"]
++    assert "demo/alpha" in roh["stdout"]
++    assert m["gueltig"] is False, m
++
++
++@pytest.mark.integration
++@pytest.mark.parametrize("modul", ["bandit", "vulture"])
++def test_echte_scannerbefunde_bleiben_gueltige_negative_masse(messen_werk, modul):
++    code = "def wert():\n    return eval('1')\n" if modul == "bandit" else "def wert():\n    return 1\ndef verwaist():\n    return 2\n"
++    m, roh = messen_werk(dateien={"demo/alpha/__init__.py": code})
++    assert m["gueltig"] is True, m
++    assert "@@ROHDATEI@@/tmp/ausgefuehrt:test_wert" in roh["stdout"]
++    b = m["bereiche"]["alpha"]
++    if modul == "bandit":
++        assert b["sicherheit_punkte"] > 0
++        assert any(x["test"] == "B307" for x in b["sicherheit_befunde"])
++    else:
++        assert b["tote_funktionen"] == 1
++        assert "verwaist" in b["tote_liste"][0]
++    assert M.kernmass_f2(m) < 0
++
++
++@pytest.mark.integration
++@pytest.mark.parametrize("rc,out", [(1, ""), (2, ""), (3, ""), (0, "Scan abgebrochen"), (3, "Scan abgebrochen")])
++def test_vulture_fehler_ist_nicht_tote_null(messen_werk, rc, out):
++    m, roh = messen_werk(dateien=scanner_double("vulture", rc, out))
++    assert "@@ROHDATEI@@/tmp/scanner-aufrufe:vulture:" in roh["stdout"]
++    assert "demo/alpha" in roh["stdout"]
++    assert m["gueltig"] is False, m
++
++
++@pytest.mark.integration
++def test_vulture_befund_anderer_art_bleibt_ausgefuehrte_null(messen_werk):
++    code = "def wert():\n    nicht_benutzt = 10\n    return 1\n"
++    m, roh = messen_werk(dateien={"demo/alpha/__init__.py": code})
++    assert m["gueltig"] is True, m
++    assert m["bereiche"]["alpha"]["tote_funktionen"] == 0
++    assert "@@ROHDATEI@@/tmp/ausgefuehrt:test_wert" in roh["stdout"]
++
++
++@pytest.mark.integration
++def test_vulture_erkennt_unerreichbaren_code_ohne_funktionsbefund(messen_werk):
++    m, roh = messen_werk(dateien={"demo/alpha/__init__.py": "def wert():\n    return 1\n    return 2\n"})
++    assert m["gueltig"] is True, m
++    assert m["bereiche"]["alpha"]["tote_funktionen"] == 0
++
++
++def vollstaendige_ausgabe():
++    """Deklarierter Unit-Double des Übertragungsformats, kein Ausführungsbeleg."""
++    return {"bereiche": {"alpha": {"tests_bestanden": 1, "tests_fehlgeschlagen": 0,
++        "tests_gesamt": 1, "sicherheit_punkte": 0, "tote_funktionen": 0, "groesste_funktion": 2}},
++        "werk": {"baut": True, "pytest_rc": 0, "tests_fehlgeschlagen_liste": [], "bauzeit_ms": 20, "zyklen": 0}}
++
++
++def uebertragung(monkeypatch, tmp_path, d, rc=0, zeitlimit=False, ref=None):
++    stdout = "@@MESSUNG@@" + json.dumps(d) + "@@ENDE@@"
++    monkeypatch.setattr(kammer, "ausfuehren", lambda *a, **k: kammer.Ergebnis(rc, stdout, "Unit-Double", 1., zeitlimit, "unit-kein-container"))
++    return M.messen(tmp_path, ["alpha"], "demo", ref)
++
++
++@pytest.mark.parametrize("rc", [1, 124, 137])
++def test_abgebrochene_kammer_trotz_marker_ist_rot(monkeypatch, tmp_path, rc):
++    m = uebertragung(monkeypatch, tmp_path, vollstaendige_ausgabe(), rc=rc)
++    assert m["gueltig"] is False, m
++    assert "kernmass" not in m
++
++
++@pytest.mark.parametrize("fehlend", ["bereiche.alpha", "werk", "werk.baut", "werk.pytest_rc", "werk.tests_fehlgeschlagen_liste", "werk.zyklen", "werk.bauzeit_ms"])
++def test_fehlende_pflichtmessung_im_marker_ist_rot(monkeypatch, tmp_path, fehlend):
++    d = vollstaendige_ausgabe()
++    keys = fehlend.split(".")
++    z = d
++    for key in keys[:-1]:
++        z = z[key]
++    del z[keys[-1]]
++    m = uebertragung(monkeypatch, tmp_path, d)
++    assert m["gueltig"] is False, m
++    assert "kernmass" not in m
++
++
++@pytest.mark.integration
++def test_junit_mit_entferntem_fehlschlag_ist_unvollstaendig(messen_werk):
++    test = GUTER_TEST + "\ndef test_z_fehler():\n    assert False\n"
++    eingriff = junit_eingriff("baum = ET.parse(p); suite = next(baum.getroot().iter('testsuite')); suite.remove(list(suite)[-1]); baum.write(p)")
++    m, roh = messen_werk(test, {"tests/conftest.py": "import xml.etree.ElementTree as ET\n" + eingriff})
++    assert "@@PYTEST_RC@@1" in roh["stdout"]
++    assert m["gueltig"] is False, m
++
++
++@pytest.mark.integration
++def test_abgewaehlter_pflichttest_ist_kein_vollstaendiger_beleg(messen_werk):
++    test = GUTER_TEST + "\ndef test_z_fehler():\n    assert False\n"
++    m, roh = messen_werk(test, {"pytest.ini": "[pytest]\naddopts = -k wert\n"})
++    assert "@@PYTEST_RC@@0" in roh["stdout"]
++    assert m["gueltig"] is False, m
++
++
++@pytest.mark.integration
++def test_bereich_ohne_tests_ist_nicht_als_null_gemessen(messen_werk):
++    m, roh = messen_werk(dateien={"demo/beta/__init__.py": "WERT = 1\n"}, bereiche=["alpha", "beta"])
++    assert "@@PYTEST_RC@@0" in roh["stdout"]
++    assert m["gueltig"] is False, m
++
++
++@pytest.mark.integration
++@pytest.mark.parametrize("verzeichnis", ["tests", "tests/vertraege"])
++def test_erwartete_leere_testdatei_verschwindet_nicht_neben_gruener_datei(messen_werk, verzeichnis):
++    m, roh = messen_werk(dateien={verzeichnis + "/test_alpha_leer.py": "# kein Testkoerper\n"})
++    assert "@@PYTEST_RC@@0" in roh["stdout"]
++    assert "@@ROHDATEI@@/tmp/ausgefuehrt:test_wert" in roh["stdout"]
++    assert m["gueltig"] is False, m
++
++
++@pytest.mark.integration
++@pytest.mark.parametrize("ref", ["# angeforderte Funktion fehlt", "def last_alpha():\n    raise RuntimeError('Last abgebrochen')\n"])
++def test_bestellte_referenzlast_braucht_ein_ergebnis(messen_werk, ref):
++    m, roh = messen_werk(ref=ref)
++    assert "@@PYTEST_RC@@0" in roh["stdout"]
++    assert m["gueltig"] is False, m
++
++
++@pytest.mark.integration
++@pytest.mark.parametrize("bestellt", [False, True])
++def test_referenzlast_nur_wenn_bestellt_und_dann_dreimal(messen_werk, bestellt):
++    ref = "from pathlib import Path\nimport time\ndef last_alpha():\n    with Path('/tmp/referenz-aufrufe').open('a') as f: f.write('x')\n    time.sleep(.001)\n" if bestellt else None
++    m, roh = messen_werk(ref=ref)
++    assert m["gueltig"] is True, m
++    if bestellt:
++        assert m["bereiche"]["alpha"]["laufzeit_ms"] is not None
++        assert len(m["bereiche"]["alpha"]["laufzeit_roh"]) == 3
++        assert "@@ROHDATEI@@/tmp/referenz-aufrufe:xxx" in roh["stdout"]
++    else:
++        assert m["bereiche"]["alpha"].get("laufzeit_ms") is None
++
++
++@pytest.mark.parametrize("seite", ["basis", "kandidat"])
++@pytest.mark.parametrize("inhalt", ["fehlt", None])
++def test_pareto_ohne_einzeltestbeleg_gibt_keine_zulassung(messung, seite, inhalt):
++    basis, kandidat = messung(tote_funktionen=1), messung()
++    ziel = basis if seite == "basis" else kandidat
++    if inhalt == "fehlt":
++        del ziel["werk"]["tests_fehlgeschlagen_liste"]
++    else:
++        ziel["werk"]["tests_fehlgeschlagen_liste"] = inhalt
++    r = M.urteil_f2(basis, kandidat, basis, ["alpha", "beta"], ["alpha", "beta"])
++    assert r["ok"] is False, r
++    assert "Nachweis" in r["grund"]
++
++
++def test_pareto_ausgefuehrte_leere_fehlliste_ist_erlaubt(messung):
++    basis, kandidat = messung(tote_funktionen=1), messung()
++    r = M.urteil_f2(basis, kandidat, basis, ["alpha", "beta"], ["alpha", "beta"])
++    assert r["ok"] is True, r
++    assert r["pareto_schlechter"] == []
++
++
++@pytest.mark.integration
++@pytest.mark.parametrize("erwartet", [1, 2])
++def test_testklasse_bleibt_ausgefuehrter_bereichsnachweis(messen_werk, erwartet):
++    test = GUTER_TEST.replace("def test_wert():", "class TestWert:\n    def test_wert(self):").replace("    Path(", "        Path(").replace("    assert wert() == 1", f"        assert wert() == {erwartet}")
++    m, roh = messen_werk(test)
++    assert m["gueltig"] is True, m
++    assert m["bereiche"]["alpha"]["tests_fehlgeschlagen"] == (0 if erwartet == 1 else 1)
++    assert m["bereiche"]["alpha"]["tests_gesamt"] == 1
++    if erwartet == 2:
++        assert m["werk"]["tests_fehlgeschlagen_liste"] == ["test_alpha.py::test_wert"]
++
++
++@pytest.mark.integration
++def test_einzeltestnachweis_wird_nicht_bei_hundert_abgeschnitten(messen_werk):
++    test = "\n".join(f"def test_{i:03}():\n    assert False\n" for i in range(101))
++    m, roh = messen_werk(test)
++    assert m["gueltig"] is True, m
++    assert m["bereiche"]["alpha"]["tests_fehlgeschlagen"] == 101
++    assert len(m["werk"]["tests_fehlgeschlagen_liste"]) == 101
++    assert "test_alpha.py::test_100" in m["werk"]["tests_fehlgeschlagen_liste"]
++
++
++@pytest.mark.integration
++@pytest.mark.parametrize("verzeichnis", ["tests", "tests/vertraege"])
++def test_erwartete_testdatei_mit_ausgefuehrtem_test_zaehlt(messen_werk, verzeichnis):
++    m, roh = messen_werk(dateien={verzeichnis + "/test_alpha_leer.py": "def test_pflicht():\n    assert 1 == 1\n"})
++    assert m["gueltig"] is True, m
++    assert m["bereiche"]["alpha"]["tests_gesamt"] == 2
++    assert m["bereiche"]["alpha"]["tests_bestanden"] == 2
++    assert 'name="test_pflicht"' in roh["stdout"]
++
++
++@pytest.mark.integration
++def test_vollstaendige_mischsuite_mit_fehlschlag_bleibt_messbar(messen_werk):
++    test = GUTER_TEST.replace("wert() == 1", "wert() == 2") + "\ndef test_z_nie():\n    assert True\n"
++    m, roh = messen_werk(test)
++    assert m["gueltig"] is True, m
++    assert m["werk"]["pytest_rc"] == 1
++    assert m["bereiche"]["alpha"]["tests_bestanden"] == 1
++    assert m["bereiche"]["alpha"]["tests_fehlgeschlagen"] == 1
++    assert m["bereiche"]["alpha"]["tests_gesamt"] == 2
++    assert 'name="test_z_nie"' in roh["stdout"]

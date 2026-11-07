@@ -1,0 +1,389 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 130 (Teile 4–165 dieses Stands) · enthält R143 bis R143
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+[R143 · Fortsetzung, Stück 3 von 3]
+    s += [f'- Aufträge und Anweisungen Philipps (Biotop ja): {len(auftr)}; Status aus der Chronik: {mit_status}; '
+          f'UNBEKANNT: {len(auftr) - mit_status}' + (' — Chronik lag nicht vor.' if not chronik_dateien else
+                                                   ' (Zuordnung: Nachrichten-id in der Zeile oder Zeit ±10 min).'),
+          f'- Aufträge Hermes→Subagent: {len(sub)}; Schlussbericht (Absender Subagent) in derselben Sitzung vorhanden: '
+          f'{sum(1 for e in sub if e["sitzung"] in bericht_da)}, fehlt: {sum(1 for e in sub if e["sitzung"] not in bericht_da)} '
+          '(*gerechnet*; ein vorhandener Bericht belegt keinen Status „erledigt“).',
+          '- Status je Nachricht: `LISTEN`, Abschnitt 3 (Spalte Status).']
+    ohne_b_vor, ohne_b_nach = [], []
+    for e in sub:
+        if e['sitzung'] in bericht_da:
+            e['status'] = 'Bericht in der Sitzung'
+        else:
+            e['status'] = 'KEIN BERICHT in der Sitzung'
+            (ohne_b_nach if abeginn and e['dt'] >= abeginn else ohne_b_vor).append(e)
+    s.append(f'- Davon ohne Bericht vor Beginn BIOTOP-LAGE-01: {len(ohne_b_vor)}'
+             + (f' ({", ".join(str(e["id"]) for e in ohne_b_vor[:30])}{" …" if len(ohne_b_vor) > 30 else ""})'
+                if ohne_b_vor else '')
+             + f'; ab Beginn: {len(ohne_b_nach)} (können beim Lesen noch laufen, darunter dieser Teilauftrag) '
+             '(*gerechnet*, Nachrichten-id).')
+    ph_alle = [e for e in bio if e['absender'] == 'Philipp']
+    ab21 = AB18 + dt.timedelta(days=3)
+    s.append(f'- Nachrichten Philipps (Biotop ja) ab 18.09. bis zum Stich: {len(ph_alle)}, davon ab 21.09. 00:00 CEST: '
+             f'{sum(1 for e in ph_alle if e["dt"] >= ab21)} (*gerechnet* aus dem Verzeichnis; Vergleichszahl für Teil F).')
+    if len(auftr) - mit_status:
+        B.luecke(f'{len(auftr) - mit_status} Aufträge/Anweisungen Philipps ohne Status', 'Status nur aus der Chronik '
+                 'übernehmbar', 'Chronik mit Nachrichten-id oder Zeit je Zeile; inventar.py erneut ausführen', 'Hermes')
+    if ohne_b_vor:
+        B.luecke(f'{len(ohne_b_vor)} Aufträge Hermes→Subagent vor Beginn BIOTOP-LAGE-01 ohne Schlussbericht in der '
+                 'Sitzung', 'Abbruch, Zeitüberschreitung, Bericht nur als Delegationsergebnis beim Auftraggeber, oder '
+                 'Einordnung des Absenders', 'je Nachrichten-id Verlauf der Sitzung lesen (LISTEN, Abschnitt 3)', 'Hermes')
+    # A5
+    s += ['', '### Abgleich 5 — Commit und geänderte Datei ↔ Auftrag oder Lauf', '',
+          'Regel (Auslegung Hermes, mechanisch, Reihenfolge): (a) Nennung des Kurz-Hashs in einem Prüfkanal-Text oder '
+          f'einer Biotop-Nachricht bis {z(grenze_beleg)}; bei Dateien: ein Commit ab 21.09., der die Datei enthält und '
+          'nicht älter ist als ihre mtime; (b) Zeitfenster eines Laufs [Beginn, Ende oder letzte Buchung + 30 min]; '
+          '(c) Zeitregel: letzter Auftrag oder letzte Anweisung Philipps oder letzter Auftrag Hermes→Subagent (Biotop '
+          'ja) höchstens 24 h davor. Sonst offen.', '']
+    beleg_hex = set()
+    for e, t in beleg_nachr:
+        beleg_hex |= {h[:7] for h in HEX_RE.findall(t or '')}
+    hex_ordner = set()
+    for o in ordner:
+        if not o['eigener']:
+            hex_ordner |= o['commits_genannt']
+    auftraege_t = sorted([e for e in bio if (e['absender'] == 'Philipp' and e['art'] in ('Auftrag', 'Anweisung'))
+                          or e['absender'] == 'Hermes→Subagent'], key=lambda e: e['dt'])
+
+    def lauf_fenster(t):
+        for l in L1:
+            if l['beginn'] and l['beginn'] <= t <= l['bis'] + dt.timedelta(minutes=30):
+                return l['schluessel']
+        return None
+
+    def zeitregel(t):
+        x = None
+        for e in auftraege_t:
+            if e['dt'] <= t:
+                x = e
+            else:
+                break
+        if x and t - x['dt'] <= dt.timedelta(hours=24):
+            return f'Auftrag id {x["id"]} ({x["absender"]}, {z(x["dt"], True)})'
+        return None
+    zc = Counter()
+    for c in commits:
+        if c['kurz'] in hex_ordner or c['kurz'] in beleg_hex:
+            c['zuo'] = 'Nennung (' + ('Prüfkanal' if c['kurz'] in hex_ordner else 'Nachricht') + ')'
+        elif lauf_fenster(c['zeit']):
+            c['zuo'] = 'Lauf ' + lauf_fenster(c['zeit'])
+        elif zeitregel(c['zeit']):
+            c['zuo'] = zeitregel(c['zeit'])
+        else:
+            c['zuo'] = 'offen'
+        zc[c['zuo'].split(' ')[0]] += 1
+    zd = Counter()
+    for e in geaendert:
+        cs = sorted(x for x in datei_commits.get(e['pfad'], []) if x[0] and x[0] >= e['mtime'] - dt.timedelta(seconds=2))
+        if cs:
+            e['zuo'] = f'Commit {cs[0][1]}'
+        elif lauf_fenster(e['mtime']):
+            e['zuo'] = 'Lauf ' + lauf_fenster(e['mtime'])
+        elif zeitregel(e['mtime']):
+            e['zuo'] = zeitregel(e['mtime'])
+        else:
+            e['zuo'] = 'offen'
+        zd[e['zuo'].split(' ')[0]] += 1
+    s += [f'- Commits seit 18.09.: {len(commits)}; ' + ', '.join(f'{k} {n}' for k, n in zc.most_common()) +
+          ' (*gerechnet*).',
+          f'- Geänderte Dateien seit 21.09.: {len(geaendert)}; ' + ', '.join(f'{k} {n}' for k, n in zd.most_common()) +
+          ' (*gerechnet*). Zuordnung je Eintrag: `LISTEN`, Abschnitte 4 und 5.']
+    for c in commits:
+        if c['zuo'] == 'offen':
+            B.luecke(f'Commit {c["kurz"]} ({z(c["zeit"], True)}) keinem Auftrag oder Lauf zugeordnet',
+                     'keine Nennung, kein Laufzeitfenster, kein Auftrag in 24 h davor', 'Auftrag belegen', 'Hermes')
+    of = [e for e in geaendert if e['zuo'] == 'offen']
+    if of:
+        B.luecke(f'{len(of)} geänderte Dateien seit 21.09. keinem Auftrag oder Lauf zugeordnet (erste: '
+                 f'{of[0]["pfad"]} {z(of[0]["mtime"], True)})', 'Regel (a)–(c) greift nicht', 'Auftrag belegen', 'Hermes')
+    # A6
+    s += ['', '### Abgleich 6 — Kosten Kasse ↔ OpenRouter', '']
+    ors = [o for o in or_stand if zeit(o.get('zeit')) and zeit(o['zeit']) <= stich]
+    if not ors or not kurs:
+        s.append('- **QUELLE FEHLT**: keine Abfrage der Nutzungsanzeige bis zum Stich in `arbeit/OR-STAND.jsonl` '
+                 'oder kein Kurs.')
+        B.luecke('Kostenabgleich Kasse ↔ OpenRouter: QUELLE FEHLT', 'keine Abfrage bis zum Stich',
+                 'Hermes fragt die Anzeige zum Stich ab (or_stand.py)', 'Hermes')
+    else:
+        s.append('Auslegung Hermes (nicht geprüft): Die Anzeige führt `usage_daily` je UTC-Tag, `usage_weekly` je '
+                 'UTC-Woche ab Montag, `usage_monthly` je UTC-Monat, `usage` gesamt, alles in USD. Kasse in USD = '
+                 f'Summe kosten_eur × {kurs}.')
+        rows = []
+        for o in ors:
+            t = zeit(o['zeit']).astimezone(UTC)
+            fenster = [('gesamt', None, 'key_usage'),
+                       ('UTC-Monat', t.replace(day=1, hour=0, minute=0, second=0, microsecond=0), 'key_usage_monthly'),
+                       ('UTC-Woche', (t - dt.timedelta(days=t.weekday())).replace(hour=0, minute=0, second=0,
+                                                                               microsecond=0), 'key_usage_weekly'),
+                       ('UTC-Tag', t.replace(hour=0, minute=0, second=0, microsecond=0), 'key_usage_daily')]
+            for nm, ab, feld in fenster:
+                ks = sum(e['row']['kosten_eur'] or 0 for e in kasse.values()
+                         if e['zeit'] and e['zeit'] <= t and (ab is None or e['zeit'] >= ab)) * kurs
+                ov = o.get(feld)
+                diff = (ov - ks) if isinstance(ov, (int, float)) else None
+                rows.append([z(zeit(o['zeit']), True), nm, f'{ov:.4f}' if isinstance(ov, (int, float)) else 'QUELLE FEHLT',
+                             f'{ks:.4f}', f'{diff:+.4f}' if diff is not None else '—',
+                             f'{diff / kurs:+.4f}' if diff is not None else '—'])
+        s += tabelle(['Abfrage', 'Fenster', 'OpenRouter USD', 'Kasse USD', 'Differenz USD', 'Differenz €'], rows)
+        s += ['', '*abgelesen* (OpenRouter), *gerechnet* (Kasse, Differenz = OpenRouter − Kasse). Mögliche Ursachen '
+              '(Auslegung Hermes, nicht geprüft): (1) derselbe Schlüssel wird außerhalb der Biotop-Kasse genutzt '
+              '(Hermes-Verdichtung seit 25.09. 01:10 laut Teilauftrag, andere Vorhaben); (2) die Kasse rechnet Kosten '
+              'aus Token und eigener Preistabelle (Stand 18.09.) mit festem Kurs, nicht aus der Abrechnung. Die '
+              'Aufteilung ist UNBEKANNT, weil die Anzeige keine Einzelposten führt.']
+        B.luecke('Differenz Kasse ↔ OpenRouter nicht einzeln erklärt', 'Nutzungsanzeige ohne Einzelposten; derselbe '
+                 'Schlüssel außerhalb des Biotops genutzt', 'Einzelaufrufe bei OpenRouter abrufen (Aktivitätsliste) oder '
+                 'getrennte Schlüssel je Vorhaben', 'Hermes (Abfrage) oder Philipp (Konto)')
+    # A7 Tagesbilanz
+    s += ['', '### Abgleich 7 — Tagesbilanz 18.09.2026 bis Stich', '']
+    tage = []
+    d0 = AB18
+    while d0 <= stich:
+        tage.append(d0)
+        d0 = d0 + dt.timedelta(days=1)
+    tb = []
+    for d0 in tage:
+        d1 = d0 + dt.timedelta(days=1)
+        ende = min(d1, stich)
+        tg = tag(d0)
+
+        def ab_n(pred):
+            if d0 > v_mtime:
+                return 'NICHT ABGEDECKT'
+            n = sum(1 for e in bio if d0 <= e['dt'] < ende and pred(e))
+            return f'{n} (bis {z(v_mtime)[11:16]})' if v_mtime < ende else str(n)
+        l_beg = sum(1 for l in L1 if l['beginn'] and d0 <= l['beginn'] < ende)
+        l_prot = len({(l_['schluessel']) for l_ in L1 for p in prot_je_lauf.get(l_['key'], [])
+                      if p[1] == 'lauf.angelegt' and p[0] and d0 <= p[0] < ende})
+        l_buch = len({e['lauf'] for e in kasse.values() if e['zeit'] and d0 <= e['zeit'] < ende})
+        cm = sum(1 for c in commits if d0 <= c['zeit'] < ende)
+        af_n = sum(1 for f in af_sha.values() if d0 <= f['mtime'] < ende)
+        orv = [o for o in ors if tag(zeit(o['zeit']).astimezone(UTC)) == tg] if ors else []
+        tb.append([tg, ab_n(lambda e: e['absender'] == 'Philipp' and e['art'] == 'Auftrag'),
+                   ab_n(lambda e: e['absender'] == 'Philipp' and e['art'] == 'Anweisung'),
+                   ab_n(lambda e: e['absender'] == 'Philipp' and e['art'] == 'Frage'),
+                   ab_n(lambda e: e['absender'] == 'Hermes→Subagent'), af_n, l_beg, l_prot, l_buch,
+                   ab_n(lambda e: e['absender'] == 'Hermes'), ab_n(lambda e: e['absender'] == 'Subagent'),
+                   ab_n(lambda e: e['absender'].startswith('System')), cm, eur(k_tag.get(tg, 0.0)),
+                   (f'{orv[-1]["key_usage_daily"]:.4f} USD (UTC-Tag bis {z(zeit(orv[-1]["zeit"]))[11:16]})'
+                    if orv else 'NICHT ABGEDECKT')])
+    s += tabelle(['Tag', 'Auftrag Ph.', 'Anweisung Ph.', 'Frage Ph.', 'Auftrag H→S', 'Auftragsdateien (mtime)',
+                  'Läufe begonnen (Kasse)', 'lauf.angelegt (Protokoll)', 'Läufe mit Buchung (Kasse)',
+                  'Meldungen Hermes', 'Berichte Subagent', 'Systemmeldungen', 'Commits (git)', 'Kosten € (Kasse)',
+                  'OpenRouter'], tb)
+    s += ['', 'Quellen je Spalte: Nachrichtenverzeichnis (Ph. = Philipp, H→S = Hermes an Subagent, Meldungen, Berichte, '
+          'System; nur Biotop ja), Auftragsdateien aus I4 (eindeutige Inhalte nach frühester mtime; zeigt nur die '
+          'letzte Änderung), Kasse (entdoppelt), Protokoll (entdoppelt), git (Commit-Zeit), OpenRouter (nur '
+          'Abfragetag). 0 heißt: die Quelle führt den Tag und zählt nichts; „bis hh:mm“: Quelle endet am Tag. '
+          f'Tage gelten in CEST, der letzte endet mit dem Stich {z(stich)}. Kasse: 0 gilt als abgedeckt, weil die '
+          f'Suche nach weiteren Kassen-Datenbanken unter /root {wk["fremd"]} Buchungen außerhalb der vier Zweige fand '
+          f'(Quellenabdeckung). *gerechnet*']
+    if abeginn:
+        nb = sum(1 for e in bio if e['dt'] >= abeginn)
+        s.append(f'- Davon ab Beginn BIOTOP-LAGE-01 ({z(abeginn)}): {nb} Biotop-Nachrichten (Arbeit an diesem '
+                 'Auftrag und am Bau S1c). *gerechnet*')
+    # A8
+    s += ['', '### Abgleich 8 — Nummernkreise: Kassen-Kennung ↔ Laufnummer ↔ Ordnername', '']
+    s += tabelle(['Lauf (Kennung dieses Inventars)', 'Kassen-id je Zweig', 'Beginn (UTC, Kasse)', 'Ordnername'],
+                 [[l['schluessel'], ' '.join(f'{k}{l["nr"]}' for k in l['zweige']), laeufe[l['key']]['beginn_roh'],
+                   l['ort'] or 'NICHT GEFUNDEN'] for l in L1 if alle_nr[l['nr']] > 1 or not l['ort']])
+    s += ['', f'Nur Läufe mit mehrfach vergebener Nummer oder ohne Ordner; alle übrigen {sum(1 for l in L1 if alle_nr[l["nr"]] == 1 and l["ort"])} '
+          'Läufe haben eine eindeutige Nummer — ihre Zuordnung steht in I1. Weitere Nummernkreise: „Lauf 3“ des '
+          'Masterprompts v2 ist Kassen-Lauf 9 (Bericht `biotop-phase-1-nachlauf`, R30); Ordner der Behebungsrunden '
+          '`biotop-vor-t4*` gehören zu Aufträgen ohne Lauf.']
+    # A9
+    s += ['', '### Abgleich 9 — Gegenprobe', ''] + gp
+    B.ab('10. Abgleiche 1–9', s)
+
+    # ---- 11. Lückenvorschläge, Widersprüche
+    s = ['Mechanisch aus den Abgleichen; Kennung LV-I-nn nur für diesen Entwurf (die Lückenliste LU.. vergibt Hermes).',
+         '']
+    s += tabelle(['Kennung', 'was fehlt', 'warum', 'was es schließt', 'wer'],
+                 [[f'LV-I-{i:02d}', *x] for i, x in enumerate(B.lv, 1)])
+    s += ['', '**Widersprüche zwischen Quellen (beide Belege):**', '']
+    s += tabelle(['Nr', 'Widerspruch', 'Beleg 1', 'Beleg 2'], [[i, *x] for i, x in enumerate(B.wid, 1)]) \
+        if B.wid else ['keine gefunden.']
+    B.ab('11. Lückenvorschläge und Widersprüche', s)
+
+    # =========================================================================================== LISTEN
+    li = {}
+    li['1. Laufnummern'] = [f'{l["schluessel"]} | Nr {l["nr"]} | Zweige {l["zweige"]} | Beginn {z(l["beginn"])} | '
+                            f'Ende {z(l["ende"])} | Status {l["status"]} | Werk {l["werk"]} | Ergebnisort '
+                            f'{l["ort"] or "NICHT GEFUNDEN"} ({l["ort_art"]})' for l in L1]
+    bek_nr = {l['nr'] for l in L1}
+    li['2. Ordner im Prüfkanal'] = [
+        f'{{LAEUFE}}/{o["name"]}/ | Dateien {o["dateien"]} | {z(o["aelteste"])} – {z(o["juengste"])} | Läufe genannt '
+        f'{",".join(map(str, sorted(n for n in o["laeufe_genannt"] if n in bek_nr))) or "—"}'
+        + (f' | Nummern ohne Lauf in der Kasse (Muster traf, kein Lauf): '
+           f'{",".join(map(str, sorted(n for n in o["laeufe_genannt"] if n not in bek_nr)))}'
+           if any(n not in bek_nr for n in o['laeufe_genannt']) else '')
+        + f' | {o["zuordnung"]}' for o in ordner]
+    li['3. Nachrichtenverzeichnis (ohne Inhalt)'] = [
+        f'{e["zeit"]} | id {e["id"]} | {e["absender"]} | {e["art"]} | Biotop {e["biotop"]} | {e["sitzung"]}'
+        + (f' | Status {e["status"]}' if e.get('status') else '') for e in nach_stich]
+    li['4. Commits seit 18.09.'] = [f'{c["hash"][:12]} | {z(c["zeit"])} | {c["autor"]} | {c["nachricht"]} | '
+                                    f'{c.get("zuo", "")}' for c in commits]
+    li['5. Geänderte Dateien unter /root/biotop seit 21.09.'] = (
+        [f'{z(e["mtime"])} | {e["bytes"]} | {e["pfad"]} | {e["zuo"]}' for e in geaendert] +
+        [f'NACH DEM STICH: {z(e["mtime"])} | {e["bytes"]} | {e["pfad"]}' for e in nach_stich_geaendert] +
+        ([f'git status (von Hermes): {x}' for x in gstatus] if gstatus else []))
+    li['6. Fassungen und Auftragsdateien (alle Fundorte)'] = [
+        f'{f["sha"]} | {f["typ"]} | {z(f["mtime"])} | {f["bytes"]} | {fn(f["pfad"])}'
+        for f in sorted(i4, key=lambda x: (x['sha'], str(x['pfad'])))]
+    li['7. Weitere Kassen-Datenbanken unter /root (Tabelle kasse mit Zeilen)'] = [
+        f'{x["pfad"]} | {x["bytes"]} Bytes | -wal {x["wal"]} | kasse {x["zeilen"]} | in keinem der vier Zweige '
+        f'{x["fremd"]} ({x["fremd_eur"]:.6f} €) | {x["von"]} – {x["bis"]}' for x in wk['liste']] + [
+        f'NICHT GEÖFFNET: {p_} (-wal {w_} Bytes)' for p_, w_ in wk['nicht']] + [
+        f'LESEFEHLER: {p_} ({e_})' for p_, e_ in wk['fehler']]
+
+    # =========================================================================================== KASSE
+    kt = []
+    kopf_l = ['lauf', 'nr', 'zweige', 'begonnen_am', 'beendet_am', 'status', 'werk', 'budget_eur', 'buchungen',
+              'kosten_eur', 'erste_buchung', 'letzte_buchung']
+    kt.append(('laeufe', kopf_l, [[l['schluessel'], l['nr'], l['zweige'], laeufe[l['key']]['beginn_roh'],
+                                   laeufe[l['key']]['varianten'][l['herkunft']]['ende'] or '', l['status'], l['werk'] or '',
+                                   zahl(l['budget']), l['buchungen'], f'{l["kosten"]:.6f}',
+                                   l['erste'].astimezone(UTC).isoformat() if l['erste'] else '',
+                                   l['letzte'].astimezone(UTC).isoformat() if l['letzte'] else ''] for l in L1]))
+    sp = next((Z[n]['kasse_sp'] for n in namen_z if Z[n].get('kasse_sp')), [])
+    lk = {l['key']: l['schluessel'] for l in L1}
+    kt.append(('kasse', ['lauf', 'zweige'] + sp,
+               [[lk.get(e['lauf'], ''), ''.join(e['zweige'])] + [zahl(e['row'][c]) for c in sp]
+                for e in sorted(kasse.values(), key=lambda x: (x['row']['zeit'] or '', x['row']['id']))]))
+    esp = next((Z[n]['eich_sp'] for n in namen_z if Z[n].get('eich_sp')), [])
+    kt.append(('eichkosten', ['zweig'] + esp, [[n] + [zahl(d[c]) for c in esp] for n, d in eich.values()]))
+
+    # =========================================================================================== Schreiben
+    dateien = schreibe_md(aus, kopf, B.abschnitte, K, L)
+    dateien += schreibe_csv(aus, kt, K, L)
+    dateien += schreibe_listen(aus, li, K, L)
+    for name, kz, pfad in ZWEIGE:
+        if Z[name].get('wal_nachher') != Z[name]['wal_vorher']:
+            print(f'HINWEIS: -wal {name} vorher {Z[name]["wal_vorher"]} nachher {Z[name].get("wal_nachher")}')
+    print(f'Stichzeitpunkt {z(stich)} CEST; Lesebeginn {z(beginn)} CEST')
+    print(f'I1 {len(L1)} Läufe · Kasse {len(kasse)} Buchungen · I2 {len(nach_stich)} Nachrichten (Biotop {len(bio)}) · '
+          f'I3 {len(ordner)} Ordner · I4 {len(i4)} Fundorte · I5 {len(werke)} Werke · I6 {len(commits)} Commits, '
+          f'{len(geaendert)} Dateien · I7 {len(gd)} Dateien')
+    print(f'Abgleich 1: offen {sorted(offen_l | offen_o) or "keine"}')
+    print('\n'.join(gp))
+    print(f'Lückenvorschläge {len(B.lv)} · Widersprüche {len(B.wid)}')
+    for d in dateien:
+        print(f'{d.name} {d.stat().st_size} Bytes sha256 {sha_datei(d)}')
+    print(f'Laufzeit {time.time() - T0:.1f} s')
+
+
+# ----------------------------------------------------------------------------------------------- Schreiben
+def saeubern(t, K, L):
+    t = t.replace(str(L), '{LAEUFE}').replace(K, '<schlüssel>')
+    for name, m in geheimnis.MUSTER.items():
+        t = re.sub(m, f'[GESCHWÄRZT: {name}]', t)
+    return t
+
+
+def exklusiv(p, text):
+    with open(p, 'x', encoding='utf-8') as f:
+        f.write(text)
+    return p
+
+
+def schreibe(aus, name, text, K, L):
+    return exklusiv(aus / name, saeubern(text, K, L))
+
+
+def schreibe_md(aus, kopf, abschnitte, K, L):
+    bloecke = []
+    for titel, zeilen in abschnitte:
+        teil, cur = [], [f'## {titel}', '']
+        for x in zeilen:
+            x = saeubern(x, K, L)
+            if len('\n'.join(cur + [x]).encode()) > MAX_MD - 2500:
+                teil.append(cur)
+                cur = [f'## {titel} (Fortsetzung)', '']
+                if x.startswith('|') and not x.startswith('|---'):
+                    kz = next((c for c in reversed(teil[-1]) if c.startswith('|---')), None)
+                    ki = teil[-1].index(kz) if kz else None
+                    if ki:
+                        cur += [teil[-1][ki - 1], kz]
+            cur.append(x)
+        teil.append(cur)
+        bloecke += ['\n'.join(b) + '\n' for b in teil]
+    k = saeubern('\n'.join(kopf) + '\n', K, L)
+    teile, cur = [], k
+    for b in bloecke:
+        if len((cur + '\n' + b).encode()) > MAX_MD - 400:
+            teile.append(cur)
+            cur = ''
+        cur = (cur + '\n' + b) if cur else b
+    teile.append(cur)
+    if len(teile) == 1:
+        return [exklusiv(aus / 'INVENTAR.md', teile[0])]
+    out = []
+    for i, t in enumerate(teile, 1):
+        vor = f'> INVENTAR Teil {i} von {len(teile)} (INVENTAR-TEIL1.md … INVENTAR-TEIL{len(teile)}.md)\n\n'
+        out.append(exklusiv(aus / f'INVENTAR-TEIL{i}.md', vor + t))
+    return out
+
+
+def schreibe_csv(aus, tabellen, K, L):
+    out, n = [], 0
+    for name, kopf, zeilen in tabellen:
+        buf = io.StringIO()
+        csv.writer(buf, delimiter=';', lineterminator='\n').writerow(kopf)
+        kopfz = buf.getvalue()
+        cur = kopfz
+        for r in zeilen:
+            b = io.StringIO()
+            csv.writer(b, delimiter=';', lineterminator='\n').writerow([saeubern(str(x), K, L) for x in r])
+            zl = b.getvalue()
+            if len((cur + zl).encode()) > MAX_ROH:
+                n += 1
+                out.append(exklusiv(aus / f'KASSE-TEIL{n}.csv', cur))
+                cur = kopfz
+            cur += zl
+        n += 1
+        out.append(exklusiv(aus / f'KASSE-TEIL{n}.csv', cur))
+    return out
+
+
+def schreibe_listen(aus, li, K, L):
+    out, n, cur = [], 0, ''
+    for titel, zeilen in li.items():
+        kopf = f'== {titel} ({len(zeilen)} Einträge)\n'
+        if len((cur + kopf).encode()) > MAX_ROH - 200:
+            n += 1
+            out.append(exklusiv(aus / f'LISTEN-TEIL{n}.txt', cur))
+            cur = ''
+        cur += kopf
+        for x in zeilen:
+            x = saeubern(x, K, L) + '\n'
+            if len((cur + x).encode()) > MAX_ROH:
+                n += 1
+                out.append(exklusiv(aus / f'LISTEN-TEIL{n}.txt', cur))
+                cur = f'== {titel} (Fortsetzung)\n'
+            cur += x
+    n += 1
+    out.append(exklusiv(aus / f'LISTEN-TEIL{n}.txt', cur))
+    return out
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except FileExistsError as e:
+        print(f'ABBRUCH: Ausgabedatei besteht schon (nie überschreiben): {e}')
+        sys.exit(4)
+--- Ende /root/sicherung/biotop-lage-01/entwurf/inventar/inventar.py ---
+Ausgabe (vollständig, stdout und stderr):
+- Kopie der Inventare im Speicher: I1 40 → 41 Läufe (+ `ERFUNDEN/999`, Beginn 2026-09-22 12:00:00 CEST), I3 20 → 21 Ordner (+ `laeufe/biotop-erfunden-99/`, 3 Dateien). *gerechnet*
+- Abgleich 1 am Original: unzugeordnet 0 Läufe, 0 Ordner: keine.
+- Abgleich 1 an der Kopie: unzugeordnet 1 Läufe, 1 Ordner: ['ERFUNDEN/999', 'biotop-erfunden-99'].
+- Neu unzugeordnet (Kopie − Original): ['ERFUNDEN/999', 'biotop-erfunden-99']; weggefallen (Original − Kopie): keine.
+- **Gegenprobe angeschlagen: ja** — Bedingung: neu unzugeordnet sind genau ['ERFUNDEN/999', 'biotop-erfunden-99'] und nichts fällt weg. Genau diese beiden und sonst nichts unzugeordnet: ja.
+- Regel: Zuordnung nur mit Beleg (Nennung im Ordnertext, Zweig-Arbeitsordner, Chronikzeile, Nennung des Ordnernamens in einer Biotop-Nachricht bis 2026-09-25 14:44:20 CEST oder in einer Auftragsdatei); der eigene Ordner `biotop-lage-01` zählt nicht als Beleg.
+Laufzeit 6.7 s
+=== Ende R143 ===

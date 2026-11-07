@@ -1,0 +1,1711 @@
+[
+  {
+    "id": "B01:A01",
+    "audit_befund": "B01",
+    "audit_leser": "A01",
+    "titel": "JUnit skipped wird als bestanden gelesen",
+    "pfad": "biotop/organe/aegis.py",
+    "originalzeilen": [
+      75,
+      106
+    ],
+    "original_sha256": "7c32604756073f6da9d28b2f45f467fa8ab0e76ad24837ab2eb563f66ea90943",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "A01",
+      "quellbeleg": "75|def junit_lauf(werk: Path, paket: str, dateien: dict[str, str], testdateien: list[str]) -> dict[str, dict]:\n76|    \"\"\"Führt `testdateien` in der Kammer aus. Rückgabe je „datei::name“ → {ok, bestaetigt, meldung}.\"\"\"\n77|    if not testdateien:\n78|        return {}\n79|    skript = (\"import subprocess,sys;subprocess.run([sys.executable,'-m','pytest','-q','-p','no:cacheprovider','--tb=short',\"\n80|              \"'--junitxml=/tmp/j.xml',*sys.argv[1:]]);print('@@J@@'+open('/tmp/j.xml').read()+'@@E@@')\")\n81|    e = kammer.ausfuehren(werk, [\"python\", \"_messgeraet/lauf.py\", *testdateien], zeitlimit_s=120,\n82|                          dateien={**dateien, \"_messgeraet/lauf.py\": skript})\n83|    m = re.search(r\"@@J@@(.*)@@E@@\", e.stdout, re.S)\n84|    out: dict[str, dict] = {}\n85|    if not m:\n86|        for t in testdateien:\n87|            out[f\"{t}::*\"] = {\"ok\": False, \"bestaetigt\": False, \"meldung\": \"Sammelfehler/Zeitlimit: \" + (e.stderr or e.stdout)[-300:]}\n88|        return out\n89|    for tc in ET.fromstring(m.group(1)).iter(\"testcase\"):\n90|        datei = (tc.get(\"classname\") or \"\").replace(\".\", \"/\") + \".py\"\n91|        name = tc.get(\"name\")\n92|        f = tc.find(\"failure\"); er = tc.find(\"error\")\n93|        if f is None and er is None:\n94|            out[f\"{datei}::{name}\"] = {\"ok\": True, \"bestaetigt\": False, \"meldung\": \"\"}\n95|            continue\n96|        kn = f if f is not None else er\n97|        msg = (kn.get(\"message\") or \"\")[:300]\n98|        text = kn.text or \"\"\n99|        orte = re.findall(r\"^([\\w./-]+\\.py):\\d+: in \", text, re.M)\n100|        im_werk = bool(orte) and orte[-1].startswith(paket + \"/\")\n101|        bestaetigt = msg.startswith((\"AssertionError\", \"assert\", \"Failed\", \"TimeoutError\")) or im_werk\n102|        out[f\"{datei}::{name}\"] = {\"ok\": False, \"bestaetigt\": bestaetigt, \"meldung\": msg, \"ort\": orte[-1] if orte else \"\"}\n103|    for t in testdateien:\n104|        if not any(k.startswith(t + \"::\") for k in out):\n105|            out[f\"{t}::*\"] = {\"ok\": False, \"bestaetigt\": False, \"meldung\": \"Sammelfehler (Import) in \" + t}\n106|    return out"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Testcase ohne failure/error ->ok; skipped wird nicht berücksichtigt",
+    "minimalbeleg": {
+      "zustand": "<testcase classname=\"tests.test_a\" name=\"test_a\"><skipped/></testcase>",
+      "schluss": "Aegis ok=True bzw Messgerät bestanden+1; tatsächliche Testausführung fehlt.",
+      "grenze": "Aegis hat für fehlende angeforderte Dateien einen negativen *-Zeugen (Z103-105): leeres XML allein ist dort NICHT derselbe Fail-open-Fall."
+    },
+    "reparaturzuordnung": "eingegrenzter_Kern_oder_sein_Eigennachweis",
+    "status": "Kernschutz_integriert_Elterneigensuite_belegt_Schlussreview_offen",
+    "elternbelege": [
+      "53-aegis2-eltern-rot",
+      "54-aegis2-eltern-gruen",
+      "55-skip-eltern-gruen",
+      "58-leser2-eltern-rot",
+      "59-leser2-eltern-gruen",
+      "61-vertragszeugen-integration-gruen"
+    ],
+    "beleggrenze": "Produzentenschutz oder gezielter Verbraucherfall; keine Behauptung, jeder Ort sei separat end-to-end ausgeführt."
+  },
+  {
+    "id": "B01:M01",
+    "audit_befund": "B01",
+    "audit_leser": "M01",
+    "titel": "JUnit skipped wird als bestanden gelesen",
+    "pfad": "biotop/kern/messgeraet.py",
+    "originalzeilen": [
+      79,
+      95
+    ],
+    "original_sha256": "d4bd53f6afe8bae27089d9a8f58b41c81db79fd0e70976a6047517fb0a34a0f0",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "M01",
+      "quellbeleg": "79|rc, out, err = lauf([sys.executable, \"-m\", \"pytest\", \"-q\", \"-p\", \"no:cacheprovider\", \"--tb=short\", \"-rN\", \"tests\", \"--junitxml=/tmp/junit.xml\"], timeout=110)\n80|ergebnis[\"werk\"][\"pytest_rc\"] = rc\n81|ergebnis[\"werk\"][\"pytest_tail\"] = out[-3000:]\n82|import xml.etree.ElementTree as ET\n83|je_datei = {}\n84|fehler_liste = []\n85|if os.path.exists(\"/tmp/junit.xml\"):\n86|    for tc in ET.parse(\"/tmp/junit.xml\").getroot().iter(\"testcase\"):\n87|        datei = (tc.get(\"classname\") or \"\").split(\".\")[-1] + \".py\"\n88|        if datei.startswith(\"tests.\"): datei = datei[6:]\n89|        ok = tc.find(\"failure\") is None and tc.find(\"error\") is None\n90|        b = zuordnung(datei)\n91|        je_datei.setdefault(b, [0, 0])\n92|        je_datei[b][0 if ok else 1] += 1\n93|        if not ok:\n94|            fehler_liste.append(f\"{datei}::{tc.get('name')}\")\n95|ergebnis[\"werk\"][\"tests_fehlgeschlagen_liste\"] = fehler_liste[:100]"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Testcase ohne failure/error ->ok; skipped wird nicht berücksichtigt",
+    "minimalbeleg": {
+      "zustand": "<testcase classname=\"tests.test_a\" name=\"test_a\"><skipped/></testcase>",
+      "schluss": "Aegis ok=True bzw Messgerät bestanden+1; tatsächliche Testausführung fehlt.",
+      "grenze": "Aegis hat für fehlende angeforderte Dateien einen negativen *-Zeugen (Z103-105): leeres XML allein ist dort NICHT derselbe Fail-open-Fall."
+    },
+    "reparaturzuordnung": "eingegrenzter_Kern_oder_sein_Eigennachweis",
+    "status": "Kernschutz_integriert_Elterneigensuite_belegt_Schlussreview_offen",
+    "elternbelege": [
+      "53-aegis2-eltern-rot",
+      "54-aegis2-eltern-gruen",
+      "55-skip-eltern-gruen",
+      "58-leser2-eltern-rot",
+      "59-leser2-eltern-gruen",
+      "61-vertragszeugen-integration-gruen"
+    ],
+    "beleggrenze": "Produzentenschutz oder gezielter Verbraucherfall; keine Behauptung, jeder Ort sei separat end-to-end ausgeführt."
+  },
+  {
+    "id": "B01:A02",
+    "audit_befund": "B01",
+    "audit_leser": "A02",
+    "titel": "JUnit skipped wird als bestanden gelesen",
+    "pfad": "biotop/organe/aegis.py",
+    "originalzeilen": [
+      150,
+      157
+    ],
+    "original_sha256": "7c32604756073f6da9d28b2f45f467fa8ab0e76ad24837ab2eb563f66ea90943",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "A02",
+      "quellbeleg": "150|def _namen(r: dict, praefix: str, **filt) -> set[str]:\n151|    out = set()\n152|    for n, x in r.items():\n153|        if not n.startswith(praefix + \"::\") or n.endswith(\"::*\"):\n154|            continue\n155|        if all(x.get(k) == v for k, v in filt.items()):\n156|            out.add(n.split(\"::\")[1])\n157|    return out"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Testcase ohne failure/error ->ok; skipped wird nicht berücksichtigt",
+    "minimalbeleg": {
+      "zustand": "<testcase classname=\"tests.test_a\" name=\"test_a\"><skipped/></testcase>",
+      "schluss": "Aegis ok=True bzw Messgerät bestanden+1; tatsächliche Testausführung fehlt.",
+      "grenze": "Aegis hat für fehlende angeforderte Dateien einen negativen *-Zeugen (Z103-105): leeres XML allein ist dort NICHT derselbe Fail-open-Fall."
+    },
+    "reparaturzuordnung": "eingegrenzter_Kern_oder_sein_Eigennachweis",
+    "status": "Kernschutz_integriert_Elterneigensuite_belegt_Schlussreview_offen",
+    "elternbelege": [
+      "53-aegis2-eltern-rot",
+      "54-aegis2-eltern-gruen",
+      "55-skip-eltern-gruen",
+      "58-leser2-eltern-rot",
+      "59-leser2-eltern-gruen",
+      "61-vertragszeugen-integration-gruen"
+    ],
+    "beleggrenze": "Produzentenschutz oder gezielter Verbraucherfall; keine Behauptung, jeder Ort sei separat end-to-end ausgeführt."
+  },
+  {
+    "id": "B01:A03",
+    "audit_befund": "B01",
+    "audit_leser": "A03",
+    "titel": "JUnit skipped wird als bestanden gelesen",
+    "pfad": "biotop/organe/aegis.py",
+    "originalzeilen": [
+      552,
+      591
+    ],
+    "original_sha256": "7c32604756073f6da9d28b2f45f467fa8ab0e76ad24837ab2eb563f66ea90943",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "A03",
+      "quellbeleg": "552|    if tests_kandidat:\n553|        r_b = junit_lauf(werk, paket, tests_kandidat, list(tests_kandidat))\n554|        r_k = junit_lauf(werk, paket, {**code, **tests_kandidat}, list(tests_kandidat))\n555|        for p, inhalt in tests_kandidat.items():\n556|            faellt_b = _namen(r_b, p, ok=False, bestaetigt=True)\n557|            ok_k = _namen(r_k, p, ok=True)\n558|            fehl_k = _namen(r_k, p, ok=False)\n559|            if fehl_k:\n560|                urteil[\"angriff\"] = {\"eigene_tests_fehlgeschlagen\": sorted(fehl_k)}\n561|                return fertig(\"abgelehnt\", f\"eigene Tests des Kandidaten schlagen am Kandidaten fehl: {sorted(fehl_k)}\")\n562|            gueltig_roh = faellt_b & ok_k\n563|            # Norm-Regel (3.7 F3) gilt auch für mitgebrachte Tests: Nachweis einer Behebung nur bei Absturz im Werk an der\n564|            # Vorgeneration ODER Vertrags-/Verfassungsbezug im Test. Sonst kodiert der Test eine Meinung → 0, nicht ins Werk.\n565|            # (Norm-Probe Lauf 12: ein mitgebrachter Test ohne Bezug kam ins Werk — hier geschlossen.)\n566|            gueltig = set()\n567|            for n in gueltig_roh:\n568|                x = r_b.get(f\"{p}::{n}\", {})\n569|                absturz = bool(x.get(\"ort\")) and x[\"ort\"].startswith(paket + \"/\") and not x.get(\"meldung\", \"\").startswith((\"AssertionError\", \"assert\", \"Failed\"))\n570|                if absturz or _nennt_vertrag(inhalt, n, verf, con, werk_id, bereich, vertrag_dateien_kandidat):\n571|                    gueltig.add(n)\n572|                else:\n573|                    urteil[\"norm\"].append(f\"{p}::{n}\")\n574|            urteil[\"tests_verworfen\"] += [f\"{p}::{n} (besteht schon an der Vorgeneration — zählt nicht)\" for n in sorted(_namen(r_b, p, ok=True))]\n575|            urteil[\"tests_verworfen\"] += [f\"{p}::{n} (fehlerhafter Test)\" for n in sorted(_namen(r_b, p, ok=False, bestaetigt=False))]\n576|            urteil[\"tests_verworfen\"] += [f\"{p}::{n} (Norm ohne Absturz/Vertragsbezug — 0 Punkte, nicht ins Werk)\" for n in sorted(gueltig_roh - gueltig)]\n577|            # Vorhandene Testdatei: kein vorhandener Test darf verschwinden oder sich ändern (Anhang A Satz 6) —\n578|            # ins Werk kommt die alte Datei plus die gültigen neuen Funktionen (Lücke bis Lauf 15: nur_funktionen hätte\n579|            # die alte Datei durch die neuen Funktionen ersetzt).\n580|            alt_datei = (werk / p)\n581|            if alt_datei.exists():\n582|                alt_code = alt_datei.read_text()\n583|                fehlend = _fehlende_oder_geaenderte_tests(alt_code, inhalt)\n584|                if fehlend:\n585|                    return fertig(\"abgelehnt\", f\"Verfassung verletzt: entfernt oder ändert vorhandene Tests in {p}: {fehlend[:5]} (Anhang A Satz 6)\")\n586|                g = _anhaengen(alt_code, inhalt, gueltig) if gueltig else None\n587|            else:\n588|                g = nur_funktionen(inhalt, gueltig) if gueltig else None\n589|            if g:\n590|                testbestand[p] = g\n591|                urteil[\"tests_neu\"] += [f\"{p}::{n}\" for n in sorted(gueltig)]"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Testcase ohne failure/error ->ok; skipped wird nicht berücksichtigt",
+    "minimalbeleg": {
+      "zustand": "<testcase classname=\"tests.test_a\" name=\"test_a\"><skipped/></testcase>",
+      "schluss": "Aegis ok=True bzw Messgerät bestanden+1; tatsächliche Testausführung fehlt.",
+      "grenze": "Aegis hat für fehlende angeforderte Dateien einen negativen *-Zeugen (Z103-105): leeres XML allein ist dort NICHT derselbe Fail-open-Fall."
+    },
+    "reparaturzuordnung": "eingegrenzter_Kern_oder_sein_Eigennachweis",
+    "status": "Kernschutz_integriert_Elterneigensuite_belegt_Schlussreview_offen",
+    "elternbelege": [
+      "53-aegis2-eltern-rot",
+      "54-aegis2-eltern-gruen",
+      "55-skip-eltern-gruen",
+      "58-leser2-eltern-rot",
+      "59-leser2-eltern-gruen",
+      "61-vertragszeugen-integration-gruen"
+    ],
+    "beleggrenze": "Produzentenschutz oder gezielter Verbraucherfall; keine Behauptung, jeder Ort sei separat end-to-end ausgeführt."
+  },
+  {
+    "id": "B01:A04",
+    "audit_befund": "B01",
+    "audit_leser": "A04",
+    "titel": "JUnit skipped wird als bestanden gelesen",
+    "pfad": "biotop/organe/aegis.py",
+    "originalzeilen": [
+      603,
+      641
+    ],
+    "original_sha256": "7c32604756073f6da9d28b2f45f467fa8ab0e76ad24837ab2eb563f66ea90943",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "A04",
+      "quellbeleg": "603|        r_k = junit_lauf(werk, paket, {**code, ad: angriff}, [ad])\n604|        r_b = junit_lauf(werk, paket, {ad: angriff}, [ad])\n605|        best_k = _namen(r_k, ad, ok=False, bestaetigt=True)\n606|        best_b = _namen(r_b, ad, ok=False, bestaetigt=True)\n607|        fehlerhaft = _namen(r_k, ad, ok=False, bestaetigt=False) | _namen(r_b, ad, ok=False, bestaetigt=False)\n608|        urteil[\"angriff\"] = {\"modell\": angriff_modell, \"bestaetigt_kandidat\": sorted(best_k), \"bestaetigt_basis\": sorted(best_b),\n609|                             \"fehlerhaft\": sorted(fehlerhaft), \"gesamt\": len(_namen(r_k, ad))}\n610|        # Norm-Regel (3.7 F3): Ein Test, der an der Vorgeneration fällt und am Kandidaten besteht, ist nur dann Nachweis\n611|        # einer Behebung, wenn (a) die Vorgeneration dabei mit einer Ausnahme IM WERK abstürzt oder (b) der Test einen\n612|        # Vertrag/Verfassungssatz nennt. Sonst kodiert er eine Meinung → „offen“, 0 Punkte, nicht ins Werk.\n613|        behoben_kand = best_b & _namen(r_k, ad, ok=True)\n614|        nachweis, norm = set(), set()\n615|        for n in behoben_kand:\n616|            x = r_b.get(f\"{ad}::{n}\", {})\n617|            absturz = bool(x.get(\"ort\")) and x[\"ort\"].startswith(paket + \"/\") and not x.get(\"meldung\", \"\").startswith((\"AssertionError\", \"assert\", \"Failed\"))\n618|            bezug = _nennt_vertrag(angriff, n, verf, con, werk_id, bereich, vertrag_dateien_kandidat)\n619|            (nachweis if (absturz or bezug) else norm).add(n)\n620|        # Regel (Philipp, 19.09.2026, Fassung 4 zu 3.7/3.5): Pareto je Test gilt für Tests IM WERK, für VERTRÄGE und für die\n621|        # VERFASSUNG. Ein NEUER Angriffstest, der an der Vorgeneration besteht und am Kandidaten fällt, tötet nur dann,\n622|        # wenn (a) der Kandidat dabei mit einer Ausnahme im Werk abstürzt oder (b) der Test einen Vertrag oder\n623|        # Verfassungssatz durch explizite Kennung nennt. Sonst bleibt er „offen“, bringt 0 Punkte und tötet nicht —\n624|        # er kommt weder als Fund ins Immunsystem noch in den gemessenen Testbestand, sonst schriebe er das ALTE\n625|        # Verhalten als Norm fest (Lauf 16 Gen 4: K1191-Test kodierte den K1165-Fehler als Norm und tötete per\n626|        # Pareto je Test jede Behebung — Lauf 16 deshalb nach Satz 2 F4 verworfen).\n627|        best_k_norm = set()\n628|        for n in set(best_k):\n629|            x = r_k.get(f\"{ad}::{n}\", {})\n630|            absturz_k = bool(x.get(\"ort\")) and x[\"ort\"].startswith(paket + \"/\") and not x.get(\"meldung\", \"\").startswith((\"AssertionError\", \"assert\", \"Failed\"))\n631|            if not (absturz_k or _nennt_vertrag(angriff, n, verf, con, werk_id, bereich, vertrag_dateien_kandidat)):\n632|                best_k_norm.add(n)\n633|        best_k = best_k - best_k_norm\n634|        norm |= best_k_norm\n635|        urteil[\"norm\"] = sorted(norm)\n636|        urteil[\"angriff\"][\"bestaetigt_kandidat\"] = sorted(best_k)\n637|        urteil[\"angriff\"][\"norm_am_kandidaten\"] = sorted(best_k_norm)\n638|        # Doppelungen (3.10 F5): je bestätigtem Fehler ein Test; gleiche BEHAUPTUNG = Doppelung (nicht gleiche Fundstelle)\n639|        treffer = (best_k | nachweis) - fehlerhaft\n640|        einzig, doppel = _doppelungen(treffer, {**r_k, **{k2: v for k2, v in r_b.items() if k2 not in r_k or r_k[k2][\"ok\"]}},\n641|                                      ad, con, werk_id, bereich, code=angriff, paket=paket)"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Testcase ohne failure/error ->ok; skipped wird nicht berücksichtigt",
+    "minimalbeleg": {
+      "zustand": "<testcase classname=\"tests.test_a\" name=\"test_a\"><skipped/></testcase>",
+      "schluss": "Aegis ok=True bzw Messgerät bestanden+1; tatsächliche Testausführung fehlt.",
+      "grenze": "Aegis hat für fehlende angeforderte Dateien einen negativen *-Zeugen (Z103-105): leeres XML allein ist dort NICHT derselbe Fail-open-Fall."
+    },
+    "reparaturzuordnung": "eingegrenzter_Kern_oder_sein_Eigennachweis",
+    "status": "Kernschutz_integriert_Elterneigensuite_belegt_Schlussreview_offen",
+    "elternbelege": [
+      "53-aegis2-eltern-rot",
+      "54-aegis2-eltern-gruen",
+      "55-skip-eltern-gruen",
+      "58-leser2-eltern-rot",
+      "59-leser2-eltern-gruen",
+      "61-vertragszeugen-integration-gruen"
+    ],
+    "beleggrenze": "Produzentenschutz oder gezielter Verbraucherfall; keine Behauptung, jeder Ort sei separat end-to-end ausgeführt."
+  },
+  {
+    "id": "B01:EP01",
+    "audit_befund": "B01",
+    "audit_leser": "EP01",
+    "titel": "JUnit skipped wird als bestanden gelesen",
+    "pfad": "biotop/organe/eichproben.py",
+    "originalzeilen": [
+      209,
+      245
+    ],
+    "original_sha256": "1c82c17f4434aa7e553c6c3b61efee9f8b8381c395e3466b29aa7fb10efe655c",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "EP01",
+      "quellbeleg": "209|def _vertrag_pruefbar(belege: dict, gegenprobe: bool) -> bool:\n210|    \"\"\"Ausführungszeugen des BENANNTEN Vertrags, nicht das negierte Gesamturteil.\n211|\n212|    Die Klassifikation kommt ausschließlich aus Aegis' originalem JUnit-Lauf.\n213|    Positiv müssen Vertrag UND Verbraucher an der eingesetzten Zusicherung im\n214|    Verbraucher scheitern; negativ müssen beide tatsächlich bestanden sein.\n215|    Sammel-/Fixturefehler, fehlende oder unvollständige Zeugen bleiben ungültig.\n216|    \"\"\"\n217|    pfad = belege.get(\"vertragspfad\")\n218|    vertrag = belege.get(\"vertragstest\")\n219|    verbraucher = belege.get(\"verbrauchertest\")\n220|    ort = belege.get(\"verbraucherdatei\")\n221|    if not all(isinstance(x, str) and x for x in (pfad, vertrag, verbraucher, ort)):\n222|        return False\n223|    if not vertrag.startswith(Path(pfad).name + \"::\") or ort.startswith(\"tests/\"):\n224|        return False\n225|    name = f\"{Path(pfad).parent.as_posix()}/{vertrag}\"\n226|    basis, kandidat = belege.get(\"basis_tests\"), belege.get(\"kandidat_tests\")\n227|    if not isinstance(basis, dict) or not isinstance(kandidat, dict):\n228|        return False\n229|\n230|    def bestanden(x):\n231|        return (isinstance(x, dict) and x.get(\"ok\") is True\n232|                and x.get(\"bestaetigt\") is False and x.get(\"meldung\") == \"\")\n233|\n234|    def zusicherung_fehlt(x):\n235|        return (isinstance(x, dict) and x.get(\"ok\") is False and x.get(\"bestaetigt\") is True\n236|                and x.get(\"ort\") == ort and isinstance(x.get(\"meldung\"), str)\n237|                and \"eichprobe_zusicherung\" in x[\"meldung\"])\n238|\n239|    if not bestanden(basis.get(verbraucher)) or not all(bestanden(x) for x in basis.values()):\n240|        return False\n241|    erwartet = bestanden if gegenprobe else zusicherung_fehlt\n242|    return (erwartet(kandidat.get(name)) and erwartet(kandidat.get(verbraucher))\n243|            and all(isinstance(n, str) and not n.endswith(\"::*\")\n244|                    and (bestanden(x) or (not gegenprobe and zusicherung_fehlt(x)))\n245|                    for n, x in kandidat.items()))"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Testcase ohne failure/error ->ok; skipped wird nicht berücksichtigt",
+    "minimalbeleg": {
+      "zustand": "<testcase classname=\"tests.test_a\" name=\"test_a\"><skipped/></testcase>",
+      "schluss": "Aegis ok=True bzw Messgerät bestanden+1; tatsächliche Testausführung fehlt.",
+      "grenze": "Aegis hat für fehlende angeforderte Dateien einen negativen *-Zeugen (Z103-105): leeres XML allein ist dort NICHT derselbe Fail-open-Fall."
+    },
+    "reparaturzuordnung": "eingegrenzter_Kern_oder_sein_Eigennachweis",
+    "status": "Kernschutz_integriert_Elterneigensuite_belegt_Schlussreview_offen",
+    "elternbelege": [
+      "53-aegis2-eltern-rot",
+      "54-aegis2-eltern-gruen",
+      "55-skip-eltern-gruen",
+      "58-leser2-eltern-rot",
+      "59-leser2-eltern-gruen",
+      "61-vertragszeugen-integration-gruen"
+    ],
+    "beleggrenze": "Produzentenschutz oder gezielter Verbraucherfall; keine Behauptung, jeder Ort sei separat end-to-end ausgeführt."
+  },
+  {
+    "id": "B01:EP03",
+    "audit_befund": "B01",
+    "audit_leser": "EP03",
+    "titel": "JUnit skipped wird als bestanden gelesen",
+    "pfad": "biotop/organe/eichproben.py",
+    "originalzeilen": [
+      354,
+      373
+    ],
+    "original_sha256": "1c82c17f4434aa7e553c6c3b61efee9f8b8381c395e3466b29aa7fb10efe655c",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "EP03",
+      "quellbeleg": "354|def _regression_vorbereiten(werk, paket, a, b, gegenprobe):\n355|    diff, beschreibung, belege, _ = _nebenwirkung_vorbereiten(werk, paket, a, b, gegenprobe)\n356|    gruen_diff, gruen_text = _gruene_tests(a)\n357|    gruen = aegis.kandidat_dateien(werk, gruen_diff)\n358|    testdateien = sorted(p.relative_to(werk).as_posix() for p in (werk / \"tests\").glob(\"test_*.py\")\n359|                        if p.name == f\"test_{b}.py\" or p.name.startswith(f\"test_{b}_\"))\n360|    if not testdateien:\n361|        raise RuntimeError(f\"Keine Bereichstests für {b}: Regression nicht prüfbar\")\n362|    basis_tests = aegis.junit_lauf(werk, paket, gruen, testdateien + list(gruen))\n363|    schaden, _ = _lahmlegen(werk, paket, b)\n364|    schaden_tests = aegis.junit_lauf(werk, paket, aegis.kandidat_dateien(werk, schaden), testdateien)\n365|    faelle = sorted(n for n, x in schaden_tests.items()\n366|                    if not x[\"ok\"] and x[\"bestaetigt\"] and basis_tests.get(n, {}).get(\"ok\"))\n367|    if not faelle:\n368|        raise RuntimeError(f\"Kein bestätigter Einzeltest fällt durch den Eingriff in {b}\")\n369|    diff += gruen_diff\n370|    kandidat_tests = aegis.junit_lauf(werk, paket, aegis.kandidat_dateien(werk, diff), testdateien + list(gruen))\n371|    belege.update(regressionstest=faelle[0], basis_tests=basis_tests, kandidat_tests=kandidat_tests,\n372|                  gruene_tests=sorted(n for n in kandidat_tests if n.split(\"::\")[0] in gruen and not n.endswith(\"::*\")))\n373|    return diff, beschreibung + \"; \" + gruen_text, belege, None"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Testcase ohne failure/error ->ok; skipped wird nicht berücksichtigt",
+    "minimalbeleg": {
+      "zustand": "<testcase classname=\"tests.test_a\" name=\"test_a\"><skipped/></testcase>",
+      "schluss": "Aegis ok=True bzw Messgerät bestanden+1; tatsächliche Testausführung fehlt.",
+      "grenze": "Aegis hat für fehlende angeforderte Dateien einen negativen *-Zeugen (Z103-105): leeres XML allein ist dort NICHT derselbe Fail-open-Fall."
+    },
+    "reparaturzuordnung": "eingegrenzter_Kern_oder_sein_Eigennachweis",
+    "status": "Kernschutz_integriert_Elterneigensuite_belegt_Schlussreview_offen",
+    "elternbelege": [
+      "53-aegis2-eltern-rot",
+      "54-aegis2-eltern-gruen",
+      "55-skip-eltern-gruen",
+      "58-leser2-eltern-rot",
+      "59-leser2-eltern-gruen",
+      "61-vertragszeugen-integration-gruen"
+    ],
+    "beleggrenze": "Produzentenschutz oder gezielter Verbraucherfall; keine Behauptung, jeder Ort sei separat end-to-end ausgeführt."
+  },
+  {
+    "id": "B01:T01",
+    "audit_befund": "B01",
+    "audit_leser": "T01",
+    "titel": "JUnit skipped wird als bestanden gelesen",
+    "pfad": "tests/test_eichproben.py",
+    "originalzeilen": [
+      77,
+      167
+    ],
+    "original_sha256": "35aeb62294792bc17aa2767206650c66ff33b2cc8a9b99e389011db580bf440f",
+    "original_audit_scope": "kernpfad_eigentest",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "T01",
+      "quellbeleg": "77|@pytest.mark.parametrize(\"gegenprobe\", [False, True])\n78|def test_nebenwirkung_braucht_gewinn_a_und_verlust_b(paar, gegenprobe):\n79|    con, werk, bereiche, basis, g = paar\n80|    e = eichproben._einzelprobe(con, 1, 1, werk, \"beispiel\", bereiche, [], basis, basis, None, {}, 0,\n81|                               g, \"nebenwirkung\", gegenprobe)\n82|    print(\"NEBENWIRKUNG\", gegenprobe, e[\"bestanden\"], e[\"grund\"])\n83|    assert e[\"ausgefuehrt\"] is True and e[\"pruefbar\"] is True\n84|    assert e[\"bestanden\"] is (not gegenprobe)\n85|    m = e[\"belege\"][\"urteil\"][\"mass\"]\n86|    assert any(s.startswith(\"abnehmer.tests_fehlgeschlagen:\") for s in m[\"pareto_besser\"])\n87|    assert any(s.startswith(\"lieferant.tests_fehlgeschlagen:\") for s in m[\"pareto_schlechter\"]) is (not gegenprobe)\n88|    falsch = deepcopy(e[\"belege\"])\n89|    falsch[\"urteil\"][\"mass\"][\"pareto_besser\"] = []\n90|    assert eichproben._bestanden(\"nebenwirkung\", falsch) is False\n91|\n92|\n93|def test_nebenwirkung_gewinnt_auch_bei_rueckwirkung_von_b_auf_a(paar):\n94|    con, werk, bereiche, _, g = paar\n95|    rel = \"beispiel/abnehmer/ausgabe.py\"\n96|    (werk / rel).write_text(\n97|        \"from beispiel.lieferant import wert\\n\"\n98|        \"def bericht(zahl: float):\\n\"\n99|        \"    return wert(zahl)\\n\"\n100|        \"def zusatz(zahl: float):\\n\"\n101|        \"    return zahl + 1\\n\"\n102|    )\n103|    (werk / \"tests/test_abnehmer.py\").write_text(\n104|        \"from beispiel.abnehmer.ausgabe import bericht, zusatz\\n\"\n105|        \"def test_bericht():\\n    assert bericht(2) == 4\\n\"\n106|        \"def test_zusatz():\\n    assert zusatz(2) == 3\\n\"\n107|    )\n108|    basis = messgeraet.messen(werk, bereiche, \"beispiel\", None)\n109|    e = eichproben._einzelprobe(con, 1, 1, werk, \"beispiel\", bereiche, [], basis, basis, None, {}, 0,\n110|                               g, \"nebenwirkung\", False)\n111|    assert e[\"bestanden\"] is True, e[\"belege\"][\"urteil\"][\"mass\"]\n112|\n113|\n114|@pytest.mark.parametrize(\"gegenprobe\", [False, True])\n115|def test_regression_nennt_einzeltest_trotz_ausgefuehrter_gruener_tests(paar, gegenprobe):\n116|    con, werk, bereiche, basis, g = paar\n117|    e = eichproben._einzelprobe(con, 1, 1, werk, \"beispiel\", bereiche, [], basis, basis, None, {}, 0,\n118|                               g, \"regression\", gegenprobe)\n119|    print(\"REGRESSION\", gegenprobe, e[\"bestanden\"], e[\"grund\"])\n120|    assert e[\"ausgefuehrt\"] is True and e[\"pruefbar\"] is True\n121|    assert e[\"bestanden\"] is (not gegenprobe)\n122|    b = e[\"belege\"]\n123|    assert len(b[\"gruene_tests\"]) >= 3\n124|    assert all(b[\"kandidat_tests\"][n][\"ok\"] for n in b[\"gruene_tests\"])\n125|    assert b[\"basis_tests\"][b[\"regressionstest\"]][\"ok\"] is True\n126|    assert b[\"kandidat_tests\"][b[\"regressionstest\"]][\"ok\"] is gegenprobe\n127|    falsch = deepcopy(b)\n128|    falsch[\"urteil\"][\"mass\"][\"pareto_schlechter\"] = [\"lieferant.tests_fehlgeschlagen: 0 → 1\"]\n129|    assert eichproben._bestanden(\"regression\", falsch) is False\n130|    falsch = deepcopy(b)\n131|    falsch[\"gruene_tests\"] = []\n132|    assert eichproben._bestanden(\"regression\", falsch) is False\n133|\n134|\n135|@pytest.mark.parametrize(\"gegenprobe\", [False, True])\n136|def test_vertrag_braucht_konkreten_bruch_und_ausgefuehrten_konsumenten(paar, gegenprobe):\n137|    con, werk, bereiche, basis, g = paar\n138|    e = eichproben._einzelprobe(con, 1, 1, werk, \"beispiel\", bereiche, [], basis, basis, None, {}, 0,\n139|                               g, \"vertrag\", gegenprobe)\n140|    print(\"VERTRAG\", gegenprobe, e[\"bestanden\"], e[\"grund\"])\n141|    assert e[\"ausgefuehrt\"] is True and e[\"pruefbar\"] is True\n142|    assert e[\"bestanden\"] is (not gegenprobe)\n143|    b = e[\"belege\"]\n144|    assert b[\"basis_tests\"][b[\"verbrauchertest\"]][\"ok\"] is True\n145|    assert b[\"kandidat_tests\"][b[\"verbrauchertest\"]][\"ok\"] is gegenprobe\n146|    assert (b[\"vertragstest\"] in b[\"urteil\"][\"vertrag_verletzt\"]) is (not gegenprobe)\n147|    # Die Zeugen des konkreten Vertrags sind von der Messhülle unabhängig.\n148|    ziel = f\"{Path(b['vertragspfad']).parent.as_posix()}/{b['vertragstest']}\"\n149|    z = b[\"kandidat_tests\"][ziel]\n150|    assert z[\"ok\"] is gegenprobe\n151|    if not gegenprobe:\n152|        assert z[\"bestaetigt\"] is True\n153|        assert z[\"ort\"] == b[\"verbraucherdatei\"]\n154|        assert \"eichprobe_zusicherung\" in z[\"meldung\"]\n155|    assert eichproben._vertrag_pruefbar(b, gegenprobe) is True\n156|    # Charakterisierung: gültiges Gegenprädikat braucht den konkreten Zeugen.\n157|    for fehlt in (ziel, b[\"verbrauchertest\"]):\n158|        falsch = deepcopy(b)\n159|        falsch[\"kandidat_tests\"].pop(fehlt)\n160|        assert eichproben._vertrag_pruefbar(falsch, gegenprobe) is False\n161|        assert eichproben._bestanden(\"vertrag\", falsch) is False\n162|    falsch = deepcopy(b)\n163|    falsch[\"urteil\"][\"vertrag_verletzt\"] = [\"test_vertrag_fremder.py::test_fremd\"]\n164|    assert eichproben._bestanden(\"vertrag\", falsch) is False\n165|    falsch = deepcopy(b)\n166|    falsch[\"urteil\"][\"grund\"] = \"Diff nicht anwendbar\"\n167|    assert eichproben._bestanden(\"vertrag\", falsch) is False"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Testcase ohne failure/error ->ok; skipped wird nicht berücksichtigt",
+    "minimalbeleg": {
+      "zustand": "<testcase classname=\"tests.test_a\" name=\"test_a\"><skipped/></testcase>",
+      "schluss": "Aegis ok=True bzw Messgerät bestanden+1; tatsächliche Testausführung fehlt.",
+      "grenze": "Aegis hat für fehlende angeforderte Dateien einen negativen *-Zeugen (Z103-105): leeres XML allein ist dort NICHT derselbe Fail-open-Fall."
+    },
+    "reparaturzuordnung": "eingegrenzter_Kern_oder_sein_Eigennachweis",
+    "status": "Kernschutz_integriert_Elterneigensuite_belegt_Schlussreview_offen",
+    "elternbelege": [
+      "53-aegis2-eltern-rot",
+      "54-aegis2-eltern-gruen",
+      "55-skip-eltern-gruen",
+      "58-leser2-eltern-rot",
+      "59-leser2-eltern-gruen",
+      "61-vertragszeugen-integration-gruen"
+    ],
+    "beleggrenze": "Produzentenschutz oder gezielter Verbraucherfall; keine Behauptung, jeder Ort sei separat end-to-end ausgeführt."
+  },
+  {
+    "id": "B01:T03",
+    "audit_befund": "B01",
+    "audit_leser": "T03",
+    "titel": "JUnit skipped wird als bestanden gelesen",
+    "pfad": "tests/test_eichproben.py",
+    "originalzeilen": [
+      274,
+      322
+    ],
+    "original_sha256": "35aeb62294792bc17aa2767206650c66ff33b2cc8a9b99e389011db580bf440f",
+    "original_audit_scope": "kernpfad_eigentest",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "T03",
+      "quellbeleg": "274|def test_norm_aendert_vorhandene_funktion_statt_importfehler(werk):\n275|    diff, rel_test, _ = eichproben._normtest(werk, \"beispiel\", \"lieferant\")\n276|    dateien = aegis.kandidat_dateien(werk, diff)\n277|    assert dateien is not None\n278|    basis = aegis.junit_lauf(werk, \"beispiel\", {rel_test: dateien[rel_test]}, [rel_test])\n279|    kandidat = aegis.junit_lauf(werk, \"beispiel\", dateien, [rel_test])\n280|    print(\"NORM BASIS\", basis, \"NORM KANDIDAT\", kandidat)\n281|    echte_tests = [x for n, x in basis.items() if not n.endswith(\"::*\")]\n282|    assert len(echte_tests) == 1\n283|    assert echte_tests[0][\"bestaetigt\"] is True, \"Norm braucht eine Assertion, keinen Importfehler\"\n284|    assert echte_tests[0][\"meldung\"].startswith((\"AssertionError\", \"assert\"))\n285|    assert not echte_tests[0].get(\"ort\", \"\").startswith(\"beispiel/\")\n286|    assert all(x[\"ok\"] for x in kandidat.values())\n287|    assert all((werk / p).is_file() for p in dateien if not p.startswith(\"tests/\"))\n288|    assert not (werk / rel_test).exists()\n289|\n290|\n291|@pytest.mark.parametrize(\"gegenprobe\", [False, True])\n292|def test_normmechanik_bleibt_getrennt_vom_tatsaechlichen_laufzeitbefund(werk, tmp_path, gegenprobe):\n293|    con = datenbank.verbinden(tmp_path / \"normzeit.db\")\n294|    ref = (\"import sys, time\\nsys.path.insert(0, '/werk')\\nfrom beispiel.lieferant import wert\\n\"\n295|           \"def last_lieferant():\\n\"\n296|           \"    time.sleep(0.04 if wert(137.125) == 'eichprobe_norm_neu' else 0.01)\\n\")\n297|    basis = messgeraet.messen(werk, [\"lieferant\"], \"beispiel\", ref)\n298|    e = eichproben._einzelprobe(con, 1, 1, werk, \"beispiel\", [\"lieferant\"], [], basis, basis, ref, {}, 0,\n299|                               {\"von_bereich\": \"abnehmer\", \"nach_bereich\": \"lieferant\"}, \"norm\", gegenprobe)\n300|    print(\"NORM MIT ECHTEM ZEITBEFUND\", gegenprobe, e[\"grund\"])\n301|    assert e[\"belege\"][\"urteil\"][\"mass\"][\"grenzen_gerissen\"]\n302|    assert e[\"belege\"][\"urteil\"][\"mass\"][\"zuwachs\"] == 0\n303|    assert e[\"bestanden\"] is (not gegenprobe)\n304|    con.close()\n305|\n306|\n307|def test_norm_erreicht_vorhandene_methode_ohne_paarwechsel(werk):\n308|    (werk / \"beispiel/lieferant/__init__.py\").write_text(\"from .rechnung import Rechner\\n\")\n309|    (werk / \"beispiel/lieferant/rechnung.py\").write_text(\n310|        \"class Rechner:\\n\"\n311|        \"    def __init__(self, start=0):\\n\"\n312|        \"        self.start = start\\n\"\n313|        \"    def wert(self, zahl: float):\\n\"\n314|        \"        return self.start + zahl\\n\"\n315|    )\n316|    diff, testpfad, _ = eichproben._normtest(werk, \"beispiel\", \"lieferant\")\n317|    dateien = aegis.kandidat_dateien(werk, diff)\n318|    basis = aegis.junit_lauf(werk, \"beispiel\", {testpfad: dateien[testpfad]}, [testpfad])\n319|    kandidat = aegis.junit_lauf(werk, \"beispiel\", dateien, [testpfad])\n320|    assert len(basis) == len(kandidat) == 1\n321|    assert next(iter(basis.values()))[\"meldung\"].startswith((\"AssertionError\", \"assert\"))\n322|    assert all(x[\"ok\"] for x in kandidat.values())"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Testcase ohne failure/error ->ok; skipped wird nicht berücksichtigt",
+    "minimalbeleg": {
+      "zustand": "<testcase classname=\"tests.test_a\" name=\"test_a\"><skipped/></testcase>",
+      "schluss": "Aegis ok=True bzw Messgerät bestanden+1; tatsächliche Testausführung fehlt.",
+      "grenze": "Aegis hat für fehlende angeforderte Dateien einen negativen *-Zeugen (Z103-105): leeres XML allein ist dort NICHT derselbe Fail-open-Fall."
+    },
+    "reparaturzuordnung": "eingegrenzter_Kern_oder_sein_Eigennachweis",
+    "status": "Kernschutz_integriert_Elterneigensuite_belegt_Schlussreview_offen",
+    "elternbelege": [
+      "53-aegis2-eltern-rot",
+      "54-aegis2-eltern-gruen",
+      "55-skip-eltern-gruen",
+      "58-leser2-eltern-rot",
+      "59-leser2-eltern-gruen",
+      "61-vertragszeugen-integration-gruen"
+    ],
+    "beleggrenze": "Produzentenschutz oder gezielter Verbraucherfall; keine Behauptung, jeder Ort sei separat end-to-end ausgeführt."
+  },
+  {
+    "id": "B02:A01",
+    "audit_befund": "B02",
+    "audit_leser": "A01",
+    "titel": "JUnit-Restartefakt ersetzt inneren/äußeren Laufabschluss",
+    "pfad": "biotop/organe/aegis.py",
+    "originalzeilen": [
+      75,
+      106
+    ],
+    "original_sha256": "7c32604756073f6da9d28b2f45f467fa8ab0e76ad24837ab2eb563f66ea90943",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "A01",
+      "quellbeleg": "75|def junit_lauf(werk: Path, paket: str, dateien: dict[str, str], testdateien: list[str]) -> dict[str, dict]:\n76|    \"\"\"Führt `testdateien` in der Kammer aus. Rückgabe je „datei::name“ → {ok, bestaetigt, meldung}.\"\"\"\n77|    if not testdateien:\n78|        return {}\n79|    skript = (\"import subprocess,sys;subprocess.run([sys.executable,'-m','pytest','-q','-p','no:cacheprovider','--tb=short',\"\n80|              \"'--junitxml=/tmp/j.xml',*sys.argv[1:]]);print('@@J@@'+open('/tmp/j.xml').read()+'@@E@@')\")\n81|    e = kammer.ausfuehren(werk, [\"python\", \"_messgeraet/lauf.py\", *testdateien], zeitlimit_s=120,\n82|                          dateien={**dateien, \"_messgeraet/lauf.py\": skript})\n83|    m = re.search(r\"@@J@@(.*)@@E@@\", e.stdout, re.S)\n84|    out: dict[str, dict] = {}\n85|    if not m:\n86|        for t in testdateien:\n87|            out[f\"{t}::*\"] = {\"ok\": False, \"bestaetigt\": False, \"meldung\": \"Sammelfehler/Zeitlimit: \" + (e.stderr or e.stdout)[-300:]}\n88|        return out\n89|    for tc in ET.fromstring(m.group(1)).iter(\"testcase\"):\n90|        datei = (tc.get(\"classname\") or \"\").replace(\".\", \"/\") + \".py\"\n91|        name = tc.get(\"name\")\n92|        f = tc.find(\"failure\"); er = tc.find(\"error\")\n93|        if f is None and er is None:\n94|            out[f\"{datei}::{name}\"] = {\"ok\": True, \"bestaetigt\": False, \"meldung\": \"\"}\n95|            continue\n96|        kn = f if f is not None else er\n97|        msg = (kn.get(\"message\") or \"\")[:300]\n98|        text = kn.text or \"\"\n99|        orte = re.findall(r\"^([\\w./-]+\\.py):\\d+: in \", text, re.M)\n100|        im_werk = bool(orte) and orte[-1].startswith(paket + \"/\")\n101|        bestaetigt = msg.startswith((\"AssertionError\", \"assert\", \"Failed\", \"TimeoutError\")) or im_werk\n102|        out[f\"{datei}::{name}\"] = {\"ok\": False, \"bestaetigt\": bestaetigt, \"meldung\": msg, \"ort\": orte[-1] if orte else \"\"}\n103|    for t in testdateien:\n104|        if not any(k.startswith(t + \"::\") for k in out):\n105|            out[f\"{t}::*\"] = {\"ok\": False, \"bestaetigt\": False, \"meldung\": \"Sammelfehler (Import) in \" + t}\n106|    return out"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "JUnit-Marker wird ohne Bindung an pytest-Rückgabecode und äußeren Kammerstatus ausgewertet",
+    "minimalbeleg": {
+      "zustand": "Parsebares positives JUnit, danach pytest-Abbruch bzw Kammer-rc!=0/zeitlimitTrue.",
+      "schluss": "Treiber verwirft inneren subprocess.returncode; äußerer Parser liest nur Marker und Testcase.",
+      "grenze": "Kein Marker -> negative Sammelfehler, geschützt. Nicht jede pytest-rc1 ist Infrastrukturabbruch: echte gescheiterte Testfälle sind gültige negative Zeugen."
+    },
+    "reparaturzuordnung": "eingegrenzter_Kern_oder_sein_Eigennachweis",
+    "status": "Kernschutz_integriert_Elterneigensuite_belegt_Schlussreview_offen",
+    "elternbelege": [
+      "53-aegis2-eltern-rot",
+      "54-aegis2-eltern-gruen"
+    ],
+    "beleggrenze": "Produzentenschutz oder gezielter Verbraucherfall; keine Behauptung, jeder Ort sei separat end-to-end ausgeführt."
+  },
+  {
+    "id": "B03:M01",
+    "audit_befund": "B03",
+    "audit_leser": "M01",
+    "titel": "Fehlendes Mess-JUnit/fehlende Pflichtdatei hinterlässt fehlerfreie Nullmenge",
+    "pfad": "biotop/kern/messgeraet.py",
+    "originalzeilen": [
+      79,
+      95
+    ],
+    "original_sha256": "d4bd53f6afe8bae27089d9a8f58b41c81db79fd0e70976a6047517fb0a34a0f0",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "M01",
+      "quellbeleg": "79|rc, out, err = lauf([sys.executable, \"-m\", \"pytest\", \"-q\", \"-p\", \"no:cacheprovider\", \"--tb=short\", \"-rN\", \"tests\", \"--junitxml=/tmp/junit.xml\"], timeout=110)\n80|ergebnis[\"werk\"][\"pytest_rc\"] = rc\n81|ergebnis[\"werk\"][\"pytest_tail\"] = out[-3000:]\n82|import xml.etree.ElementTree as ET\n83|je_datei = {}\n84|fehler_liste = []\n85|if os.path.exists(\"/tmp/junit.xml\"):\n86|    for tc in ET.parse(\"/tmp/junit.xml\").getroot().iter(\"testcase\"):\n87|        datei = (tc.get(\"classname\") or \"\").split(\".\")[-1] + \".py\"\n88|        if datei.startswith(\"tests.\"): datei = datei[6:]\n89|        ok = tc.find(\"failure\") is None and tc.find(\"error\") is None\n90|        b = zuordnung(datei)\n91|        je_datei.setdefault(b, [0, 0])\n92|        je_datei[b][0 if ok else 1] += 1\n93|        if not ok:\n94|            fehler_liste.append(f\"{datei}::{tc.get('name')}\")\n95|ergebnis[\"werk\"][\"tests_fehlgeschlagen_liste\"] = fehler_liste[:100]"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Fehlende Ausführung produziert leere Fehlermenge und Bereichs-Default0; Verbraucher lesen Abwesenheit als Bestehen",
+    "minimalbeleg": {
+      "zustand": "JUnitdatei fehlt oder enthält keine Testcases bzw Pflichtdatei ist leer, während andere Testdatei ausgeführt ist.",
+      "schluss": "MESSSKRIPT hält fehler_liste=[]; je_datei.get(b,[0,0]); Tests_ins_werk nimmt Dateien auf, wenn ihr Dateiname nicht in Fehlerliste vorkommt.",
+      "grenze": "Eine nachgewiesen vollständig ausgeführte fehlerfreie Population darf [] als Fehlermenge haben. Global >0 Testcases beweist NICHT jede Pflichtdatei. Aegis-JUnit selbst hat Import-Sentinel."
+    },
+    "reparaturzuordnung": "eingegrenzter_Kern_oder_sein_Eigennachweis",
+    "status": "Kernschutz_integriert_Elterneigensuite_belegt_Schlussreview_offen",
+    "elternbelege": [
+      "58-leser2-eltern-rot",
+      "59-leser2-eltern-gruen"
+    ],
+    "beleggrenze": "Produzentenschutz oder gezielter Verbraucherfall; keine Behauptung, jeder Ort sei separat end-to-end ausgeführt."
+  },
+  {
+    "id": "B03:M05",
+    "audit_befund": "B03",
+    "audit_leser": "M05",
+    "titel": "Fehlendes Mess-JUnit/fehlende Pflichtdatei hinterlässt fehlerfreie Nullmenge",
+    "pfad": "biotop/kern/messgeraet.py",
+    "originalzeilen": [
+      203,
+      216
+    ],
+    "original_sha256": "d4bd53f6afe8bae27089d9a8f58b41c81db79fd0e70976a6047517fb0a34a0f0",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "M05",
+      "quellbeleg": "203|    e = kammer.ausfuehren(\n204|        werk, [\"python\", \"_messgeraet/messen.py\", json.dumps(bereiche), paket,\n205|               \"_messgeraet/referenzlast.py\" if referenzlast else \"\"],\n206|        zeitlimit_s=zeitlimit_s, dateien=extra,\n207|    )\n208|    m = re.search(r\"@@MESSUNG@@(.*)@@ENDE@@\", e.stdout, re.S)\n209|    if e.zeitlimit or not m:\n210|        return {\"gueltig\": False, \"grund\": \"Zeitlimit\" if e.zeitlimit else \"keine Messausgabe\",\n211|                \"rc\": e.rc, \"stdout\": e.stdout[-4000:], \"stderr\": e.stderr[-4000:], \"dauer_s\": e.dauer_s}\n212|    d = json.loads(m.group(1))\n213|    d[\"gueltig\"] = True\n214|    d[\"dauer_s\"] = round(e.dauer_s, 2)\n215|    d[\"kernmass\"] = kernmass(d)\n216|    return d"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Fehlende Ausführung produziert leere Fehlermenge und Bereichs-Default0; Verbraucher lesen Abwesenheit als Bestehen",
+    "minimalbeleg": {
+      "zustand": "JUnitdatei fehlt oder enthält keine Testcases bzw Pflichtdatei ist leer, während andere Testdatei ausgeführt ist.",
+      "schluss": "MESSSKRIPT hält fehler_liste=[]; je_datei.get(b,[0,0]); Tests_ins_werk nimmt Dateien auf, wenn ihr Dateiname nicht in Fehlerliste vorkommt.",
+      "grenze": "Eine nachgewiesen vollständig ausgeführte fehlerfreie Population darf [] als Fehlermenge haben. Global >0 Testcases beweist NICHT jede Pflichtdatei. Aegis-JUnit selbst hat Import-Sentinel."
+    },
+    "reparaturzuordnung": "eingegrenzter_Kern_oder_sein_Eigennachweis",
+    "status": "Kernschutz_integriert_Elterneigensuite_belegt_Schlussreview_offen",
+    "elternbelege": [
+      "58-leser2-eltern-rot",
+      "59-leser2-eltern-gruen"
+    ],
+    "beleggrenze": "Produzentenschutz oder gezielter Verbraucherfall; keine Behauptung, jeder Ort sei separat end-to-end ausgeführt."
+  },
+  {
+    "id": "B03:M07",
+    "audit_befund": "B03",
+    "audit_leser": "M07",
+    "titel": "Fehlendes Mess-JUnit/fehlende Pflichtdatei hinterlässt fehlerfreie Nullmenge",
+    "pfad": "biotop/kern/messgeraet.py",
+    "originalzeilen": [
+      277,
+      297
+    ],
+    "original_sha256": "d4bd53f6afe8bae27089d9a8f58b41c81db79fd0e70976a6047517fb0a34a0f0",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "M07",
+      "quellbeleg": "277|def pareto_f2(basis: dict, kandidat: dict, bereiche: list[str]) -> tuple[list[str], list[str]]:\n278|    \"\"\"Paarweiser Vergleich (beide mit demselben Testbestand gemessen).\n279|    Rückgabe (schlechter, besser) als Texte 'bereich.maß: a → b'.\"\"\"\n280|    schlechter, besser = [], []\n281|    for b in bereiche:\n282|        v0, v1 = basis[\"bereiche\"][b], kandidat[\"bereiche\"][b]\n283|        for k in PARETO_F2:\n284|            if v1[k] > v0[k]:\n285|                schlechter.append(f\"{b}.{k}: {v0[k]} → {v1[k]}\")\n286|            elif v1[k] < v0[k]:\n287|                besser.append(f\"{b}.{k}: {v0[k]} → {v1[k]}\")\n288|    if basis[\"werk\"][\"baut\"] and not kandidat[\"werk\"][\"baut\"]:\n289|        schlechter.append(\"werk.baut: True → False\")\n290|    # JE TEST (Lehre aus Lauf 7): ein Test, der an der Vorgeneration besteht und am Kandidaten fällt, ist eine\n291|    # Regression — auch wenn die Fehlschlags-Summe des Bereichs sinkt. Tests, die an beiden fallen, sind offen, keine Regression.\n292|    fehl_basis = set(basis[\"werk\"].get(\"tests_fehlgeschlagen_liste\") or [])\n293|    fehl_kand = set(kandidat[\"werk\"].get(\"tests_fehlgeschlagen_liste\") or [])\n294|    regress = sorted(fehl_kand - fehl_basis)\n295|    if regress:\n296|        schlechter.append(\"Regression je Test (bestand an der Vorgeneration, fällt am Kandidaten): \" + \", \".join(regress[:6]) + (\" …\" if len(regress) > 6 else \"\"))\n297|    return schlechter, besser"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Fehlende Ausführung produziert leere Fehlermenge und Bereichs-Default0; Verbraucher lesen Abwesenheit als Bestehen",
+    "minimalbeleg": {
+      "zustand": "JUnitdatei fehlt oder enthält keine Testcases bzw Pflichtdatei ist leer, während andere Testdatei ausgeführt ist.",
+      "schluss": "MESSSKRIPT hält fehler_liste=[]; je_datei.get(b,[0,0]); Tests_ins_werk nimmt Dateien auf, wenn ihr Dateiname nicht in Fehlerliste vorkommt.",
+      "grenze": "Eine nachgewiesen vollständig ausgeführte fehlerfreie Population darf [] als Fehlermenge haben. Global >0 Testcases beweist NICHT jede Pflichtdatei. Aegis-JUnit selbst hat Import-Sentinel."
+    },
+    "reparaturzuordnung": "eingegrenzter_Kern_oder_sein_Eigennachweis",
+    "status": "Kernschutz_integriert_Elterneigensuite_belegt_Schlussreview_offen",
+    "elternbelege": [
+      "58-leser2-eltern-rot",
+      "59-leser2-eltern-gruen"
+    ],
+    "beleggrenze": "Produzentenschutz oder gezielter Verbraucherfall; keine Behauptung, jeder Ort sei separat end-to-end ausgeführt."
+  },
+  {
+    "id": "B03:A06",
+    "audit_befund": "B03",
+    "audit_leser": "A06",
+    "titel": "Fehlendes Mess-JUnit/fehlende Pflichtdatei hinterlässt fehlerfreie Nullmenge",
+    "pfad": "biotop/organe/aegis.py",
+    "originalzeilen": [
+      712,
+      725
+    ],
+    "original_sha256": "7c32604756073f6da9d28b2f45f467fa8ab0e76ad24837ab2eb563f66ea90943",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "A06",
+      "quellbeleg": "712|    # Ins Werk kommt nur, was der Kandidat BESTEHT (3.10: der Test beweist, dass der Fehler das Werk nicht\n713|    # mehr trifft). Tests, die auch am Kandidaten fehlschlagen, bleiben im Immunsystem ('offen') und werden\n714|    # späteren Kandidaten des Bereichs paarweise vorgelegt — sie kommen erst mit ihrer Behebung ins Werk.\n715|    # (Lehre aus Lauf 6: sonst landen Fehler verworfener Kandidaten und unbelegte Modell-„Verträge\" als rote Tests im Werk.)\n716|    fehl_dateien = {f.split(\"::\")[0] for f in mess[\"werk\"][\"tests_fehlgeschlagen_liste\"]}\n717|    tests_ins_werk = {p: c for p, c in testbestand.items() if p.split(\"/\")[-1] not in fehl_dateien}\n718|    urteil[\"tests_offen\"] = sorted(p for p in testbestand if p not in tests_ins_werk)\n719|    for p in tests_ins_werk:\n720|        if \"_immun_\" in p and p not in bk:\n721|            urteil[\"immun_bestanden\"].append(p.split(\"_immun_\")[1][:-3])\n722|    dateien_final = {**code, **tests_ins_werk, **{p: c for p, c in vertrag_dateien_kandidat.items() if p.split(\"/\")[-1] not in fehl_dateien}}\n723|    if not u[\"ok\"]:\n724|        return fertig(\"abgelehnt\", u[\"grund\"], mess, dateien_final, basis_paar)\n725|    return fertig(\"ueberlebt\", u[\"grund\"], mess, dateien_final, basis_paar)"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Fehlende Ausführung produziert leere Fehlermenge und Bereichs-Default0; Verbraucher lesen Abwesenheit als Bestehen",
+    "minimalbeleg": {
+      "zustand": "JUnitdatei fehlt oder enthält keine Testcases bzw Pflichtdatei ist leer, während andere Testdatei ausgeführt ist.",
+      "schluss": "MESSSKRIPT hält fehler_liste=[]; je_datei.get(b,[0,0]); Tests_ins_werk nimmt Dateien auf, wenn ihr Dateiname nicht in Fehlerliste vorkommt.",
+      "grenze": "Eine nachgewiesen vollständig ausgeführte fehlerfreie Population darf [] als Fehlermenge haben. Global >0 Testcases beweist NICHT jede Pflichtdatei. Aegis-JUnit selbst hat Import-Sentinel."
+    },
+    "reparaturzuordnung": "eingegrenzter_Kern_oder_sein_Eigennachweis",
+    "status": "Kernschutz_integriert_Elterneigensuite_belegt_Schlussreview_offen",
+    "elternbelege": [
+      "58-leser2-eltern-rot",
+      "59-leser2-eltern-gruen"
+    ],
+    "beleggrenze": "Produzentenschutz oder gezielter Verbraucherfall; keine Behauptung, jeder Ort sei separat end-to-end ausgeführt."
+  },
+  {
+    "id": "B03:VT01",
+    "audit_befund": "B03",
+    "audit_leser": "VT01",
+    "titel": "Fehlendes Mess-JUnit/fehlende Pflichtdatei hinterlässt fehlerfreie Nullmenge",
+    "pfad": "biotop/organe/vertraege.py",
+    "originalzeilen": [
+      82,
+      84
+    ],
+    "original_sha256": "111638f84ade09cc97132e62762b7713f2a97c8a86dd11b6410e399f56fa1e1f",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "VT01",
+      "quellbeleg": "82|def verletzt(fehl_basis: set[str], fehl_kand: set[str]) -> list[str]:\n83|    \"\"\"Vertragstests (Datei unter tests/vertraege), die an der Vorgeneration bestanden und am Kandidaten fallen.\"\"\"\n84|    return sorted(f for f in (fehl_kand - fehl_basis) if f.startswith(\"test_vertrag_\"))"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Fehlende Ausführung produziert leere Fehlermenge und Bereichs-Default0; Verbraucher lesen Abwesenheit als Bestehen",
+    "minimalbeleg": {
+      "zustand": "JUnitdatei fehlt oder enthält keine Testcases bzw Pflichtdatei ist leer, während andere Testdatei ausgeführt ist.",
+      "schluss": "MESSSKRIPT hält fehler_liste=[]; je_datei.get(b,[0,0]); Tests_ins_werk nimmt Dateien auf, wenn ihr Dateiname nicht in Fehlerliste vorkommt.",
+      "grenze": "Eine nachgewiesen vollständig ausgeführte fehlerfreie Population darf [] als Fehlermenge haben. Global >0 Testcases beweist NICHT jede Pflichtdatei. Aegis-JUnit selbst hat Import-Sentinel."
+    },
+    "reparaturzuordnung": "eingegrenzter_Kern_oder_sein_Eigennachweis",
+    "status": "Kernschutz_integriert_Elterneigensuite_belegt_Schlussreview_offen",
+    "elternbelege": [
+      "58-leser2-eltern-rot",
+      "59-leser2-eltern-gruen"
+    ],
+    "beleggrenze": "Produzentenschutz oder gezielter Verbraucherfall; keine Behauptung, jeder Ort sei separat end-to-end ausgeführt."
+  },
+  {
+    "id": "B03:M11",
+    "audit_befund": "B03",
+    "audit_leser": "M11",
+    "titel": "Fehlendes Mess-JUnit/fehlende Pflichtdatei hinterlässt fehlerfreie Nullmenge",
+    "pfad": "biotop/kern/messgeraet.py",
+    "originalzeilen": [
+      219,
+      234
+    ],
+    "original_sha256": "d4bd53f6afe8bae27089d9a8f58b41c81db79fd0e70976a6047517fb0a34a0f0",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "M11",
+      "quellbeleg": "219|def kernmass(m: dict) -> int:\n220|    k = 0\n221|    for b in m[\"bereiche\"].values():\n222|        k += b[\"tests_bestanden\"] - b[\"tests_fehlgeschlagen\"] - 3 * b[\"sicherheit_punkte\"] - b[\"tote_funktionen\"]\n223|    return k\n224|\n225|\n226|def bereich_masse(m: dict, bereich: str) -> dict:\n227|    b = m[\"bereiche\"][bereich]\n228|    return {k: b.get(k) for k in (\"tests_bestanden\", \"tests_fehlgeschlagen\", \"sicherheit_punkte\",\n229|                                  \"tote_funktionen\", \"laufzeit_ms\", \"groesste_funktion\")}\n230|\n231|\n232|def werk_masse(m: dict) -> dict:\n233|    return {\"zyklen\": m[\"werk\"][\"zyklen\"], \"bauzeit_ms\": m[\"werk\"][\"bauzeit_ms\"], \"kernmass\": m[\"kernmass\"]}\n234|"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Fehlende Ausführung produziert leere Fehlermenge und Bereichs-Default0; Verbraucher lesen Abwesenheit als Bestehen",
+    "minimalbeleg": {
+      "zustand": "JUnitdatei fehlt oder enthält keine Testcases bzw Pflichtdatei ist leer, während andere Testdatei ausgeführt ist.",
+      "schluss": "MESSSKRIPT hält fehler_liste=[]; je_datei.get(b,[0,0]); Tests_ins_werk nimmt Dateien auf, wenn ihr Dateiname nicht in Fehlerliste vorkommt.",
+      "grenze": "Eine nachgewiesen vollständig ausgeführte fehlerfreie Population darf [] als Fehlermenge haben. Global >0 Testcases beweist NICHT jede Pflichtdatei. Aegis-JUnit selbst hat Import-Sentinel."
+    },
+    "reparaturzuordnung": "eingegrenzter_Kern_oder_sein_Eigennachweis",
+    "status": "Kernschutz_integriert_Elterneigensuite_belegt_Schlussreview_offen",
+    "elternbelege": [
+      "58-leser2-eltern-rot",
+      "59-leser2-eltern-gruen"
+    ],
+    "beleggrenze": "Produzentenschutz oder gezielter Verbraucherfall; keine Behauptung, jeder Ort sei separat end-to-end ausgeführt."
+  },
+  {
+    "id": "B03:M12",
+    "audit_befund": "B03",
+    "audit_leser": "M12",
+    "titel": "Fehlendes Mess-JUnit/fehlende Pflichtdatei hinterlässt fehlerfreie Nullmenge",
+    "pfad": "biotop/kern/messgeraet.py",
+    "originalzeilen": [
+      265,
+      274
+    ],
+    "original_sha256": "d4bd53f6afe8bae27089d9a8f58b41c81db79fd0e70976a6047517fb0a34a0f0",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "M12",
+      "quellbeleg": "265|def kernmass_f2_bereich(b: dict) -> int:\n266|    return -b[\"tests_fehlgeschlagen\"] - b[\"sicherheit_punkte\"] - b[\"tote_funktionen\"]\n267|\n268|\n269|def kernmass_f2(m: dict) -> int:\n270|    return sum(kernmass_f2_bereich(b) for b in m[\"bereiche\"].values())\n271|\n272|\n273|def kernmass_f1(m: dict) -> int:\n274|    return kernmass(m)"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Fehlende Ausführung produziert leere Fehlermenge und Bereichs-Default0; Verbraucher lesen Abwesenheit als Bestehen",
+    "minimalbeleg": {
+      "zustand": "JUnitdatei fehlt oder enthält keine Testcases bzw Pflichtdatei ist leer, während andere Testdatei ausgeführt ist.",
+      "schluss": "MESSSKRIPT hält fehler_liste=[]; je_datei.get(b,[0,0]); Tests_ins_werk nimmt Dateien auf, wenn ihr Dateiname nicht in Fehlerliste vorkommt.",
+      "grenze": "Eine nachgewiesen vollständig ausgeführte fehlerfreie Population darf [] als Fehlermenge haben. Global >0 Testcases beweist NICHT jede Pflichtdatei. Aegis-JUnit selbst hat Import-Sentinel."
+    },
+    "reparaturzuordnung": "eingegrenzter_Kern_oder_sein_Eigennachweis",
+    "status": "Kernschutz_integriert_Elterneigensuite_belegt_Schlussreview_offen",
+    "elternbelege": [
+      "58-leser2-eltern-rot",
+      "59-leser2-eltern-gruen"
+    ],
+    "beleggrenze": "Produzentenschutz oder gezielter Verbraucherfall; keine Behauptung, jeder Ort sei separat end-to-end ausgeführt."
+  },
+  {
+    "id": "B03:M15",
+    "audit_befund": "B03",
+    "audit_leser": "M15",
+    "titel": "Fehlendes Mess-JUnit/fehlende Pflichtdatei hinterlässt fehlerfreie Nullmenge",
+    "pfad": "biotop/kern/messgeraet.py",
+    "originalzeilen": [
+      129,
+      140
+    ],
+    "original_sha256": "d4bd53f6afe8bae27089d9a8f58b41c81db79fd0e70976a6047517fb0a34a0f0",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "M15",
+      "quellbeleg": "129|for b in bereiche:\n130|    pfad = os.path.join(paket, b)\n131|    sp, befunde, sfehler = bandit(pfad)\n132|    tf, tote = vulture(pfad)\n133|    gf, gfname = groesste_funktion(pfad)\n134|    ok, schlecht = je_datei.get(b, [0, 0])\n135|    ergebnis[\"bereiche\"][b] = {\n136|        \"tests_bestanden\": ok, \"tests_fehlgeschlagen\": schlecht, \"tests_gesamt\": ok + schlecht,\n137|        \"sicherheit_punkte\": sp, \"sicherheit_befunde\": befunde, \"sicherheit_fehler\": sfehler,\n138|        \"tote_funktionen\": tf, \"tote_liste\": tote,\n139|        \"groesste_funktion\": gf, \"groesste_funktion_name\": gfname,\n140|    }"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Fehlende Ausführung produziert leere Fehlermenge und Bereichs-Default0; Verbraucher lesen Abwesenheit als Bestehen",
+    "minimalbeleg": {
+      "zustand": "JUnitdatei fehlt oder enthält keine Testcases bzw Pflichtdatei ist leer, während andere Testdatei ausgeführt ist.",
+      "schluss": "MESSSKRIPT hält fehler_liste=[]; je_datei.get(b,[0,0]); Tests_ins_werk nimmt Dateien auf, wenn ihr Dateiname nicht in Fehlerliste vorkommt.",
+      "grenze": "Eine nachgewiesen vollständig ausgeführte fehlerfreie Population darf [] als Fehlermenge haben. Global >0 Testcases beweist NICHT jede Pflichtdatei. Aegis-JUnit selbst hat Import-Sentinel."
+    },
+    "reparaturzuordnung": "eingegrenzter_Kern_oder_sein_Eigennachweis",
+    "status": "Kernschutz_integriert_Elterneigensuite_belegt_Schlussreview_offen",
+    "elternbelege": [
+      "58-leser2-eltern-rot",
+      "59-leser2-eltern-gruen"
+    ],
+    "beleggrenze": "Produzentenschutz oder gezielter Verbraucherfall; keine Behauptung, jeder Ort sei separat end-to-end ausgeführt."
+  },
+  {
+    "id": "B04:M02",
+    "audit_befund": "B04",
+    "audit_leser": "M02",
+    "titel": "Scannerfehler wird zum besten numerischen Befund",
+    "pfad": "biotop/kern/messgeraet.py",
+    "originalzeilen": [
+      98,
+      111
+    ],
+    "original_sha256": "d4bd53f6afe8bae27089d9a8f58b41c81db79fd0e70976a6047517fb0a34a0f0",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "M02",
+      "quellbeleg": "98|def bandit(pfad):\n99|    rc, out, err = lauf([sys.executable, \"-m\", \"bandit\", \"-q\", \"-r\", pfad, \"-f\", \"json\"])\n100|    try:\n101|        d = json.loads(out)\n102|    except Exception:\n103|        return 0, [], out[-500:] + err[-500:]\n104|    gew = {\"HIGH\": 10, \"MEDIUM\": 3, \"LOW\": 1}\n105|    befunde = [{\"test\": r[\"test_id\"], \"schwere\": r[\"issue_severity\"], \"datei\": r[\"filename\"], \"zeile\": r[\"line_number\"], \"text\": r[\"issue_text\"][:160]} for r in d.get(\"results\", [])]\n106|    return sum(gew.get(b[\"schwere\"], 0) for b in befunde), befunde, \"\"\n107|\n108|def vulture(pfad):\n109|    rc, out, err = lauf([sys.executable, \"-m\", \"vulture\", pfad, \"tests\", \"--min-confidence\", \"60\"])\n110|    zeilen = [z for z in out.splitlines() if pfad in z and (\"function\" in z or \"method\" in z or \"class\" in z)]\n111|    return len(zeilen), zeilen[:50]"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Bandit-Parsefehler/fehlende results und Vulture-Prozessfehler werden zu0 bzw[]",
+    "minimalbeleg": {
+      "zustand": "Scanner beendet sich fehlerhaft mit leerer/nichtparsebarer Ausgabe.",
+      "schluss": "bandit except ->(0,[],Fehlertext); vulture liest nur passende stdout-Zeilen. Fehler bleibt nicht maßsperrend, Score0 gelangt zu F2/Pareto.",
+      "grenze": "Erfolgreich ausgeführter Scanner mit results=[] ist legitim. Kein Urteil über Sicherheits-/Ethikmodellantworten."
+    },
+    "reparaturzuordnung": "eingegrenzter_Kern_oder_sein_Eigennachweis",
+    "status": "Kernschutz_integriert_Elterneigensuite_belegt_Schlussreview_offen",
+    "elternbelege": [
+      "58-leser2-eltern-rot",
+      "59-leser2-eltern-gruen"
+    ],
+    "beleggrenze": "Produzentenschutz oder gezielter Verbraucherfall; keine Behauptung, jeder Ort sei separat end-to-end ausgeführt."
+  },
+  {
+    "id": "B04:M04",
+    "audit_befund": "B04",
+    "audit_leser": "M04",
+    "titel": "Scannerfehler wird zum besten numerischen Befund",
+    "pfad": "biotop/kern/messgeraet.py",
+    "originalzeilen": [
+      142,
+      166
+    ],
+    "original_sha256": "d4bd53f6afe8bae27089d9a8f58b41c81db79fd0e70976a6047517fb0a34a0f0",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "M04",
+      "quellbeleg": "142|# --- Referenzlast ---\n143|if ref_pfad and os.path.exists(ref_pfad):\n144|    ns = {}\n145|    exec(open(ref_pfad).read(), ns)\n146|    for b in bereiche:\n147|        fn = ns.get(\"last_\" + b)\n148|        if fn is None:\n149|            ergebnis[\"bereiche\"][b][\"laufzeit_ms\"] = None\n150|            continue\n151|        # Fassung 5 (3.5): Laufzeit ist der MEDIAN aus drei Durchläufen, nie ein Einzelwert und nie das Minimum.\n152|        # Das Minimum belohnt Ausreißer nach unten: es drückt den Bestwert des Laufs künstlich, und spätere\n153|        # Kandidaten reißen dann das Grenzmaß am Messrauschen statt an einer Verschlechterung.\n154|        werte = []\n155|        for _ in range(3):\n156|            try:\n157|                t0 = time.perf_counter(); fn(); d = (time.perf_counter() - t0) * 1000\n158|            except Exception as e:\n159|                werte = []; ergebnis[\"bereiche\"][b][\"laufzeit_fehler\"] = repr(e)[:300]; break\n160|            werte.append(d)\n161|        if werte:\n162|            werte.sort()\n163|            ergebnis[\"bereiche\"][b][\"laufzeit_ms\"] = round(werte[len(werte) // 2], 2)\n164|            ergebnis[\"bereiche\"][b][\"laufzeit_roh\"] = [round(x, 2) for x in werte]\n165|        else:\n166|            ergebnis[\"bereiche\"][b][\"laufzeit_ms\"] = None"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Bandit-Parsefehler/fehlende results und Vulture-Prozessfehler werden zu0 bzw[]",
+    "minimalbeleg": {
+      "zustand": "Scanner beendet sich fehlerhaft mit leerer/nichtparsebarer Ausgabe.",
+      "schluss": "bandit except ->(0,[],Fehlertext); vulture liest nur passende stdout-Zeilen. Fehler bleibt nicht maßsperrend, Score0 gelangt zu F2/Pareto.",
+      "grenze": "Erfolgreich ausgeführter Scanner mit results=[] ist legitim. Kein Urteil über Sicherheits-/Ethikmodellantworten."
+    },
+    "reparaturzuordnung": "eingegrenzter_Kern_oder_sein_Eigennachweis",
+    "status": "Kernschutz_integriert_Elterneigensuite_belegt_Schlussreview_offen",
+    "elternbelege": [
+      "58-leser2-eltern-rot",
+      "59-leser2-eltern-gruen"
+    ],
+    "beleggrenze": "Produzentenschutz oder gezielter Verbraucherfall; keine Behauptung, jeder Ort sei separat end-to-end ausgeführt."
+  },
+  {
+    "id": "B04:M07",
+    "audit_befund": "B04",
+    "audit_leser": "M07",
+    "titel": "Scannerfehler wird zum besten numerischen Befund",
+    "pfad": "biotop/kern/messgeraet.py",
+    "originalzeilen": [
+      277,
+      297
+    ],
+    "original_sha256": "d4bd53f6afe8bae27089d9a8f58b41c81db79fd0e70976a6047517fb0a34a0f0",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "M07",
+      "quellbeleg": "277|def pareto_f2(basis: dict, kandidat: dict, bereiche: list[str]) -> tuple[list[str], list[str]]:\n278|    \"\"\"Paarweiser Vergleich (beide mit demselben Testbestand gemessen).\n279|    Rückgabe (schlechter, besser) als Texte 'bereich.maß: a → b'.\"\"\"\n280|    schlechter, besser = [], []\n281|    for b in bereiche:\n282|        v0, v1 = basis[\"bereiche\"][b], kandidat[\"bereiche\"][b]\n283|        for k in PARETO_F2:\n284|            if v1[k] > v0[k]:\n285|                schlechter.append(f\"{b}.{k}: {v0[k]} → {v1[k]}\")\n286|            elif v1[k] < v0[k]:\n287|                besser.append(f\"{b}.{k}: {v0[k]} → {v1[k]}\")\n288|    if basis[\"werk\"][\"baut\"] and not kandidat[\"werk\"][\"baut\"]:\n289|        schlechter.append(\"werk.baut: True → False\")\n290|    # JE TEST (Lehre aus Lauf 7): ein Test, der an der Vorgeneration besteht und am Kandidaten fällt, ist eine\n291|    # Regression — auch wenn die Fehlschlags-Summe des Bereichs sinkt. Tests, die an beiden fallen, sind offen, keine Regression.\n292|    fehl_basis = set(basis[\"werk\"].get(\"tests_fehlgeschlagen_liste\") or [])\n293|    fehl_kand = set(kandidat[\"werk\"].get(\"tests_fehlgeschlagen_liste\") or [])\n294|    regress = sorted(fehl_kand - fehl_basis)\n295|    if regress:\n296|        schlechter.append(\"Regression je Test (bestand an der Vorgeneration, fällt am Kandidaten): \" + \", \".join(regress[:6]) + (\" …\" if len(regress) > 6 else \"\"))\n297|    return schlechter, besser"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Bandit-Parsefehler/fehlende results und Vulture-Prozessfehler werden zu0 bzw[]",
+    "minimalbeleg": {
+      "zustand": "Scanner beendet sich fehlerhaft mit leerer/nichtparsebarer Ausgabe.",
+      "schluss": "bandit except ->(0,[],Fehlertext); vulture liest nur passende stdout-Zeilen. Fehler bleibt nicht maßsperrend, Score0 gelangt zu F2/Pareto.",
+      "grenze": "Erfolgreich ausgeführter Scanner mit results=[] ist legitim. Kein Urteil über Sicherheits-/Ethikmodellantworten."
+    },
+    "reparaturzuordnung": "eingegrenzter_Kern_oder_sein_Eigennachweis",
+    "status": "Kernschutz_integriert_Elterneigensuite_belegt_Schlussreview_offen",
+    "elternbelege": [
+      "58-leser2-eltern-rot",
+      "59-leser2-eltern-gruen"
+    ],
+    "beleggrenze": "Produzentenschutz oder gezielter Verbraucherfall; keine Behauptung, jeder Ort sei separat end-to-end ausgeführt."
+  },
+  {
+    "id": "B04:A08",
+    "audit_befund": "B04",
+    "audit_leser": "A08",
+    "titel": "Scannerfehler wird zum besten numerischen Befund",
+    "pfad": "biotop/organe/aegis.py",
+    "originalzeilen": [
+      161,
+      175
+    ],
+    "original_sha256": "7c32604756073f6da9d28b2f45f467fa8ab0e76ad24837ab2eb563f66ea90943",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "A08",
+      "quellbeleg": "161|def befundklassen_tests(con, werk_id: int, bereich: str, basis: dict) -> dict[str, str]:\n162|    \"\"\"Befundklassen-Immuntests für alle statischen Befunde des Bereichs in der Vorgeneration,\n163|    sofern die Verfassung einen Einstieg für die Klasse nennt.\"\"\"\n164|    verf = verfassung.lesen(con, werk_id)\n165|    einstiege = ((verf or {}).get(\"regeln\") or {}).get(\"einstiege\", {})\n166|    out = {}\n167|    for b in basis[\"bereiche\"][bereich].get(\"sicherheit_befunde\", []):\n168|        kl = b[\"test\"]\n169|        e = einstiege.get(kl, {}).get(bereich) or einstiege.get(kl, {}).get(\"*\")\n170|        if not e:\n171|            continue\n172|        code = befundklassen.immuntest_code(kl, e[\"import\"], e[\"aufruf\"], e[\"fehler_import\"], e[\"fehler\"])\n173|        if code:\n174|            out[f\"tests/test_{bereich}_immun_befundklasse_{kl}.py\"] = code\n175|    return out"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Bandit-Parsefehler/fehlende results und Vulture-Prozessfehler werden zu0 bzw[]",
+    "minimalbeleg": {
+      "zustand": "Scanner beendet sich fehlerhaft mit leerer/nichtparsebarer Ausgabe.",
+      "schluss": "bandit except ->(0,[],Fehlertext); vulture liest nur passende stdout-Zeilen. Fehler bleibt nicht maßsperrend, Score0 gelangt zu F2/Pareto.",
+      "grenze": "Erfolgreich ausgeführter Scanner mit results=[] ist legitim. Kein Urteil über Sicherheits-/Ethikmodellantworten."
+    },
+    "reparaturzuordnung": "eingegrenzter_Kern_oder_sein_Eigennachweis",
+    "status": "Kernschutz_integriert_Elterneigensuite_belegt_Schlussreview_offen",
+    "elternbelege": [
+      "58-leser2-eltern-rot",
+      "59-leser2-eltern-gruen"
+    ],
+    "beleggrenze": "Produzentenschutz oder gezielter Verbraucherfall; keine Behauptung, jeder Ort sei separat end-to-end ausgeführt."
+  },
+  {
+    "id": "B05:M05",
+    "audit_befund": "B05",
+    "audit_leser": "M05",
+    "titel": "Positive Text-/Messmarker werden trotz fehlendem Laufabschluss verwertet",
+    "pfad": "biotop/kern/messgeraet.py",
+    "originalzeilen": [
+      203,
+      216
+    ],
+    "original_sha256": "d4bd53f6afe8bae27089d9a8f58b41c81db79fd0e70976a6047517fb0a34a0f0",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "M05",
+      "quellbeleg": "203|    e = kammer.ausfuehren(\n204|        werk, [\"python\", \"_messgeraet/messen.py\", json.dumps(bereiche), paket,\n205|               \"_messgeraet/referenzlast.py\" if referenzlast else \"\"],\n206|        zeitlimit_s=zeitlimit_s, dateien=extra,\n207|    )\n208|    m = re.search(r\"@@MESSUNG@@(.*)@@ENDE@@\", e.stdout, re.S)\n209|    if e.zeitlimit or not m:\n210|        return {\"gueltig\": False, \"grund\": \"Zeitlimit\" if e.zeitlimit else \"keine Messausgabe\",\n211|                \"rc\": e.rc, \"stdout\": e.stdout[-4000:], \"stderr\": e.stderr[-4000:], \"dauer_s\": e.dauer_s}\n212|    d = json.loads(m.group(1))\n213|    d[\"gueltig\"] = True\n214|    d[\"dauer_s\"] = round(e.dauer_s, 2)\n215|    d[\"kernmass\"] = kernmass(d)\n216|    return d"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Ausgabe enthält erwartete positive Tokens, während rc/zeitlimit nicht hinreichend an die Wertung gebunden sind",
+    "minimalbeleg": {
+      "zustand": "Reststdout mit \"1 passed\" und rc7/124; oder vollständiger @@MESSUNG@@-Marker und rc7.",
+      "schluss": "Fundleser besteht=True, Aufnahme zählt positive Tests trotz Abbruch (Status ist Aufnahme, NICHT behauptet alles grün); messen setzt gueltig=True sofern kein explizites Zeitlimit und Marker vorhanden. Tor1-F2 akzeptiert positive Tokens ähnlich.",
+      "grenze": "Messen sperrt explizites zeitlimitTrue und fehlenden Marker; Original Aufnahme sperrt echten Gesamtwert0."
+    },
+    "reparaturzuordnung": "eingegrenzter_Kern_oder_sein_Eigennachweis",
+    "status": "Kernschutz_integriert_Elterneigensuite_belegt_Schlussreview_offen",
+    "elternbelege": [
+      "58-leser2-eltern-rot",
+      "59-leser2-eltern-gruen"
+    ],
+    "beleggrenze": "Produzentenschutz oder gezielter Verbraucherfall; keine Behauptung, jeder Ort sei separat end-to-end ausgeführt."
+  },
+  {
+    "id": "B05:F01",
+    "audit_befund": "B05",
+    "audit_leser": "F01",
+    "titel": "Positive Text-/Messmarker werden trotz fehlendem Laufabschluss verwertet",
+    "pfad": "biotop/organe/fundpruefung.py",
+    "originalzeilen": [
+      34,
+      43
+    ],
+    "original_sha256": "2c37993a81630df89491a5cc3407526b4a84fbfbe2901e3fa0e983f392c0f068",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "F01",
+      "quellbeleg": "34|def _ausfuehren(pfad: Path, name: str, code: str) -> tuple[bool, bool, str]:\n35|    \"\"\"(besteht, absturz_im_werk, Ausgabe) — ein Kammerlauf je Fund.\"\"\"\n36|    datei = f\"tests/test_neubewertung_{name}.py\"\n37|    e = kammer.ausfuehren(pfad, [\"python\", \"-m\", \"pytest\", \"-q\", \"-p\", \"no:cacheprovider\", datei],\n38|                          dateien={datei: code}, zeitlimit_s=90)\n39|    aus = (e.stdout or \"\") + (e.stderr or \"\")\n40|    besteht = \" passed\" in aus and \" failed\" not in aus and \" error\" not in aus.lower()\n41|    # Absturz im Werk = eine Ausnahme, die NICHT aus einer Zusicherung des Tests stammt.\n42|    absturz = (not besteht) and (\"Error\" in aus or \"Exception\" in aus) and \"AssertionError\" not in aus\n43|    return besteht, absturz, aus[-400:]"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Ausgabe enthält erwartete positive Tokens, während rc/zeitlimit nicht hinreichend an die Wertung gebunden sind",
+    "minimalbeleg": {
+      "zustand": "Reststdout mit \"1 passed\" und rc7/124; oder vollständiger @@MESSUNG@@-Marker und rc7.",
+      "schluss": "Fundleser besteht=True, Aufnahme zählt positive Tests trotz Abbruch (Status ist Aufnahme, NICHT behauptet alles grün); messen setzt gueltig=True sofern kein explizites Zeitlimit und Marker vorhanden. Tor1-F2 akzeptiert positive Tokens ähnlich.",
+      "grenze": "Messen sperrt explizites zeitlimitTrue und fehlenden Marker; Original Aufnahme sperrt echten Gesamtwert0."
+    },
+    "reparaturzuordnung": "eingegrenzter_Kern_oder_sein_Eigennachweis",
+    "status": "Kernschutz_integriert_Elterneigensuite_belegt_Schlussreview_offen",
+    "elternbelege": [
+      "58-leser2-eltern-rot",
+      "59-leser2-eltern-gruen"
+    ],
+    "beleggrenze": "Produzentenschutz oder gezielter Verbraucherfall; keine Behauptung, jeder Ort sei separat end-to-end ausgeführt."
+  },
+  {
+    "id": "B05:F02",
+    "audit_befund": "B05",
+    "audit_leser": "F02",
+    "titel": "Positive Text-/Messmarker werden trotz fehlendem Laufabschluss verwertet",
+    "pfad": "biotop/organe/fundpruefung.py",
+    "originalzeilen": [
+      55,
+      77
+    ],
+    "original_sha256": "2c37993a81630df89491a5cc3407526b4a84fbfbe2901e3fa0e983f392c0f068",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "F02",
+      "quellbeleg": "55|        namen = _testnamen(f[\"code\"])\n56|        besteht, absturz, ausgabe = _ausfuehren(pfad, f[\"name\"], f[\"code\"])\n57|        kammerlaeufe += 1\n58|        # Verweis mit der Ankläger-Logik prüfen — nicht mit einem zweiten Regex.\n59|        bezug = any(aegis._nennt_vertrag(f[\"code\"], t, verf, con, werk_id, f[\"bereich\"], None) for t in namen)\n60|        # Einstufung (F5 3.10 in Verbindung mit 3.7). Grundsatz (Fassung 6, Chat-Claude):\n61|        #   **Ein fallender Test beweist eine Abweichung, nie ihre Richtung — welche Seite recht hat,\n62|        #   entscheidet nur ein Absturz oder ein Vertrag.**\n63|        #   besteht am Ausgang, kein Absturz, kein Verweis  → Norm (schreibt das jetzige Verhalten fest)\n64|        #   fällt am Ausgang MIT Absturz oder MIT Verweis    → Fund (beweist einen echten Fehler)\n65|        #   fällt am Ausgang OHNE beides                     → bleibt, was es war: Fallen allein macht keinen Fund,\n66|        #       sonst würde jeder Normtest, den eine spätere Generation ins Fallen bringt, stillschweigend zum Fund\n67|        #       und könnte per Pareto je Test Behebungen töten (gemessen: 9 von 20 Normtests am Werk 18).\n68|        #       Das ist Lauf 16 von der anderen Seite: dort machte Fallen am KANDIDATEN aus einem Normtest einen Fund.\n69|        if besteht and not absturz and not bezug:\n70|            neu = \"offen_norm\"\n71|        elif not besteht and (absturz or bezug):\n72|            neu = \"offen\"\n73|        else:\n74|            neu = \"offen_norm\" if f[\"status\"] == \"offen_norm\" else \"offen\"\n75|        ergebnisse.append({\"id\": f[\"id\"], \"name\": f[\"name\"], \"bereich\": f[\"bereich\"], \"alt\": f[\"status\"], \"neu\": neu,\n76|                           \"besteht_am_ausgang\": besteht, \"absturz_im_werk\": absturz, \"vertragsverweis\": bezug,\n77|                           \"geaendert\": neu != f[\"status\"], \"testnamen\": namen})"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Ausgabe enthält erwartete positive Tokens, während rc/zeitlimit nicht hinreichend an die Wertung gebunden sind",
+    "minimalbeleg": {
+      "zustand": "Reststdout mit \"1 passed\" und rc7/124; oder vollständiger @@MESSUNG@@-Marker und rc7.",
+      "schluss": "Fundleser besteht=True, Aufnahme zählt positive Tests trotz Abbruch (Status ist Aufnahme, NICHT behauptet alles grün); messen setzt gueltig=True sofern kein explizites Zeitlimit und Marker vorhanden. Tor1-F2 akzeptiert positive Tokens ähnlich.",
+      "grenze": "Messen sperrt explizites zeitlimitTrue und fehlenden Marker; Original Aufnahme sperrt echten Gesamtwert0."
+    },
+    "reparaturzuordnung": "eingegrenzter_Kern_oder_sein_Eigennachweis",
+    "status": "Kernschutz_integriert_Elterneigensuite_belegt_Schlussreview_offen",
+    "elternbelege": [
+      "58-leser2-eltern-rot",
+      "59-leser2-eltern-gruen"
+    ],
+    "beleggrenze": "Produzentenschutz oder gezielter Verbraucherfall; keine Behauptung, jeder Ort sei separat end-to-end ausgeführt."
+  },
+  {
+    "id": "B05:O01",
+    "audit_befund": "B05",
+    "audit_leser": "O01",
+    "titel": "Positive Text-/Messmarker werden trotz fehlendem Laufabschluss verwertet",
+    "pfad": "biotop/organe/aufnahme.py",
+    "originalzeilen": [
+      133,
+      160
+    ],
+    "original_sha256": "07962eaf683821cc36c2d2177254fc92019219a20f22eb47048a8f556a24a312",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "O01",
+      "quellbeleg": "133|    # Erster Testlauf in der Kammer (nur wenn Tests vorhanden)\n134|    testlauf = {\"bestanden\": 0, \"gesamt\": 0, \"rc\": None, \"ausgabe\": \"\"}\n135|    if zahlen[\"testdateien\"] and sprache == \"Python\":\n136|        e = kammer.ausfuehren(ziel, [\"python\", \"-m\", \"pytest\", \"-q\", \"-p\", \"no:cacheprovider\", \"--tb=line\"], zeitlimit_s=120)\n137|        m = re.search(r\"(\\d+) passed\", e.stdout)\n138|        f = re.search(r\"(\\d+) failed\", e.stdout)\n139|        err = re.search(r\"(\\d+) error\", e.stdout)\n140|        b = int(m.group(1)) if m else 0\n141|        g = b + (int(f.group(1)) if f else 0) + (int(err.group(1)) if err else 0)\n142|        testlauf = {\"bestanden\": b, \"gesamt\": g, \"rc\": e.rc, \"ausgabe\": e.stdout[-1500:], \"zeitlimit\": e.zeitlimit}\n143|    bericht[\"erster_testlauf\"] = testlauf\n144|    baut = None\n145|    if paket and sprache == \"Python\":\n146|        e = kammer.ausfuehren(ziel, [\"python\", \"-c\", f\"import {paket}\"], zeitlimit_s=60)\n147|        baut = e.rc == 0\n148|        bericht[\"bau_ausgabe\"] = (e.stdout + e.stderr)[-800:]\n149|    bericht[\"baut\"] = baut\n150|\n151|    bericht[\"ethik\"] = _ethik(con, lauf_id, ziel, zahlen)\n152|\n153|    status = \"aufgenommen\"\n154|    grund = \"\"\n155|    if bericht[\"ethik\"][\"urteil\"] == \"BEDENKLICH\":\n156|        status, grund = \"abgelehnt\", \"ethische Prüfung: \" + bericht[\"ethik\"][\"begruendung\"]\n157|    elif not zahlen[\"testdateien\"] or testlauf[\"gesamt\"] == 0:\n158|        status, grund = \"messgeraet_fehlt\", \"Messgerät fehlt: keine Tests gefunden (0 Testdateien mit ausführbaren Tests). Vorschlag: mit Generation 0 (Tests erzeugen) beginnen.\"\n159|    elif baut is False:\n160|        status, grund = \"messgeraet_fehlt\", \"Messgerät fehlt: Werk baut nicht.\""
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Ausgabe enthält erwartete positive Tokens, während rc/zeitlimit nicht hinreichend an die Wertung gebunden sind",
+    "minimalbeleg": {
+      "zustand": "Reststdout mit \"1 passed\" und rc7/124; oder vollständiger @@MESSUNG@@-Marker und rc7.",
+      "schluss": "Fundleser besteht=True, Aufnahme zählt positive Tests trotz Abbruch (Status ist Aufnahme, NICHT behauptet alles grün); messen setzt gueltig=True sofern kein explizites Zeitlimit und Marker vorhanden. Tor1-F2 akzeptiert positive Tokens ähnlich.",
+      "grenze": "Messen sperrt explizites zeitlimitTrue und fehlenden Marker; Original Aufnahme sperrt echten Gesamtwert0."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Versiegelte Kerneingrenzung02: Aufnahme/Gen0-Produzenten und leere Herstellerantwort nicht integrieren; kein Durchgriff auf P4-Freeze-Erfolgsbindung.",
+    "verbraucher_alias": [
+      {
+        "id": "AUSSEN-AUFNAHME-TESTLAUF",
+        "datei": "biotop/organe/aufnahme.py",
+        "zeilen": "133-160",
+        "urteil": "bestätigt offen (Quellbefund), Folgeauftrag",
+        "befund": "Summierung von passed/failed/error ignoriert Skips und Prozessinvalidität. Positive Restzählung genügt, obwohl der Testprozess abgebrochen ist.",
+        "gegenroute_erforderlich": "Ausgeführte rote Produkttests dürfen nicht pauschal mit fehlendem Messgerät gleichgesetzt werden.",
+        "grund_offen": "Kein direkter Kernleser belegt; nach Scope-Reduktion weder geändert noch ausgeführt."
+      }
+    ]
+  },
+  {
+    "id": "B05:P11",
+    "audit_befund": "B05",
+    "audit_leser": "P11",
+    "titel": "Positive Text-/Messmarker werden trotz fehlendem Laufabschluss verwertet",
+    "pfad": "pruefung/funde_neubewerten.py",
+    "originalzeilen": [
+      23,
+      43
+    ],
+    "original_sha256": "f440849193d804545cacd537dffff6735c670f6d3b408533ddf89003503489fa",
+    "original_audit_scope": "ausserhalb_kern",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "P11",
+      "quellbeleg": "23|          \"# Ein Fund-Test, der AM WERK BESTEHT, ohne Absturz und ohne expliziten Vertrags-/Verfassungsverweis, ist Norm (0 Punkte, nicht im Testbestand).\"]\n24|aenderungen = []\n25|for z in con.execute(\"SELECT id, name, status, bereich, code FROM immunsystem WHERE werk_id=? AND status='offen' ORDER BY name\", (WERK_ID,)):\n26|    datei = f\"tests/_neubewertung_{z['name']}.py\"\n27|    e = kammer.ausfuehren(pfad, [\"python\", \"-m\", \"pytest\", \"-q\", \"-p\", \"no:cacheprovider\", datei], dateien={datei: z[\"code\"]}, zeitlimit_s=90)\n28|    aus = e.stdout + e.stderr\n29|    besteht = \" passed\" in aus and \" failed\" not in aus\n30|    absturz = any(w in aus for w in (\"Error\", \"Exception\")) and \"AssertionError\" not in aus\n31|    bezug = bool(verweis.search(z[\"code\"]))\n32|    norm = besteht and not absturz and not bezug\n33|    zeilen.append(f\"{z['name']}: besteht am Werk {besteht} | Absturz {absturz} | Vertrags-/Verfassungsverweis {bezug} → {'NORM (offen_norm)' if norm else 'Fund bleibt offen'}\")\n34|    if norm: aenderungen.append((z[\"id\"], z[\"name\"]))\n35|\n36|zeilen.append(f\"ERGEBNIS: {len(aenderungen)} von {con.execute('SELECT COUNT(*) FROM immunsystem WHERE werk_id=? AND status=%r' % 'offen', (WERK_ID,)).fetchone()[0]} offenen Funden sind nach der Regel Norm: \" + \", \".join(n for _, n in aenderungen))\n37|if SCHREIBEN and aenderungen:\n38|    with transaktion(con):\n39|        for i, n in aenderungen:\n40|            con.execute(\"UPDATE immunsystem SET status='offen_norm', ursprung=ursprung || ? WHERE id=?\",\n41|                        (\" | neubewertet nach F4 3.7 (Fassung Philipp 19.09.2026): Test besteht am Werk, kein Absturz, kein Vertrags-/Verfassungsverweis → Norm, kein Fund\", i))\n42|    protokoll.schreiben(con, \"immun.neubewertet\", werk_id=WERK_ID, anzahl=len(aenderungen), namen=[n for _, n in aenderungen],\n43|                        regel=\"F4 3.7 Fassung Philipp 19.09.2026: Ein Test, der das aktuelle Verhalten festschreibt, ohne Absturz und ohne expliziten Vertrags-/Verfassungsverweis, ist Norm, kein Fund.\")"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Ausgabe enthält erwartete positive Tokens, während rc/zeitlimit nicht hinreichend an die Wertung gebunden sind",
+    "minimalbeleg": {
+      "zustand": "Reststdout mit \"1 passed\" und rc7/124; oder vollständiger @@MESSUNG@@-Marker und rc7.",
+      "schluss": "Fundleser besteht=True, Aufnahme zählt positive Tests trotz Abbruch (Status ist Aufnahme, NICHT behauptet alles grün); messen setzt gueltig=True sofern kein explizites Zeitlimit und Marker vorhanden. Tor1-F2 akzeptiert positive Tokens ähnlich.",
+      "grenze": "Messen sperrt explizites zeitlimitTrue und fehlenden Marker; Original Aufnahme sperrt echten Gesamtwert0."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Historischer Parallelprüfer ohne Rückfluss in aktuellen Pflichtvorspann",
+    "verbraucher_alias": [
+      {
+        "id": "AUSSEN-LEGACY-FUND",
+        "datei": "pruefung/funde_neubewerten.py",
+        "zeilen": "26-34",
+        "urteil": "bestätigt offen (Quellbefund), Folgeauftrag",
+        "befund": "passed ohne failed als Bestehen, ohne rc/Zeitlimit/Skip/Vollständigkeit.",
+        "grund_offen": "Legacy ausdrücklich aus Kernlieferung ausgeschlossen. Skript nie gestartet, Datei unverändert."
+      }
+    ]
+  },
+  {
+    "id": "B05:P37",
+    "audit_befund": "B05",
+    "audit_leser": "P37",
+    "titel": "Positive Text-/Messmarker werden trotz fehlendem Laufabschluss verwertet",
+    "pfad": "pruefung/tor1_f2.py",
+    "originalzeilen": [
+      24,
+      71
+    ],
+    "original_sha256": "8a12748e174e8f742857b0be21633934a07fad2e180e609573d29b490e9484dd",
+    "original_audit_scope": "ausserhalb_kern",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "P37",
+      "quellbeleg": "24|m0 = lj(ang[0][\"masse\"]); mN = lj(ang[-1][\"masse\"])\n25|print(f\"Generationen gestartet: {len(gens)-1}, angenommen: {len(ang)-1} {[g['nummer'] for g in ang[1:]]}, abgelehnt: {len(gens)-len(ang)}\")\n26|def hat(pat, datei):\n27|    return subprocess.run([\"grep\", \"-c\", pat, f\"{pfad}/{datei}\"], capture_output=True, text=True).stdout.strip() or \"0\"\n28|# Endwerk in der Kammer: kompletter Testlauf + Befundklassen-Umgehungen\n29|e = kammer.ausfuehren(pfad, [\"python\", \"-m\", \"pytest\", \"-q\", \"-p\", \"no:cacheprovider\", \"--tb=no\"], zeitlimit_s=120)\n30|tail = e.stdout.strip().splitlines()[-1] if e.stdout.strip() else \"\"\n31|print(f\"Endwerk-Testlauf in der Kammer: {tail}\")\n32|regeln = json.load(open(\"/root/biotop/verfassungen/lagerhaus.regeln.json\"))[\"einstiege\"][\"B307\"][\"formeln\"]\n33|bk_code = befundklassen.immuntest_code(\"B307\", regeln[\"import\"], regeln[\"aufruf\"], regeln[\"fehler_import\"], regeln[\"fehler\"])\n34|e2 = kammer.ausfuehren(pfad, [\"python\", \"-m\", \"pytest\", \"-q\", \"-p\", \"no:cacheprovider\", \"--tb=line\", \"tests/_probe_B307.py\"], zeitlimit_s=60, dateien={\"tests/_probe_B307.py\": bk_code})\n35|bk_tail = e2.stdout.strip().splitlines()[-1] if e2.stdout.strip() else \"\"\n36|f0, fN = m0[\"bereiche\"][\"formeln\"], mN[\"bereiche\"][\"formeln\"]\n37|im_werk_bk = (pfad / \"tests\" / \"test_formeln_immun_befundklasse_B307.py\").exists()\n38|eval_im_werk = hat(\"eval(\", \"lagerhaus/formeln/auswertung.py\")\n39|s1 = fN[\"sicherheit_punkte\"] == 0 and im_werk_bk and \"passed\" in bk_tail and \"failed\" not in bk_tail\n40|print(f\"S1 Sicherheitslücke (formeln, eval): bandit-Punkte {f0['sicherheit_punkte']} → {fN['sicherheit_punkte']} (Befunde jetzt: {fN['sicherheit_befunde']}); 'eval(' im Quelltext: {eval_im_werk} Treffer; Befundklassen-Immuntest im Werk: {im_werk_bk}; Umgehungen am Endwerk frisch ausgeführt: {bk_tail} → {'BEHOBEN (verschwunden + Umgehungen abgewiesen)' if s1 else 'NICHT BEHOBEN'}\")\n41|l0, lN = m0[\"bereiche\"][\"lager\"][\"laufzeit_ms\"], mN[\"bereiche\"][\"lager\"][\"laufzeit_ms\"]\n42|s2 = hat(\"self._bestand\", \"lagerhaus/lager/bestand.py\") != \"0\"\n43|print(f\"S2 Leistungsbremse (lager, Bestand aus Journal O(n²)): laufzeit lager {l0} → {lN} ms; Bestandsführung geändert: {s2} → {'BEHOBEN' if s2 and lN < l0*0.5 else 'NICHT BEHOBEN'}\")\n44|s3 = hat(\"self._reserviert\\\\[artikel\\\\] = self.reserviert(artikel) - menge\", \"lagerhaus/lager/bestand.py\") != \"0\"\n45|probe3 = kammer.ausfuehren(pfad, [\"python\", \"-c\", \"from lagerhaus.lager import Lager\\nl=Lager(); l.zugang('A',10); l.reservieren('A',5); l.reservierung_einloesen('A',5); print('reserviert_nach_einloesen=', l.reserviert('A'))\"], zeitlimit_s=30)\n46|print(f\"S3 Vertragsverletzung (Reservierung nach Einlösen): Fix im Code: {s3}; Probe am Endwerk: {probe3.stdout.strip()} → {'BEHOBEN' if 'reserviert_nach_einloesen= 0' in probe3.stdout else 'NICHT BEHOBEN'}\")\n47|t0, tN = m0[\"bereiche\"][\"preise\"][\"tote_funktionen\"], mN[\"bereiche\"][\"preise\"][\"tote_funktionen\"]\n48|print(f\"S4 Toter Code (preise): tote_funktionen {t0} → {tN}; '_alte_rabattlogik' im Werk: {hat('_alte_rabattlogik', 'lagerhaus/preise/rabatt.py')} Treffer → {'BEHOBEN' if tN == 0 else 'NICHT BEHOBEN'}\")\n49|probe5 = kammer.ausfuehren(pfad, [\"python\", \"-c\", \"from lagerhaus.preise import Artikel, Katalog, Staffel\\nk=Katalog(); k.aufnehmen(Artikel('A','a',1.0,[Staffel(10,0.5)])); print('preis_bei_10=', k.preis_fuer('A',10))\"], zeitlimit_s=30)\n50|print(f\"S5 Randbedingung (Staffel inklusiv): '>=' im Code: {hat('menge >= staffel.ab_menge', 'lagerhaus/preise/katalog.py')}; Probe am Endwerk: {probe5.stdout.strip()} (Soll 5.0) → {'BEHOBEN' if 'preis_bei_10= 5.0' in probe5.stdout else 'NICHT BEHOBEN'}\")\n51|k0, kN = messgeraet.kernmass_f2(m0), messgeraet.kernmass_f2(mN)\n52|print(f\"Kernmaß F2 (je Generation mit eigenem Testbestand): Gen 0 = {k0}, Gen {ang[-1]['nummer']} = {kN}\")\n53|\n54|print(\"\\n## Zeile 3 — Kein Rückschritt (paarweise, Pareto-Maße + Grenzmaße gegen Ausgang)\")\n55|rs = 0\n56|for g in ang[1:]:\n57|    m = lj(g[\"masse\"]); u = m.get(\"_urteil_f2\") or {}\n58|    bp = m.get(\"_basis_paar\") or {}\n59|    print(f\"Gen {g['nummer']}: Kernmaß paarweise {u.get('kern_basis')} → {u.get('kern_kandidat')} (+{u.get('zuwachs')}); Pareto schlechter: {u.get('pareto_schlechter') or 'nichts'}; Grenzen gerissen: {u.get('grenzen_gerissen') or 'keine'}; Testbestand {len(m.get('_testbestand') or [])} Dateien\")\n60|    rs += bool(u.get(\"pareto_schlechter\")) or bool(u.get(\"grenzen_gerissen\"))\n61|print(\"Rohwerte je angenommene Generation (Bereich: fehl/sicherheit/tot/laufzeit_ms/groesste_fn):\")\n62|for g in ang:\n63|    m = lj(g[\"masse\"]); print(f\"  Gen {g['nummer']}: \" + \"; \".join(f\"{b}: {x['tests_fehlgeschlagen']}/{x['sicherheit_punkte']}/{x['tote_funktionen']}/{x['laufzeit_ms']}/{x['groesste_funktion']}\" for b, x in m[\"bereiche\"].items()))\n64|print(f\"ERGEBNIS Zeile 3: in {rs} von {len(ang)-1} angenommenen Generationen ein Pareto-Maß gesunken oder Grenzmaß gerissen\")\n65|\n66|print(\"\\n## Zeile 4 — Halluzinationsprobe (bericht)\")\n67|kb = [dict(r) for r in con.execute(\"SELECT id, generation, modell, status, grund FROM kandidaten WHERE lauf_id=? AND bereich='bericht' ORDER BY id\", (LAUF,))]\n68|for k in kb: print(f\"  K{k['id']} Gen {k['generation']} {k['modell'].split('/')[1]}: {k['status']} — {k['grund'][:100]}\")\n69|n_ang = sum(1 for k in kb if k[\"status\"] == \"angenommen\")\n70|d = subprocess.run([\"git\", \"diff\", \"--stat\", f\"lauf{LAUF}-gen0\", \"HEAD\", \"--\", \"lagerhaus/bericht\"], cwd=pfad, capture_output=True, text=True).stdout.strip()\n71|print(f\"ERGEBNIS Zeile 4: {n_ang} von {len(kb)} Kandidaten im Bereich bericht angenommen; git diff gen0..HEAD -- lagerhaus/bericht: '{d or 'leer (0 Dateien geändert)'}'\")"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Ausgabe enthält erwartete positive Tokens, während rc/zeitlimit nicht hinreichend an die Wertung gebunden sind",
+    "minimalbeleg": {
+      "zustand": "Reststdout mit \"1 passed\" und rc7/124; oder vollständiger @@MESSUNG@@-Marker und rc7.",
+      "schluss": "Fundleser besteht=True, Aufnahme zählt positive Tests trotz Abbruch (Status ist Aufnahme, NICHT behauptet alles grün); messen setzt gueltig=True sofern kein explizites Zeitlimit und Marker vorhanden. Tor1-F2 akzeptiert positive Tokens ähnlich.",
+      "grenze": "Messen sperrt explizites zeitlimitTrue und fehlenden Marker; Original Aufnahme sperrt echten Gesamtwert0."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Historischer Parallelprüfer ohne Rückfluss in aktuellen Pflichtvorspann"
+  },
+  {
+    "id": "B06:G01",
+    "audit_befund": "B06",
+    "audit_leser": "G01",
+    "titel": "Beliebiger Fehlerexit zählt als gefangener Mutant",
+    "pfad": "biotop/organe/generation0.py",
+    "originalzeilen": [
+      108,
+      113
+    ],
+    "original_sha256": "f18e98e98977adf0010aa6cf10b7a353d1f77c99a8b855033f9ae3fb86edde8f",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "G01",
+      "quellbeleg": "108|def _testlauf(werk: Path, dateien: dict[str, str]) -> tuple[bool, str]:\n109|    \"\"\"True = mindestens ein Test fällt (Mutant gefangen). Rückgabe (gefangen, fallende Tests).\"\"\"\n110|    e = kammer.ausfuehren(werk, [\"python\", \"-m\", \"pytest\", \"-q\", \"-p\", \"no:cacheprovider\", \"--tb=no\", \"-x\", \"-q\"], zeitlimit_s=90, dateien=dateien)\n111|    fallen = re.findall(r\"^FAILED (\\S+)\", e.stdout, re.M)\n112|    gefangen = e.rc != 0\n113|    return gefangen, \", \".join(fallen[:3]) or (\"Zeitlimit/Absturz\" if gefangen and not fallen else \"\")"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "rc!=0 wird in Erfolg der negativen Kontrollprobe umgedeutet",
+    "minimalbeleg": {
+      "zustand": "pytest exit5 (keine Tests), Collectionfehler oder Kammerzeitlimit124 ohne FAILED-Zeuge.",
+      "schluss": "gefangen=True bzw faengt=True; Fluss in Mutantenquote/Testübernahme.",
+      "grenze": "Echter ausgeführter Testfehlschlag kann zulässiger Fang sein, beliebiger Exit nicht."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Versiegelte Kerneingrenzung02: Aufnahme/Gen0-Produzenten und leere Herstellerantwort nicht integrieren; kein Durchgriff auf P4-Freeze-Erfolgsbindung.",
+    "zusaetzlicher_ausfuehrungsbeleg": "verbraucher/belege/03-gen0-fang-rot/junit.xml; vor Scope-Reduktion ausgeführt, Teilfix quarantänisiert und nicht als erledigt übernommen",
+    "verbraucher_alias": [
+      {
+        "id": "AUSSEN-GEN0-FANG",
+        "datei": "biotop/organe/generation0.py",
+        "zeilen": "108-113; 180-200",
+        "urteil": "bestätigt offen (Ausführungsrepro), Folgeauftrag",
+        "befund": "Jeder Nichtnull-Rückgabecode zählt als Mutantenfang; Infrastruktur- und Sammelfehler werden wie gefallene Produkttests behandelt und von messen() gezählt.",
+        "belege": [
+          "belege/03-gen0-fang-rot",
+          "belege/04-gen0-fang-gruen"
+        ],
+        "teilfix": "quarantaene/gen0-nichtintegrierbar/TEILFIX.diff",
+        "grund_offen": "Vor Scope-Reduktion TDD-Teilfix erstellt, danach gesichert und aus dem Repo vollständig zurückgenommen. Keine Kernlieferung; nicht als erledigt ausgeben."
+      }
+    ]
+  },
+  {
+    "id": "B06:G03",
+    "audit_befund": "B06",
+    "audit_leser": "G03",
+    "titel": "Beliebiger Fehlerexit zählt als gefangener Mutant",
+    "pfad": "biotop/organe/generation0.py",
+    "originalzeilen": [
+      180,
+      200
+    ],
+    "original_sha256": "f18e98e98977adf0010aa6cf10b7a353d1f77c99a8b855033f9ae3fb86edde8f",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "G03",
+      "quellbeleg": "180|def messen(con: sqlite3.Connection, lauf_id: int, werk_id: int, werk: Path, mutanten: list[dict], phase: str) -> dict:\n181|    \"\"\"Lässt jeden Mutanten gegen den aktuellen Testbestand laufen. phase: 'vorher' | 'nachher'.\"\"\"\n182|    _tabelle(con)\n183|    gefangen = 0\n184|    for i, m in enumerate(mutanten, 1):\n185|        g, von = _testlauf(werk, {m[\"datei\"]: m[\"code\"]})\n186|        if not m.get(\"aequivalent\"):\n187|            gefangen += g\n188|        with transaktion(con):\n189|            if phase == \"vorher\":\n190|                con.execute(\"INSERT INTO mutanten(lauf_id, werk_id, nummer, datei, zeile, art, beschreibung, code, quelle, gefangen_vorher, gefangen_von, erstellt_am) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)\",\n191|                            (lauf_id, werk_id, i, m[\"datei\"], m[\"zeile\"], m[\"art\"], m[\"beschreibung\"], m[\"code\"], m.get(\"quelle\", \"biotop\"), int(g), von, protokoll.jetzt()))\n192|            else:\n193|                con.execute(\"UPDATE mutanten SET gefangen_nachher=?, gefangen_von=? WHERE lauf_id=? AND nummer=?\", (int(g), von, lauf_id, i))\n194|        m[\"gefangen_\" + phase] = g\n195|        m[\"gefangen_von\"] = von\n196|    nicht_aeq = [m for m in mutanten if not m.get(\"aequivalent\")]\n197|    protokoll.schreiben(con, f\"generation0.{phase}\", lauf_id=lauf_id, gefangen=gefangen, gesamt=len(mutanten), nicht_aequivalent=len(nicht_aeq),\n198|                        blind=[f\"#{i} {m['datei']}:{m['zeile']} {m['beschreibung']}\" for i, m in enumerate(mutanten, 1) if not m[\"gefangen_\" + phase] and not m.get(\"aequivalent\")])\n199|    return {\"gefangen\": gefangen, \"gesamt\": len(mutanten), \"nicht_aequivalent\": len(nicht_aeq),\n200|            \"blind\": [m for m in nicht_aeq if not m[\"gefangen_\" + phase]]}"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "rc!=0 wird in Erfolg der negativen Kontrollprobe umgedeutet",
+    "minimalbeleg": {
+      "zustand": "pytest exit5 (keine Tests), Collectionfehler oder Kammerzeitlimit124 ohne FAILED-Zeuge.",
+      "schluss": "gefangen=True bzw faengt=True; Fluss in Mutantenquote/Testübernahme.",
+      "grenze": "Echter ausgeführter Testfehlschlag kann zulässiger Fang sein, beliebiger Exit nicht."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Versiegelte Kerneingrenzung02: Aufnahme/Gen0-Produzenten und leere Herstellerantwort nicht integrieren; kein Durchgriff auf P4-Freeze-Erfolgsbindung.",
+    "zusaetzlicher_ausfuehrungsbeleg": "verbraucher/belege/03-gen0-fang-rot/junit.xml; vor Scope-Reduktion ausgeführt, Teilfix quarantänisiert und nicht als erledigt übernommen",
+    "verbraucher_alias": [
+      {
+        "id": "AUSSEN-GEN0-FANG",
+        "datei": "biotop/organe/generation0.py",
+        "zeilen": "108-113; 180-200",
+        "urteil": "bestätigt offen (Ausführungsrepro), Folgeauftrag",
+        "befund": "Jeder Nichtnull-Rückgabecode zählt als Mutantenfang; Infrastruktur- und Sammelfehler werden wie gefallene Produkttests behandelt und von messen() gezählt.",
+        "belege": [
+          "belege/03-gen0-fang-rot",
+          "belege/04-gen0-fang-gruen"
+        ],
+        "teilfix": "quarantaene/gen0-nichtintegrierbar/TEILFIX.diff",
+        "grund_offen": "Vor Scope-Reduktion TDD-Teilfix erstellt, danach gesichert und aus dem Repo vollständig zurückgenommen. Keine Kernlieferung; nicht als erledigt ausgeben."
+      }
+    ]
+  },
+  {
+    "id": "B06:G04",
+    "audit_befund": "B06",
+    "audit_leser": "G04",
+    "titel": "Beliebiger Fehlerexit zählt als gefangener Mutant",
+    "pfad": "biotop/organe/generation0.py",
+    "originalzeilen": [
+      243,
+      255
+    ],
+    "original_sha256": "f18e98e98977adf0010aa6cf10b7a353d1f77c99a8b855033f9ae3fb86edde8f",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "G04",
+      "quellbeleg": "243|            pfad = f\"tests/test_{bereich}_gen0_m{nummern[id(m)]}.py\"\n244|            # am Original bestehen?\n245|            e_o = kammer.ausfuehren(werk, [\"python\", \"-m\", \"pytest\", \"-q\", \"-p\", \"no:cacheprovider\", \"--tb=no\", pfad], zeitlimit_s=60, dateien={pfad: code})\n246|            besteht = e_o.rc == 0 and \"passed\" in e_o.stdout\n247|            # Mutanten fangen?\n248|            e_m = kammer.ausfuehren(werk, [\"python\", \"-m\", \"pytest\", \"-q\", \"-p\", \"no:cacheprovider\", \"--tb=no\", pfad], zeitlimit_s=60, dateien={pfad: code, m[\"datei\"]: m[\"code\"]})\n249|            faengt = e_m.rc != 0\n250|            nischen.buchen(con, lauf_id, \"sicher\", hersteller, besteht and faengt)\n251|            protokoll.schreiben(con, \"generation0.testkandidat\", lauf_id=lauf_id, mutant=nummern[id(m)], durchlauf=durchlauf, modell=modell, besteht_am_original=besteht, faengt_mutant=faengt)\n252|            if besteht and faengt:\n253|                neu[pfad] = code\n254|                gefunden = True\n255|                break"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "rc!=0 wird in Erfolg der negativen Kontrollprobe umgedeutet",
+    "minimalbeleg": {
+      "zustand": "pytest exit5 (keine Tests), Collectionfehler oder Kammerzeitlimit124 ohne FAILED-Zeuge.",
+      "schluss": "gefangen=True bzw faengt=True; Fluss in Mutantenquote/Testübernahme.",
+      "grenze": "Echter ausgeführter Testfehlschlag kann zulässiger Fang sein, beliebiger Exit nicht."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Versiegelte Kerneingrenzung02: Aufnahme/Gen0-Produzenten und leere Herstellerantwort nicht integrieren; kein Durchgriff auf P4-Freeze-Erfolgsbindung.",
+    "verbraucher_alias": [
+      {
+        "id": "AUSSEN-GEN0-TESTBAU",
+        "datei": "biotop/organe/generation0.py",
+        "zeilen": "245-255",
+        "urteil": "bestätigt offen (Quellbefund), Folgeauftrag",
+        "befund": "Original gilt mit rc=0 plus passed als bestanden trotz möglicher Skips; Mutantenroute zählt jedes rc!=0 als Fang, auch Infrastrukturabbruch.",
+        "grund_offen": "Nach Scope-Reduktion keine Testproduktion, keine Modellaufrufe, keine weitere Reparatur/Reproduktion."
+      }
+    ]
+  },
+  {
+    "id": "B07:G02",
+    "audit_befund": "B07",
+    "audit_leser": "G02",
+    "titel": "Keine Äquivalenzbeobachtung wird als identischer Beobachtungsnachweis gelesen",
+    "pfad": "biotop/organe/generation0.py",
+    "originalzeilen": [
+      151,
+      174
+    ],
+    "original_sha256": "f18e98e98977adf0010aa6cf10b7a353d1f77c99a8b855033f9ae3fb86edde8f",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "G02",
+      "quellbeleg": "151|    e0 = kammer.ausfuehren(werk, [\"python\", \"_aeq.py\"], zeitlimit_s=120, dateien=dateien_basis)\n152|    h0 = re.search(r\"AEQ (\\w+)\", e0.stdout)\n153|    if e0.rc != 0 or not h0:\n154|        raise RuntimeError(\"Äquivalenzprüfung: Referenzlast-Beobachtung am Original gescheitert (laut scheitern): \" + (e0.stdout + e0.stderr)[-400:])\n155|    for i, m in enumerate(mutanten, 1):\n156|        m[\"aequivalent\"] = False\n157|        g, von = _testlauf(werk, {m[\"datei\"]: m[\"code\"]})\n158|        if g:\n159|            m[\"aequivalenz_beleg\"] = f\"nicht äquivalent: Test fängt ({von})\"\n160|            continue\n161|        e1 = kammer.ausfuehren(werk, [\"python\", \"_aeq.py\"], zeitlimit_s=120, dateien={**dateien_basis, m[\"datei\"]: m[\"code\"]})\n162|        h1 = re.search(r\"AEQ (\\w+)\", e1.stdout)\n163|        if h0 and h0.group(1) == \"keine-beobachtung\":\n164|            m[\"aequivalenz_beleg\"] = \"Referenzlast ohne beobachten() — Äquivalenz nicht prüfbar, zählt als nicht-äquivalent\"\n165|            continue\n166|        if e1.rc != 0 or not h1:\n167|            m[\"aequivalenz_beleg\"] = \"nicht äquivalent: Referenzlast-Beobachtung am Mutanten bricht ab (\" + (e1.stdout + e1.stderr)[-160:].strip() + \")\"\n168|            continue\n169|        if h0 and h1 and h0.group(1) == h1.group(1):\n170|            m[\"aequivalent\"] = True\n171|            m[\"aequivalenz_beleg\"] = (f\"äquivalent auf Raster+Tests: Referenzlast-Prüfsumme {h0.group(1)[:12]} identisch, \"\n172|                                      f\"alle vorhandenen Tests bestehen; Mutation: {m['beschreibung']} in {m['datei']}:{m['zeile']}\")\n173|        else:\n174|            m[\"aequivalenz_beleg\"] = f\"nicht äquivalent: Referenzlast-Prüfsumme weicht ab ({(h0 and h0.group(1)[:12])} vs {(h1 and h1.group(1)[:12])}) — kein Test fängt (blind)\""
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Äquivalenz wird ohne nichtleere Beobachtungspopulation behauptet: abgeschnittener Fehlmarker oder ignorierter n=0-Zähler",
+    "minimalbeleg": {
+      "zustand": "Original und Mutant drucken AEQ keine-beobachtung; kein Test fängt.",
+      "schluss": "h0/h1 lesen nur \"keine\"; Vergleich mit \"keine-beobachtung\" greift nie; identische Token setzen aequivalent=True.",
+      "quelle_zusaetzlich": "generation0.py:125-135 druckt fehlende Beobachtung bzw Hash und Zähler n; Z152/162 liest nur das Token.",
+      "grenze": "Keine Aussage über externe Mutanten/Referenzlast gemacht.",
+      "variante_leerer_generator": "Auch bei vorhandenem beobachten(), das keinen Wert liefert, wird n=0 ausgegeben, aber vom Leser nicht geprüft; Gleichheit des Leerdigests gilt als Äquivalenz. Dies ist dieselbe fehlende Beobachtungsbindung, kein ausgeführter Repro."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Versiegelte Kerneingrenzung02: Aufnahme/Gen0-Produzenten und leere Herstellerantwort nicht integrieren; kein Durchgriff auf P4-Freeze-Erfolgsbindung.",
+    "verbraucher_alias": [
+      {
+        "id": "AUSSEN-GEN0-AEQUIVALENZ",
+        "datei": "biotop/organe/generation0.py",
+        "zeilen": "151-174",
+        "urteil": "bestätigt offen (Quellbefund), Folgeauftrag",
+        "befund": "Äquivalenz nutzt nicht gefangen als alle Tests bestehen; Referenzbeobachtung liest unvollständigen AEQ-Regex ohne positive Beobachtungszahl und ohne zeitlimit. AEQ keine-beobachtung wird vom Regex nur als keine erfasst, sodass der spätere Vergleich gegen keine-beobachtung nicht greift.",
+        "grund_offen": "Außenreproduktion nach Scope-Reduktion gestoppt. Keine Reparatur und kein dynamischer Nachweis dieser Route."
+      }
+    ]
+  },
+  {
+    "id": "B08:L06",
+    "audit_befund": "B08",
+    "audit_leser": "L06",
+    "titel": "Leere Nachbarantwortliste zählt als einstimmige Bestätigung",
+    "pfad": "biotop/lauf.py",
+    "originalzeilen": [
+      554,
+      560
+    ],
+    "original_sha256": "d00993cdbac4f9f686c0582f36ff118225f0efab7e2f7c73f797de75d68cecd2",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "L06",
+      "quellbeleg": "554|        ids = genesis.erzeugen(con, lauf_id, werk[\"id\"], nummer, pfad, paket, nb, messgeraet.bereich_masse(basis, nb), nische=\"sicher\",\n555|                               befunde=[], referenzlast=None, vertraege_text=vt + \"\\n\\n\" + auftrag)\n556|        if einseitig_ok and all(con.execute(\"SELECT status FROM kandidaten WHERE id=?\", (aid,)).fetchone()[\"status\"] == \"leer\" for aid in ids):\n557|            # Nachbar bestätigt („KEIN VORSCHLAG“ von allen), kein Vertragstest fällt: Paar = Kandidat allein, gemeinsam geprüft\n558|            protokoll.schreiben(con, \"verhandlung.paar\", lauf_id=lauf_id, generation=nummer, kandidat=kid, anpassung=None, nachbar=nb, status=u[\"status\"], grund=\"Nachbar: keine Anpassung nötig (KEIN VORSCHLAG)\", vertrag_verletzt=[])\n559|            anpassungen.append(None)\n560|            continue"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "all(ids) wird ohne Existenz eines ausgeführten Antwort-/Prüfobjekts ausgewertet",
+    "minimalbeleg": {
+      "zustand": "einseitig_ok=True; genesis.erzeugen gibt ids=[].",
+      "schluss": "all über leere ids=True; keine Anpassung nötig wird protokolliert und Paar als bestätigt weiterverarbeitet.",
+      "grenze": "Nichtleere Antworten mit explizitem KEIN VORSCHLAG sind anderer Fall."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Versiegelte Kerneingrenzung02: Aufnahme/Gen0-Produzenten und leere Herstellerantwort nicht integrieren; kein Durchgriff auf P4-Freeze-Erfolgsbindung.",
+    "verbraucher_alias": [
+      {
+        "id": "AUSSEN-VERHANDLUNG-LEERE-ANTWORT",
+        "datei": "biotop/lauf.py",
+        "zeilen": "554-560",
+        "urteil": "bestätigt offen (Quellbefund), Folgeauftrag",
+        "befund": "all(...) über ids=[] kann ohne Hersteller-/Nachbarantwort bestätigen.",
+        "grund_offen": "Auftraggeber nimmt diesen Produzenten-/Antwortleerheitsfall ausdrücklich aus dem unmittelbaren Messresultatleser-Scope. Nicht geändert, nicht zusätzlich ausgeführt."
+      }
+    ]
+  },
+  {
+    "id": "B09:L07",
+    "audit_befund": "B09",
+    "audit_leser": "L07",
+    "titel": "Fehlendes Paarmaß/Vertragsergebnis zählt als bestanden",
+    "pfad": "biotop/lauf.py",
+    "originalzeilen": [
+      569,
+      595
+    ],
+    "original_sha256": "d00993cdbac4f9f686c0582f36ff118225f0efab7e2f7c73f797de75d68cecd2",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "L07",
+      "quellbeleg": "569|            # Paar prüfen: Kandidat + Anpassung. Der Kandidat trägt schon 'abgelehnt' aus der Einzelprüfung — für die\n570|            # Paarprüfung zurück auf 'erzeugt' (sonst liefert pruefen() nur das gespeicherte Urteil; Fehler bis Lauf 13 Gen 10).\n571|            with transaktion(con):\n572|                con.execute(\"UPDATE kandidaten SET status='erzeugt', grund='' WHERE id=?\", (kid,))\n573|            u2 = aegis.pruefen(con, lauf_id, werk[\"id\"], kid, pfad, paket, bereiche, bstrassen, basis, ausgang, ref, tausch, extra_code=anp)\n574|            with transaktion(con):\n575|                con.execute(\"UPDATE kandidaten SET status=?, grund=? WHERE id=?\", (\"verhandlung\", f\"Anpassung für Kandidat {kid} ({bereich}): Paar {u2['status']}\", aid))\n576|            protokoll.schreiben(con, \"verhandlung.paar\", lauf_id=lauf_id, generation=nummer, kandidat=kid, anpassung=aid, nachbar=nb,\n577|                                status=u2[\"status\"], grund=u2[\"grund\"][:300], vertrag_verletzt=u2.get(\"vertrag_verletzt\"))\n578|            # Verhandlung bestanden (3.8 Schritt 2): das Paar verletzt keinen Vertrag und keine Pareto-Regel mehr.\n579|            # Ob das Paar dann auch einen Kernmaßgewinn hat (Annahme), entscheidet das Maß wie bei jedem Kandidaten.\n580|            paar_ok = not u2.get(\"vertrag_verletzt\") and not ((u2.get(\"mass\") or {}).get(\"pareto_schlechter\")) and not ((u2.get(\"mass\") or {}).get(\"grenzen_gerissen\"))\n581|            if paar_ok:\n582|                extra.update(anp); anpassungen.append(aid)\n583|                u = u2\n584|                break\n585|        else:\n586|            protokoll.schreiben(con, \"verhandlung.gescheitert\", lauf_id=lauf_id, generation=nummer, kandidat=kid, nachbar=nb)\n587|            with transaktion(con):\n588|                con.execute(\"UPDATE kandidaten SET status='abgelehnt', grund=? WHERE id=? AND status IN ('erzeugt','ueberlebt')\", (u[\"grund\"] + \" | Verhandlung gescheitert (Vertragsänderung ohne bestandene Anpassung des Nachbarn, Anhang A Satz 4)\", kid))\n589|            return {**u, \"status\": \"abgelehnt\", \"grund\": u[\"grund\"] + \" | Verhandlung gescheitert\"}\n590|    if anpassungen:\n591|        # die Anpassung ist Teil des Kandidaten-Dateisatzes (bereits in _dateien über extra_code enthalten); None = Nachbar bestätigte ohne Änderung\n592|        protokoll.schreiben(con, \"verhandlung.bestanden\", lauf_id=lauf_id, generation=nummer, kandidat=kid, bereich=bereich, anpassungen=[a for a in anpassungen if a], nachbar_bestaetigt_ohne_aenderung=[n for n, a in zip(sorted(nachbarn), anpassungen) if a is None], nachbarn=sorted(nachbarn))\n593|        with transaktion(con):\n594|            con.execute(\"UPDATE kandidaten SET grund=? WHERE id=?\", (u[\"grund\"] + f\" | Verhandlung bestanden mit {sorted(nachbarn)} (Anpassung {anpassungen})\", kid))\n595|        u = {**u, \"verhandlung_bestanden\": True, \"anpassungen\": anpassungen}"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "not dict.get(...) mit None/{} macht Nichtprüfung zur leeren gültigen Fehlermenge",
+    "minimalbeleg": {
+      "zustand": "u2={status:abgelehnt,mass:None,vertrag_verletzt:[]} nach frühem Prüfabbruch.",
+      "schluss": "L580 paar_ok=True; historische Skripte melden Vertrag bestanden, obwohl Status daneben abgelehnt sein kann.",
+      "grenze": "Kein Schluss, dass gesamte Generation dadurch zwingend angenommen wird: nachgelagerte Status-/Generalprobegates existieren. Fehler ist konkretes Paar-/Vertragsbestanden-Urteil."
+    },
+    "reparaturzuordnung": "eingegrenzter_Kern_oder_sein_Eigennachweis",
+    "status": "Kernschutz_integriert_Elterneigensuite_belegt_Schlussreview_offen",
+    "elternbelege": [
+      "58-leser2-eltern-rot",
+      "59-leser2-eltern-gruen"
+    ],
+    "beleggrenze": "Produzentenschutz oder gezielter Verbraucherfall; keine Behauptung, jeder Ort sei separat end-to-end ausgeführt."
+  },
+  {
+    "id": "B09:P41",
+    "audit_befund": "B09",
+    "audit_leser": "P41",
+    "titel": "Fehlendes Paarmaß/Vertragsergebnis zählt als bestanden",
+    "pfad": "pruefung/verhandlungsprobe.py",
+    "originalzeilen": [
+      57,
+      75
+    ],
+    "original_sha256": "cf85cf5d39145fcd23ee81f470fbd0d183de967d5005645cd43db79df1077c85",
+    "original_audit_scope": "ausserhalb_kern",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "P41",
+      "quellbeleg": "57|u = aegis.pruefen(con, LAUF, wid, kid, pfad, paket, bereiche, bstr, basis, ausgang, ref, tausch)\n58|p(f\"\\nSchritt 1 — Einzelprüfung K{kid}: {u['status']} — {u['grund'][:200]}\")\n59|p(\"  vertrag_verletzt:\", u.get(\"vertrag_verletzt\"), \"| Vertrag benannt:\", (u.get(\"vertraege_benannt\") or \"\")[:80])\n60|u2 = L._verhandeln(con, LAUF, werk, gen, pfad, paket, bereiche, bstr, basis, ausgang, ref, tausch, \"formeln\", kid, u)\n61|p(f\"\\nSchritt 2 — Verhandlung (Schwarm des Nachbarn preise, Nische sicher, 2 Hersteller per Bandit): Ergebnis {u2['status']} — {u2['grund'][:250]}\")\n62|p(\"  vertrag_verletzt nach Paar:\", u2.get(\"vertrag_verletzt\"), \"| Pareto schlechter:\", (u2.get(\"mass\") or {}).get(\"pareto_schlechter\"), \"| Kernmaß:\", (u2.get(\"mass\") or {}).get(\"kern_basis\"), \"→\", (u2.get(\"mass\") or {}).get(\"kern_kandidat\"))\n63|for z in con.execute(\"SELECT nr, art, substr(inhalt,1,400) i FROM protokoll WHERE art LIKE 'verhandlung.%' AND inhalt LIKE ? ORDER BY nr\", (f'%\"kandidat\": {kid},%',)):\n64|    p(f\"  Protokoll #{z['nr']} {z['art']}: {z['i']}\")\n65|anp = [dict(r) for r in con.execute(\"SELECT id, bereich, modell, status, substr(grund,1,120) g FROM kandidaten WHERE lauf_id=? AND status='verhandlung' AND grund LIKE ?\", (LAUF, f\"%Kandidat {kid}%\"))]\n66|for a in anp:\n67|    d = con.execute(\"SELECT diff FROM kandidaten WHERE id=?\", (a[\"id\"],)).fetchone()[\"diff\"]\n68|    p(f\"  Anpassung K{a['id']} ({a['bereich']}, {a['modell']}): {a['g']}\")\n69|    p(\"    \" + \" | \".join(l for l in d.splitlines() if l.startswith((\"+\", \"-\")) and not l.startswith((\"+++\", \"---\")))[:400])\n70|bestanden = bool(con.execute(\"SELECT 1 FROM protokoll WHERE art='verhandlung.bestanden' AND inhalt LIKE ?\", (f'%\"kandidat\": {kid},%',)).fetchone())\n71|vertrag_ok = not u2.get(\"vertrag_verletzt\")\n72|p(f\"\\nERGEBNIS Verhandlungsprobe: Vertrag im Paar bestanden (0 Vertragstests verletzt): {vertrag_ok}; verhandlung.bestanden protokolliert: {bestanden}; Paar-Status {u2['status']} ({'Kernmaß unverändert → keine Annahme, aber Vertragsänderung gemeinsam bestanden' if u2['status'] != 'ueberlebt' and vertrag_ok else u2['grund'][:80]})\")\n73|with transaktion(con):\n74|    con.execute(\"UPDATE kandidaten SET status='probe_' || status WHERE id=? AND status NOT LIKE 'probe_%'\", (kid,))\n75|(A / \"54-verhandlungsprobe.txt\").write_text(\"\\n\".join(out) + \"\\n\")"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "not dict.get(...) mit None/{} macht Nichtprüfung zur leeren gültigen Fehlermenge",
+    "minimalbeleg": {
+      "zustand": "u2={status:abgelehnt,mass:None,vertrag_verletzt:[]} nach frühem Prüfabbruch.",
+      "schluss": "L580 paar_ok=True; historische Skripte melden Vertrag bestanden, obwohl Status daneben abgelehnt sein kann.",
+      "grenze": "Kein Schluss, dass gesamte Generation dadurch zwingend angenommen wird: nachgelagerte Status-/Generalprobegates existieren. Fehler ist konkretes Paar-/Vertragsbestanden-Urteil."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Historischer Parallelprüfer ohne Rückfluss in aktuellen Pflichtvorspann",
+    "verbraucher_alias": [
+      {
+        "id": "AUSSEN-LEGACY-VERHANDLUNG",
+        "datei": "pruefung/verhandlungsprobe.py",
+        "zeilen": "70-72",
+        "urteil": "bestätigt offen (Quellbefund), Folgeauftrag",
+        "befund": "not u2.get(vertrag_verletzt) meldet bei fehlendem Messurteil Vertrag bestanden.",
+        "grund_offen": "Legacy ausdrücklich aus Kernlieferung ausgeschlossen. Skript nie gestartet, Datei unverändert."
+      }
+    ]
+  },
+  {
+    "id": "B09:P46",
+    "audit_befund": "B09",
+    "audit_leser": "P46",
+    "titel": "Fehlendes Paarmaß/Vertragsergebnis zählt als bestanden",
+    "pfad": "pruefung/proben_tor2.py",
+    "originalzeilen": [
+      196,
+      215
+    ],
+    "original_sha256": "c750f9d6ceed4f7fe20d7678c99cebf4dbd55156959b79a4ba513c5c9f52ec69",
+    "original_audit_scope": "ausserhalb_kern",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "P46",
+      "quellbeleg": "196|    assert 'auswerten(regel.bedingung, menge, preis, summe, \"EUR\")' in src\n197|'''\n198|diff4b_mit_vertrag = diff4b + voll_diff(\"tests/vertraege/test_vertrag_preise_formeln.py\", vt2)\n199|k4c = einschleusen(\"formeln\", diff4b_mit_vertrag, \"PROBE Fall 1b: optionaler Parameter waehrung + Vertrag verlangt, dass preise ihn übergibt; OHNE Anpassung von preise\", \"tests/vertraege/test_vertrag_preise_formeln.py\", \"vertrag-ohne-b\")\n200|u4c = pruefe(k4c)\n201|p(f\"Fall 1b (ohne Anpassung, optionaler Parameter) K{k4c}: Status {u4c['status']} — {u4c['grund'][:300]}\")\n202|p(\"  vertrag_verletzt:\", u4c.get(\"vertrag_verletzt\"))\n203|k4b = einschleusen(\"formeln\", diff4b_mit_vertrag, \"PROBE Fall 2: wie 1b, MIT Anpassung des Nachbarn preise (rabatt.py übergibt waehrung)\", \"tests/vertraege/test_vertrag_preise_formeln.py\", \"vertrag-mit\")\n204|u4b = pruefe(k4b, extra={\"lagerhaus/preise/rabatt.py\": rab})\n205|m4b = u4b.get(\"mass\") or {}\n206|p(f\"Fall 2 (mit Anpassung des Nachbarn) K{k4b}: Status {u4b['status']} — {u4b['grund'][:300]}\")\n207|p(\"  vertrag_verletzt:\", u4b.get(\"vertrag_verletzt\"), \"| Pareto schlechter:\", m4b.get(\"pareto_schlechter\"), \"| Kernmaß\", m4b.get(\"kern_basis\"), \"→\", m4b.get(\"kern_kandidat\"))\n208|p(\"  Hinweis: Fall 2 ist ein Vertragsumbau ohne Kernmaßgewinn — nach 3.5 F2 'Kernmaß unverändert' → nicht angenommen. Die Vertragsprobe misst: Fall 1 am Vertrag abgelehnt (ja/nein), Fall 2 Vertrag bestanden (ja/nein).\")\n209|p(f\"ERGEBNIS Vertragsprobe: ohne Anpassung → {'abgelehnt am Vertrag' if u4c.get('vertrag_verletzt') else 'NICHT am Vertrag abgelehnt (FEHLER)'} ({u4c.get('vertrag_verletzt')}); mit Anpassung → Vertrag {'bestanden (0 verletzt)' if not u4b.get('vertrag_verletzt') else 'VERLETZT (FEHLER)'}; Paar-Status {u4b['status']} ({u4b['grund'][:80]})\")\n210|(A / \"53-vertragsprobe.txt\").write_text(\"\\n\".join(out) + \"\\n\"); out.clear()\n211|\n212|# Proben-Kandidaten dürfen nie ins Werk: Status sichern\n213|with transaktion(con):\n214|    con.execute(\"UPDATE kandidaten SET status='probe_' || status WHERE lauf_id=? AND nische='probe' AND status NOT LIKE 'probe_%'\", (LAUF,))\n215|print(\"Proben-Kandidaten markiert:\", [dict(r) for r in con.execute(\"SELECT id, status FROM kandidaten WHERE lauf_id=? AND nische='probe'\", (LAUF,))])"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "not dict.get(...) mit None/{} macht Nichtprüfung zur leeren gültigen Fehlermenge",
+    "minimalbeleg": {
+      "zustand": "u2={status:abgelehnt,mass:None,vertrag_verletzt:[]} nach frühem Prüfabbruch.",
+      "schluss": "L580 paar_ok=True; historische Skripte melden Vertrag bestanden, obwohl Status daneben abgelehnt sein kann.",
+      "grenze": "Kein Schluss, dass gesamte Generation dadurch zwingend angenommen wird: nachgelagerte Status-/Generalprobegates existieren. Fehler ist konkretes Paar-/Vertragsbestanden-Urteil."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Historischer Parallelprüfer ohne Rückfluss in aktuellen Pflichtvorspann",
+    "verbraucher_alias": [
+      {
+        "id": "AUSSEN-LEGACY-TOR2",
+        "datei": "pruefung/proben_tor2.py",
+        "zeilen": "209",
+        "urteil": "bestätigt offen (Quellbefund), Folgeauftrag",
+        "befund": "not u4b.get(vertrag_verletzt) bezeichnet fehlenden Nachweis als bestanden.",
+        "grund_offen": "Legacy ausdrücklich aus Kernlieferung ausgeschlossen. Skript nie gestartet, Datei unverändert."
+      }
+    ]
+  },
+  {
+    "id": "B10:EP04",
+    "audit_befund": "B10",
+    "audit_leser": "EP04",
+    "titel": "Norm-Gegenprobe gilt ohne ihren ausgeführten Pflichtzeugen als prüfbar",
+    "pfad": "biotop/organe/eichproben.py",
+    "originalzeilen": [
+      454,
+      472
+    ],
+    "original_sha256": "1c82c17f4434aa7e553c6c3b61efee9f8b8381c395e3466b29aa7fb10efe655c",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "EP04",
+      "quellbeleg": "454|        u = aegis.pruefen(db, lauf_id, werk_id, kid, werk, paket, bereiche, bstrassen, basis, ausgang, ref, tausch,\n455|                          probe_ohne_modell=True, probe_angriff=angriff)\n456|        messung = lj(db.execute(\"SELECT masse FROM kandidaten WHERE id=?\", (kid,)).fetchone()[0]) or {}\n457|        belege.update(urteil=u, messung=messung)\n458|        if name == \"norm\":\n459|            belege.update(werk_test_vorhanden=(werk / belege[\"testpfad\"]).exists(),\n460|                          normeintraege=[dict(z) for z in db.execute(\n461|                              \"SELECT name,status,code,ursprung FROM immunsystem WHERE name=?\",\n462|                              (f\"norm_k{kid}_{bereich}\",))])\n463|        n1, c1 = _kassenstand(db, lauf_id)\n464|        pruefbar = bool(messung.get(\"gueltig\") and (messung.get(\"_basis_paar\") or {}).get(\"gueltig\"))\n465|        if name == \"vertrag\":\n466|            pruefbar = pruefbar and _vertrag_pruefbar(belege, gegenprobe)\n467|        return {\"kandidat\": kid, \"ausgefuehrt\": bool(aufrufe), \"pruefbar\": pruefbar,\n468|                \"bestanden\": _bestanden(name, belege), \"belege\": belege, \"status\": u[\"status\"],\n469|                \"grund\": u[\"grund\"], \"befund\": beschreibung, \"gegenprobe\": gegenprobe, \"diff\": diff,\n470|                \"modellaufrufe\": n1 - n0, \"kosten_eur\": round(c1 - c0, 6),\n471|                \"kammerlaeufe\": len(aufrufe), \"kammer\": list(aufrufe),\n472|                \"dauer_s\": round(time.monotonic() - t0, 3)}"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Allgemein gültige Messhülle macht negatives Normprädikat zur gültigen Gegenprobe",
+    "minimalbeleg": {
+      "zustand": "Normgegenprobe: Pflichtnormtest skipped/xfail/entfernt, spätere Messung ohne Normtest gültig; massdict vorhanden, NormprädikatFalse.",
+      "schluss": "Original _einzelprobe lässt pruefbar=True; _vollstaendig akzeptiert gegenprobe.bestandenFalse. Ausgeführt irgendein Kammerlauf ist nicht der benannte Normzeuge.",
+      "grenze": "Vertrag hat _vertrag_pruefbar-Zeugenbindung; genau derselbe Schutz ist nicht automatisch für Norm gegeben."
+    },
+    "reparaturzuordnung": "eingegrenzter_Kern_oder_sein_Eigennachweis",
+    "status": "Kernschutz_integriert_Elterneigensuite_belegt_Schlussreview_offen",
+    "elternbelege": [
+      "53-aegis2-eltern-rot",
+      "54-aegis2-eltern-gruen",
+      "56-aegis2-kern-und-eichpaare"
+    ],
+    "beleggrenze": "Produzentenschutz oder gezielter Verbraucherfall; keine Behauptung, jeder Ort sei separat end-to-end ausgeführt."
+  },
+  {
+    "id": "B10:EP05",
+    "audit_befund": "B10",
+    "audit_leser": "EP05",
+    "titel": "Norm-Gegenprobe gilt ohne ihren ausgeführten Pflichtzeugen als prüfbar",
+    "pfad": "biotop/organe/eichproben.py",
+    "originalzeilen": [
+      475,
+      526
+    ],
+    "original_sha256": "1c82c17f4434aa7e553c6c3b61efee9f8b8381c395e3466b29aa7fb10efe655c",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "EP05",
+      "quellbeleg": "475|def _leer(grund):\n476|    return {\"kandidat\": None, \"ausgefuehrt\": False, \"pruefbar\": False, \"bestanden\": False,\n477|            \"grund\": grund, \"befund\": grund, \"belege\": {}, \"modellaufrufe\": 0,\n478|            \"kosten_eur\": 0.0, \"kammerlaeufe\": 0, \"dauer_s\": 0.0}\n479|\n480|\n481|def _vollstaendig(positive, gegenproben):\n482|    return (set(positive) == set(gegenproben) == set(PROBEN)\n483|            and all(p.get(\"ausgefuehrt\") is True and p.get(\"pruefbar\") is True\n484|                    and p.get(\"bestanden\") is True for p in positive.values())\n485|            and all(p.get(\"ausgefuehrt\") is True and p.get(\"pruefbar\") is True\n486|                    and p.get(\"bestanden\") is False for p in gegenproben.values()))\n487|\n488|\n489|def proben(con: sqlite3.Connection, lauf_id: int, werk_id: int, pfad: Path, paket: str, bereiche: list[str],\n490|           bstrassen, basis: dict, ausgang: dict, ref: str | None, tausch: dict, generation: int = 0) -> dict:\n491|    \"\"\"Vier Paare, ohne Modelle, ohne vorausgesetzten Freeze und ohne Rückschreiben.\n492|\n493|    `basis`/`ausgang` sind explizite Messungen; laeufe.mass darf NULL sein. Die\n494|    Rückgabe ist der Beleg für den Aufrufer, kein selbst erteiltes Startrecht.\n495|    Sämtliche Versiegelungs-, Anklage-, Immun- und Kostenwrites bleiben privat.\n496|    \"\"\"\n497|    with _privat(con, pfad) as (db, werk):\n498|        gegenstand = eichgegenstand.sichern(db, werk_id, lauf_id, werk)\n499|        g = gegenstand.get(\"gegenstand\")\n500|        if not g:\n501|            grund = gegenstand.get(\"befund\") or \"kein Eichgegenstand\"\n502|            return {\"bestanden\": False, \"grund\": grund, \"gegenstand\": None, \"lauf_startet\": False,\n503|                    \"proben\": {n: _leer(grund) for n in PROBEN},\n504|                    \"gegenproben\": {n: _leer(grund) for n in PROBEN},\n505|                    \"kosten\": {\"kammerlaeufe\": 0, \"modellaufrufe\": 0, \"kosten_eur\": 0.0, \"dauer_s\": 0.0}}\n506|        positive, negative = {}, {}\n507|        for name in PROBEN:\n508|            for ist_gegenprobe, ziel in ((False, positive), (True, negative)):\n509|                t0 = time.monotonic()\n510|                with kammer.zaehlung() as aufrufe:\n511|                    try:\n512|                        ziel[name] = _einzelprobe(db, lauf_id, werk_id, werk, paket, bereiche, bstrassen,\n513|                                                 basis, ausgang, ref, tausch, generation, g, name, ist_gegenprobe)\n514|                    except (RuntimeError, ValueError, StopIteration, OSError, sqlite3.Error) as fehler:\n515|                        # Kein ausgeführtes Gegenprädikat: ein ausdrücklich\n516|                        # ungeprüfter Infrastruktur-/Fixturebefund sperrt Gesamtgrün.\n517|                        ziel[name] = {**_leer(str(fehler) or type(fehler).__name__),\n518|                                      \"fehlerart\": type(fehler).__name__, \"status\": \"prueffehler\",\n519|                                      \"kammerlaeufe\": len(aufrufe), \"kammer\": list(aufrufe),\n520|                                      \"dauer_s\": round(time.monotonic() - t0, 3)}\n521|        alle = list(positive.values()) + list(negative.values())\n522|        kosten = {k: sum(p[k] for p in alle) for k in (\"kammerlaeufe\", \"modellaufrufe\", \"kosten_eur\", \"dauer_s\")}\n523|        ok = _vollstaendig(positive, negative)\n524|        return {\"bestanden\": ok, \"gegenstand\": g, \"proben\": positive, \"gegenproben\": negative,\n525|                \"lauf_startet\": ok, \"kosten\": kosten,\n526|                \"grund\": None if ok else \"Vier Positivtreffer und vier prüfbare negative Gegenproben erforderlich\"}"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Allgemein gültige Messhülle macht negatives Normprädikat zur gültigen Gegenprobe",
+    "minimalbeleg": {
+      "zustand": "Normgegenprobe: Pflichtnormtest skipped/xfail/entfernt, spätere Messung ohne Normtest gültig; massdict vorhanden, NormprädikatFalse.",
+      "schluss": "Original _einzelprobe lässt pruefbar=True; _vollstaendig akzeptiert gegenprobe.bestandenFalse. Ausgeführt irgendein Kammerlauf ist nicht der benannte Normzeuge.",
+      "grenze": "Vertrag hat _vertrag_pruefbar-Zeugenbindung; genau derselbe Schutz ist nicht automatisch für Norm gegeben."
+    },
+    "reparaturzuordnung": "eingegrenzter_Kern_oder_sein_Eigennachweis",
+    "status": "Kernschutz_integriert_Elterneigensuite_belegt_Schlussreview_offen",
+    "elternbelege": [
+      "53-aegis2-eltern-rot",
+      "54-aegis2-eltern-gruen",
+      "56-aegis2-kern-und-eichpaare"
+    ],
+    "beleggrenze": "Produzentenschutz oder gezielter Verbraucherfall; keine Behauptung, jeder Ort sei separat end-to-end ausgeführt."
+  },
+  {
+    "id": "B10:T04",
+    "audit_befund": "B10",
+    "audit_leser": "T04",
+    "titel": "Norm-Gegenprobe gilt ohne ihren ausgeführten Pflichtzeugen als prüfbar",
+    "pfad": "tests/test_eichproben.py",
+    "originalzeilen": [
+      336,
+      411
+    ],
+    "original_sha256": "35aeb62294792bc17aa2767206650c66ff33b2cc8a9b99e389011db580bf440f",
+    "original_audit_scope": "kernpfad_eigentest",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "T04",
+      "quellbeleg": "336|@pytest.mark.parametrize(\"ist_probe\", [False, True])\n337|def test_reine_probeoption_ist_markiert_und_erreicht_originale_norm(werk, tmp_path, ist_probe):\n338|    assert \"probe_ohne_modell\" in inspect.signature(aegis.pruefen).parameters, \"Explizite, geschützte Probeoption fehlt\"\n339|    con = datenbank.verbinden(tmp_path / \"probe.db\")\n340|    diff, rel_test, _ = eichproben._normtest(werk, \"beispiel\", \"lieferant\")\n341|    dateien = aegis.kandidat_dateien(werk, diff)\n342|    kid = eichproben._einschleusen(con, 1, 0, \"lieferant\", diff, \"Norm-Eichung\", \"keine\", \"norm\")\n343|    if not ist_probe:\n344|        con.execute(\"UPDATE kandidaten SET ist_probe=0 WHERE id=?\", (kid,))\n345|        with pytest.raises(ValueError, match=\"ist_probe\"):\n346|            aegis.pruefen(con, 1, 1, kid, werk, \"beispiel\", [\"lieferant\"], [], {}, {}, None, {},\n347|                          probe_ohne_modell=True)\n348|        con.close()\n349|        return\n350|    basis = messgeraet.messen(werk, [\"lieferant\"], \"beispiel\", None)\n351|    u = aegis.pruefen(con, 1, 1, kid, werk, \"beispiel\", [\"lieferant\"], [], basis, basis, None, {},\n352|                      probe_ohne_modell=True, probe_angriff=dateien[rel_test])\n353|    print(\"REINE NORM\", u)\n354|    assert u[\"norm\"]\n355|    assert isinstance(u[\"mass\"], dict) and u[\"mass\"][\"zuwachs\"] == 0\n356|    immun = con.execute(\"SELECT status,code FROM immunsystem\").fetchall()\n357|    assert len(immun) == 1 and immun[0][\"status\"] == \"offen_norm\"\n358|    assert \"test_lieferant_eichprobe_norm\" in immun[0][\"code\"]\n359|    m = datenbank.lj(con.execute(\"SELECT masse FROM kandidaten WHERE id=?\", (kid,)).fetchone()[0])\n360|    assert rel_test not in m[\"_dateien\"]\n361|    assert con.execute(\"SELECT COUNT(*) FROM kasse\").fetchone()[0] == 0\n362|    con.close()\n363|\n364|\n365|def test_kammerzaehlung_misst_auch_verschachtelte_aufrufe(werk):\n366|    assert hasattr(kammer, \"zaehlung\"), \"Kammerzählung fehlt; Konstante 1 ist kein Zähler\"\n367|    with kammer.zaehlung() as aussen:\n368|        assert aussen == []\n369|        with kammer.zaehlung() as innen:\n370|            assert kammer.ausfuehren(werk, [\"python\", \"-c\", \"print('erster')\"]).rc == 0\n371|        assert kammer.ausfuehren(werk, [\"python\", \"-c\", \"print('zweiter')\"]).rc == 0\n372|    assert len(innen) == 1 and len(aussen) == 2\n373|    assert len({z[\"container\"] for z in aussen}) == 2\n374|    assert [z[\"stdout\"].strip() for z in aussen] == [\"erster\", \"zweiter\"]\n375|    with kammer.zaehlung() as danach:\n376|        assert danach == []\n377|\n378|\n379|@pytest.mark.parametrize(\"gegenprobe\", [False, True])\n380|def test_norm_paar_schliesst_falsch_gruen_ohne_normpfad_aus(werk, tmp_path, gegenprobe):\n381|    assert hasattr(eichproben, \"_einzelprobe\"), \"Isolierte, beweisgebundene Probe fehlt\"\n382|    con = datenbank.verbinden(tmp_path / \"original.db\")\n383|    vor_db = list(con.iterdump())\n384|    vor_werk = {p.relative_to(werk).as_posix(): p.read_bytes() for p in werk.rglob(\"*\") if p.is_file()}\n385|    basis = messgeraet.messen(werk, [\"lieferant\"], \"beispiel\", None)\n386|    with kammer.zaehlung() as zaehler:\n387|        e = eichproben._einzelprobe(con, 1, 1, werk, \"beispiel\", [\"lieferant\"], [], basis, basis, None, {}, 0,\n388|                                   {\"von_bereich\": \"abnehmer\", \"nach_bereich\": \"lieferant\"}, \"norm\", gegenprobe)\n389|    print(\"NORM PAAR\", gegenprobe, e[\"bestanden\"], e[\"grund\"], e[\"kammerlaeufe\"])\n390|    assert e[\"ausgefuehrt\"] is True and e[\"pruefbar\"] is True\n391|    assert e[\"bestanden\"] is (not gegenprobe)\n392|    assert e[\"kammerlaeufe\"] == len(zaehler) and len(zaehler) > 1\n393|    assert e[\"modellaufrufe\"] == 0 and e[\"kosten_eur\"] == 0\n394|    assert e[\"belege\"][\"urteil\"][\"mass\"][\"zuwachs\"] == 0\n395|    if gegenprobe:\n396|        assert e[\"belege\"][\"urteil\"][\"norm\"] == []\n397|        assert e[\"belege\"][\"normeintraege\"] == []\n398|    else:\n399|        for feld, wert in ((\"mass\", None), (\"mass\", {}), (\"norm\", [])):\n400|            falsch = deepcopy(e[\"belege\"])\n401|            falsch[\"urteil\"][feld] = wert\n402|            assert eichproben._bestanden(\"norm\", falsch) is False\n403|        falsch = deepcopy(e[\"belege\"])\n404|        falsch[\"normeintraege\"] = []\n405|        assert eichproben._bestanden(\"norm\", falsch) is False\n406|        falsch = deepcopy(e[\"belege\"])\n407|        falsch[\"werk_test_vorhanden\"] = True\n408|        assert eichproben._bestanden(\"norm\", falsch) is False\n409|    assert list(con.iterdump()) == vor_db\n410|    assert {p.relative_to(werk).as_posix(): p.read_bytes() for p in werk.rglob(\"*\") if p.is_file()} == vor_werk\n411|    con.close()"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Allgemein gültige Messhülle macht negatives Normprädikat zur gültigen Gegenprobe",
+    "minimalbeleg": {
+      "zustand": "Normgegenprobe: Pflichtnormtest skipped/xfail/entfernt, spätere Messung ohne Normtest gültig; massdict vorhanden, NormprädikatFalse.",
+      "schluss": "Original _einzelprobe lässt pruefbar=True; _vollstaendig akzeptiert gegenprobe.bestandenFalse. Ausgeführt irgendein Kammerlauf ist nicht der benannte Normzeuge.",
+      "grenze": "Vertrag hat _vertrag_pruefbar-Zeugenbindung; genau derselbe Schutz ist nicht automatisch für Norm gegeben."
+    },
+    "reparaturzuordnung": "eingegrenzter_Kern_oder_sein_Eigennachweis",
+    "status": "Kernschutz_integriert_Elterneigensuite_belegt_Schlussreview_offen",
+    "elternbelege": [
+      "53-aegis2-eltern-rot",
+      "54-aegis2-eltern-gruen",
+      "56-aegis2-kern-und-eichpaare"
+    ],
+    "beleggrenze": "Produzentenschutz oder gezielter Verbraucherfall; keine Behauptung, jeder Ort sei separat end-to-end ausgeführt."
+  },
+  {
+    "id": "B10:V01",
+    "audit_befund": "B10",
+    "audit_leser": "V01",
+    "titel": "Norm-Gegenprobe gilt ohne ihren ausgeführten Pflichtzeugen als prüfbar",
+    "pfad": "biotop/organe/vorspann.py",
+    "originalzeilen": [
+      66,
+      78
+    ],
+    "original_sha256": "8a9ec4456c922b613d3adad4e72645cf18ce194aefbf630ab38e3726249456cc",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "V01",
+      "quellbeleg": "66|def _qualitaet(p):\n67|    erwartet = {'nebenwirkung', 'regression', 'norm', 'vertrag'}\n68|    zahlen = {}\n69|    for gruppe, soll, name in (('proben', True, 'positive'), ('gegenproben', False, 'negative')):\n70|        es = p.get(gruppe) or {}\n71|        zahlen[name] = sum(isinstance(e, dict) and e.get('ausgefuehrt') is True\n72|                           and e.get('pruefbar') is True and e.get('bestanden') is soll\n73|                           for e in es.values())\n74|        if set(es) != erwartet or zahlen[name] != 4:\n75|            raise ValueError(f'{gruppe}: nicht genau vier ausgeführte, prüfbare Kontrollen mit Sollurteil {soll}')\n76|    if p.get('bestanden') is not True:\n77|        raise ValueError('Eichproben-Gesamturteil nicht bestanden')\n78|    return dict(zahlen, erwartet_je=4)"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Allgemein gültige Messhülle macht negatives Normprädikat zur gültigen Gegenprobe",
+    "minimalbeleg": {
+      "zustand": "Normgegenprobe: Pflichtnormtest skipped/xfail/entfernt, spätere Messung ohne Normtest gültig; massdict vorhanden, NormprädikatFalse.",
+      "schluss": "Original _einzelprobe lässt pruefbar=True; _vollstaendig akzeptiert gegenprobe.bestandenFalse. Ausgeführt irgendein Kammerlauf ist nicht der benannte Normzeuge.",
+      "grenze": "Vertrag hat _vertrag_pruefbar-Zeugenbindung; genau derselbe Schutz ist nicht automatisch für Norm gegeben."
+    },
+    "reparaturzuordnung": "eingegrenzter_Kern_oder_sein_Eigennachweis",
+    "status": "Kernschutz_integriert_Elterneigensuite_belegt_Schlussreview_offen",
+    "elternbelege": [
+      "53-aegis2-eltern-rot",
+      "54-aegis2-eltern-gruen",
+      "56-aegis2-kern-und-eichpaare"
+    ],
+    "beleggrenze": "Produzentenschutz oder gezielter Verbraucherfall; keine Behauptung, jeder Ort sei separat end-to-end ausgeführt."
+  },
+  {
+    "id": "B10:V03",
+    "audit_befund": "B10",
+    "audit_leser": "V03",
+    "titel": "Norm-Gegenprobe gilt ohne ihren ausgeführten Pflichtzeugen als prüfbar",
+    "pfad": "biotop/organe/vorspann.py",
+    "originalzeilen": [
+      153,
+      181
+    ],
+    "original_sha256": "8a9ec4456c922b613d3adad4e72645cf18ce194aefbf630ab38e3726249456cc",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "V03",
+      "quellbeleg": "153|    r['gegenstand'] = eichgegenstand.sichern(con, werk['id'], lauf_id, pfad)\n154|    if not r['gegenstand'].get('gegenstand'):\n155|        raise ValueError('Eichgegenstand fehlt: ' + str(r['gegenstand'].get('befund')))\n156|    t0 = time.monotonic()\n157|    r['funde'] = fundpruefung.bewerten(con, werk['id'], lauf_id, pfad)\n158|    eichung.kosten_buchen(con, lauf_id, werk['id'], 'fundpruefung', r['funde']['kammerlaeufe'],\n159|                         time.monotonic()-t0, modellaufrufe=0, kosten_eur=0.0)\n160|    t0 = time.monotonic()\n161|    r['basis'] = messgeraet.messen(pfad, bereiche, paket, ref)\n162|    # messen() führt genau einen Kammeraufruf aus; keine Modelle. Auch ungültige Rückgaben kosten diesen Lauf.\n163|    eichung.kosten_buchen(con, lauf_id, werk['id'], 'eichausgang', 1, time.monotonic()-t0,\n164|                         modellaufrufe=0, kosten_eur=0.0)\n165|    if r['basis'].get('gueltig') is not True or r['basis'].get('werk', {}).get('baut') is not True:\n166|        raise ValueError('Messung des Eich-Ausgangs ungültig: ' + str(r['basis'].get('grund')))\n167|    r['eichproben'] = eichproben.proben(con, lauf_id, werk['id'], pfad, paket, bereiche,\n168|                                      landkarte.bereichs_strassen(kanten, paket), r['basis'], r['basis'], ref,\n169|                                      tausch, generation=-1)\n170|    p = r['eichproben']\n171|    # Proben isolieren ihre Datenbank; die gemessenen Kosten kommen als Rohdaten zurück.\n172|    for gruppe, prefix in (('proben', 'probe'), ('gegenproben', 'gegenprobe')):\n173|        for name, e in (p.get(gruppe) or {}).items():\n174|            eichung.kosten_buchen(con, lauf_id, werk['id'], f'{prefix}.{name}', e['kammerlaeufe'],\n175|                                 e['dauer_s'], modellaufrufe=e['modellaufrufe'], kosten_eur=e['kosten_eur'])\n176|    gegenstand = r['gegenstand']['gegenstand']\n177|    datei = pfad / gegenstand['vertrag_pfad']\n178|    if (p.get('gegenstand') != gegenstand or eichgegenstand.lesen(con, werk['id']) != gegenstand\n179|            or not datei.is_file() or hashlib.sha256(datei.read_bytes()).hexdigest() != gegenstand['vertrag_pruefsumme']):\n180|        raise ValueError('Eichgegenstand während der Proben verändert oder andere Probequelle')\n181|    r['qualitaet'] = _qualitaet(p)"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Allgemein gültige Messhülle macht negatives Normprädikat zur gültigen Gegenprobe",
+    "minimalbeleg": {
+      "zustand": "Normgegenprobe: Pflichtnormtest skipped/xfail/entfernt, spätere Messung ohne Normtest gültig; massdict vorhanden, NormprädikatFalse.",
+      "schluss": "Original _einzelprobe lässt pruefbar=True; _vollstaendig akzeptiert gegenprobe.bestandenFalse. Ausgeführt irgendein Kammerlauf ist nicht der benannte Normzeuge.",
+      "grenze": "Vertrag hat _vertrag_pruefbar-Zeugenbindung; genau derselbe Schutz ist nicht automatisch für Norm gegeben."
+    },
+    "reparaturzuordnung": "eingegrenzter_Kern_oder_sein_Eigennachweis",
+    "status": "Kernschutz_integriert_Elterneigensuite_belegt_Schlussreview_offen",
+    "elternbelege": [
+      "53-aegis2-eltern-rot",
+      "54-aegis2-eltern-gruen",
+      "56-aegis2-kern-und-eichpaare"
+    ],
+    "beleggrenze": "Produzentenschutz oder gezielter Verbraucherfall; keine Behauptung, jeder Ort sei separat end-to-end ausgeführt."
+  },
+  {
+    "id": "B11:L08",
+    "audit_befund": "B11",
+    "audit_leser": "L08",
+    "titel": "Gen0-Original-Gegenlauf wird nach Fehler ohne Testzuordnung fortgesetzt",
+    "pfad": "biotop/lauf.py",
+    "originalzeilen": [
+      634,
+      644
+    ],
+    "original_sha256": "d00993cdbac4f9f686c0582f36ff118225f0efab7e2f7c73f797de75d68cecd2",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "L08",
+      "quellbeleg": "634|        # Gegenprobe: neuer Testbestand am unmutierten Werk grün?\n635|        e = kammer.ausfuehren(pfad, [\"python\", \"-m\", \"pytest\", \"-q\", \"-p\", \"no:cacheprovider\", \"--tb=line\"], zeitlimit_s=120)\n636|        if e.rc != 0:\n637|            # Tests, die am Original fallen, wieder entfernen (laut scheitern, nicht still)\n638|            for p in list(r[\"neue_tests\"]):\n639|                if p.split(\"/\")[-1] in e.stdout:\n640|                    (pfad / p).unlink(missing_ok=True); neue_gesamt.pop(p, None)\n641|        zwischen = G0.messen(con, lauf_id, werk[\"id\"], pfad, mutanten, \"nachher\")\n642|        blind = zwischen[\"blind\"]\n643|        protokoll.schreiben(con, \"generation0.runde\", lauf_id=lauf_id, runde=runde, gefangen=zwischen[\"gefangen\"], gesamt=len(mutanten), neue_tests=sorted(r[\"neue_tests\"]))\n644|        if zwischen[\"gefangen\"] >= ziel and not blind:"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Fehlerexit bewirkt nur dateinamengestützte Bereinigung statt verbindlichen Abbruch/Nachweis",
+    "minimalbeleg": {
+      "zustand": "Neu erzeugte Tests liegen vor; gesamter Original-Testlauf bricht ab, stdout benennt keine der neuen Dateien.",
+      "schluss": "Keine Datei wird entfernt, G0.messen/Commit-Folge läuft weiter; rc0 allskip wird ebenfalls nicht erkannt.",
+      "grenze": "Quellpfad bestätigt, kein Werkcommit im Audit ausgeführt."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Versiegelte Kerneingrenzung02: Aufnahme/Gen0-Produzenten und leere Herstellerantwort nicht integrieren; kein Durchgriff auf P4-Freeze-Erfolgsbindung."
+  },
+  {
+    "id": "B12:L09",
+    "audit_befund": "B12",
+    "audit_leser": "L09",
+    "titel": "Gen0-Ziel erreicht bei leerer nichtäquivalenter Population",
+    "pfad": "biotop/lauf.py",
+    "originalzeilen": [
+      646,
+      659
+    ],
+    "original_sha256": "d00993cdbac4f9f686c0582f36ff118225f0efab7e2f7c73f797de75d68cecd2",
+    "original_audit_scope": "kernpfad",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "L09",
+      "quellbeleg": "646|    nachher = G0.messen(con, lauf_id, werk[\"id\"], pfad, mutanten, \"nachher\")\n647|    if neue_gesamt:\n648|        lazarus.sicherstellen_repo(pfad)\n649|        lazarus._git(pfad, \"add\", \"-A\")\n650|        if lazarus._git(pfad, \"status\", \"--porcelain\"):\n651|            lazarus._git(pfad, \"commit\", \"-qm\", f\"Biotop Lauf {lauf_id} Generation 0: {len(neue_gesamt)} Tests aus Mutantenfang\")\n652|    r = {\"mutanten\": len(mutanten), \"nicht_aequivalent\": nachher[\"nicht_aequivalent\"],\n653|         \"aequivalent\": [f\"#{nummern[id(m)]} {m['aequivalenz_beleg']}\" for m in mutanten if m.get(\"aequivalent\")],\n654|         \"gefangen_vorher\": vorher[\"gefangen\"], \"gefangen_nachher\": nachher[\"gefangen\"], \"ziel\": ziel,\n655|         \"bezugsgroesse\": f\"gefangen: {nachher['gefangen']} von {nachher['nicht_aequivalent']} nicht-äquivalenten (von {len(mutanten)} gesetzten)\",\n656|         \"erreicht\": nachher[\"gefangen\"] >= ziel, \"neue_tests\": sorted(neue_gesamt), \"runden\": runde,\n657|         \"blind_vorher\": [f\"#{nummern[id(m)]} {m['datei']}:{m['zeile']} {m['beschreibung']}\" for m in vorher[\"blind\"]],\n658|         \"blind_nachher\": [f\"#{nummern[id(m)]} {m['datei']}:{m['zeile']} {m['beschreibung']}\" for m in nachher[\"blind\"]]}\n659|    protokoll.schreiben(con, \"generation0.ergebnis\", lauf_id=lauf_id, **{k: v for k, v in r.items() if k not in (\"blind_vorher\",)})"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Anteilziel wird mit Nenner0 zu Ziel0 und gefangen>=ziel erlaubt 0>=0",
+    "minimalbeleg": {
+      "zustand": "mutanten=[] oder alle als äquivalent ausgeschlossen; ziel als Anteil.",
+      "schluss": "Z622-624 setzt Ziel0; Z656 erreicht=True ohne nichtäquivalenten Testzeugen.",
+      "quelle_zusaetzlich": "lauf.py:610-624, explizit leere JSON-Liste erlaubt.",
+      "grenze": "Keine Aussage über tatsächlich vom Standarderzeuger erzeugte Population nötig: mutanten_json ist ein eigener zulässiger Eingabepfad."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Versiegelte Kerneingrenzung02: Aufnahme/Gen0-Produzenten und leere Herstellerantwort nicht integrieren; kein Durchgriff auf P4-Freeze-Erfolgsbindung."
+  },
+  {
+    "id": "B13:P02",
+    "audit_befund": "B13",
+    "audit_leser": "P02",
+    "titel": "Leere Prüfpoulation erfüllt historisches lokales Gütekriterium",
+    "pfad": "pruefung/anklaeger_vielfalt.py",
+    "originalzeilen": [
+      34,
+      54
+    ],
+    "original_sha256": "495b2f5494053acb7b6c12f1838b4e2a826db1c5fa4e5a867eb08398fa8e6bd8",
+    "original_audit_scope": "ausserhalb_kern",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "P02",
+      "quellbeleg": "34|    tests = [dict(r) for r in con.execute(\n35|        \"SELECT name, bereich, code FROM immunsystem WHERE lauf_id=? AND name LIKE 'aegis_%'\", (lauf,))]\n36|    verworfen = 0\n37|    for r in con.execute(\"SELECT inhalt FROM protokoll WHERE art='aegis.urteil' AND inhalt LIKE ?\",\n38|                         (f'%\"lauf_id\": {lauf},%',)):\n39|        verworfen += len(lj(r[\"inhalt\"]).get(\"doppelungen\") or [])\n40|    gruppen = {}\n41|    for t in tests:\n42|        for n in namen(t[\"code\"]):\n43|            gruppen.setdefault((t[\"bereich\"], behauptung(t[\"code\"], n)), []).append(t[\"name\"])\n44|    doppel = sum(len(v) - 1 for v in gruppen.values() if len(v) > 1)\n45|    erzeugt = len(tests) + verworfen\n46|    anteil = 100 * (verworfen + doppel) / max(1, erzeugt)\n47|    z.append(f\"{marke}\")\n48|    z.append(f\"  erzeugte Tests {erzeugt} ({len(tests)} aufgenommen + {verworfen} als Doppelung verworfen), \"\n49|             f\"{len(gruppen)} verschiedene Behauptungen\")\n50|    z.append(f\"  Doppelungen gesamt {verworfen + doppel} = {anteil:.1f} % → \"\n51|             f\"{'unter 20 %, Zeile 8 BESTANDEN' if anteil < 20 else 'über 20 %, Zeile 8 GERISSEN'}\")\n52|    groesste = max((len(v) for v in gruppen.values()), default=0)\n53|    z.append(f\"  BEZUGSGRÖSSE: {verworfen} vom Ankläger erkannt und verworfen (kamen NICHT ins Immunsystem), \"\n54|             f\"{doppel} unbemerkt aufgenommen; größte Gruppe gleicher Behauptung: {groesste} Test(s)\")"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Leerer Nenner/Fehlerlisten ergeben BESTANDEN/ERFÜLLT ohne vorhandenen Prüfumfang",
+    "minimalbeleg": {
+      "zustand": "Keine passenden historischen Tests/Ansagen/Sperrungen; Fehlerlisten leer.",
+      "schluss": "max(1,N) bzw not(fehlalarm/durch) führt zur positiven lokalen Ergebniszeile.",
+      "grenze": "Berichte können daneben fehlende Farbzeugen nennen; bestätigt ist falsches Teilurteil, nicht gesamte Berichtabnahme. Aktuelle DB nie gelesen."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Historischer Parallelprüfer ohne Rückfluss in aktuellen Pflichtvorspann"
+  },
+  {
+    "id": "B13:P29",
+    "audit_befund": "B13",
+    "audit_leser": "P29",
+    "titel": "Leere Prüfpoulation erfüllt historisches lokales Gütekriterium",
+    "pfad": "pruefung/nachgang_n2_n3.py",
+    "originalzeilen": [
+      117,
+      168
+    ],
+    "original_sha256": "6e15cc6301298fb7ba2bed3290f270510af91598f2cd6d0b175628727cfb9b27",
+    "original_audit_scope": "ausserhalb_kern",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "P29",
+      "quellbeleg": "117|    for frueher in ansagen:\n118|        if frueher[\"nr\"] >= a[\"nr\"]:\n119|            break\n120|        if frueher.get(\"bereich\") == bereich and frueher.get(\"behauptung\"):\n121|            vorher.add(frueher[\"behauptung\"])\n122|    if b in vorher:\n123|        korrekt.append((a, \"Übernahme\" if b in uebernommen.get(bereich, set()) else \"frühere Ansage im Lauf\"))\n124|    else:\n125|        fehlalarm.append(a)\n126|z.append(f\"  geprüft: {len(abgewiesen)} abgewiesene Ansagen\")\n127|for a, quelle in korrekt:\n128|    z.append(f\"    #{a['nr']} {a['bereich']}/{a['behauptung']}: stand im Vorrat ({quelle}) → zu Recht abgewiesen\")\n129|for a in fehlalarm:\n130|    z.append(f\"    #{a['nr']} {a['bereich']}/{a['behauptung']}: stand NICHT im Vorrat → FEHLALARM\")\n131|z.append(f\"  ERGEBNIS Fehlalarm: {len(fehlalarm)} von {len(abgewiesen)} \"\n132|         f\"(Maßstab 0 von 10 → {'ERFÜLLT' if not fehlalarm else 'GERISSEN'})\")\n133|\n134|z.append(\"\")\n135|z.append(\"### Durchgerutscht: ausgeführter Angriff, dessen Test eine vorhandene Behauptung wiederholt\")\n136|z.append(\"  WICHTIG (Grundsatz 5): Geprüft wird gegen den Vorrat ZUM ZEITPUNKT DER ANSAGE — nicht gegen den\")\n137|z.append(\"  Endstand. Der erzeugte Test trägt seinen eigenen Schlüssel im Ursprung; wer den Endstand nimmt,\")\n138|z.append(\"  findet jeden Test als 'schon vorhanden' und misst sich selbst. Erste Fassung dieser Prüfung tat das\")\n139|z.append(\"  und meldete fälschlich 2 Durchrutscher.\")\n140|durch = []\n141|for e in erzeugt:\n142|    # Vorrat zum Ansagezeitpunkt = Übernahme-Schlüssel + Ansagen früherer Zeitpunkte desselben Bereichs,\n143|    # OHNE den Schlüssel dieses Tests selbst.\n144|    for n in testnamen(e[\"code\"]):\n145|        schl = behauptung(e[\"code\"], n)\n146|        vorrat = set(uebernommen.get(e[\"bereich\"], set())) - {schl}\n147|        eigene = [a for a in ansagen if a.get(\"bereich\") == e[\"bereich\"] and a.get(\"behauptung\") == schl]\n148|        vorher_angesagt = [a for a in ansagen\n149|                           if a.get(\"bereich\") == e[\"bereich\"] and a.get(\"behauptung\")\n150|                           and eigene and a[\"nr\"] < eigene[0][\"nr\"]]\n151|        vorrat |= {a[\"behauptung\"] for a in vorher_angesagt}\n152|        # Der Schlüssel des Tests selbst zählt nie als „schon vorhanden\".\n153|        if schl in (set(uebernommen.get(e[\"bereich\"], set())) - {schl}) or schl in {a[\"behauptung\"] for a in vorher_angesagt}:\n154|            durch.append((e[\"name\"], schl, \"Übernahme\" if schl in uebernommen.get(e[\"bereich\"], set()) else \"frühere Ansage\"))\n155|z.append(f\"  geprüft: {len(erzeugt)} erzeugte Tests gegen den Vorrat zum Ansagezeitpunkt\")\n156|for name, schl, q in durch:\n157|    z.append(f\"    {name}: Behauptung {schl} war schon vorhanden ({q}) → DURCHGERUTSCHT\")\n158|if not durch:\n159|    for e in erzeugt:\n160|        for n in testnamen(e[\"code\"]):\n161|            z.append(f\"    {e['name']}: Behauptung {behauptung(e['code'], n)} — zum Ansagezeitpunkt neu im \"\n162|                     f\"Bereich {e['bereich']}, kein Durchrutscher\")\n163|z.append(f\"  ERGEBNIS Durchgerutscht: {len(durch)} (Maßstab 0 → {'ERFÜLLT' if not durch else 'GERISSEN'})\")\n164|if durch:\n165|    z.append(\"\")\n166|    z.append(\"  URSACHENPRÜFUNG der durchgerutschten Fälle (nachgesehen, nicht vermutet):\")\n167|    for name, schl, q in durch:\n168|        z.append(f\"    {name}: Behauptung {schl}, Quelle {q}\")"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Leerer Nenner/Fehlerlisten ergeben BESTANDEN/ERFÜLLT ohne vorhandenen Prüfumfang",
+    "minimalbeleg": {
+      "zustand": "Keine passenden historischen Tests/Ansagen/Sperrungen; Fehlerlisten leer.",
+      "schluss": "max(1,N) bzw not(fehlalarm/durch) führt zur positiven lokalen Ergebniszeile.",
+      "grenze": "Berichte können daneben fehlende Farbzeugen nennen; bestätigt ist falsches Teilurteil, nicht gesamte Berichtabnahme. Aktuelle DB nie gelesen."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Historischer Parallelprüfer ohne Rückfluss in aktuellen Pflichtvorspann"
+  },
+  {
+    "id": "B13:P27",
+    "audit_befund": "B13",
+    "audit_leser": "P27",
+    "titel": "Leere Prüfpoulation erfüllt historisches lokales Gütekriterium",
+    "pfad": "pruefung/nachgang_n10.py",
+    "originalzeilen": [
+      49,
+      99
+    ],
+    "original_sha256": "ee1a249f47a625fa1f8a17a11d3a1c4d48a37ad56d1304cdb1d186b947e9bbc5",
+    "original_audit_scope": "ausserhalb_kern",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "P27",
+      "quellbeleg": "49|z.append(\"    Er bringt 0 Punkte, kommt nicht ins Werk und ist kein vom Ankläger bestätigter Fehler.\")\n50|z.append(\"\")\n51|mit_schluessel = [e for e in alle if \"behauptung=\" in (e[\"ursprung\"] or \"\")]\n52|z.append(f\"  Einträge mit gespeichertem Behauptungsschlüssel: {len(mit_schluessel)} von {len(alle)}\")\n53|for e in alle:\n54|    hat = \"behauptung=\" in (e[\"ursprung\"] or \"\")\n55|    z.append(f\"    {e['name']}: {'ja' if hat else 'NEIN'}\")\n56|z.append(\"\")\n57|z.append(\"## Folge für die Bezugsgrößen\")\n58|z.append(\"\")\n59|z.append(\"### Zeile 8 (Doppelungsanteil): Bezugsgröße bleibt 2\")\n60|z.append(\"  Zeile 8 misst den Anteil unter den vom ANKLÄGER ERZEUGTEN TESTS, also unter den Funden.\")\n61|z.append(\"  Ein Norm-Eintrag ist kein erzeugter Fund — er ist das Gegenteil: ein verworfener Test.\")\n62|z.append(f\"  Erzeugte Funde in Lauf {LAUF}: {len(aegis_e)}. Die Zahl 2 in der Zeile-8-Tabelle ist richtig.\")\n63|z.append(\"\")\n64|z.append(\"### Durchgerutscht: über ALLE drei neu gemessen\")\n65|z.append(\"  Der Prüfer hat recht, dass die Frage gestellt werden muss: Trägt der Norm-Eintrag einen Schlüssel,\")\n66|z.append(\"  kann auch er eine vorhandene Behauptung wiederholen. Deshalb hier die Messung über alle drei.\")\n67|z.append(\"\")\n68|# Vorrat zum Ansagezeitpunkt rekonstruieren\n69|uebernommen = {}\n70|for r in con.execute(\"SELECT bereich, ursprung FROM immunsystem WHERE werk_id=? AND generation=0 AND ursprung LIKE '%behauptung=%'\", (WERK,)):\n71|    for s in r[\"ursprung\"].split(\"behauptung=\", 1)[1].strip().split(\" \"):\n72|        if s.count(\"|\") != 1 or not all(x.strip() for x in s.split(\"|\")):\n73|            break\n74|        uebernommen.setdefault(r[\"bereich\"], set()).add(s)\n75|ansagen = []\n76|for r in con.execute(\"SELECT nr, inhalt FROM protokoll WHERE art='aegis.ansage' ORDER BY nr\"):\n77|    d = lj(r[\"inhalt\"]) or {}\n78|    if d.get(\"lauf_id\") == LAUF:\n79|        ansagen.append({\"nr\": r[\"nr\"], **d})\n80|\n81|durch = []\n82|for e in alle:\n83|    for t in testnamen(e[\"code\"]):\n84|        schl = behauptung(e[\"code\"], t)\n85|        eigene = [a for a in ansagen if a.get(\"bereich\") == e[\"bereich\"] and a.get(\"behauptung\") == schl]\n86|        grenze = eigene[0][\"nr\"] if eigene else 10**9\n87|        vorher = {a[\"behauptung\"] for a in ansagen\n88|                  if a.get(\"bereich\") == e[\"bereich\"] and a.get(\"behauptung\") and a[\"nr\"] < grenze}\n89|        vorrat = (uebernommen.get(e[\"bereich\"], set()) | vorher) - {schl} if not eigene else \\\n90|                 (uebernommen.get(e[\"bereich\"], set()) | vorher)\n91|        treffer = schl in (uebernommen.get(e[\"bereich\"], set()) | vorher)\n92|        z.append(f\"  {e['name']} / {schl}: im Vorrat zum Ansagezeitpunkt? {'JA → DURCHGERUTSCHT' if treffer else 'nein'}\")\n93|        if treffer:\n94|            durch.append((e[\"name\"], schl))\n95|z.append(\"\")\n96|z.append(f\"  ERGEBNIS Durchgerutscht über alle {len(alle)} erzeugten Einträge: {len(durch)} \"\n97|         f\"(Maßstab 0 → {'ERFÜLLT' if not durch else 'GERISSEN'})\")\n98|z.append(\"\")\n99|if durch:"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Leerer Nenner/Fehlerlisten ergeben BESTANDEN/ERFÜLLT ohne vorhandenen Prüfumfang",
+    "minimalbeleg": {
+      "zustand": "Keine passenden historischen Tests/Ansagen/Sperrungen; Fehlerlisten leer.",
+      "schluss": "max(1,N) bzw not(fehlalarm/durch) führt zur positiven lokalen Ergebniszeile.",
+      "grenze": "Berichte können daneben fehlende Farbzeugen nennen; bestätigt ist falsches Teilurteil, nicht gesamte Berichtabnahme. Aktuelle DB nie gelesen."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Historischer Parallelprüfer ohne Rückfluss in aktuellen Pflichtvorspann"
+  },
+  {
+    "id": "B14:P16",
+    "audit_befund": "B14",
+    "audit_leser": "P16",
+    "titel": "Nicht ausgeführte Durchrutscherprüfung wird als gemessen ausgegeben",
+    "pfad": "pruefung/lauf25_auswertung.py",
+    "originalzeilen": [
+      37,
+      108
+    ],
+    "original_sha256": "23649a8229beccf2991bc01b0fcea01dd6a277eac08a508f4f96188b7c4b6581",
+    "original_audit_scope": "ausserhalb_kern",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "P16",
+      "quellbeleg": "37|# ---------------------------------------------------------------- Pfadnachweis\n38|geprueft = prot(\"immun.aufnahme_geprueft\")\n39|gesperrt = prot(\"immun.aufnahme_gesperrt\")\n40|erzeugt = [dict(r) for r in con.execute(\n41|    \"SELECT name, bereich, code, status, generation FROM immunsystem WHERE lauf_id=? AND generation > 0 \"\n42|    \"AND ursprung NOT LIKE '%übernommen%' ORDER BY name\", (LAUF,))]\n43|z.append(\"## 1. Pfadnachweis — liegt C im Aufnahmepfad?\")\n44|z.append(f\"  Aufrufe von C (`immun.aufnahme_geprueft`): **{len(geprueft)}** (Menge: Protokollzeilen dieses Laufs)\")\n45|z.append(f\"  geprüfte Tests insgesamt: {sum(x.get('anzahl', 0) for x in geprueft)} \"\n46|         f\"(Menge: Summe des Feldes `anzahl` über alle Aufrufe)\")\n47|z.append(f\"  im Lauf erzeugte Immunsystem-Einträge: **{len(erzeugt)}** \"\n48|         f\"(Menge: `immunsystem` mit lauf_id={LAUF}, generation>0, ohne Übernahme)\")\n49|z.append(\"\")\n50|if len(erzeugt) == 0 and len(geprueft) == 0:\n51|    z.append(\"  ERGEBNIS: **Beide Zahlen sind null.** Das ist konsistent — es sind keine Einträge entstanden,\")\n52|    z.append(\"  also hatte C nichts zu prüfen. Der Pfadnachweis ist damit aber **NICHT GEFÜHRT**:\")\n53|    z.append(\"  Aus 0 = 0 folgt nicht, dass C im Pfad liegt. Nach Masterprompt Abschnitt 4 letzte Zeile lautet\")\n54|    z.append(\"  das Ergebnis **„nicht gemessen\\\", nicht „bestanden\\\" — eine Prüfung ohne Gegenstand meldet das.\")\n55|elif len(geprueft) == 0:\n56|    z.append(f\"  ERGEBNIS: **DURCHGEFALLEN.** {len(erzeugt)} Einträge entstanden, C wurde nie aufgerufen —\")\n57|    z.append(\"  C ist eine verwaiste Insel.\")\n58|else:\n59|    z.append(f\"  ERGEBNIS: C wurde {len(geprueft)}-mal aufgerufen bei {len(erzeugt)} erzeugten Einträgen.\")\n60|z.append(\"\")\n61|\n62|# ---------------------------------------------------------------- Warum kein Gegenstand?\n63|z.append(\"## 2. Warum sind keine Einträge entstanden? (Ursachenkette, je Stufe gezählt)\")\n64|ansagen = prot(\"aegis.ansage\")\n65|aus = [a for a in ansagen if a.get(\"ausgefuehrt\")]\n66|abg = [a for a in ansagen if not a.get(\"ausgefuehrt\") and a.get(\"behauptung\")]\n67|kein = [a for a in ansagen if not a.get(\"ausgefuehrt\") and not a.get(\"behauptung\")]\n68|z.append(f\"  Ansagen des Anklägers: {len(ansagen)} (Menge: Protokollart `aegis.ansage`, Lauf {LAUF})\")\n69|z.append(f\"    davon Angriff ausgeführt: {len(aus)}\")\n70|z.append(f\"    davon von A gesperrt (Wiederholung): {len(abg)}\")\n71|z.append(f\"    davon KEIN ANGRIFF: {len(kein)}\")\n72|urteile = [u for u in prot(\"aegis.urteil\") if (u.get(\"angriff\") or {}).get(\"modell\")]\n73|best = sum(len((u.get(\"angriff\") or {}).get(\"bestaetigt_kandidat\") or []) for u in urteile)\n74|normn = sum(len(u.get(\"norm\") or []) for u in urteile)\n75|z.append(f\"  Ankläger-Urteile mit Angriff: {len(urteile)} (Menge: Protokollart `aegis.urteil` mit Angriffsmodell)\")\n76|z.append(f\"    am Kandidaten bestätigte Tests: {best}\")\n77|z.append(f\"    als Norm eingestufte Tests: {normn}\")\n78|z.append(\"\")\n79|z.append(\"  KETTE: Ein Eintrag entsteht nur, wenn ein Angriffstest am Kandidaten FÄLLT (bestätigt) oder als\")\n80|z.append(\"  Norm eingestuft wird. Beides war in diesem Lauf null — also kam C kein Gegenstand zu.\")\n81|z.append(\"  Das ist kein Fehler von C, sondern die Lage: Das Werk ist am Höchstwert (Kernmaß 0), die\")\n82|z.append(\"  Angriffstests bestanden am Kandidaten.\")\n83|z.append(\"\")\n84|\n85|# ---------------------------------------------------------------- Maßstab\n86|z.append(\"## 3. Maßstab des Auftrags\")\n87|z.append(f\"  Pfadnachweis (geprüfte Aufnahmen = erzeugte Einträge): {len(geprueft)} = {len(erzeugt)} — \"\n88|         f\"formal erfüllt, aber **ohne Gegenstand → nicht gemessen**\")\n89|durch = []\n90|for e in erzeugt:\n91|    pass\n92|z.append(f\"  Durchgerutscht an C: {len(durch)} von {len(erzeugt)} erzeugten Einträgen — \"\n93|         f\"{'nicht gemessen (kein Gegenstand)' if not erzeugt else 'gemessen'}\")\n94|z.append(f\"  Fehlalarm an C: {len(gesperrt)} Sperrungen im Lauf — \"\n95|         f\"{'nicht gemessen (keine Sperrung)' if not gesperrt else 'gemessen'}\")\n96|z.append(f\"  Grüner Eichfall aus dem Lauf: {'vorhanden' if any(True for _ in erzeugt) else 'FEHLT'}\")\n97|z.append(f\"  Roter Eichfall aus dem Lauf: {'vorhanden' if gesperrt else 'FEHLT'}\")\n98|z.append(\"\")\n99|\n100|# ---------------------------------------------------------------- V9\n101|abw = prot(\"aegis.abweichung\")\n102|z.append(\"## 4. Abweichungsquote Ansage ↔ Ausführung (V9, gezählt, keine Grenze)\")\n103|z.append(f\"  Protokollzeilen `aegis.abweichung` in Lauf {LAUF}: {len(abw)}\")\n104|if abw:\n105|    ja = sum(1 for a in abw if a.get(\"abweichung\"))\n106|    z.append(f\"    davon mit Abweichung: {ja} von {len(abw)}\")\n107|else:\n108|    z.append(\"    keine — die Zeile entsteht nur bei einem aufgenommenen Fund, und es gab keinen.\")"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "Leere Ergebnisliste bleibt durch for/pass unverändert und wird als berechneter Nullbefund etikettiert",
+    "minimalbeleg": {
+      "zustand": "erzeugt enthält mindestens einen Eintrag.",
+      "schluss": "durch=[]; for e in erzeugt: pass; Ausgabe 0vonN gemessen.",
+      "grenze": "0=0-Pfadnachweis Z50-54 ist ausdrücklich korrekt gesperrt. Kein eigener neuer Reparaturauftrag."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Historischer Parallelprüfer ohne Rückfluss in aktuellen Pflichtvorspann"
+  },
+  {
+    "id": "B15:P08",
+    "audit_befund": "B15",
+    "audit_leser": "P08",
+    "titel": "Fehlmessung kann historische negative Eichkontrolle erfüllen",
+    "pfad": "pruefung/eichung_falld.py",
+    "originalzeilen": [
+      34,
+      41
+    ],
+    "original_sha256": "45fe97d0678493fe3e482fdfc276800ac77f3541528cd777923fc582622d0cd8",
+    "original_audit_scope": "ausserhalb_kern",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "P08",
+      "quellbeleg": "34|d = eichung.rauschmessung(con, lauf_id=0, werk_id=997, pfad=pfad, bereiche=[\"preise\"], paket=\"lagerhaus\", ref=unstet)\n35|z = [\"# Fall D nachgemessen — einziger Bereich gesperrt, Referenzlast sicher unstet (jeder zweite Aufruf +150 ms)\"]\n36|z += eichung.text(d)\n37|e = d[\"bereiche\"][\"preise\"]\n38|z.append(f\"  Werte {e.get('werte')} | Median {e.get('median')} | Spannweite {100*(e.get('spannweite') or 0):.0f} % | Toleranz {e['toleranz']}\")\n39|z.append(f\"  lauf_startet = {d['lauf_startet']} (gefordert: False, weil 1 von 1 Bereichen gesperrt ist)\")\n40|z.append(f\"  ERGEBNIS: {'bestanden — der Lauf startet nicht' if not d['lauf_startet'] else 'NICHT bestanden'}\")\n41|p = con.execute(\"SELECT nr, inhalt FROM protokoll WHERE art='eichung.lauf_startet_nicht' ORDER BY nr DESC LIMIT 1\").fetchone()"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "not lauf_startet wird ohne Nachweis der beabsichtigten Rauschursache als bestanden gewertet",
+    "minimalbeleg": {
+      "zustand": "Einziger Bereich liefert keine verwertbaren Messungen statt absichtlich schwankender ausgeführter Messungen.",
+      "schluss": "rauschmessung sperrt Bereich/lauf_startet=False; historischer FallD meldet bestanden bzw gewünschtes True.",
+      "grenze": "Produkt-Vorspann prüft Messqualität zusätzlich; Außenfall ist nicht das aktuelle Gate."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Historischer Parallelprüfer ohne Rückfluss in aktuellen Pflichtvorspann"
+  },
+  {
+    "id": "B15:P09",
+    "audit_befund": "B15",
+    "audit_leser": "P09",
+    "titel": "Fehlmessung kann historische negative Eichkontrolle erfüllen",
+    "pfad": "pruefung/eichung_pruefen.py",
+    "originalzeilen": [
+      19,
+      50
+    ],
+    "original_sha256": "287d4795bab9016e91e448084c38cb4ba9312e07ec052cb35f682739309ceee3",
+    "original_audit_scope": "ausserhalb_kern",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "P09",
+      "quellbeleg": "19|z = [\"# Generation minus eins — Rauschmessung mit bereichsweiser Sperre (Fassung 5/6), an echten Kammerläufen\"]\n20|\n21|z.append(\"\\n## Fall A: echtes Werk `lagerhaus` (Stand Lauf 20), echte Referenzlast\")\n22|a = eichung.rauschmessung(con, lauf_id=0, werk_id=18, pfad=pfad, bereiche=bereiche, paket=\"lagerhaus\", ref=ref)\n23|z += eichung.text(a)\n24|z.append(f\"  Lauf würde starten: {a['lauf_startet']} | Toleranzen an grenzen_f2: {a['toleranz']}\")\n25|\n26|# Fall B: Referenzlast von `preise` unstet machen (zufällige Schlafzeit) — die anderen Bereiche bleiben unberührt.\n27|unstet = ref.replace(\"def last_preise(\", \"\"\"def last_preise(*_a, **_k):\n28|    import random, time\n29|    time.sleep(random.choice([0.0, 0.0, 0.05, 0.12]))\n30|    return _last_preise_echt()\n31|\n32|\n33|def _last_preise_echt(\"\"\", 1)\n34|z.append(\"\\n## Fall B: Referenzlast von `preise` absichtlich unstet (zufällige Wartezeit 0–120 ms)\")\n35|b = eichung.rauschmessung(con, lauf_id=0, werk_id=999, pfad=pfad, bereiche=bereiche, paket=\"lagerhaus\", ref=unstet)\n36|z += eichung.text(b)\n37|z.append(f\"  Lauf würde starten: {b['lauf_startet']} (gefordert: ja — nur `preise` gesperrt, die übrigen arbeiten)\")\n38|z.append(f\"  Toleranzen, die in den Lauf gehen: {b['toleranz']}\")\n39|\n40|z.append(\"\\n## Fall C: derselbe Bereich meldet dreimal hintereinander → Befund über die Referenzlast\")\n41|for i in (2, 3):\n42|    c = eichung.rauschmessung(con, lauf_id=0, werk_id=999, pfad=pfad, bereiche=[\"preise\"], paket=\"lagerhaus\", ref=unstet)\n43|    e = c[\"bereiche\"][\"preise\"]\n44|    z.append(f\"  Messung {i+0}: gesperrt {e['gesperrt']}, Serie {e['serie']}, Befund über Referenzlast: {e['befund_referenzlast']}\")\n45|    if e.get(\"befund_referenzlast\"):\n46|        z.append(f\"    Meldung: {e['meldung']}\")\n47|\n48|alle = eichung.rauschmessung(con, lauf_id=0, werk_id=998, pfad=pfad, bereiche=[\"preise\"], paket=\"lagerhaus\", ref=unstet)\n49|z.append(f\"\\n## Fall D: einziger Bereich gesperrt → Lauf startet nicht: {not alle['lauf_startet']} (gefordert: ja)\")\n50|(A / \"02-eichung-rauschmessung-geprueft.txt\").write_text(\"\\n\".join(z) + \"\\n\")"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "not lauf_startet wird ohne Nachweis der beabsichtigten Rauschursache als bestanden gewertet",
+    "minimalbeleg": {
+      "zustand": "Einziger Bereich liefert keine verwertbaren Messungen statt absichtlich schwankender ausgeführter Messungen.",
+      "schluss": "rauschmessung sperrt Bereich/lauf_startet=False; historischer FallD meldet bestanden bzw gewünschtes True.",
+      "grenze": "Produkt-Vorspann prüft Messqualität zusätzlich; Außenfall ist nicht das aktuelle Gate."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Historischer Parallelprüfer ohne Rückfluss in aktuellen Pflichtvorspann"
+  },
+  {
+    "id": "B16:P38",
+    "audit_befund": "B16",
+    "audit_leser": "P38",
+    "titel": "Historische rote-Testzählung verdeckt nicht ausgeführte Tests",
+    "pfad": "pruefung/tor2.py",
+    "originalzeilen": [
+      39,
+      112
+    ],
+    "original_sha256": "5395ddd65e65366440c534b27ef1de3b8d1a8aed41d3d3a529a725fd71ce614b",
+    "original_audit_scope": "ausserhalb_kern",
+    "originalbeleg": {
+      "datei": "audit/LESESTELLEN.json",
+      "id": "P38",
+      "quellbeleg": "39|(A / \"60-tor2-nischen-bandit.txt\").write_text(\"\\n\".join(out) + \"\\n\"); out.clear()\n40|\n41|# ---- S2\n42|p(\"# Tor 2 — Zeile 3: S2 (Leistungsbremse) nach dem Kriterium der versiegelten Liste\")\n43|m0 = lj(ang[0][\"masse\"]); mN = lj(ang[-1][\"masse\"])\n44|l0, lN = m0[\"bereiche\"][\"lager\"][\"laufzeit_ms\"], mN[\"bereiche\"][\"lager\"][\"laufzeit_ms\"]\n45|best = (pfad / \"lagerhaus/lager/bestand.py\").read_text(); jour = (pfad / \"lagerhaus/lager/journal.py\").read_text()\n46|krit_a = (\"summe_fuer\" not in best.split(\"def bestand\")[1].split(\"def \")[0]) or (\"_summen\" in jour or \"_bestand\" in best)\n47|p(f\"Kriterium (a) — bestand() summiert nicht mehr das ganze Journal je Lesen: {'erfüllt' if krit_a else 'NICHT erfüllt'}\")\n48|p(\"  bestand():\", best.split(\"def bestand\")[1].split(\"def \")[0].strip().replace(\"\\n\", \" \")[:160])\n49|p(\"  journal.summe_fuer():\", jour.split(\"def summe_fuer\")[1].split(\"def \")[0].strip().replace(\"\\n\", \" \")[:160])\n50|p(f\"Kriterium (b) — Laufzeit last_lager um ≥ 50 % gesunken: Ausgang {l0} ms → Ende {lN} ms = {(1 - lN / l0) * 100:.1f} % {'erfüllt' if lN <= l0 * 0.5 else 'NICHT erfüllt'}\")\n51|# frische Gegenmessung Ausgang vs Ende (3 Messungen je, in der Kammer)\n52|import tarfile, tempfile\n53|ref = L._referenzlast(werk[\"name\"], mass[\"paket\"])\n54|tmp = Path(tempfile.mkdtemp()); tarfile.open(con.execute(\"SELECT archiv FROM lazarus WHERE lauf_id=? AND generation=0\", (LAUF,)).fetchone()[0]).extractall(tmp, filter=\"data\")\n55|frisch = []\n56|for name, w in ((\"Ausgang\", tmp), (\"Ende\", pfad)):\n57|    ls = []\n58|    for _ in range(3):\n59|        m = messgeraet.messen(w, bereiche, mass[\"paket\"], ref)\n60|        ls.append(m[\"bereiche\"][\"lager\"][\"laufzeit_ms\"])\n61|    frisch.append((name, ls))\n62|p(\"Frische Gegenmessung lager.laufzeit_ms (3× je Stand, Kammer):\", frisch)\n63|kern0, kernN = messgeraet.kernmass_f2(m0), messgeraet.kernmass_f2(mN)\n64|p(f\"Kernmaß F2 Ausgang {kern0} → Ende {kernN} (Nischenmaß: unverändert oder gestiegen → {'ja' if kernN >= kern0 else 'NEIN'})\")\n65|p(f\"ERGEBNIS Zeile 3: S2 {'BEHOBEN' if krit_a and lN <= l0 * 0.5 and kernN >= kern0 else 'NICHT behoben'} — {l0} → {lN} ms ({(1 - lN / l0) * 100:.0f} %), Kernmaß {kern0} → {kernN}\")\n66|(A / \"61-tor2-s2.txt\").write_text(\"\\n\".join(out) + \"\\n\"); out.clear()\n67|\n68|# ---- Immunisierung / Doppelungen / rote Tests\n69|p(\"# Tor 2 — Zeile 8: Immunisierung — n bestätigte Fehler = n Tests im Werk; Doppelungsanteil < 20 %; nach keiner angenommenen Generation ein roter Test\")\n70|im = [dict(r) for r in con.execute(\"SELECT name, bereich, status, ursprung FROM immunsystem WHERE werk_id=? ORDER BY id\", (wid,))]\n71|im_werk = [x for x in im if x[\"status\"] == \"im_werk\"]\n72|dateien = sorted(str(f.relative_to(pfad)) for f in (pfad / \"tests\").glob(\"test_*_immun_*.py\"))\n73|p(f\"Immunsystem-Einträge: {len(im)} — im_werk {len(im_werk)}, offen {sum(1 for x in im if x['status'] in ('offen','gefunden'))}, offen_norm {sum(1 for x in im if x['status']=='offen_norm')}\")\n74|p(f\"Immuntest-Dateien im Werk (git): {len(dateien)}\")\n75|for f in dateien: p(\"  \", f)\n76|# Doppelungen aus Protokoll\n77|d_ges = 0; d_dop = 0; d_norm = 0\n78|for z in con.execute(\"SELECT inhalt FROM protokoll WHERE art='aegis.urteil' AND inhalt LIKE ?\", (f'%\"lauf_id\": {LAUF},%',)):\n79|    d = lj(z[\"inhalt\"]); a = d.get(\"angriff\") or {}\n80|    if isinstance(a, dict) and \"gesamt\" in a:\n81|        d_ges += a.get(\"gesamt\", 0); d_dop += len(d.get(\"doppelungen\") or []); d_norm += len(d.get(\"norm\") or [])\n82|p(f\"Angriffstests gesamt (Lauf {LAUF}): {d_ges}; als Doppelung gekennzeichnet: {d_dop} → Anteil {100 * d_dop / max(1, d_ges):.1f} % (Soll < 20 %); als Norm (offen, 0 Punkte): {d_norm}\")\n83|# rote Tests je angenommener Generation: aus Lazarus holen und Testlauf\n84|rot = []\n85|for g in ang:\n86|    arch = con.execute(\"SELECT archiv FROM lazarus WHERE lauf_id=? AND generation=?\", (LAUF, g[\"nummer\"])).fetchone()[0]\n87|    t = Path(tempfile.mkdtemp()); tarfile.open(arch).extractall(t, filter=\"data\")\n88|    e = kammer.ausfuehren(t, [\"python\", \"-m\", \"pytest\", \"-q\", \"-p\", \"no:cacheprovider\", \"--tb=no\"], zeitlimit_s=120)\n89|    tail = e.stdout.strip().splitlines()[-1] if e.stdout.strip() else \"?\"\n90|    rot.append((g[\"nummer\"], tail, e.rc))\n91|    p(f\"  Gen {g['nummer']}: {tail}\")\n92|p(f\"ERGEBNIS Zeile 8: rote Tests nach angenommenen Generationen: {sum(1 for _, _, rc in rot if rc != 0)} von {len(rot)}; Doppelungsanteil {100 * d_dop / max(1, d_ges):.1f} %; Immuntests im Werk {len(dateien)} (Einträge im_werk {len(im_werk)})\")\n93|(A / \"62-tor2-immunisierung.txt\").write_text(\"\\n\".join(out) + \"\\n\"); out.clear()\n94|\n95|# ---- Verhandlung\n96|p(\"# Tor 2 — Zeile 9: Verhandlung — mindestens 1 Generation, in der zwei Bereiche eine Vertragsänderung gemeinsam bestanden\")\n97|vh = [dict(lj(z[\"inhalt\"]), art=z[\"art\"], nr=z[\"nr\"]) for z in con.execute(\"SELECT nr, art, inhalt FROM protokoll WHERE art LIKE 'verhandlung.%' AND inhalt LIKE ? ORDER BY nr\", (f'%\"lauf_id\": {LAUF},%',))]\n98|for v in vh: p(\"  \", v[\"nr\"], v[\"art\"], {k: v[k] for k in v if k not in (\"art\", \"nr\", \"lauf_id\")})\n99|best_vh = [v for v in vh if v[\"art\"] == \"verhandlung.bestanden\"]\n100|p(f\"ERGEBNIS Zeile 9: {len(best_vh)} Verhandlungen bestanden (Generationen {[v['generation'] for v in best_vh]}); begonnen {sum(1 for v in vh if v['art']=='verhandlung.begonnen')}, gescheitert {sum(1 for v in vh if v['art']=='verhandlung.gescheitert')}\")\n101|(A / \"63-tor2-verhandlung.txt\").write_text(\"\\n\".join(out) + \"\\n\"); out.clear()\n102|\n103|# ---- Verlaufskurve\n104|p(\"# Tor 2 — Zeile 10: Verlaufskurve des Hauptlaufs mit Endtestbestand (3.5 F3)\")\n105|k = L.kurve_nachrechnen(con, LAUF)\n106|p(f\"Endtestbestand: {len(k['testbestand'])} Dateien aus {k['testbestand_aus']}\")\n107|p(\"| Gen | Tests eigen | F2 (eigene Tests) | F2 (Endtestbestand) | fehl / sicherheit / tot (Endtests, je Bereich) | Laufzeit ms (b/f/l/p) |\")\n108|p(\"|---|---|---|---|---|---|\")\n109|for z in k[\"kurve\"]:\n110|    b = z[\"bereiche_endtests\"] or {}\n111|    p(f\"| {z['generation']} | {z['tests_eigen']} | {z['f2_eigen']} | {z['f2_endtests']} | \" + \"; \".join(f\"{n}: {x['tests_fehlgeschlagen']}/{x['sicherheit_punkte']}/{x['tote_funktionen']}\" for n, x in b.items()) + \" | \" + \"/\".join(str(b[n][\"laufzeit_ms\"]) for n in (\"bericht\", \"formeln\", \"lager\", \"preise\") if n in b) + \" |\")\n112|(A / \"64-tor2-kurve.txt\").write_text(\"\\n\".join(out) + \"\\n\"); (A / \"64-tor2-kurve.json\").write_text(json.dumps(k, ensure_ascii=False, indent=1))"
+    },
+    "bestaetigungsart": "statisch bestätigter Quell-Kontrollfluss; kein von diesem Elternabgleich ausgeführter Biotop-Fall",
+    "mechanismus": "rc0 wird bei Rotzählung wie vollständige Testausführung behandelt",
+    "minimalbeleg": {
+      "zustand": "Eine angenommene Generation hat pytest-rc0 bei nur skipped-Testcases.",
+      "schluss": "sum(rc!=0)=0; Ausgabe meldet0 rote Testläufe, fehlender Ausführungsnachweis nicht kenntlich.",
+      "grenze": "Reine Statistik \"0 Fehlerexits\" wäre legitim; Überschrift beansprucht dagegen nach jeder Generation Testnachweis. Teilberichtsfehler, keine aktuelle Produktfreigabe."
+    },
+    "reparaturzuordnung": "ausserhalb_der_eingegrenzten_Runde",
+    "status": "bestaetigt_offen",
+    "repariert": false,
+    "ziel": "Eigener Folgeauftrag nach Kernabschluss/Entscheidung",
+    "grund": "Historischer Parallelprüfer ohne Rückfluss in aktuellen Pflichtvorspann"
+  }
+]

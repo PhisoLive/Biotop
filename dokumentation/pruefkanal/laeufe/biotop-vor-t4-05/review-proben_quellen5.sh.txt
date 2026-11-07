@@ -1,0 +1,13 @@
+#!/bin/bash
+# Nur lesend: Restfragen an HEAD
+export TMPDIR=/tmp/review-vor-t4-05
+cd /root/biotop
+echo "== torzeile-Funktionen im Code"; grep -rn --include=*.py -E "^def torzeile|^def zeile_|def tor[0-9]_" biotop/ pruefung/ 2>/dev/null | head -20
+echo "== generation0: messen und ref"; grep -n -E "messgeraet\.messen\(|_referenzlast\(|referenzlast" biotop/organe/generation0.py | head -10
+echo "== lauf.py 200-232"; git show HEAD:biotop/lauf.py | sed -n '200,232p' | grep -n -E "ref|messen|generation0|gen0" 
+echo "== lauf.py 790-800"; git show HEAD:biotop/lauf.py | sed -n '788,800p'
+echo "== aegis 1155-1190"; git show HEAD:biotop/organe/aegis.py | sed -n '1155,1190p'
+echo "== verhalten.py: Ausgabe der Sonde"; grep -n -E "sys\.stdout|print\(json|MARKE|json\.dump\(out|open\('/tmp" /tmp/review-vor-t4-05/verhalten_head.py | head -10
+echo "== _veraenderlich"; awk '/^def _veraenderlich/,/^def [a-z_]+\(/' /tmp/review-vor-t4-05/verhalten_head.py | head -20
+echo "== logmuehle-Werk"; ls -d /root/*logm* /root/*/logmuehle* /root/biotop-t2* 2>/dev/null | head; grep -rln "logmuehle" /root/biotop/pruefung/*.sh /root/biotop/pruefung/*.py 2>/dev/null | head -3
+echo "== vorher_nachher.py (Kern)"; grep -n -E "git archive|pytest|43b8fad|HEAD|for " /root/biotop-vor-t4-05/proben/vorher_nachher.py | head -12

@@ -1,0 +1,13 @@
+#!/bin/bash
+# Nur lesend: Restfragen (TS-Eichproben-Stufe, Stufe None in Urteilen, gedeckt-Kürzung, Randkorpus und TRANSPARENT)
+export TMPDIR=/tmp/review-vor-t4-05
+cd /root/biotop
+echo "== eichproben_ts: aegis.pruefen-Aufrufe"; git show HEAD:biotop/organe/eichproben_ts.py | grep -n -B2 -A3 "aegis.pruefen(" | head -30
+echo "== verhaltensvergleich: gedeckt im Rückgabewert"; git show HEAD:biotop/organe/verhaltensvergleich.py | grep -n -E "\"gedeckt\": " | head
+echo "== verhalten.py: TRANSPARENT-Verwendungen"; grep -n "TRANSPARENT" /tmp/review-vor-t4-05/verhalten_head.py | head
+echo "== verhalten.py: korpus_randfaelle Kopf"; awk '/^def korpus_randfaelle/,0' /tmp/review-vor-t4-05/verhalten_head.py | sed -n '1,40p' | grep -n -E "for |if |fn =|orig|getattr|wickeln|ORIG" | head -20
+echo "== Verdrahtung: Stufe je Urteil"; /root/biotop-t3/venv/bin/python -B -c "
+import json
+d=json.load(open('/root/biotop-vor-t4-05/VERDRAHTUNG-BELEG-REGRESSION.json'))
+nm=d['nachmessungen']; print('urteile',len(nm),'stufe2',sum(1 for n in nm if n['stufe']==2),'stufe_None',sum(1 for n in nm if n['stufe'] is None),'None_mit_laufzeit',sum(1 for n in nm if n['stufe'] is None and n.get('laufzeit')))
+print([ (n['stufe'], bool(n.get('laufzeit'))) for n in nm])"

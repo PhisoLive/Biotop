@@ -1,0 +1,556 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 03 · Teil 194 (Teile 166–239 dieses Stands) · enthält R196 bis R196
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+[R196 · Fortsetzung, Stück 12 von 22]
+referenzlast = "import sys\nsys.path.insert(0, '/werk')\n\n\ndef last_m():\n    from itertools import islice\n    from paket.m.a import zaehle\n    list(islice(zaehle(0), 100))\n"
+bereiche = ['m'], deckende = {'tests': [], 'aufrufe': []}
+korpus_erweitert = True, deckungsregel = 'muster'
+
+    def pruefen(werk: Path, code: dict[str, str], referenzlast: str | None, bereiche: list[str],
+                deckende: dict | Callable[[list[str]], dict], *, korpus_erweitert: bool = True,
+                deckungsregel: str = "muster") -> dict:
+        """Vorgeneration (Werk wie es ist) gegen Kandidat (Werk + `code`), dieselbe Sonde, dieselbe Last.
+    
+        `deckende`: {"tests", "aufrufe", "haelt", "blind"} (deckende_aufrufe) — oder ein Aufruf (Abweichungen → dieses
+        dict), der erst ausgewertet wird, wenn es Abweichungen gibt (spart Kammerläufe).
+        Rückgabe mit `ausgefuehrt`, `geurteilt`, `tragfaehig`, `grund` und `grund_art` (für den Neutralzähler)."""
+        from ..kern import sprachprofil
+        python = not sprachprofil.ist_typescript(Path(werk))
+        module = geaenderte_module(code, python=python)
+        # S1c (D): geänderte Dateien im Quellpaket, die keine Quellmodule sind — die Sonde beobachtet sie nicht (Enthaltung);
+        # außerhalb des Quellpakets gezählt wie bisher (`nicht_quelldateien_ausserhalb`).
+        d_innen, d_aussen = nicht_quelldateien(werk, code, python)
+        basis = {"module": module, "bereiche": sorted(bereiche), "kappe": KAPPE, "sprache": "python" if python else "typescript",
+                 "deckungsregel": deckungsregel, "korpus_erweitert": korpus_erweitert,
+                 "werkzeugdateien": werkzeugdateien(code) if python else [], "nicht_quelldateien_ausserhalb": d_aussen}
+        ausserhalb: dict[str, str] = {p: _D_GRUND for p in d_innen}      # S1c: Wirkung außerhalb der Beobachtung (C, D)
+        if not module and ausserhalb:
+            return {**basis, "ausgefuehrt": False, "geurteilt": False, "tragfaehig": False, "enthaltung": True,
+                    "grund_art": "wirkung_ausserhalb_beobachtung", "ausserhalb": ausserhalb,
+                    "grund": (f"Enthaltung (S1c, D): {len(ausserhalb)} geänderte Datei(en) im Quellpaket, die kein "
+                              f"Quellmodul sind — die Sonde beobachtet sie nicht: {sorted(ausserhalb)[:3]}"),
+                    "beobachtungen": 0, "abweichungen": [], "ungedeckt": [], "gedeckt": {}}
+        if not module:
+            return {**basis, "ausgefuehrt": False, "geurteilt": True, "tragfaehig": True,
+                    "grund_art": "keine_quellaenderung",
+                    "grund": "Kandidat ändert keine Quellmodule — Verhalten der Quellen unverändert"
+                             + (f" (Werkzeugdateien nicht beobachtbar: {basis['werkzeugdateien']})" if basis["werkzeugdateien"] else ""),
+                    "beobachtungen": 0, "abweichungen": [], "ungedeckt": [], "gedeckt": {}}
+        if not referenzlast:
+            # Konfiguration, kein Urteil über den Kandidaten (Review 03 Nr. 3): ohne Referenzlast misst die Sonde nicht.
+            raise SondeAusgefallen("keine Referenzlast — die Verhaltenssonde kann nicht messen")
+        # Behebungsrunde 6 (Entscheidung 3): die vom Kandidaten betroffenen Funktionen (Syntaxbaum)
+        nennung: dict = {}
+        betroffen = betroffene_funktionen(werk, code, module, python=python, nennung=nennung)
+        alt = beobachten(werk, {}, referenzlast, module, bereiche, korpus_erweitert=korpus_erweitert)
+        if not alt.get("gueltig"):
+            if alt.get("art") != "inhalt":
+>               raise SondeAusgefallen(f"Sonde an der Vorgeneration ausgefallen ({alt.get('art')}): {str(alt.get('grund'))[:300]}")
+E               biotop.organe.verhaltensvergleich.SondeAusgefallen: Sonde an der Vorgeneration ausgefallen (infrastruktur): Python-Sonde ohne Ergebnis (rc=1): failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory
+
+biotop/organe/verhaltensvergleich.py:1937: SondeAusgefallen
+______ test_e4_kandidat_mit_rueckschritt_und_eigenem_test_wird_abgelehnt _______
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_e4_kandidat_mit_rueckschr0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0d1b2f0>
+
+    def test_e4_kandidat_mit_rueckschritt_und_eigenem_test_wird_abgelehnt(tmp_path, monkeypatch):
+        """Entscheidung 4: der Kandidat bricht Tab (wirft ValueError) und bringt einen eigenen Test mit, der genau diesen
+        Rückschritt zusichert — gültig nach der Norm-Regel (Verweis auf Verfassung Satz 2), er kommt also in den
+        Testbestand, fällt an der Vorgeneration und besteht am Kandidaten. Er deckt trotzdem nicht: abgelehnt, alle
+        ungedeckten Abweichungen tragen `tab`, der Test steht als ausgeschlossen im Urteil."""
+        monkeypatch.setattr(aegis.verfassung, "lesen", lambda *a: VERFASSUNG)
+        neu = QUELLE.replace(ALT_NORMIEREN, K_TAB)
+        diff = R3._diff(QUELLE, neu, tests={"tests/test_werk_eigen.py": EIGENER_TEST})
+>       u, v = R3._pruefen(tmp_path, monkeypatch, diff, nische="sicher", werk_extra=_norm_tests(SOLL_OHNE_TAB))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_04.py:277: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_e4_kandidat_mit_rueckschr0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0d1b2f0>
+diff = '--- a/probewerk/werk/kern.py\n+++ b/probewerk/werk/kern.py\n@@ -29,7 +29,9 @@\n \n def normieren(text: str) -> str:\n... pytest.raises(ValueError, match=\'Tab\'):\n+        normieren(\'a\\tb\')\n+    assert normieren(\'a b\') == \'a_b\'\n'
+nische = 'sicher'
+werk_extra = {'tests/test_werk_normieren_gewoehnlich.py': "from probewerk.werk.kern import normieren\n\n\ndef test_normieren_gewoeh...n('x x x x x x x x x x x x x x x x x x x x x x x x x ') == 'x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x'\n", ...}
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+_________ test_e4_gegenprobe_derselbe_test_in_der_vorgeneration_deckt __________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_e4_gegenprobe_derselbe_te0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0d18440>
+
+    def test_e4_gegenprobe_derselbe_test_in_der_vorgeneration_deckt(tmp_path, monkeypatch):
+        """Gegenprobe: derselbe Test liegt schon in der Vorgeneration (dort rot) — er deckt die Tab-Abweichungen, der
+        Kandidat überlebt. Nur die Herkunft des Tests unterscheidet die beiden Fälle."""
+        monkeypatch.setattr(aegis.verfassung, "lesen", lambda *a: VERFASSUNG)
+        neu = QUELLE.replace(ALT_NORMIEREN, K_TAB)
+        extra = {**_norm_tests(SOLL_OHNE_TAB), "tests/test_werk_eigen.py": EIGENER_TEST}
+>       u, v = R3._pruefen(tmp_path, monkeypatch, R3._diff(QUELLE, neu), nische="sicher", werk_extra=extra)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_04.py:290: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_e4_gegenprobe_derselbe_te0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0d18440>
+diff = '--- a/probewerk/werk/kern.py\n+++ b/probewerk/werk/kern.py\n@@ -29,7 +29,9 @@\n \n def normieren(text: str) -> str:\n..." in text:\n+        raise ValueError("Tab")\n+    return "_".join(text.split())\n \n \n def _alt(text: str) -> str:\n'
+nische = 'sicher'
+werk_extra = {'tests/test_werk_normieren_gewoehnlich.py': "from probewerk.werk.kern import normieren\n\n\ndef test_normieren_gewoeh...n('x x x x x x x x x x x x x x x x x x x x x x x x x ') == 'x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x'\n", ...}
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+________________ test_merkmale_gleich_in_python_und_typescript _________________
+
+    def test_merkmale_gleich_in_python_und_typescript():
+        """kern/py/verhalten.py::_text_merkmale und kern/ts/kanon.mjs::textMerkmale liefern dieselben Merkmale (Sonde und
+        Aufzeichner beider Sprachen rechnen je Formvariante dasselbe). Gegenprobe: die Proben unterscheiden die Merkmale
+        wirklich (mindestens 12 verschiedene Merkmale kommen vor)."""
+        import importlib.util
+        import subprocess
+        kern = Path(__file__).parent.parent / "biotop/kern"
+        spec = importlib.util.spec_from_file_location("vh", kern / "py/verhalten.py")
+        assert spec is not None and spec.loader is not None
+        vh = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(vh)
+        py = [sorted(vh._text_merkmale(s)) if s else ["leer"] for s in MERKMAL_PROBEN]
+        skript = ("import {textMerkmale} from " + json.dumps(str(kern / "ts/kanon.mjs")) + ";\n"
+                  "const p = JSON.parse(process.argv[1]);\n"
+                  "console.log(JSON.stringify(p.map(s => s ? [...textMerkmale(s)].sort() : ['leer'])));\n")
+>       r = subprocess.run(["node", "--input-type=module", "-e", skript, json.dumps(MERKMAL_PROBEN)],
+                           capture_output=True, text=True, timeout=60)
+
+tests/test_vor_t4_04.py:413: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.12/subprocess.py:548: in run
+    with Popen(*popenargs, **kwargs) as process:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.12/subprocess.py:1026: in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <Popen: returncode: 255 args: ['node', '--input-type=module', '-e', 'import ...>
+args = ['node', '--input-type=module', '-e', 'import {textMerkmale} from "/root/biotop/biotop/kern/ts/kanon.mjs";\nconst p = ...B", "a b", "a 01 2.50", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "\\u00c4 \\u00f6", "a\\u2028b", "", "12", "0.50"]']
+executable = b'node', preexec_fn = None, close_fds = True, pass_fds = ()
+cwd = None, env = None, startupinfo = None, creationflags = 0, shell = False
+p2cread = -1, p2cwrite = -1, c2pread = 14, c2pwrite = 15, errread = 16
+errwrite = 17, restore_signals = True, gid = None, gids = None, uid = None
+umask = -1, start_new_session = False, process_group = -1
+
+    def _execute_child(self, args, executable, preexec_fn, close_fds,
+                       pass_fds, cwd, env,
+                       startupinfo, creationflags, shell,
+                       p2cread, p2cwrite,
+                       c2pread, c2pwrite,
+                       errread, errwrite,
+                       restore_signals,
+                       gid, gids, uid, umask,
+                       start_new_session, process_group):
+        """Execute program (POSIX version)"""
+    
+        if isinstance(args, (str, bytes)):
+            args = [args]
+        elif isinstance(args, os.PathLike):
+            if shell:
+                raise TypeError('path-like args is not allowed when '
+                                'shell is true')
+            args = [args]
+        else:
+            args = list(args)
+    
+        if shell:
+            # On Android the default shell is at '/system/bin/sh'.
+            unix_shell = ('/system/bin/sh' if
+                      hasattr(sys, 'getandroidapilevel') else '/bin/sh')
+            args = [unix_shell, "-c"] + args
+            if executable:
+                args[0] = executable
+    
+        if executable is None:
+            executable = args[0]
+    
+        sys.audit("subprocess.Popen", executable, args, cwd, env)
+    
+        if (_USE_POSIX_SPAWN
+                and os.path.dirname(executable)
+                and preexec_fn is None
+                and not close_fds
+                and not pass_fds
+                and cwd is None
+                and (p2cread == -1 or p2cread > 2)
+                and (c2pwrite == -1 or c2pwrite > 2)
+                and (errwrite == -1 or errwrite > 2)
+                and not start_new_session
+                and process_group == -1
+                and gid is None
+                and gids is None
+                and uid is None
+                and umask < 0):
+            self._posix_spawn(args, executable, env, restore_signals,
+                              p2cread, p2cwrite,
+                              c2pread, c2pwrite,
+                              errread, errwrite)
+            return
+    
+        orig_executable = executable
+    
+        # For transferring possible exec failure from child to parent.
+        # Data format: "exception name:hex errno:description"
+        # Pickle is not used; it is complex and involves memory allocation.
+        errpipe_read, errpipe_write = os.pipe()
+        # errpipe_write must not be in the standard io 0, 1, or 2 fd range.
+        low_fds_to_close = []
+        while errpipe_write < 3:
+            low_fds_to_close.append(errpipe_write)
+            errpipe_write = os.dup(errpipe_write)
+        for low_fd in low_fds_to_close:
+            os.close(low_fd)
+        try:
+            try:
+                # We must avoid complex work that could involve
+                # malloc or free in the child process to avoid
+                # potential deadlocks, thus we do all this here.
+                # and pass it to fork_exec()
+    
+                if env is not None:
+                    env_list = []
+                    for k, v in env.items():
+                        k = os.fsencode(k)
+                        if b'=' in k:
+                            raise ValueError("illegal environment variable name")
+                        env_list.append(k + b'=' + os.fsencode(v))
+                else:
+                    env_list = None  # Use execv instead of execve.
+                executable = os.fsencode(executable)
+                if os.path.dirname(executable):
+                    executable_list = (executable,)
+                else:
+                    # This matches the behavior of os._execvpe().
+                    executable_list = tuple(
+                        os.path.join(os.fsencode(dir), executable)
+                        for dir in os.get_exec_path(env))
+                fds_to_keep = set(pass_fds)
+                fds_to_keep.add(errpipe_write)
+                self.pid = _fork_exec(
+                        args, executable_list,
+                        close_fds, tuple(sorted(map(int, fds_to_keep))),
+                        cwd, env_list,
+                        p2cread, p2cwrite, c2pread, c2pwrite,
+                        errread, errwrite,
+                        errpipe_read, errpipe_write,
+                        restore_signals, start_new_session,
+                        process_group, gid, gids, uid, umask,
+                        preexec_fn, _USE_VFORK)
+                self._child_created = True
+            finally:
+                # be sure the FD is closed no matter what
+                os.close(errpipe_write)
+    
+            self._close_pipe_fds(p2cread, p2cwrite,
+                                 c2pread, c2pwrite,
+                                 errread, errwrite)
+    
+            # Wait for exec to fail or succeed; possibly raising an
+            # exception (limited in size)
+            errpipe_data = bytearray()
+            while True:
+                part = os.read(errpipe_read, 50000)
+                errpipe_data += part
+                if not part or len(errpipe_data) > 50000:
+                    break
+        finally:
+            # be sure the FD is closed no matter what
+            os.close(errpipe_read)
+    
+        if errpipe_data:
+            try:
+                pid, sts = os.waitpid(self.pid, 0)
+                if pid == self.pid:
+                    self._handle_exitstatus(sts)
+                else:
+                    self.returncode = sys.maxsize
+            except ChildProcessError:
+                pass
+    
+            try:
+                exception_name, hex_errno, err_msg = (
+                        errpipe_data.split(b':', 2))
+                # The encoding here should match the encoding
+                # written in by the subprocess implementations
+                # like _posixsubprocess
+                err_msg = err_msg.decode()
+            except ValueError:
+                exception_name = b'SubprocessError'
+                hex_errno = b'0'
+                err_msg = 'Bad exception data from child: {!r}'.format(
+                              bytes(errpipe_data))
+            child_exception_type = getattr(
+                    builtins, exception_name.decode('ascii'),
+                    SubprocessError)
+            if issubclass(child_exception_type, OSError) and hex_errno:
+                errno_num = int(hex_errno, 16)
+                if err_msg == "noexec:chdir":
+                    err_msg = ""
+                    # The error must be from chdir(cwd).
+                    err_filename = cwd
+                elif err_msg == "noexec":
+                    err_msg = ""
+                    err_filename = None
+                else:
+                    err_filename = orig_executable
+                if errno_num != 0:
+                    err_msg = os.strerror(errno_num)
+                if err_filename is not None:
+>                   raise child_exception_type(errno_num, err_msg, err_filename)
+E                   FileNotFoundError: [Errno 2] No such file or directory: 'node'
+
+/usr/lib/python3.12/subprocess.py:1955: FileNotFoundError
+_ test_v1_zustand_aller_slots_verglichen[p22_basis_slot-class Basis:\n    __slots__ = ('stand',)\n\n    def __init__(self, stand: int):\n        self.stand = stand\n\n\nclass Konto(Basis):\n    __slots__ = ('name',)\n\n    def __init__(self, stand: int):\n        super().__init__(stand)\n        self.name = 'k'\n\n    def buchen(self, b: int) -> None:\n        self.stand += b\n-class Basis:\n    __slots__ = ('stand',)\n\n    def __init__(self, stand: int):\n        self.stand = stand\n\n\nclass Konto(Basis):\n    __slots__ = ('name',)\n\n    def __init__(self, stand: int):\n        super().__init__(stand)\n        self.name = 'k'\n\n    def buchen(self, b: int) -> None:\n        self.stand += 2 * b\n] _
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_v1_zustand_aller_slots_ve0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0cb2ed0>
+fall = 'p22_basis_slot'
+alt = "class Basis:\n    __slots__ = ('stand',)\n\n    def __init__(self, stand: int):\n        self.stand = stand\n\n\nclas...  super().__init__(stand)\n        self.name = 'k'\n\n    def buchen(self, b: int) -> None:\n        self.stand += b\n"
+neu = "class Basis:\n    __slots__ = ('stand',)\n\n    def __init__(self, stand: int):\n        self.stand = stand\n\n\nclas...per().__init__(stand)\n        self.name = 'k'\n\n    def buchen(self, b: int) -> None:\n        self.stand += 2 * b\n"
+
+    @pytest.mark.parametrize("fall,alt,neu", [
+        # Review 04 Nr. 2 (p22): an 43b8fad 0 Abweichungen, tragfähig — kan() las nur die Slots der eigenen Klasse.
+        ("p22_basis_slot", KV.format("self.stand += b"), KV.format("self.stand += 2 * b")),
+        # Review 04 Nr. 3 (p21): verschleierter Slot-Name `__stand` → gespeichert als `_Konto__stand`; an 43b8fad 0 Abw.
+        ("p21_verschleiert", KM.format(""), KM.format("2 * ")),
+        # Gegenprobe (p22k): der eigene Slot — schon an 43b8fad gesehen (28)
+        ("p22k_eigener_slot", KV.format("self.name += str(b)"), KV.format("self.name += str(2 * b)")),
+    ])
+    def test_v1_zustand_aller_slots_verglichen(tmp_path, monkeypatch, fall, alt, neu):
+>       r = _organ(tmp_path, monkeypatch, alt, neu, LAST_K)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_05.py:70: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_vor_t4_05.py:49: in _organ
+    return vv.pruefen(w, {"paket/m/a.py": neu}, ref, ["m"], {"tests": [], "aufrufe": []})
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/pytest-of-root/pytest-0/test_v1_zustand_aller_slots_ve0/w')
+code = {'paket/m/a.py': "class Basis:\n    __slots__ = ('stand',)\n\n    def __init__(self, stand: int):\n        self.stand ...er().__init__(stand)\n        self.name = 'k'\n\n    def buchen(self, b: int) -> None:\n        self.stand += 2 * b\n"}
+referenzlast = "import sys\nsys.path.insert(0, '/werk')\n\n\ndef last_m():\n    from paket.m.a import Konto\n    k = Konto(1)\n    k.buchen(2)\n    k.buchen(3)\n"
+bereiche = ['m'], deckende = {'tests': [], 'aufrufe': []}
+korpus_erweitert = True, deckungsregel = 'muster'
+
+    def pruefen(werk: Path, code: dict[str, str], referenzlast: str | None, bereiche: list[str],
+                deckende: dict | Callable[[list[str]], dict], *, korpus_erweitert: bool = True,
+                deckungsregel: str = "muster") -> dict:
+        """Vorgeneration (Werk wie es ist) gegen Kandidat (Werk + `code`), dieselbe Sonde, dieselbe Last.
+    
+        `deckende`: {"tests", "aufrufe", "haelt", "blind"} (deckende_aufrufe) — oder ein Aufruf (Abweichungen → dieses
+        dict), der erst ausgewertet wird, wenn es Abweichungen gibt (spart Kammerläufe).
+        Rückgabe mit `ausgefuehrt`, `geurteilt`, `tragfaehig`, `grund` und `grund_art` (für den Neutralzähler)."""
+        from ..kern import sprachprofil
+        python = not sprachprofil.ist_typescript(Path(werk))
+        module = geaenderte_module(code, python=python)
+        # S1c (D): geänderte Dateien im Quellpaket, die keine Quellmodule sind — die Sonde beobachtet sie nicht (Enthaltung);
+        # außerhalb des Quellpakets gezählt wie bisher (`nicht_quelldateien_ausserhalb`).
+        d_innen, d_aussen = nicht_quelldateien(werk, code, python)
+        basis = {"module": module, "bereiche": sorted(bereiche), "kappe": KAPPE, "sprache": "python" if python else "typescript",
+                 "deckungsregel": deckungsregel, "korpus_erweitert": korpus_erweitert,
+                 "werkzeugdateien": werkzeugdateien(code) if python else [], "nicht_quelldateien_ausserhalb": d_aussen}
+        ausserhalb: dict[str, str] = {p: _D_GRUND for p in d_innen}      # S1c: Wirkung außerhalb der Beobachtung (C, D)
+        if not module and ausserhalb:
+            return {**basis, "ausgefuehrt": False, "geurteilt": False, "tragfaehig": False, "enthaltung": True,
+                    "grund_art": "wirkung_ausserhalb_beobachtung", "ausserhalb": ausserhalb,
+                    "grund": (f"Enthaltung (S1c, D): {len(ausserhalb)} geänderte Datei(en) im Quellpaket, die kein "
+                              f"Quellmodul sind — die Sonde beobachtet sie nicht: {sorted(ausserhalb)[:3]}"),
+                    "beobachtungen": 0, "abweichungen": [], "ungedeckt": [], "gedeckt": {}}
+        if not module:
+            return {**basis, "ausgefuehrt": False, "geurteilt": True, "tragfaehig": True,
+                    "grund_art": "keine_quellaenderung",
+                    "grund": "Kandidat ändert keine Quellmodule — Verhalten der Quellen unverändert"
+                             + (f" (Werkzeugdateien nicht beobachtbar: {basis['werkzeugdateien']})" if basis["werkzeugdateien"] else ""),
+                    "beobachtungen": 0, "abweichungen": [], "ungedeckt": [], "gedeckt": {}}
+        if not referenzlast:
+            # Konfiguration, kein Urteil über den Kandidaten (Review 03 Nr. 3): ohne Referenzlast misst die Sonde nicht.
+            raise SondeAusgefallen("keine Referenzlast — die Verhaltenssonde kann nicht messen")
+        # Behebungsrunde 6 (Entscheidung 3): die vom Kandidaten betroffenen Funktionen (Syntaxbaum)
+        nennung: dict = {}
+        betroffen = betroffene_funktionen(werk, code, module, python=python, nennung=nennung)
+        alt = beobachten(werk, {}, referenzlast, module, bereiche, korpus_erweitert=korpus_erweitert)
+        if not alt.get("gueltig"):
+            if alt.get("art") != "inhalt":
+>               raise SondeAusgefallen(f"Sonde an der Vorgeneration ausgefallen ({alt.get('art')}): {str(alt.get('grund'))[:300]}")
+E               biotop.organe.verhaltensvergleich.SondeAusgefallen: Sonde an der Vorgeneration ausgefallen (infrastruktur): Python-Sonde ohne Ergebnis (rc=1): failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory
+
+biotop/organe/verhaltensvergleich.py:1937: SondeAusgefallen
+_ test_v1_zustand_aller_slots_verglichen[p21_verschleiert-class Konto:\n    __slots__ = ('__stand',)\n\n    def __init__(self, stand: int):\n        self.__stand = stand\n\n    def buchen(self, b: int) -> None:\n        self.__stand += b\n-class Konto:\n    __slots__ = ('__stand',)\n\n    def __init__(self, stand: int):\n        self.__stand = stand\n\n    def buchen(self, b: int) -> None:\n        self.__stand += 2 * b\n] _
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_v1_zustand_aller_slots_ve1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0d1a030>
+fall = 'p21_verschleiert'
+alt = "class Konto:\n    __slots__ = ('__stand',)\n\n    def __init__(self, stand: int):\n        self.__stand = stand\n\n    def buchen(self, b: int) -> None:\n        self.__stand += b\n"
+neu = "class Konto:\n    __slots__ = ('__stand',)\n\n    def __init__(self, stand: int):\n        self.__stand = stand\n\n    def buchen(self, b: int) -> None:\n        self.__stand += 2 * b\n"
+
+    @pytest.mark.parametrize("fall,alt,neu", [
+        # Review 04 Nr. 2 (p22): an 43b8fad 0 Abweichungen, tragfähig — kan() las nur die Slots der eigenen Klasse.
+        ("p22_basis_slot", KV.format("self.stand += b"), KV.format("self.stand += 2 * b")),
+        # Review 04 Nr. 3 (p21): verschleierter Slot-Name `__stand` → gespeichert als `_Konto__stand`; an 43b8fad 0 Abw.
+        ("p21_verschleiert", KM.format(""), KM.format("2 * ")),
+        # Gegenprobe (p22k): der eigene Slot — schon an 43b8fad gesehen (28)
+        ("p22k_eigener_slot", KV.format("self.name += str(b)"), KV.format("self.name += str(2 * b)")),
+    ])
+    def test_v1_zustand_aller_slots_verglichen(tmp_path, monkeypatch, fall, alt, neu):
+>       r = _organ(tmp_path, monkeypatch, alt, neu, LAST_K)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_05.py:70: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_vor_t4_05.py:49: in _organ
+    return vv.pruefen(w, {"paket/m/a.py": neu}, ref, ["m"], {"tests": [], "aufrufe": []})
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/pytest-of-root/pytest-0/test_v1_zustand_aller_slots_ve1/w')
+code = {'paket/m/a.py': "class Konto:\n    __slots__ = ('__stand',)\n\n    def __init__(self, stand: int):\n        self.__stand = stand\n\n    def buchen(self, b: int) -> None:\n        self.__stand += 2 * b\n"}
+referenzlast = "import sys\nsys.path.insert(0, '/werk')\n\n\ndef last_m():\n    from paket.m.a import Konto\n    k = Konto(1)\n    k.buchen(2)\n    k.buchen(3)\n"
+bereiche = ['m'], deckende = {'tests': [], 'aufrufe': []}
+korpus_erweitert = True, deckungsregel = 'muster'
+
+    def pruefen(werk: Path, code: dict[str, str], referenzlast: str | None, bereiche: list[str],
+                deckende: dict | Callable[[list[str]], dict], *, korpus_erweitert: bool = True,
+                deckungsregel: str = "muster") -> dict:
+        """Vorgeneration (Werk wie es ist) gegen Kandidat (Werk + `code`), dieselbe Sonde, dieselbe Last.
+    
+        `deckende`: {"tests", "aufrufe", "haelt", "blind"} (deckende_aufrufe) — oder ein Aufruf (Abweichungen → dieses
+        dict), der erst ausgewertet wird, wenn es Abweichungen gibt (spart Kammerläufe).
+        Rückgabe mit `ausgefuehrt`, `geurteilt`, `tragfaehig`, `grund` und `grund_art` (für den Neutralzähler)."""
+        from ..kern import sprachprofil
+        python = not sprachprofil.ist_typescript(Path(werk))
+        module = geaenderte_module(code, python=python)
+        # S1c (D): geänderte Dateien im Quellpaket, die keine Quellmodule sind — die Sonde beobachtet sie nicht (Enthaltung);
+        # außerhalb des Quellpakets gezählt wie bisher (`nicht_quelldateien_ausserhalb`).
+        d_innen, d_aussen = nicht_quelldateien(werk, code, python)
+        basis = {"module": module, "bereiche": sorted(bereiche), "kappe": KAPPE, "sprache": "python" if python else "typescript",
+                 "deckungsregel": deckungsregel, "korpus_erweitert": korpus_erweitert,
+                 "werkzeugdateien": werkzeugdateien(code) if python else [], "nicht_quelldateien_ausserhalb": d_aussen}
+        ausserhalb: dict[str, str] = {p: _D_GRUND for p in d_innen}      # S1c: Wirkung außerhalb der Beobachtung (C, D)
+        if not module and ausserhalb:
+            return {**basis, "ausgefuehrt": False, "geurteilt": False, "tragfaehig": False, "enthaltung": True,
+                    "grund_art": "wirkung_ausserhalb_beobachtung", "ausserhalb": ausserhalb,
+                    "grund": (f"Enthaltung (S1c, D): {len(ausserhalb)} geänderte Datei(en) im Quellpaket, die kein "
+                              f"Quellmodul sind — die Sonde beobachtet sie nicht: {sorted(ausserhalb)[:3]}"),
+                    "beobachtungen": 0, "abweichungen": [], "ungedeckt": [], "gedeckt": {}}
+        if not module:
+            return {**basis, "ausgefuehrt": False, "geurteilt": True, "tragfaehig": True,
+                    "grund_art": "keine_quellaenderung",
+                    "grund": "Kandidat ändert keine Quellmodule — Verhalten der Quellen unverändert"
+                             + (f" (Werkzeugdateien nicht beobachtbar: {basis['werkzeugdateien']})" if basis["werkzeugdateien"] else ""),
+                    "beobachtungen": 0, "abweichungen": [], "ungedeckt": [], "gedeckt": {}}
+        if not referenzlast:
+            # Konfiguration, kein Urteil über den Kandidaten (Review 03 Nr. 3): ohne Referenzlast misst die Sonde nicht.
+            raise SondeAusgefallen("keine Referenzlast — die Verhaltenssonde kann nicht messen")
+        # Behebungsrunde 6 (Entscheidung 3): die vom Kandidaten betroffenen Funktionen (Syntaxbaum)
+        nennung: dict = {}
+        betroffen = betroffene_funktionen(werk, code, module, python=python, nennung=nennung)
+        alt = beobachten(werk, {}, referenzlast, module, bereiche, korpus_erweitert=korpus_erweitert)
+        if not alt.get("gueltig"):
+            if alt.get("art") != "inhalt":
+>               raise SondeAusgefallen(f"Sonde an der Vorgeneration ausgefallen ({alt.get('art')}): {str(alt.get('grund'))[:300]}")
+E               biotop.organe.verhaltensvergleich.SondeAusgefallen: Sonde an der Vorgeneration ausgefallen (infrastruktur): Python-Sonde ohne Ergebnis (rc=1): failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory
+
+biotop/organe/verhaltensvergleich.py:1937: SondeAusgefallen
+_ test_v1_zustand_aller_slots_verglichen[p22k_eigener_slot-class Basis:\n    __slots__ = ('stand',)\n\n    def __init__(self, stand: int):\n        self.stand = stand\n\n\nclass Konto(Basis):\n    __slots__ = ('name',)\n\n    def __init__(self, stand: int):\n        super().__init__(stand)\n        self.name = 'k'\n\n    def buchen(self, b: int) -> None:\n        self.name += str(b)\n-class Basis:\n    __slots__ = ('stand',)\n\n    def __init__(self, stand: int):\n        self.stand = stand\n\n\nclass Konto(Basis):\n    __slots__ = ('name',)\n\n    def __init__(self, stand: int):\n        super().__init__(stand)\n        self.name = 'k'\n\n    def buchen(self, b: int) -> None:\n        self.name += str(2 * b)\n] _
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_v1_zustand_aller_slots_ve2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0d19580>
+fall = 'p22k_eigener_slot'
+alt = "class Basis:\n    __slots__ = ('stand',)\n\n    def __init__(self, stand: int):\n        self.stand = stand\n\n\nclas...per().__init__(stand)\n        self.name = 'k'\n\n    def buchen(self, b: int) -> None:\n        self.name += str(b)\n"
+neu = "class Basis:\n    __slots__ = ('stand',)\n\n    def __init__(self, stand: int):\n        self.stand = stand\n\n\nclas...).__init__(stand)\n        self.name = 'k'\n\n    def buchen(self, b: int) -> None:\n        self.name += str(2 * b)\n"
+
+    @pytest.mark.parametrize("fall,alt,neu", [
+        # Review 04 Nr. 2 (p22): an 43b8fad 0 Abweichungen, tragfähig — kan() las nur die Slots der eigenen Klasse.
+        ("p22_basis_slot", KV.format("self.stand += b"), KV.format("self.stand += 2 * b")),
+        # Review 04 Nr. 3 (p21): verschleierter Slot-Name `__stand` → gespeichert als `_Konto__stand`; an 43b8fad 0 Abw.
+        ("p21_verschleiert", KM.format(""), KM.format("2 * ")),
+        # Gegenprobe (p22k): der eigene Slot — schon an 43b8fad gesehen (28)
+        ("p22k_eigener_slot", KV.format("self.name += str(b)"), KV.format("self.name += str(2 * b)")),
+    ])
+    def test_v1_zustand_aller_slots_verglichen(tmp_path, monkeypatch, fall, alt, neu):
+>       r = _organ(tmp_path, monkeypatch, alt, neu, LAST_K)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_05.py:70: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_vor_t4_05.py:49: in _organ
+    return vv.pruefen(w, {"paket/m/a.py": neu}, ref, ["m"], {"tests": [], "aufrufe": []})
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/pytest-of-root/pytest-0/test_v1_zustand_aller_slots_ve2/w')
+code = {'paket/m/a.py': "class Basis:\n    __slots__ = ('stand',)\n\n    def __init__(self, stand: int):\n        self.stand ....__init__(stand)\n        self.name = 'k'\n\n    def buchen(self, b: int) -> None:\n        self.name += str(2 * b)\n"}
+referenzlast = "import sys\nsys.path.insert(0, '/werk')\n\n\ndef last_m():\n    from paket.m.a import Konto\n    k = Konto(1)\n    k.buchen(2)\n    k.buchen(3)\n"
+bereiche = ['m'], deckende = {'tests': [], 'aufrufe': []}
+korpus_erweitert = True, deckungsregel = 'muster'
+
+    def pruefen(werk: Path, code: dict[str, str], referenzlast: str | None, bereiche: list[str],
+                deckende: dict | Callable[[list[str]], dict], *, korpus_erweitert: bool = True,
+                deckungsregel: str = "muster") -> dict:
+        """Vorgeneration (Werk wie es ist) gegen Kandidat (Werk + `code`), dieselbe Sonde, dieselbe Last.
+    
+        `deckende`: {"tests", "aufrufe", "haelt", "blind"} (deckende_aufrufe) — oder ein Aufruf (Abweichungen → dieses
+        dict), der erst ausgewertet wird, wenn es Abweichungen gibt (spart Kammerläufe).
+        Rückgabe mit `ausgefuehrt`, `geurteilt`, `tragfaehig`, `grund` und `grund_art` (für den Neutralzähler)."""
+        from ..kern import sprachprofil
+        python = not sprachprofil.ist_typescript(Path(werk))
+        module = geaenderte_module(code, python=python)
+        # S1c (D): geänderte Dateien im Quellpaket, die keine Quellmodule sind — die Sonde beobachtet sie nicht (Enthaltung);
+        # außerhalb des Quellpakets gezählt wie bisher (`nicht_quelldateien_ausserhalb`).
+        d_innen, d_aussen = nicht_quelldateien(werk, code, python)
+        basis = {"module": module, "bereiche": sorted(bereiche), "kappe": KAPPE, "sprache": "python" if python else "typescript",
+                 "deckungsregel": deckungsregel, "korpus_erweitert": korpus_erweitert,
+                 "werkzeugdateien": werkzeugdateien(code) if python else [], "nicht_quelldateien_ausserhalb": d_aussen}
+        ausserhalb: dict[str, str] = {p: _D_GRUND for p in d_innen}      # S1c: Wirkung außerhalb der Beobachtung (C, D)
+        if not module and ausserhalb:
+            return {**basis, "ausgefuehrt": False, "geurteilt": False, "tragfaehig": False, "enthaltung": True,
+                    "grund_art": "wirkung_ausserhalb_beobachtung", "ausserhalb": ausserhalb,
+                    "grund": (f"Enthaltung (S1c, D): {len(ausserhalb)} geänderte Datei(en) im Quellpaket, die kein "
+                              f"Quellmodul sind — die Sonde beobachtet sie nicht: {sorted(ausserhalb)[:3]}"),
+                    "beobachtungen": 0, "abweichungen": [], "ungedeckt": [], "gedeckt": {}}
+        if not module:
+            return {**basis, "ausgefuehrt": False, "geurteilt": True, "tragfaehig": True,
+                    "grund_art": "keine_quellaenderung",
+                    "grund": "Kandidat ändert keine Quellmodule — Verhalten der Quellen unverändert"
+                             + (f" (Werkzeugdateien nicht beobachtbar: {basis['werkzeugdateien']})" if basis["werkzeugdateien"] else ""),
+                    "beobachtungen": 0, "abweichungen": [], "ungedeckt": [], "gedeckt": {}}
+        if not referenzlast:
+            # Konfiguration, kein Urteil über den Kandidaten (Review 03 Nr. 3): ohne Referenzlast misst die Sonde nicht.
+            raise SondeAusgefallen("keine Referenzlast — die Verhaltenssonde kann nicht messen")

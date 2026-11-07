@@ -1,0 +1,365 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 85 (Teile 4–165 dieses Stands) · enthält R110 bis R110
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R110 · Teil I: Diagnose für inventar.py — Kasse je Anbieter/Kontingent/Zweck, Eichkosten gegen Kasse, weitere Kassen-Datenbanken unter /root (nur lesend)
+Beginn: 2026-09-25 17:19:09 CEST (UTC+0200)
+Ende:   2026-09-25 17:19:10 CEST (UTC+0200)
+Dauer:  1.3 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/inventar/i0_diagnose.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/inventar/i0_diagnose.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil I (nur lesend): Diagnose für inventar.py.
+1. Kasse (vier Zweige, entdoppelt nach vollständiger Zeile): Anzahl und Summe je (anbieter, kontingent) und je
+   Zweck-Präfix (Text vor dem ersten Punkt).
+2. eichkosten-Zeilen mit modellaufrufe > 0 (entdoppelt) und die Kassenbuchungen desselben Laufs im Fenster
+   erstellt_am − 15 min … + 2 min (Zeit, Kosten, Zweck).
+3. Weitere SQLite-Dateien *.db unter /root (Tiefe ≤ 5, ohne .hermes, sicherung, node_modules, .git, venv): mit Tabelle
+   kasse? Zeilen, davon nicht in den vier Zweigen (vollständige Zeile). Öffnen: immutable=1 wenn -wal fehlt oder 0 Bytes,
+   sonst mode=ro; Dateien unter /root/biotop mit -wal > 0 werden nicht geöffnet.
+STAMM nur immutable=1 bei 0 Bytes -wal. Schreibt nichts."""
+import datetime as dt
+import os
+import sqlite3
+from collections import Counter, defaultdict
+from pathlib import Path
+
+if os.path.exists('/tmp/biotop-kammer-exklusiv'):
+    print('ABBRUCH: Kammer-Sperre besteht')
+    raise SystemExit(3)
+ZW = [('STAMM', '/root/biotop/daten/biotop.db'), ('VB1', '/root/phase-4-vorbedingung-1/privat/biotop.db'),
+      ('R02', '/root/reparatur-02/privat-cli/privat.db'), ('T3', '/root/biotop-t3/t3.db')]
+
+
+def oeffnen(p):
+    w = p + '-wal'
+    wal = os.path.getsize(w) if os.path.exists(w) else None
+    if wal in (None, 0):
+        return sqlite3.connect(f'file:{p}?mode=ro&immutable=1', uri=True), wal
+    if p.startswith('/root/biotop/'):
+        return None, wal
+    return sqlite3.connect(f'file:{p}?mode=ro', uri=True), wal
+
+
+zeilen, eich = {}, {}
+for n, p in ZW:
+    c, wal = oeffnen(p)
+    if c is None:
+        print(n, 'NICHT GEÖFFNET wal', wal)
+        continue
+    for r in c.execute('SELECT * FROM kasse'):
+        zeilen.setdefault(tuple(r), n)
+    for r in c.execute('SELECT * FROM eichkosten WHERE modellaufrufe > 0'):
+        eich.setdefault(tuple(r), (n, p))
+    c.close()
+print('== 1. Kasse entdoppelt:', len(zeilen))
+a = Counter()
+s = defaultdict(float)
+zw = Counter()
+zs = defaultdict(float)
+for r in zeilen:
+    a[(r[3], r[9])] += 1
+    s[(r[3], r[9])] += r[7] or 0
+    k = (r[8] or '').split('.')[0]
+    zw[k] += 1
+    zs[k] += r[7] or 0
+for k, v in sorted(a.items(), key=lambda x: -x[1]):
+    print(f'   anbieter {k[0]!r} kontingent {k[1]!r}: {v} Buchungen, {s[k]:.6f} €')
+for k, v in zw.most_common():
+    print(f'   zweck {k!r}: {v}, {zs[k]:.6f} €')
+print('\n== 2. eichkosten mit Modellaufrufen:', len(eich))
+for r, (n, p) in sorted(eich.items(), key=lambda x: x[0][8]):
+    print('  ', n, r)
+    c, _ = oeffnen(p)
+    t = dt.datetime.fromisoformat(r[8])
+    a0 = (t - dt.timedelta(minutes=15)).isoformat(timespec='milliseconds')
+    a1 = (t + dt.timedelta(minutes=2)).isoformat(timespec='milliseconds')
+    for b in c.execute('SELECT id, zeit, kosten_eur, zweck, modell FROM kasse WHERE lauf_id=? AND zeit BETWEEN ? AND ? '
+                       'ORDER BY zeit', (r[1], a0, a1)):
+        print('      ', b)
+    c.close()
+print('\n== 3. weitere *.db unter /root mit Tabelle kasse')
+vier = {p for _, p in ZW}
+for wurzel, dirs, files in os.walk('/root'):
+    tiefe = wurzel.count('/') - 1
+    dirs[:] = [d for d in dirs if d not in ('.hermes', 'sicherung', 'node_modules', '.git', 'venv', '.venv', '.cache',
+                                            '.npm', '__pycache__') and tiefe < 5]
+    for f in files:
+        if not f.endswith('.db'):
+            continue
+        p = os.path.join(wurzel, f)
+        if p in vier:
+            continue
+        try:
+            c, wal = oeffnen(p)
+            if c is None:
+                print(f'   {p}: NICHT GEÖFFNET (-wal {wal} Bytes, im Baum /root/biotop)')
+                continue
+            tabs = {x[0] for x in c.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+            if 'kasse' not in tabs:
+                c.close()
+                continue
+            rows = [tuple(x) for x in c.execute('SELECT * FROM kasse')]
+            fremd = [x for x in rows if x not in zeilen]
+            nl = c.execute('SELECT count(*), max(id) FROM laeufe').fetchone() if 'laeufe' in tabs else None
+            print(f'   {p} ({os.path.getsize(p)} B, wal {wal}): kasse {len(rows)}, nicht in den vier Zweigen '
+                  f'{len(fremd)} ({sum(x[7] or 0 for x in fremd):.6f} €), laeufe {nl}; '
+                  f'Zeit fremd {min((x[2] for x in fremd), default="-")} … {max((x[2] for x in fremd), default="-")}')
+            c.close()
+        except sqlite3.Error as e:
+            print(f'   {p}: Fehler {e}')
+--- Ende /root/sicherung/biotop-lage-01/entwurf/inventar/i0_diagnose.py ---
+Ausgabe (vollständig, stdout und stderr):
+== 1. Kasse entdoppelt: 6919
+   anbieter 'openrouter' kontingent 0: 6804 Buchungen, 18.352711 €
+   anbieter 'openrouter' kontingent None: 115 Buchungen, 0.462024 €
+   zweck 'schwarm': 4221, 9.899789 €
+   zweck 'aegis': 1246, 3.767839 €
+   zweck 'generation0': 665, 0.643737 €
+   zweck 'landkarte': 382, 0.061073 €
+   zweck 'schwer': 153, 3.949484 €
+   zweck 'ausfall': 115, 0.462024 €
+   zweck 'gedaechtnis': 57, 0.010456 €
+   zweck 'aufnahme': 37, 0.006199 €
+   zweck 'jury': 35, 0.012866 €
+   zweck 'phase2': 8, 0.001269 €
+
+== 2. eichkosten mit Modellaufrufen: 8
+   STAMM (2, 20, 18, 'probe.nebenwirkung', 1, 1, 0.001499, 8.5, '2026-09-19T20:12:53.507+00:00')
+       (3194, '2026-09-19T20:09:32.827+00:00', 0.001487685185185185, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3195, '2026-09-19T20:09:52.263+00:00', 0.001337222222222222, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3196, '2026-09-19T20:11:28.902+00:00', 0.0014761111111111108, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3197, '2026-09-19T20:11:38.107+00:00', 0.0015334259259259255, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3198, '2026-09-19T20:11:47.488+00:00', 0.000851574074074074, 'aegis.angriff.preise', 'google/gemini-3.5-flash-lite')
+       (3199, '2026-09-19T20:11:54.096+00:00', 0.0017054629629629627, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3200, '2026-09-19T20:12:46.156+00:00', 0.001499259259259259, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3201, '2026-09-19T20:12:56.071+00:00', 0.0014639814814814813, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3202, '2026-09-19T20:13:05.355+00:00', 0.000851574074074074, 'aegis.angriff.preise', 'google/gemini-3.5-flash-lite')
+       (3203, '2026-09-19T20:13:11.841+00:00', 0.0017054629629629627, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+   STAMM (3, 20, 18, 'probe.regression', 1, 1, 0.001464, 9.7, '2026-09-19T20:13:03.248+00:00')
+       (3194, '2026-09-19T20:09:32.827+00:00', 0.001487685185185185, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3195, '2026-09-19T20:09:52.263+00:00', 0.001337222222222222, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3196, '2026-09-19T20:11:28.902+00:00', 0.0014761111111111108, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3197, '2026-09-19T20:11:38.107+00:00', 0.0015334259259259255, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3198, '2026-09-19T20:11:47.488+00:00', 0.000851574074074074, 'aegis.angriff.preise', 'google/gemini-3.5-flash-lite')
+       (3199, '2026-09-19T20:11:54.096+00:00', 0.0017054629629629627, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3200, '2026-09-19T20:12:46.156+00:00', 0.001499259259259259, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3201, '2026-09-19T20:12:56.071+00:00', 0.0014639814814814813, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3202, '2026-09-19T20:13:05.355+00:00', 0.000851574074074074, 'aegis.angriff.preise', 'google/gemini-3.5-flash-lite')
+       (3203, '2026-09-19T20:13:11.841+00:00', 0.0017054629629629627, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+   STAMM (4, 20, 18, 'probe.norm', 1, 1, 0.000852, 7.7, '2026-09-19T20:13:10.917+00:00')
+       (3194, '2026-09-19T20:09:32.827+00:00', 0.001487685185185185, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3195, '2026-09-19T20:09:52.263+00:00', 0.001337222222222222, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3196, '2026-09-19T20:11:28.902+00:00', 0.0014761111111111108, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3197, '2026-09-19T20:11:38.107+00:00', 0.0015334259259259255, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3198, '2026-09-19T20:11:47.488+00:00', 0.000851574074074074, 'aegis.angriff.preise', 'google/gemini-3.5-flash-lite')
+       (3199, '2026-09-19T20:11:54.096+00:00', 0.0017054629629629627, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3200, '2026-09-19T20:12:46.156+00:00', 0.001499259259259259, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3201, '2026-09-19T20:12:56.071+00:00', 0.0014639814814814813, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3202, '2026-09-19T20:13:05.355+00:00', 0.000851574074074074, 'aegis.angriff.preise', 'google/gemini-3.5-flash-lite')
+       (3203, '2026-09-19T20:13:11.841+00:00', 0.0017054629629629627, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+   STAMM (5, 20, 18, 'probe.vertrag', 1, 1, 0.001705, 6.4, '2026-09-19T20:13:17.346+00:00')
+       (3194, '2026-09-19T20:09:32.827+00:00', 0.001487685185185185, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3195, '2026-09-19T20:09:52.263+00:00', 0.001337222222222222, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3196, '2026-09-19T20:11:28.902+00:00', 0.0014761111111111108, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3197, '2026-09-19T20:11:38.107+00:00', 0.0015334259259259255, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3198, '2026-09-19T20:11:47.488+00:00', 0.000851574074074074, 'aegis.angriff.preise', 'google/gemini-3.5-flash-lite')
+       (3199, '2026-09-19T20:11:54.096+00:00', 0.0017054629629629627, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3200, '2026-09-19T20:12:46.156+00:00', 0.001499259259259259, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3201, '2026-09-19T20:12:56.071+00:00', 0.0014639814814814813, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3202, '2026-09-19T20:13:05.355+00:00', 0.000851574074074074, 'aegis.angriff.preise', 'google/gemini-3.5-flash-lite')
+       (3203, '2026-09-19T20:13:11.841+00:00', 0.0017054629629629627, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+   STAMM (8, 22, 19, 'probe.nebenwirkung', 1, 1, 0.001506, 7.9, '2026-09-19T20:58:52.182+00:00')
+       (3204, '2026-09-19T20:57:43.944+00:00', 0.00018425925925925926, 'aufnahme.ethik', 'openai/gpt-5.6-luna')
+       (3205, '2026-09-19T20:57:44.902+00:00', 9.999999999999999e-05, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3206, '2026-09-19T20:57:46.102+00:00', 0.00025509259259259257, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3207, '2026-09-19T20:57:46.776+00:00', 0.00010509259259259258, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3208, '2026-09-19T20:57:48.001+00:00', 0.0006340277777777777, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3209, '2026-09-19T20:57:48.860+00:00', 8.518518518518518e-05, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3210, '2026-09-19T20:57:49.970+00:00', 0.0003240740740740741, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3211, '2026-09-19T20:57:51.221+00:00', 0.0001574074074074074, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3212, '2026-09-19T20:57:52.116+00:00', 0.0001247685185185185, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3213, '2026-09-19T20:57:52.945+00:00', 0.00023935185185185184, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3214, '2026-09-19T20:57:53.756+00:00', 0.0001798611111111111, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3215, '2026-09-19T20:57:54.631+00:00', 0.00012569444444444444, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3216, '2026-09-19T20:57:55.750+00:00', 0.00014351851851851852, 'landkarte.stufe1', 'google/gemini-3.1-flash-lite')
+       (3217, '2026-09-19T20:57:56.978+00:00', 0.0001798611111111111, 'landkarte.stufe1', 'google/gemini-3.1-flash-lite')
+       (3218, '2026-09-19T20:57:57.885+00:00', 0.00015856481481481483, 'landkarte.stufe1', 'google/gemini-3.1-flash-lite')
+       (3219, '2026-09-19T20:57:59.017+00:00', 0.00020416666666666665, 'landkarte.stufe1', 'google/gemini-3.1-flash-lite')
+       (3220, '2026-09-19T20:58:00.121+00:00', 0.0002831018518518519, 'landkarte.stufe0', 'google/gemini-3.1-flash-lite')
+       (3221, '2026-09-19T20:58:45.491+00:00', 0.0015062037037037034, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3222, '2026-09-19T20:58:54.552+00:00', 0.0015750925925925921, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3223, '2026-09-19T20:59:03.909+00:00', 0.000851574074074074, 'aegis.angriff.preise', 'google/gemini-3.5-flash-lite')
+       (3224, '2026-09-19T20:59:09.971+00:00', 0.0017368518518518516, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3225, '2026-09-19T20:59:44.040+00:00', 0.03010185185185185, 'schwer.mentor', 'anthropic/claude-sonnet-5')
+       (3226, '2026-09-19T20:59:52.150+00:00', 0.0033849074074074072, 'schwarm.sicher.bericht.gen1', 'google/gemini-3.5-flash-lite')
+       (3227, '2026-09-19T20:59:53.899+00:00', 0.0015816666666666666, 'schwarm.sicher.bericht.gen1', 'openai/gpt-5.6-luna')
+       (3228, '2026-09-19T20:59:54.994+00:00', 0.00195537037037037, 'schwarm.schnell.bericht.gen1', 'openai/gpt-5.6-luna')
+       (3229, '2026-09-19T20:59:58.689+00:00', 0.00561685185185185, 'schwarm.schnell.bericht.gen1', 'google/gemini-3.5-flash-lite')
+       (3230, '2026-09-19T21:00:00.507+00:00', 0.0032917592592592595, 'schwarm.elegant.bericht.gen1', 'google/gemini-3.5-flash-lite')
+       (3231, '2026-09-19T21:00:17.747+00:00', 0.0017372870370370372, 'schwarm.elegant.bericht.gen1', 'qwen/qwen3.8-flash')
+       (3232, '2026-09-19T21:00:18.258+00:00', 0.000665462962962963, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3233, '2026-09-19T21:00:24.615+00:00', 0.0007310185185185184, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+   STAMM (9, 22, 19, 'probe.regression', 1, 1, 0.001575, 9.5, '2026-09-19T20:59:01.679+00:00')
+       (3204, '2026-09-19T20:57:43.944+00:00', 0.00018425925925925926, 'aufnahme.ethik', 'openai/gpt-5.6-luna')
+       (3205, '2026-09-19T20:57:44.902+00:00', 9.999999999999999e-05, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3206, '2026-09-19T20:57:46.102+00:00', 0.00025509259259259257, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3207, '2026-09-19T20:57:46.776+00:00', 0.00010509259259259258, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3208, '2026-09-19T20:57:48.001+00:00', 0.0006340277777777777, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3209, '2026-09-19T20:57:48.860+00:00', 8.518518518518518e-05, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3210, '2026-09-19T20:57:49.970+00:00', 0.0003240740740740741, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3211, '2026-09-19T20:57:51.221+00:00', 0.0001574074074074074, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3212, '2026-09-19T20:57:52.116+00:00', 0.0001247685185185185, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3213, '2026-09-19T20:57:52.945+00:00', 0.00023935185185185184, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3214, '2026-09-19T20:57:53.756+00:00', 0.0001798611111111111, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3215, '2026-09-19T20:57:54.631+00:00', 0.00012569444444444444, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3216, '2026-09-19T20:57:55.750+00:00', 0.00014351851851851852, 'landkarte.stufe1', 'google/gemini-3.1-flash-lite')
+       (3217, '2026-09-19T20:57:56.978+00:00', 0.0001798611111111111, 'landkarte.stufe1', 'google/gemini-3.1-flash-lite')
+       (3218, '2026-09-19T20:57:57.885+00:00', 0.00015856481481481483, 'landkarte.stufe1', 'google/gemini-3.1-flash-lite')
+       (3219, '2026-09-19T20:57:59.017+00:00', 0.00020416666666666665, 'landkarte.stufe1', 'google/gemini-3.1-flash-lite')
+       (3220, '2026-09-19T20:58:00.121+00:00', 0.0002831018518518519, 'landkarte.stufe0', 'google/gemini-3.1-flash-lite')
+       (3221, '2026-09-19T20:58:45.491+00:00', 0.0015062037037037034, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3222, '2026-09-19T20:58:54.552+00:00', 0.0015750925925925921, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3223, '2026-09-19T20:59:03.909+00:00', 0.000851574074074074, 'aegis.angriff.preise', 'google/gemini-3.5-flash-lite')
+       (3224, '2026-09-19T20:59:09.971+00:00', 0.0017368518518518516, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3225, '2026-09-19T20:59:44.040+00:00', 0.03010185185185185, 'schwer.mentor', 'anthropic/claude-sonnet-5')
+       (3226, '2026-09-19T20:59:52.150+00:00', 0.0033849074074074072, 'schwarm.sicher.bericht.gen1', 'google/gemini-3.5-flash-lite')
+       (3227, '2026-09-19T20:59:53.899+00:00', 0.0015816666666666666, 'schwarm.sicher.bericht.gen1', 'openai/gpt-5.6-luna')
+       (3228, '2026-09-19T20:59:54.994+00:00', 0.00195537037037037, 'schwarm.schnell.bericht.gen1', 'openai/gpt-5.6-luna')
+       (3229, '2026-09-19T20:59:58.689+00:00', 0.00561685185185185, 'schwarm.schnell.bericht.gen1', 'google/gemini-3.5-flash-lite')
+       (3230, '2026-09-19T21:00:00.507+00:00', 0.0032917592592592595, 'schwarm.elegant.bericht.gen1', 'google/gemini-3.5-flash-lite')
+       (3231, '2026-09-19T21:00:17.747+00:00', 0.0017372870370370372, 'schwarm.elegant.bericht.gen1', 'qwen/qwen3.8-flash')
+       (3232, '2026-09-19T21:00:18.258+00:00', 0.000665462962962963, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3233, '2026-09-19T21:00:24.615+00:00', 0.0007310185185185184, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3234, '2026-09-19T21:00:53.726+00:00', 0.001677333333333333, 'schwarm.wild.bericht.gen1', 'qwen/qwen3.8-flash')
+       (3235, '2026-09-19T21:00:59.076+00:00', 0.0016233333333333334, 'schwarm.wild.bericht.gen1', 'deepseek/deepseek-v4.1-flash')
+       (3236, '2026-09-19T21:01:00.300+00:00', 0.0015088888888888888, 'schwarm.sicher.formeln.gen1', 'openai/gpt-5.6-luna')
+   STAMM (10, 22, 19, 'probe.norm', 1, 1, 0.000852, 7.6, '2026-09-19T20:59:09.320+00:00')
+       (3204, '2026-09-19T20:57:43.944+00:00', 0.00018425925925925926, 'aufnahme.ethik', 'openai/gpt-5.6-luna')
+       (3205, '2026-09-19T20:57:44.902+00:00', 9.999999999999999e-05, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3206, '2026-09-19T20:57:46.102+00:00', 0.00025509259259259257, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3207, '2026-09-19T20:57:46.776+00:00', 0.00010509259259259258, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3208, '2026-09-19T20:57:48.001+00:00', 0.0006340277777777777, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3209, '2026-09-19T20:57:48.860+00:00', 8.518518518518518e-05, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3210, '2026-09-19T20:57:49.970+00:00', 0.0003240740740740741, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3211, '2026-09-19T20:57:51.221+00:00', 0.0001574074074074074, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3212, '2026-09-19T20:57:52.116+00:00', 0.0001247685185185185, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3213, '2026-09-19T20:57:52.945+00:00', 0.00023935185185185184, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3214, '2026-09-19T20:57:53.756+00:00', 0.0001798611111111111, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3215, '2026-09-19T20:57:54.631+00:00', 0.00012569444444444444, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3216, '2026-09-19T20:57:55.750+00:00', 0.00014351851851851852, 'landkarte.stufe1', 'google/gemini-3.1-flash-lite')
+       (3217, '2026-09-19T20:57:56.978+00:00', 0.0001798611111111111, 'landkarte.stufe1', 'google/gemini-3.1-flash-lite')
+       (3218, '2026-09-19T20:57:57.885+00:00', 0.00015856481481481483, 'landkarte.stufe1', 'google/gemini-3.1-flash-lite')
+       (3219, '2026-09-19T20:57:59.017+00:00', 0.00020416666666666665, 'landkarte.stufe1', 'google/gemini-3.1-flash-lite')
+       (3220, '2026-09-19T20:58:00.121+00:00', 0.0002831018518518519, 'landkarte.stufe0', 'google/gemini-3.1-flash-lite')
+       (3221, '2026-09-19T20:58:45.491+00:00', 0.0015062037037037034, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3222, '2026-09-19T20:58:54.552+00:00', 0.0015750925925925921, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3223, '2026-09-19T20:59:03.909+00:00', 0.000851574074074074, 'aegis.angriff.preise', 'google/gemini-3.5-flash-lite')
+       (3224, '2026-09-19T20:59:09.971+00:00', 0.0017368518518518516, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3225, '2026-09-19T20:59:44.040+00:00', 0.03010185185185185, 'schwer.mentor', 'anthropic/claude-sonnet-5')
+       (3226, '2026-09-19T20:59:52.150+00:00', 0.0033849074074074072, 'schwarm.sicher.bericht.gen1', 'google/gemini-3.5-flash-lite')
+       (3227, '2026-09-19T20:59:53.899+00:00', 0.0015816666666666666, 'schwarm.sicher.bericht.gen1', 'openai/gpt-5.6-luna')
+       (3228, '2026-09-19T20:59:54.994+00:00', 0.00195537037037037, 'schwarm.schnell.bericht.gen1', 'openai/gpt-5.6-luna')
+       (3229, '2026-09-19T20:59:58.689+00:00', 0.00561685185185185, 'schwarm.schnell.bericht.gen1', 'google/gemini-3.5-flash-lite')
+       (3230, '2026-09-19T21:00:00.507+00:00', 0.0032917592592592595, 'schwarm.elegant.bericht.gen1', 'google/gemini-3.5-flash-lite')
+       (3231, '2026-09-19T21:00:17.747+00:00', 0.0017372870370370372, 'schwarm.elegant.bericht.gen1', 'qwen/qwen3.8-flash')
+       (3232, '2026-09-19T21:00:18.258+00:00', 0.000665462962962963, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3233, '2026-09-19T21:00:24.615+00:00', 0.0007310185185185184, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3234, '2026-09-19T21:00:53.726+00:00', 0.001677333333333333, 'schwarm.wild.bericht.gen1', 'qwen/qwen3.8-flash')
+       (3235, '2026-09-19T21:00:59.076+00:00', 0.0016233333333333334, 'schwarm.wild.bericht.gen1', 'deepseek/deepseek-v4.1-flash')
+       (3236, '2026-09-19T21:01:00.300+00:00', 0.0015088888888888888, 'schwarm.sicher.formeln.gen1', 'openai/gpt-5.6-luna')
+   STAMM (11, 22, 19, 'probe.vertrag', 1, 1, 0.001737, 6.1, '2026-09-19T20:59:15.461+00:00')
+       (3204, '2026-09-19T20:57:43.944+00:00', 0.00018425925925925926, 'aufnahme.ethik', 'openai/gpt-5.6-luna')
+       (3205, '2026-09-19T20:57:44.902+00:00', 9.999999999999999e-05, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3206, '2026-09-19T20:57:46.102+00:00', 0.00025509259259259257, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3207, '2026-09-19T20:57:46.776+00:00', 0.00010509259259259258, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3208, '2026-09-19T20:57:48.001+00:00', 0.0006340277777777777, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3209, '2026-09-19T20:57:48.860+00:00', 8.518518518518518e-05, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3210, '2026-09-19T20:57:49.970+00:00', 0.0003240740740740741, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3211, '2026-09-19T20:57:51.221+00:00', 0.0001574074074074074, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3212, '2026-09-19T20:57:52.116+00:00', 0.0001247685185185185, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3213, '2026-09-19T20:57:52.945+00:00', 0.00023935185185185184, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3214, '2026-09-19T20:57:53.756+00:00', 0.0001798611111111111, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3215, '2026-09-19T20:57:54.631+00:00', 0.00012569444444444444, 'landkarte.stufe2', 'google/gemini-3.1-flash-lite')
+       (3216, '2026-09-19T20:57:55.750+00:00', 0.00014351851851851852, 'landkarte.stufe1', 'google/gemini-3.1-flash-lite')
+       (3217, '2026-09-19T20:57:56.978+00:00', 0.0001798611111111111, 'landkarte.stufe1', 'google/gemini-3.1-flash-lite')
+       (3218, '2026-09-19T20:57:57.885+00:00', 0.00015856481481481483, 'landkarte.stufe1', 'google/gemini-3.1-flash-lite')
+       (3219, '2026-09-19T20:57:59.017+00:00', 0.00020416666666666665, 'landkarte.stufe1', 'google/gemini-3.1-flash-lite')
+       (3220, '2026-09-19T20:58:00.121+00:00', 0.0002831018518518519, 'landkarte.stufe0', 'google/gemini-3.1-flash-lite')
+       (3221, '2026-09-19T20:58:45.491+00:00', 0.0015062037037037034, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3222, '2026-09-19T20:58:54.552+00:00', 0.0015750925925925921, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3223, '2026-09-19T20:59:03.909+00:00', 0.000851574074074074, 'aegis.angriff.preise', 'google/gemini-3.5-flash-lite')
+       (3224, '2026-09-19T20:59:09.971+00:00', 0.0017368518518518516, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3225, '2026-09-19T20:59:44.040+00:00', 0.03010185185185185, 'schwer.mentor', 'anthropic/claude-sonnet-5')
+       (3226, '2026-09-19T20:59:52.150+00:00', 0.0033849074074074072, 'schwarm.sicher.bericht.gen1', 'google/gemini-3.5-flash-lite')
+       (3227, '2026-09-19T20:59:53.899+00:00', 0.0015816666666666666, 'schwarm.sicher.bericht.gen1', 'openai/gpt-5.6-luna')
+       (3228, '2026-09-19T20:59:54.994+00:00', 0.00195537037037037, 'schwarm.schnell.bericht.gen1', 'openai/gpt-5.6-luna')
+       (3229, '2026-09-19T20:59:58.689+00:00', 0.00561685185185185, 'schwarm.schnell.bericht.gen1', 'google/gemini-3.5-flash-lite')
+       (3230, '2026-09-19T21:00:00.507+00:00', 0.0032917592592592595, 'schwarm.elegant.bericht.gen1', 'google/gemini-3.5-flash-lite')
+       (3231, '2026-09-19T21:00:17.747+00:00', 0.0017372870370370372, 'schwarm.elegant.bericht.gen1', 'qwen/qwen3.8-flash')
+       (3232, '2026-09-19T21:00:18.258+00:00', 0.000665462962962963, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3233, '2026-09-19T21:00:24.615+00:00', 0.0007310185185185184, 'aegis.angriff.bericht', 'google/gemini-3.5-flash-lite')
+       (3234, '2026-09-19T21:00:53.726+00:00', 0.001677333333333333, 'schwarm.wild.bericht.gen1', 'qwen/qwen3.8-flash')
+       (3235, '2026-09-19T21:00:59.076+00:00', 0.0016233333333333334, 'schwarm.wild.bericht.gen1', 'deepseek/deepseek-v4.1-flash')
+       (3236, '2026-09-19T21:01:00.300+00:00', 0.0015088888888888888, 'schwarm.sicher.formeln.gen1', 'openai/gpt-5.6-luna')
+
+== 3. weitere *.db unter /root mit Tabelle kasse
+   /root/reparatur-01/ausgang.db (29659136 B, wal 0): kasse 4070, nicht in den vier Zweigen 0 (0.000000 €), laeufe (25, 25); Zeit fremd - … -
+   /root/reparatur-01/privat-63-vorspann-zweite-runde/privat.db (30433280 B, wal 0): kasse 4070, nicht in den vier Zweigen 0 (0.000000 €), laeufe (26, 26); Zeit fremd - … -
+   /root/reparatur-01/eltern-vorspann-01/privat.db (30453760 B, wal 0): kasse 4070, nicht in den vier Zweigen 0 (0.000000 €), laeufe (26, 26); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_verhandlung_ohne_vollstae0/pruefung.db (90112 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_pflichtvorspann_fundskip_0/pruefung.db (94208 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_regression_nennt_einzelte1/paar.db (102400 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_gescheitertes_nachmessen_1/pruefung.db (98304 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_norm_paar_schliesst_falsc0/original.db (90112 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (0, None); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_messgeraetwechsel_od8/pruefung.db (143360 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_stufenfolge_und_eing4/pruefung.db (159744 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_verhandlung_ausgefuehrtes1/pruefung.db (90112 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_eichausgang_wird_get0/pruefung.db (143360 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_generation_reicht_va0/pruefung.db (151552 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_unbrauchbare_messung10/pruefung.db (114688 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_nebenwirkung_braucht_gewi0/paar.db (102400 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_stufenfolge_und_eing0/pruefung.db (143360 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_alte_laeufe_nicht_na0/pruefung.db (106496 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_verhandlung_ohne_vollstae2/pruefung.db (90112 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_regression_nennt_einzelte0/paar.db (102400 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_messgeraetwechsel_od0/pruefung.db (151552 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_aussetzer_wird_ungekuerzt0/pruefung.db (98304 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_unvollstaendige_eich5/pruefung.db (143360 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_unbrauchbare_messung9/pruefung.db (114688 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_test_eigener_fehler_ist_k1/vertrag.db (102400 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_verhandlung_ohne_vollstae10/pruefung.db (90112 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_gesperrter_bereich_e0/pruefung.db (167936 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_teilrauschen_wird_an0/pruefung.db (143360 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_verhandlung_ohne_vollstae6/pruefung.db (90112 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_unbrauchbare_messung6/pruefung.db (114688 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_generalprobe_nimmt_w0/pruefung.db (167936 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_nachweis_bindet_voll0/pruefung.db (143360 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_vollstaendiger_ablau0/pruefung.db (151552 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_unbrauchbare_messung3/pruefung.db (114688 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_normmechanik_bleibt_getre1/normzeit.db (90112 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (0, None); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_test_eigener_fehler_ist_k3/vertrag.db (102400 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_unvollstaendige_eich7/pruefung.db (114688 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_stufenfolge_und_eing2/pruefung.db (151552 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_normgegenprobe_braucht_au0/vertrag.db (102400 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_pruefskript_ist_wrapper_m0/pruefung.db (94208 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_vier_paare_am_kopierten_p0/privat.db (29659136 B, wal 0): kasse 4070, nicht in den vier Zweigen 0 (0.000000 €), laeufe (26, 26); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_vertrag_braucht_konkreten0/paar.db (102400 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_verhandlung_ohne_vollstae11/pruefung.db (90112 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_unbrauchbare_messung11/pruefung.db (135168 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_generation_ohne_vorspann_0/pruefung.db (94208 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_cli_vorspann_fuehrt_0/pruefung.db (143360 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_verhandlung_ausgefuehrtes2/pruefung.db (90112 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_verhandlung_ohne_vollstae7/pruefung.db (90112 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_normmechanik_bleibt_getre0/normzeit.db (90112 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (0, None); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_unbrauchbare_messung1/pruefung.db (114688 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_unvollstaendige_eich6/pruefung.db (143360 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_eichgegenstand_bleib0/pruefung.db (143360 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_voraussetzungen_vor_1/pruefung.db (106496 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_unvollstaendige_eich2/pruefung.db (143360 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_messgeraetwechsel_od2/pruefung.db (151552 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_cli_sperre_hat_exit_eins_3/pruefung.db (94208 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_nebenwirkung_gewinnt_auch0/paar.db (102400 B, wal 0): kasse 0, nicht in den vier Zweigen 0 (0.000000 €), laeufe (1, 1); Zeit fremd - … -

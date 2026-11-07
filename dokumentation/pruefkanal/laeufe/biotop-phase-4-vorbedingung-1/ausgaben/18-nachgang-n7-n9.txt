@@ -1,0 +1,78 @@
+# Zweiter Nachgang — N7, N8, N9 (0 Modellaufrufe)
+
+## N7 — Der Abbruch in `04g6-gen6.err`
+  Inhalt der Datei, vollständig: `ABBRUCH: Lauf 23 ist im Zustand gesaettigt, nicht bereit`
+
+  **Frage 1 — woran ist Generation 6 gescheitert?**
+  Sie ist nicht gescheitert. Der Läufer `generationen.sh` war auf die Generationen 5 bis 8 angesetzt.
+  Nach Generation 5 meldete die Entropie Sättigung und beendete den Lauf (Status `gesaettigt`).
+  Der Aufruf für Generation 6 traf auf einen beendeten Lauf und wurde vom Kern abgewiesen:
+  „Lauf 23 ist im Zustand gesaettigt, nicht bereit". Das ist die gewollte Schutzregel — ein beendeter
+  Lauf nimmt keine Generation mehr an. Kein Kandidat, kein Kammerlauf, kein Modellaufruf.
+  Beleg aus der Datenbank: Lauf 23 Status `gesaettigt`, Grund: In dieser Richtung gesättigt: Generationen 1–5, Verbesserung 0.00 % (Schwelle 0.5 % über 5 Generationen), Kernmaß 0 = Höchstwert, Doppelgänger-Anteil 
+  Generationen in der Datenbank: [(0, 'angenommen'), (1, 'angenommen'), (2, 'abgelehnt'), (3, 'abgelehnt'), (4, 'abgelehnt'), (5, 'angenommen')] — es gibt keine Generation 6, auch keine abgebrochene.
+
+  **Frage 2 — war der Musterbestand zum Messzeitpunkt vollständig?**
+  Ja. Die angenommenen Generationen von Lauf 23 sind 1 und 5; beide haben ihr Muster geschrieben:
+  Muster aus Lauf 23 je Generation: [(1, 2), (5, 1)] · Musterbestand `logmuehle` gesamt: 7
+  Generation 5 wurde ANGENOMMEN und ist vollständig verarbeitet — der Abbruch lag danach.
+  Die Bauteil-B-Messung (6 fremde Muster in der Vorlage) stand damit auf vollständigem Bestand.
+
+  **Frage 3 — warum stand der Abbruch in keinem Bericht?**
+  Zwei Ursachen, beide bei mir:
+  (a) Der Läufer schreibt die Abbruchmeldung nur in die `.err`-Datei und in sein Log. Der Kern
+      protokolliert die Sättigung (`lauf.gesaettigt`), aber nicht den abgewiesenen Folgeaufruf.
+      Für meinen Bericht habe ich die Datenbank gelesen — dort stand kein Abbruch, weil keiner war.
+  (b) Ich habe die `.err`-Dateien nach dem Lauf nicht durchgesehen. Hätte ich es getan, wäre die
+      Zeile aufgefallen und hätte in den Bericht gehört — auch als folgenloser Abbruch.
+  Das ist eine Lücke im Meldeverhalten, nicht im Messgerät: „laut scheitern, nie still" gilt auch
+  für einen Abbruch ohne Folgen. Gehört nach Fassung 7 (Punkt 6 der Prüfliste).
+
+## N8 — Die zwei fehlenden Angriffe (11 ausgeführt, 9 aufgerechnet)
+  Ansagen mit `ausgefuehrt=true`: 11
+  Ankläger-Urteile mit Angriffsmodell: 9
+  Differenz: 2
+
+  AUFLÖSUNG, am Protokoll nachgesehen — die Differenz liegt an der ZUORDNUNG, nicht an fehlenden Angriffen:
+    11 Ansagen mit `ausgefuehrt=true` → 11 Angriffs-Modellaufrufe (max_tokens 2500), eins zu eins:
+      #14502→#14503 · #14533→#14534 · #14661→#14662 · #14690→#14691 · #14704→#14705 · #14772→#14773
+      #14849→#14850 · #15002→#15003 · #15027→#15028 · #15143→#15144 · #15162→#15163
+    Es fehlt also KEIN Angriff. Es gibt nur 9 Urteile mit Angriffsabschnitt, weil DREI Angriffe
+    (#14662, #14691, #14705) in EIN gemeinsames Urteil #14707 münden: Der Ankläger prüft einen
+    Kandidaten über seinen ganzen Wirkungskreis (3.7 Schritt 1) und greift dabei jeden berührten
+    Bereich einzeln an — das Urteil wird aber je Kandidat geschrieben, nicht je Bereich.
+    11 Angriffe − 2 (in ein gemeinsames Urteil eingegangen) = 9 Urteile. Die Rechnung geht auf.
+
+  Ergebnis der 9 Urteile, einzeln geprüft:
+    #15006: 1 Test am Kandidaten bestätigt → Fund `aegis_k2500_preise`
+    #15147: Fund `aegis_k2526_lager` (Behebung nachgewiesen, nicht am Kandidaten bestätigt)
+    #14776: 1 Test als Norm eingestuft (0 Punkte, nicht ins Werk)
+    #14505, #14536, #14707, #14852, #15030, #15165: keine Bestätigung — der Angriffstest bestand
+      am Kandidaten, fand also keinen Fehler
+    Summe: 1 bestätigt + 1 Behebungsnachweis + 1 Norm + 6 ohne Bestätigung = 9 ✓
+
+  Mein Fehler im ersten Nachgang war doppelt: Ich nannte 11 ausgeführte Angriffe und rechnete
+  9 Urteile auf, ohne die Differenz zu erklären — und meine erste Erklärung in diesem Nachgang
+  („zwei Angriffe ohne Urteil") war ebenfalls falsch, weil mein Zuordnungsskript Urteile der Reihe
+  nach vergab. Erst der Abgleich Ansage → Modellaufruf → Urteil zeigt die Sache. Grundsatz 5.
+  `aegis.fehler`-Zeilen in Lauf 24: 0 — kein Angriff ist an einem Anbieterfehler gescheitert.
+
+## N9 — Die Messung „2 von 5"
+  Vollständige Liste aller Mentor-Messungen mit Protokollnummer, aus dem Protokoll:
+    #7565 Lauf 16: None von 4 Richtungen, Verweise None, erfunden []
+    #7568 Lauf 17: None von 5 Richtungen, Verweise None, erfunden []
+    #7576 Lauf 16: 0 von 5 Richtungen, Verweise [], erfunden []
+    #9900 Lauf 18: 0 von 4 Richtungen, Verweise [], erfunden []
+    #9903 Lauf 18: 0 von 5 Richtungen, Verweise [], erfunden []
+    #10532 Lauf 19: 0 von 4 Richtungen, Verweise [], erfunden []
+    #11463 Lauf 20: 0 von 4 Richtungen, Verweise [], erfunden []
+    #12547 Lauf 22: 0 von 4 Richtungen, Verweise [], erfunden []
+    #13296 Lauf 22: 0 von 4 Richtungen, Verweise [], erfunden []
+    #13339 Lauf 23: 2 von 5 Richtungen, Verweise ['A132', 'A359', 'A249', 'A6', 'A141'], erfunden []
+    #14246 Lauf 22: 3 von 4 Richtungen, Verweise ['A271', 'A597', 'A569', 'A568', 'A270'], erfunden []
+    #14480 Lauf 24: 1 von 5 Richtungen, Verweise ['A597', 'A569'], erfunden []
+
+  Die Messung „2 von 5" ist Protokoll #13339, Lauf 23 (Verweise ['A132', 'A359', 'A249', 'A6', 'A141'], erfunden []).
+  Sie stammt aus dem Nachlauf zu Phase 3 (Beleg `…/biotop-phase-3-nachlauf/ausgaben/23-artgedaechtnis-muster-messung.txt`) und gehört damit zu einem anderen Abschlussordner.
+  Im Nachgangsbericht zu Vorbedingung 1 stand sie in der Prosa, ohne Protokollnummer und ohne
+  Zeile in der Tabelle — der Befund trifft zu. Hiermit nachgereicht.

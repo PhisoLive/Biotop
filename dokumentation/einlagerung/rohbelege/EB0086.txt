@@ -1,0 +1,109 @@
+EB86 · Schritt 6.6: Einordnung der übrigen roten Tests (entpackt ↔ zweite Arbeitskopie)
+Beginn: 2026-09-26 03:13:16 CEST (UTC+0200)
+Ende:   2026-09-26 03:13:16 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/biotop-einlagerung/arbeit/s6_auswerten.py /root/biotop-einlagerung/probe-belege/lauf-entpackt /root/biotop-einlagerung/probe-belege/lauf-zweitkopie
+--- Inhalt von /root/biotop-einlagerung/arbeit/s6_auswerten.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-EINLAGERUNG-01 · Schritt 6.6: Ergebnis einer Regression auswerten (nur lesend).
+Aufruf: s6_auswerten.py <ausgabeordner> [<vergleichsordner>]
+Liest <ordner>/REGRESSION.txt (Schlusszeile von pytest) und REGRESSION.junit.xml (jeder Testfall).
+Ausgabe: Schlusszeile wörtlich; Zählung aus der junit-Datei (Fälle, bestanden, rot = failure+error, übersprungen);
+rote Fälle einzeln, getrennt in `test_w_g_*` (Befund G, erlaubt) und alle übrigen (je mit erster Zeile der Meldung);
+Maßstab „rot nur test_w_g_*“ ja/nein. Mit <vergleichsordner>: dieselben Fälle dort (zweite Arbeitskopie).
+Schreibt die Liste der übrigen roten Fälle nach <ordner>/ROT-UEBRIGE.txt (exklusiv), eine Knoten-ID je Zeile."""
+import sys
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+
+def knoten_id(cls: str, name: str) -> str:
+    """junit-classname („tests.test_mod“ oder „tests.test_mod.TestKlasse“) → pytest-Knoten-ID, geprüft am Baum /root/biotop."""
+    teile = cls.split('.')
+    for i in range(len(teile), 0, -1):
+        datei = '/'.join(teile[:i]) + '.py'
+        if (Path('/root/biotop') / datei).is_file():
+            return '::'.join([datei] + teile[i:] + [name])
+    return f"{cls.replace('.', '/')}.py::{name}"
+
+
+def lade(o: Path):
+    faelle = {}
+    for tc in ET.parse(o / 'REGRESSION.junit.xml').getroot().iter('testcase'):
+        cls, name = tc.get('classname', ''), tc.get('name', '')
+        knoten = knoten_id(cls, name)
+        zustand, meldung = 'bestanden', ''
+        for k in ('failure', 'error', 'skipped'):
+            e = tc.find(k)
+            if e is not None:
+                zustand = {'failure': 'rot', 'error': 'rot (Fehler)', 'skipped': 'übersprungen'}[k]
+                meldung = (e.get('message') or (e.text or '')).strip().splitlines()[0][:220] if (e.get('message') or e.text) else ''
+                break
+        faelle[knoten] = (zustand, meldung, float(tc.get('time') or 0))
+    return faelle
+
+
+o = Path(sys.argv[1])
+schluss = (o / 'REGRESSION.txt').read_text(errors='replace').rstrip().splitlines()[-1]
+print(f'Schlusszeile (wörtlich): {schluss}')
+f = lade(o)
+n = len(f)
+z = {k: sum(1 for v in f.values() if v[0] == k) for k in ('bestanden', 'rot', 'rot (Fehler)', 'übersprungen')}
+rot = sorted(k for k, v in f.items() if v[0].startswith('rot'))
+g = [k for k in rot if '::test_w_g_' in k]
+uebrig = [k for k in rot if '::test_w_g_' not in k]
+print(f'junit: {n} Fälle · bestanden {z["bestanden"]} · rot {z["rot"]} · Fehler {z["rot (Fehler)"]} · übersprungen {z["übersprungen"]} · '
+      f'Laufzeit Summe {sum(v[2] for v in f.values()):.0f} s')
+print(f'grün: {z["bestanden"]} von {n} Fällen (junit; abgewählte Fälle zählt junit nicht, siehe Schlusszeile)')
+print(f'rot gesamt: {len(rot)} · davon test_w_g_* (Befund G): {len(g)} · übrige: {len(uebrig)}')
+for k in g:
+    print(f'  G   {k} · {f[k][1]}')
+for k in uebrig:
+    print(f'  ROT {k} · {f[k][0]} · {f[k][1]}')
+for k, v in sorted(f.items()):
+    if v[0] == 'übersprungen':
+        print(f'  ÜBERSPRUNGEN {k} · {v[1]}')
+print(f'MASSSTAB „rot nur die 10 test_w_g_*“: {"ja" if not uebrig and len(g) == 10 else "NEIN"} '
+      f'(rot test_w_g_*: {len(g)}, übrige rot: {len(uebrig)})')
+p = o / 'ROT-UEBRIGE.txt'
+if not p.exists():
+    p.write_text(''.join(k + '\n' for k in uebrig))
+if len(sys.argv) > 2:
+    v = lade(Path(sys.argv[2]))
+    print(f'-- Vergleich mit {sys.argv[2]} (zweite Arbeitskopie aus /root/biotop):')
+    for k in uebrig:
+        w = v.get(k)
+        einordnung = ('Befund des Stands (auch in der Kopie aus /root/biotop rot)' if w and w[0].startswith('rot') else
+                      'NUR IM ENTPACKTEN STAND ROT — Wiederherstellung nicht lauffähig' if w else 'in der Kopie NICHT GELAUFEN')
+        print(f'  {k}: entpackt {f[k][0]} · Kopie {w[0] if w else "—"} · {einordnung}')
+        if w:
+            print(f'      Meldung Kopie: {w[1]}')
+--- Ende /root/biotop-einlagerung/arbeit/s6_auswerten.py ---
+Ausgabe (vollständig, stdout und stderr):
+Schlusszeile (wörtlich): 12 failed, 939 passed, 2 skipped, 93 deselected in 2457.86s (0:40:57)
+junit: 953 Fälle · bestanden 939 · rot 12 · Fehler 0 · übersprungen 2 · Laufzeit Summe 2454 s
+grün: 939 von 953 Fällen (junit; abgewählte Fälle zählt junit nicht, siehe Schlusszeile)
+rot gesamt: 12 · davon test_w_g_* (Befund G): 10 · übrige: 2
+  G   tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_durch_aegis[g_ruft] · AssertionError: {'status': 'ueberlebt', 'grund': 'Nische schnell: werk.laufzeit_ms: 5.0 → 4.0 (−20 %) Kernmaß -6 → -6', 'grund_art': 'geurteilt', 'enthaltung': None, ...}
+  G   tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_durch_aegis[g_schreibt] · AssertionError: {'status': 'ueberlebt', 'grund': 'Nische schnell: werk.laufzeit_ms: 5.0 → 4.0 (−20 %) Kernmaß -7 → -7', 'grund_art': 'geurteilt', 'enthaltung': None, ...}
+  G   tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_python_am_organ[attribut-    k.RATE = 19\n-    k.RATE = 7\n-paket.m.a:<schreibt:k>] · AssertionError: ('geurteilt', 'keine Verhaltensabweichung (7 von 7 Funktionen beobachtet)', {}, {})
+  G   tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_python_am_organ[globals-    return x + 1\n-    globals()["ZUSATZ"] = x\n    return x + 1\n-paket.m.a:<schreibt:globals()>] · AssertionError: ('geurteilt', 'keine Verhaltensabweichung (7 von 7 Funktionen beobachtet)', {}, {})
+  G   tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_python_am_organ[methode-    R.append(x)\n-    R.append(x + 1)\n-paket.m.a:<schreibt:R>] · AssertionError: ('geurteilt', 'keine Verhaltensabweichung (7 von 7 Funktionen beobachtet)', {}, {})
+  G   tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_python_am_organ[ruft_fremd-    k.setze(19)\n-    k.setze(7)\n-paket.m.a:<ruft:paket.m.k:setze>] · AssertionError: ('geurteilt', 'keine Verhaltensabweichung (7 von 7 Funktionen beobachtet)', {}, {})
+  G   tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_python_am_organ[ruft_innen-    _merke(x)\n-    _merke(x + 1)\n-paket.m.a:STAND] · AssertionError: ('geurteilt', 'keine Verhaltensabweichung (7 von 7 Funktionen beobachtet)', {}, {})
+  G   tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_python_am_organ[setattr-    k.RATE = 19\n-    setattr(k, "RATE", 7)\n-paket.m.a:<schreibt:k>] · AssertionError: ('geurteilt', 'keine Verhaltensabweichung (7 von 7 Funktionen beobachtet)', {}, {})
+  G   tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_typescript_am_organ[methode-  REG.push(x);\n-  REG.push(x + 1);\n-m/a:<schreibt:REG>] · AssertionError: ('geurteilt', 'keine Verhaltensabweichung (3 von 3 Funktionen beobachtet)', {})
+  G   tests/test_vor_t4_06.py::test_w_g_schreiben_in_fremde_module_typescript_am_organ[ruft_fremd-  setze(x);\n-  setze(x + 1);\n-m/a:<ruft:n/k:setze>] · AssertionError: ('geurteilt', 'keine Verhaltensabweichung (3 von 3 Funktionen beobachtet)', {})
+  ROT tests/test_t3_bindung.py::test_ts_instrumentaenderung_invalidiert_versiegelten_nachweis[biotop/kern/ts/messen.mjs] · rot · biotop.organe.vorspann.VorspannFehler: Vorspann Lauf 1: Kernstand seit der Eichphase der Stufe 2 verändert (Eichphase 53e95afdaa588722…, jetzt a91cbef507ecc259…) — Satz 2: Messgerätänderung zwischen Eichung und Messung; 
+  ROT tests/test_t3_bindung.py::test_ts_instrumentaenderung_invalidiert_versiegelten_nachweis[kammer/typescript/package-lock.json] · rot · biotop.organe.vorspann.VorspannFehler: Vorspann Lauf 1: Kernstand seit der Eichphase der Stufe 2 verändert (Eichphase 53e95afdaa588722…, jetzt a91cbef507ecc259…) — Satz 2: Messgerätänderung zwischen Eichung und Messung; 
+  ÜBERSPRUNGEN tests/test_eichproben.py::test_vier_paare_am_kopierten_pruefwerk · Private Werk-/DB-Kopie nicht angegeben
+  ÜBERSPRUNGEN tests/test_review_vertrag.py::test_benannter_vertrag_am_kopierten_pruefwerk · Private Werk-/DB-Kopie nicht angegeben
+MASSSTAB „rot nur die 10 test_w_g_*“: NEIN (rot test_w_g_*: 10, übrige rot: 2)
+-- Vergleich mit /root/biotop-einlagerung/probe-belege/lauf-zweitkopie (zweite Arbeitskopie aus /root/biotop):
+  tests/test_t3_bindung.py::test_ts_instrumentaenderung_invalidiert_versiegelten_nachweis[biotop/kern/ts/messen.mjs]: entpackt rot · Kopie rot · Befund des Stands (auch in der Kopie aus /root/biotop rot)
+      Meldung Kopie: biotop.organe.vorspann.VorspannFehler: Vorspann Lauf 1: Kernstand seit der Eichphase der Stufe 2 verändert (Eichphase 53e95afdaa588722…, jetzt a91cbef507ecc259…) — Satz 2: Messgerätänderung zwischen Eichung und Messung; 
+  tests/test_t3_bindung.py::test_ts_instrumentaenderung_invalidiert_versiegelten_nachweis[kammer/typescript/package-lock.json]: entpackt rot · Kopie rot · Befund des Stands (auch in der Kopie aus /root/biotop rot)
+      Meldung Kopie: biotop.organe.vorspann.VorspannFehler: Vorspann Lauf 1: Kernstand seit der Eichphase der Stufe 2 verändert (Eichphase 53e95afdaa588722…, jetzt a91cbef507ecc259…) — Satz 2: Messgerätänderung zwischen Eichung und Messung; 
+=== Ende EB86 ===

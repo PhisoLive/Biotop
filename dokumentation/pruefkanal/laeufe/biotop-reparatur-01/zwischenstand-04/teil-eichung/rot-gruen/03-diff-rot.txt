@@ -1,0 +1,28 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.1.1, pluggy-1.6.0 -- /root/reparatur-01/venv/bin/python
+cachedir: .pytest_cache
+rootdir: /root/reparatur-01/teil-eichung/repo
+collecting ... collected 2 items / 1 deselected / 1 selected
+
+tests/test_eichproben.py::test_kleiner_eingriff_in_grosse_datei_ist_keine_neuschreibung FAILED [100%]
+
+=================================== FAILURES ===================================
+________ test_kleiner_eingriff_in_grosse_datei_ist_keine_neuschreibung _________
+
+werk = PosixPath('/root/reparatur-01/teil-eichung/tmp/pytest-03/test_kleiner_eingriff_in_gross0/werk')
+
+    def test_kleiner_eingriff_in_grosse_datei_ist_keine_neuschreibung(werk):
+        rel = "beispiel/lieferant/rechnung.py"
+        alt = (werk / rel).read_text() + "\n".join(f"# Eichzeile {n}" for n in range(130)) + "\n"
+        (werk / rel).write_text(alt)
+        neu = alt.replace("zahl * 2", "zahl * 3")
+        diff = eichproben._diff(rel, alt, neu)
+        dateien = aegis.kandidat_dateien(werk, diff)
+>       assert dateien is not None, aegis.diff_grund(werk, diff)
+E       AssertionError: beispiel/lieferant/rechnung.py: Hunk ersetzt 135 von 135 Zeilen — Neuschreibung einer Datei ≥ 100 Zeilen, nicht erlaubt
+E       assert None is not None
+
+tests/test_eichproben.py:59: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_eichproben.py::test_kleiner_eingriff_in_grosse_datei_ist_keine_neuschreibung
+======================= 1 failed, 1 deselected in 0.07s ========================

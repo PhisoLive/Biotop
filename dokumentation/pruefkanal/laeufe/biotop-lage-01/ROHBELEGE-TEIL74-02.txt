@@ -1,0 +1,418 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 74 (Teile 4–165 dieses Stands) · enthält R72 bis R73
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R72 · Teil D: Testfunktionen je Art, Freigaben je Urheber, Nachlesen im Code, Planungsdateien (FK35, FK37, FK38, FK50)
+Beginn: 2026-09-25 16:26:11 CEST (UTC+0200)
+Ende:   2026-09-25 16:26:11 CEST (UTC+0200)
+Dauer:  0.3 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/aufbau/d8_zaehlung.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/aufbau/d8_zaehlung.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil D (nur lesend): Zählungen und Nachlesen für FK35, FK37, FK38, FK50.
+
+1. Testfunktionen am Commit 0c2f058 je Art (Einteilung Hermes, siehe ART unten) — gerechnet aus git (ls-tree/show).
+2. Freigaben je Urheber-Präfix (generationen.freigabe_grund) je Datenbankzweig; STAMM nur mode=ro&immutable=1 bei
+   -wal = 0 Bytes, sonst mode=ro.
+3. Nachlesen im Code am Commit (git show, Docstring der Funktion): formvarianten, laufzeitrisse, gewinn_band,
+   _kernbestand, auftragsgrenze_verlangen (Aufrufer), freigabe (Zeilen 553–600).
+4. Planungs- und Übergabedateien der Arbeitsordner (ls, nur Namen, Größe, Zeit).
+"""
+import collections
+import os
+import re
+import sqlite3
+import subprocess
+from pathlib import Path
+
+REPO, C = '/root/biotop', '0c2f058'
+
+
+def git(*a) -> str:
+    return subprocess.run(['git', '-C', REPO, *a], check=True, stdout=subprocess.PIPE).stdout.decode('utf-8', 'replace')
+
+
+ART = [  # (Art, Muster auf den Pfad) — erste passende Zeile gilt
+    ('Werk-Verträge der Übungswerke (laufen am Werk, nicht am Biotop)', r'^verfassungen/vertraege-'),
+    ('Verdrahtung (ganzer Lauf über die Befehlszeile, Kammer)', r'^tests/test_verdrahtung\.py$'),
+    ('Behebungsrunden vor T4 (Spezifikationen und Gegenproben)', r'^tests/test_vor_t4'),
+    ('TypeScript-Adapter (Kammer)', r'^tests/test_typescript_adapter\.py$'),
+    ('T3-Tests (Sprachnaht, Organe, Wächter)', r'^tests/test_t3_'),
+    ('Vorspann, Eichproben, Rauschmessung', r'^tests/test_(vorspann|vorspann_cli|eichproben|rauschmessung)\.py$'),
+    ('Messgerät und Nachweise', r'^tests/test_(messnachweise|nachweis_verbraucher|junit_zeugen|kernmass_pareto|testreihenfolge)\.py$'),
+    ('Ankläger, Doppelung, Artgedächtnis', r'^tests/test_(ansage_aufnahme|doppelungsschluessel|artvorlage)\.py$'),
+    ('Review-Vertrag', r'^tests/test_review_vertrag\.py$'),
+    ('sonstige', r'.'),
+]
+RT = re.compile(r'^[ \t]*(?:async[ \t]+)?def[ \t]+test\w*[ \t]*\(', re.M)
+dateien = git('ls-tree', '-r', '--name-only', C).splitlines()
+print('== 1. Testfunktionen je Art am Commit', C)
+je_art = collections.defaultdict(lambda: [0, 0, 0])  # Dateien, Funktionen, integration-Vorkommen
+for p in dateien:
+    name = p.rsplit('/', 1)[-1]
+    if not (name.startswith('test_') and name.endswith('.py')):
+        continue
+    t = git('show', f'{C}:{p}')
+    art = next(a for a, m in ART if re.search(m, p))
+    je_art[art][0] += 1
+    je_art[art][1] += len(RT.findall(t))
+    je_art[art][2] += t.count('pytest.mark.integration')
+summe = [0, 0, 0]
+for a, _ in ART:
+    if a in je_art:
+        d, f, i = je_art[a]
+        summe = [summe[0] + d, summe[1] + f, summe[2] + i]
+        print(f'{a}: {d} Dateien, {f} Testfunktionen, {i} Vorkommen „pytest.mark.integration“')
+print(f'Summe: {summe[0]} Dateien, {summe[1]} Testfunktionen, {summe[2]} Vorkommen')
+hilfen = [p for p in dateien if p.startswith('tests/') and not p.rsplit('/', 1)[-1].startswith('test_')]
+print('Hilfsdateien unter tests/ (keine Tests):', hilfen)
+
+print('\n== 2. Freigaben: generationen.freigabe_grund nach Präfix (vor dem ersten Doppelpunkt), je Zweig')
+wal = '/root/biotop/daten/biotop.db-wal'
+zweige = []
+if os.path.exists(wal) and os.path.getsize(wal) == 0:
+    zweige.append(('STAMM', 'file:/root/biotop/daten/biotop.db?mode=ro&immutable=1'))
+else:
+    print('STAMM NICHT GEÖFFNET: -wal nicht 0 Bytes')
+zweige += [('VB1', 'file:/root/phase-4-vorbedingung-1/privat/biotop.db?mode=ro'),
+           ('T3', 'file:/root/biotop-t3/t3.db?mode=ro')]
+for n, uri in zweige:
+    con = sqlite3.connect(uri, uri=True)
+    z = collections.Counter()
+    for (g,) in con.execute('SELECT freigabe_grund FROM generationen'):
+        z['(leer)' if g is None else g.split(':', 1)[0][:60]] += 1
+    tot = sum(z.values())
+    print(f'-- {n}: {tot} Generationen')
+    for k, v in z.most_common():
+        print(f'   {v} | {k}')
+    ph = con.execute("SELECT count(*) FROM generationen WHERE freigabe_grund LIKE 'Philipp%'").fetchone()[0]
+    print(f'   davon freigabe_grund beginnt mit „Philipp“: {ph} von {tot}')
+    con.close()
+
+print('\n== 3. Nachlesen im Code am Commit')
+for pfad, fn in (('biotop/kern/py/verhalten.py', 'formvarianten'), ('biotop/kern/messgeraet.py', 'laufzeitrisse'),
+                 ('biotop/kern/messgeraet.py', 'gewinn_band'), ('biotop/kern/messgeraet.py', 'laufzeit_entscheidet'),
+                 ('biotop/organe/vorspann.py', '_kernbestand'), ('biotop/kern/kasse.py', 'auftragsgrenze_verlangen')):
+    t = git('show', f'{C}:{pfad}').splitlines()
+    i = next((k for k, z in enumerate(t) if re.match(rf'\s*def {fn}\(', z)), None)
+    if i is None:
+        print(f'--- {pfad}:{fn}: NICHT GEFUNDEN')
+        continue
+    print(f'--- {pfad}:{i + 1} {fn}')
+    for z in t[i:i + 14]:
+        print('   | ' + z)
+print('--- Aufrufer von auftragsgrenze_verlangen und _kernbestand (git grep)')
+print(subprocess.run(['git', '-C', REPO, 'grep', '-n', '-E', r'auftragsgrenze_verlangen\(|_kernbestand\(', C, '--', 'biotop'],
+                     capture_output=True, text=True).stdout)
+
+print('== 4. Planungs- und Übergabedateien (Name | Bytes | Zeit)')
+for d in ('/root/biotop-vor-t4', '/root/biotop-vor-t4-02', '/root/biotop-vor-t4-03', '/root/biotop-vor-t4-04',
+          '/root/biotop-vor-t4-05', '/root/biotop-vor-t4-06', '/root/biotop-t3', '/root/biotop-t3/abschluss3',
+          '/root/phase-4-vorbedingung-1', '/root/reparatur-01', '/root/reparatur-02', '/root/biotop-einstieg-20260921-0122'):
+    p = Path(d)
+    if not p.exists():
+        print(f'{d}: fehlt')
+        continue
+    treffer = sorted(x for x in p.iterdir() if x.is_file() and x.suffix == '.md')
+    print(f'{d}: ' + '; '.join(f'{x.name} {x.stat().st_size}' for x in treffer[:14]) + (' …' if len(treffer) > 14 else ''))
+--- Ende /root/sicherung/biotop-lage-01/entwurf/aufbau/d8_zaehlung.py ---
+Ausgabe (vollständig, stdout und stderr):
+== 1. Testfunktionen je Art am Commit 0c2f058
+Werk-Verträge der Übungswerke (laufen am Werk, nicht am Biotop): 7 Dateien, 31 Testfunktionen, 0 Vorkommen „pytest.mark.integration“
+Verdrahtung (ganzer Lauf über die Befehlszeile, Kammer): 1 Dateien, 6 Testfunktionen, 0 Vorkommen „pytest.mark.integration“
+Behebungsrunden vor T4 (Spezifikationen und Gegenproben): 5 Dateien, 128 Testfunktionen, 0 Vorkommen „pytest.mark.integration“
+TypeScript-Adapter (Kammer): 1 Dateien, 18 Testfunktionen, 18 Vorkommen „pytest.mark.integration“
+T3-Tests (Sprachnaht, Organe, Wächter): 37 Dateien, 156 Testfunktionen, 8 Vorkommen „pytest.mark.integration“
+Vorspann, Eichproben, Rauschmessung: 4 Dateien, 54 Testfunktionen, 0 Vorkommen „pytest.mark.integration“
+Messgerät und Nachweise: 5 Dateien, 48 Testfunktionen, 25 Vorkommen „pytest.mark.integration“
+Ankläger, Doppelung, Artgedächtnis: 3 Dateien, 16 Testfunktionen, 0 Vorkommen „pytest.mark.integration“
+Review-Vertrag: 1 Dateien, 6 Testfunktionen, 0 Vorkommen „pytest.mark.integration“
+Summe: 64 Dateien, 463 Testfunktionen, 51 Vorkommen
+Hilfsdateien unter tests/ (keine Tests): ['tests/conftest.py', 'tests/drahtwerk.py', 'tests/speicherwerk.py']
+
+== 2. Freigaben: generationen.freigabe_grund nach Präfix (vor dem ersten Doppelpunkt), je Zweig
+-- STAMM: 144 Generationen
+   96 | (leer)
+   17 | Hermes unter Vollmacht Abschnitt 4 F2 (Übungswerk lagerhaus,
+   12 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungsw
+   11 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v3; Übungsw
+   4 | Hermes (Kassenprobe)
+   2 | Hermes (stellvertretend, eigene Entscheidung)
+   1 | Hermes (stellvertretend, Übungswerk Phase 1 — eigene Entsche
+   1 | Hermes (Vollmacht Abschnitt 4, Übungswerk)
+   davon freigabe_grund beginnt mit „Philipp“: 0 von 144
+-- VB1: 150 Generationen
+   100 | (leer)
+   17 | Hermes unter Vollmacht Abschnitt 4 F2 (Übungswerk lagerhaus,
+   12 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungsw
+   11 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v3; Übungsw
+   4 | Hermes (Kassenprobe)
+   2 | Hermes (stellvertretend, eigene Entscheidung)
+   2 | Hermes unter Übungswerk-Vollmacht
+   1 | Hermes (stellvertretend, Übungswerk Phase 1 — eigene Entsche
+   1 | Hermes (Vollmacht Abschnitt 4, Übungswerk)
+   davon freigabe_grund beginnt mit „Philipp“: 0 von 150
+-- T3: 184 Generationen
+   118 | (leer)
+   18 | Hermes
+   17 | Hermes unter Vollmacht Abschnitt 4 F2 (Übungswerk lagerhaus,
+   12 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungsw
+   11 | Hermes unter Vollmacht Abschnitt 4 (Masterprompt v3; Übungsw
+   4 | Hermes (Kassenprobe)
+   2 | Hermes (stellvertretend, eigene Entscheidung)
+   1 | Hermes (stellvertretend, Übungswerk Phase 1 — eigene Entsche
+   1 | Hermes (Vollmacht Abschnitt 4, Übungswerk)
+   davon freigabe_grund beginnt mit „Philipp“: 0 von 184
+
+== 3. Nachlesen im Code am Commit
+--- biotop/kern/py/verhalten.py:1352 formvarianten
+   | def formvarianten(quellen):
+   |     """Formvarianten aus der Grundliste und aus jeder Randliste mit Leerzeichen. Rückgabe [(liste, art)]."""
+   |     listen = []
+   |     for grund in quellen:
+   |         for j, p in enumerate(grund):
+   |             for v, art in form_werte(p):
+   |                 listen.append((grund[:j] + [v] + grund[j + 1:], art, grund))
+   |     gesehen, out = set(), []
+   |     for l, art, q in listen:
+   |         s = _json(l)
+   |         if s not in gesehen:
+   |             gesehen.add(s); out.append((l, art, q))
+   |     return out[:FORM_KAPPE]
+   | 
+--- biotop/kern/messgeraet.py:726 laufzeitrisse
+   | def laufzeitrisse(u: dict) -> list[str]:
+   |     """Bereiche, deren Laufzeitgrenze im Urteil `u` gerissen ist — aus der Liste `laufzeit_risse` (urteil_f2); ältere
+   |     Urteile ohne sie: aus `grenzen_gerissen`, jeder Bereichsname (auch mit Bindestrich, Review 02 Nr. 20)."""
+   |     if "laufzeit_risse" in u:
+   |         return sorted(set(u.get("laufzeit_risse") or []))
+   |     import re as _re
+   |     return sorted({m.group(1) for g in (u.get("grenzen_gerissen") or []) if (m := _re.match(r"(\S+?)\.laufzeit_ms:", g))})
+   | 
+   | 
+   | GEWINN_SCHWELLE = 0.85     # Nische schnell: Laufzeit eines Bereichs im Wirkungskreis um ≥ 15 % gesunken
+   | 
+   | 
+   | def gewinn_band(rauschtoleranz: dict | None, bereich: str) -> tuple[float, float]:
+   |     """Rauschtoleranz um die Gewinnschwelle (Entscheidung Chat-Claude 2, 24.09.2026): [S / t, S · t] mit der gemessenen
+--- biotop/kern/messgeraet.py:738 gewinn_band
+   | def gewinn_band(rauschtoleranz: dict | None, bereich: str) -> tuple[float, float]:
+   |     """Rauschtoleranz um die Gewinnschwelle (Entscheidung Chat-Claude 2, 24.09.2026): [S / t, S · t] mit der gemessenen
+   |     Rauschtoleranz t des Bereichs (Rauschmessung vor dem Lauf), sonst dem Rückfallwert RAUSCH_F4. Eigene Festlegung:
+   |     derselbe Faktor, mit dem die Grenzmaße das Messrauschen tolerieren, als Band um die Schwelle."""
+   |     t = float((rauschtoleranz or {}).get(bereich) or RAUSCH_F4)
+   |     return GEWINN_SCHWELLE / t, GEWINN_SCHWELLE * t
+   | 
+   | 
+   | def gewinn_quoten(basis: dict, kandidat: dict, bereiche: list[str]) -> dict[str, float]:
+   |     out = {}
+   |     for b in bereiche:
+   |         l0 = ((basis.get("bereiche") or {}).get(b) or {}).get("laufzeit_ms")
+   |         l1 = ((kandidat.get("bereiche") or {}).get(b) or {}).get("laufzeit_ms")
+   |         if l0 and l1:
+--- biotop/kern/messgeraet.py:865 laufzeit_entscheidet
+   | def laufzeit_entscheidet(u: dict, nische: str | None) -> bool:
+   |     """Kann die Laufzeit das Urteil `u` (gebildet mit laufzeit_pruefen=False) noch ändern?
+   |     Nein, wenn es schon an deterministischen Maßen scheitert (Pareto, Bau, gesperrter Wirkungskreis, ein anderes
+   |     Grenzmaß) oder — außerhalb der Nische schnell — das Kernmaß nicht steigt. Dann wird nicht gepaart gemessen, und die
+   |     Laufzeit erscheint auch nicht als Grund (T3: Laufzeitrisse am Einzelwert verdrängten „Kernmaß unverändert“ als
+   |     Ablehnungsgrund und sperrten über das Projektgedächtnis spätere Kandidaten).
+   |     `nische` 'werk' (Generalprobe): das Nischenmaß auf Werkebene lässt auch Zuwachs 0 zu."""
+   |     g = u.get("grund") or ""
+   |     if u.get("pareto_schlechter") or g.startswith(("Rauschmessung", "baut nicht")):
+   |         return False
+   |     if u.get("grenzen_gerissen"):
+   |         return False                                # deterministische Grenze (Funktion, Zyklen, Bauzeit) gerissen
+   |     z = u.get("zuwachs") or 0
+   |     return z >= 0 if nische in ("schnell", "werk") else z > 0
+--- biotop/organe/vorspann.py:_kernbestand: NICHT GEFUNDEN
+--- biotop/kern/kasse.py:70 auftragsgrenze_verlangen
+   | def auftragsgrenze_verlangen() -> tuple[int, float]:
+   |     """Gibt (lauf_ab, budget_eur) zurück oder verweigert den Start.
+   | 
+   |     Beide Werte müssen gesetzt und größer null sein. Das Setzen der
+   |     Umgebungsvariablen behebt nur den Einzelfall; diese Sperre behebt die Klasse.
+   |     """
+   |     fehlend = []
+   |     if not AUFTRAG_LAUF_AB:
+   |         fehlend.append("BIOTOP_AUFTRAG_LAUF_AB")
+   |     if not AUFTRAG_BUDGET_EUR:
+   |         fehlend.append("BIOTOP_AUFTRAG_BUDGET_EUR")
+   |     if fehlend:
+   |         raise AuftragsgrenzeFehlt(
+   |             "Auftragsgrenze nicht scharf: " + " und ".join(fehlend) + " fehlt oder ist null. "
+--- Aufrufer von auftragsgrenze_verlangen und _kernbestand (git grep)
+0c2f058:biotop/kern/kasse.py:70:def auftragsgrenze_verlangen() -> tuple[int, float]:
+0c2f058:biotop/kern/kasse.py:123:    auftragsgrenze_verlangen()
+
+== 4. Planungs- und Übergabedateien (Name | Bytes | Zeit)
+/root/biotop-vor-t4: BERICHT.md 35702; KASSE.md 1413; REVIEW-AUFTRAG-VOR-T4.md 3226; REVIEW.md 21150; UEBERGABE.md 3240
+/root/biotop-vor-t4-02: BERICHT.md 37024; KASSE.md 964; REVIEW-AUFTRAG.md 5310; REVIEW.md 30546; SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md 3156; UEBERGABE.md 3269
+/root/biotop-vor-t4-03: BERICHT.md 41349; KASSE.md 973; REVIEW-AUFTRAG.md 7650; REVIEW.md 26159; SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md 4248; UEBERGABE.md 11029
+/root/biotop-vor-t4-04: BERICHT.md 33528; FEHLALARM-SICHERHEITSFILTER.md 3811; KASSE.md 1144; REVIEW-AUFTRAG.md 7046; REVIEW.md 33169; SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md 3060; UEBERGABE.md 11607
+/root/biotop-vor-t4-05: BERICHT.md 45281; KASSE.md 1314; REVIEW-AUFTRAG.md 7119; REVIEW-verworfen-erster-durchgang.md 31508; REVIEW.md 32029; SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md 6682; UEBERGABE.md 9650; ZWEI-REVIEWS.md 5704
+/root/biotop-vor-t4-06: BAU-S1-FORTSETZUNG.md 6107; BAU-S1-SONDE.md 12558; BAU-S1B-M2B.md 9495; BAU-S1C-UNBEOBACHTET.md 10219; BAU-S2-TOR4.md 8949; BAU-S3-STUFE2.md 5948; BAU-S4-VERDRAHTUNG.md 12420; EINORDNUNG-U1-U4.md 2983; S1-ABBRUCH.md 3690; UEBERGABE.md 24382; VERDICHTUNG-OPENROUTER.md 5842
+/root/biotop-t3: ABSCHLUSSBERICHT.md 12642; ARBEITSTEILUNG.md 4528; LAUF38-BERICHT.md 5263; NACHTRAG-02.md 14358; PRUEFPLAN-START.md 2849; STAND-ARBEIT.md 4802; VERFASSUNG-T3-02.md 4418; VERFASSUNG-T3-ENTWURF.md 2498; ZWISCHENBERICHT-UEBERNAHME.md 7342; ZWISCHENBERICHT-VORSPANN.md 9012
+/root/biotop-t3/abschluss3: ABSCHLUSS-03.md 34214; REVIEW-03.md 31403; REVIEW-AUFTRAG-03.md 5947; SPERREN.md 6539; UEBERGABE.md 867
+/root/phase-4-vorbedingung-1: AUFTRAG-REGELN.md 1018; ERGEBNIS-DETAIL.md 11851; MESSPLAN.md 4459; SITZUNGSWECHSEL.md 716; UEBERGABE-PHASE-4.md 32268
+/root/reparatur-01: INTEGRATIONSENTSCHEIDUNG-RUNDE2.md 3120
+/root/reparatur-02: 
+/root/biotop-einstieg-20260921-0122: KASSE.md 1035; ZWISCHENBERICHT.md 10381
+=== Ende R72 ===
+
+
+R73 · Teil C: Ergänzung 2 — T3-Eichproben 37/38, Herkunft 11. Zeile, PRUEFUNG-Zeilen, Abweichungsquote, Norm-Zeile
+Beginn: 2026-09-25 16:26:59 CEST (UTC+0200)
+Ende:   2026-09-25 16:26:59 CEST (UTC+0200)
+Dauer:  0.2 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/tore/c7_ergaenzung2.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/tore/c7_ergaenzung2.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil C (nur lesend): letzte Ergänzungen.
+1. T3 (mode=ro): vorspann_nachweise Lauf 37 und 38 — Eichproben: je Probe und je Gegenprobe die booleschen Felder.
+2. Masterprompt v3/v4: Zeilen mit 'Modellwahl' bzw. 'Verlaufskurve' (Herkunft der 11. Zeile in den Berichten Phase 2/3).
+3. PRUEFUNG*-Dokumente vom 20.09.: Zeilen mit 'Zeile 8', 'natürlich', 'Abweichung', 'Wertung'.
+4. Prüfkanal biotop-t3-typescript und biotop-vor-t4*: Zeilen mit 'Abweichungsquote' oder 'aegis.abweichung' oder
+   'Ansage ↔'/'Ansage↔'.
+5. biotop-gesamtstand: Zeilen mit 'Norm', 'masse', 'leer' und 'Tor' zusammen (Rücknahme Norm-Zeile)."""
+import json
+import re
+import sqlite3
+from pathlib import Path
+
+c = sqlite3.connect('file:/root/biotop-t3/t3.db?mode=ro', uri=True)
+print('== 1. T3 vorspann_nachweise Eichproben (Lauf 37, 38)')
+for lid in (37, 38):
+    st, erg = c.execute('SELECT status, ergebnis FROM vorspann_nachweise WHERE lauf_id=?', (lid,)).fetchone()
+    e = json.loads(erg).get('eichproben', {})
+    print(f'-- Lauf {lid}: status {st}; eichproben-Schlüssel {sorted(e.keys())}; bestanden={e.get("bestanden")}')
+    for teil in ('proben', 'gegenproben'):
+        d = e.get(teil)
+        if isinstance(d, dict):
+            for name, v in d.items():
+                if isinstance(v, dict):
+                    b = {k: v[k] for k in v if isinstance(v[k], bool)}
+                    print(f'   {teil}.{name}: {b} | befund: {str(v.get("befund"))[:120]}')
+        elif isinstance(d, list):
+            for v in d:
+                if isinstance(v, dict):
+                    b = {k: v[k] for k in v if isinstance(v[k], bool) or k in ('name', 'probe', 'art')}
+                    print(f'   {teil}[]: {b}')
+    for k, v in e.items():
+        if k not in ('proben', 'gegenproben') and not isinstance(v, (dict, list)):
+            print(f'   {k}: {v}')
+c.close()
+
+D = Path('/root/sicherung/biotop-lage-01/arbeit/dokumente')
+print('\n== 2. v3/v4 Herkunft 11. Zeile')
+for pat, muster in (('*Masterprompt-v3.md', r'Modellwahl'), ('*Masterprompt-v4.md', r'Verlaufskurve')):
+    for p in D.glob(pat):
+        for i, z in enumerate(p.read_text().splitlines(), 1):
+            if re.search(muster, z):
+                print(f'   {p.name[:30]} {i}: {z.strip()[:260]}')
+print('\n== 3. PRUEFUNG-Dokumente')
+for p in sorted(D.glob('*PRUEFUNG*')):
+    for i, z in enumerate(p.read_text().splitlines(), 1):
+        if re.search(r'Zeile 8|natürlich|Abweichung|Wertung', z):
+            print(f'   {p.name[:40]} {i}: {z.strip()[:300]}')
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+L = Path(f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe')
+print('\n== 4. Abweichungsquote in T3 und vor-t4')
+for o in [L / 'biotop-t3-typescript'] + sorted(L.glob('biotop-vor-t4*')):
+    for p in sorted(o.glob('*.md')) + sorted(o.glob('*/*.md')):
+        for i, z in enumerate(p.read_text(errors='replace').splitlines(), 1):
+            if re.search(r'Abweichungsquote|aegis\.abweichung|Ansage ?↔', z):
+                print(f'   {p.relative_to(L)} {i}: {z.strip()[:260]}')
+print('\n== 5. gesamtstand: Norm-Zeile')
+for p in sorted((L / 'biotop-gesamtstand').glob('*.md')):
+    for i, z in enumerate(p.read_text(errors='replace').splitlines(), 1):
+        if re.search(r'norm', z, re.I) and re.search(r'leer|masse|Tor 2|Eichprobe', z):
+            print(f'   {p.name} {i}: {z.strip()[:300]}')
+--- Ende /root/sicherung/biotop-lage-01/entwurf/tore/c7_ergaenzung2.py ---
+Ausgabe (vollständig, stdout und stderr):
+== 1. T3 vorspann_nachweise Eichproben (Lauf 37, 38)
+-- Lauf 37: status bestanden; eichproben-Schlüssel ['bestanden', 'gegenproben', 'gegenstand', 'grund', 'kosten', 'lauf_startet', 'proben']; bestanden=True
+   proben.nebenwirkung: {'ausgefuehrt': True, 'bestanden': True, 'gegenprobe': False, 'pruefbar': True} | befund: planung.auslastung: privater Arraydefekt behoben; tarife.versicherung: Zahlenrückgabe +1
+   proben.norm: {'ausgefuehrt': True, 'bestanden': True, 'gegenprobe': False, 'pruefbar': True} | befund: src/tarife/preise.ts::skalar(137): unbegründete neue Zahl
+   proben.regression: {'ausgefuehrt': True, 'bestanden': True, 'gegenprobe': False, 'pruefbar': True} | befund: planung.auslastung: privater Arraydefekt behoben; tarife.versicherung: Zahlenrückgabe +1; 3 grüne Tests in tests/test_pl
+   proben.vertrag: {'ausgefuehrt': True, 'bestanden': True, 'gegenprobe': False, 'pruefbar': True} | befund: src/planung/plan.ts::planen fordert neue Zusicherung von src/tarife/preise.ts; Lieferant angepasst=False
+   gegenproben.nebenwirkung: {'ausgefuehrt': True, 'bestanden': False, 'gegenprobe': True, 'pruefbar': True} | befund: planung.auslastung: privater Arraydefekt behoben; tarife.versicherung: unverändert
+   gegenproben.norm: {'ausgefuehrt': True, 'bestanden': False, 'gegenprobe': True, 'pruefbar': True} | befund: src/tarife/preise.ts::skalar(137): unbegründete neue Zahl
+   gegenproben.regression: {'ausgefuehrt': True, 'bestanden': False, 'gegenprobe': True, 'pruefbar': True} | befund: planung.auslastung: privater Arraydefekt behoben; tarife.versicherung: unverändert; 3 grüne Tests in tests/test_planung_
+   gegenproben.vertrag: {'ausgefuehrt': True, 'bestanden': False, 'gegenprobe': True, 'pruefbar': True} | befund: src/planung/plan.ts::planen fordert neue Zusicherung von src/tarife/preise.ts; Lieferant angepasst=True
+   bestanden: True
+   grund: None
+   lauf_startet: True
+-- Lauf 38: status bestanden; eichproben-Schlüssel ['bestanden', 'gegenproben', 'gegenstand', 'grund', 'kosten', 'lauf_startet', 'proben']; bestanden=True
+   proben.nebenwirkung: {'ausgefuehrt': True, 'bestanden': True, 'gegenprobe': False, 'pruefbar': True} | befund: planung.auslastung: privater Arraydefekt behoben; tarife.versicherung: Zahlenrückgabe +1
+   proben.norm: {'ausgefuehrt': True, 'bestanden': True, 'gegenprobe': False, 'pruefbar': True} | befund: src/tarife/preise.ts::skalar(137): unbegründete neue Zahl
+   proben.regression: {'ausgefuehrt': True, 'bestanden': True, 'gegenprobe': False, 'pruefbar': True} | befund: planung.auslastung: privater Arraydefekt behoben; tarife.versicherung: Zahlenrückgabe +1; 3 grüne Tests in tests/test_pl
+   proben.vertrag: {'ausgefuehrt': True, 'bestanden': True, 'gegenprobe': False, 'pruefbar': True} | befund: src/planung/plan.ts::planen fordert neue Zusicherung von src/tarife/preise.ts; Lieferant angepasst=False
+   gegenproben.nebenwirkung: {'ausgefuehrt': True, 'bestanden': False, 'gegenprobe': True, 'pruefbar': True} | befund: planung.auslastung: privater Arraydefekt behoben; tarife.versicherung: unverändert
+   gegenproben.norm: {'ausgefuehrt': True, 'bestanden': False, 'gegenprobe': True, 'pruefbar': True} | befund: src/tarife/preise.ts::skalar(137): unbegründete neue Zahl
+   gegenproben.regression: {'ausgefuehrt': True, 'bestanden': False, 'gegenprobe': True, 'pruefbar': True} | befund: planung.auslastung: privater Arraydefekt behoben; tarife.versicherung: unverändert; 3 grüne Tests in tests/test_planung_
+   gegenproben.vertrag: {'ausgefuehrt': True, 'bestanden': False, 'gegenprobe': True, 'pruefbar': True} | befund: src/planung/plan.ts::planen fordert neue Zusicherung von src/tarife/preise.ts; Lieferant angepasst=True
+   bestanden: True
+   grund: None
+   lauf_startet: True
+
+== 2. v3/v4 Herkunft 11. Zeile
+   2026-09-19_022342_INFINITE-EVO 347: Tor 1 ist mit 9 von 9 abgenommen, Phase 1 abgeschlossen — lies INFINITE-EVOLUTION-BIOTOP-Masterprompt-v3.md vollständig, Fassung 2 ist ersetzt; das Änderungsverzeichnis oben nimmt deine drei Funde aus den Läufen 6 und 7 auf (Pareto je Test, Angriffstests sind 
+   2026-09-19_123925_INFINITE-EVO 23: - 3.5: Verlaufskurve mit Endtestbestand ist Pflichtbestandteil jedes Abschlussordners, nicht nur für Lauf 2.
+   2026-09-19_123925_INFINITE-EVO 110: - **Paarweise Messung:** Vorgeneration und Kandidat werden mit demselben Testbestand gemessen — dem des Kandidaten (einschließlich neuer Immuntests). Zuwachs ist die Differenz. Die Verlaufskurve eines Laufs wird am Laufende mit dem Endbestand aller Tests neu g
+   2026-09-19_123925_INFINITE-EVO 113: - **Verlaufskurve** (Fassung 3): Für jeden Lauf wird am Laufende jede angenommene Generation aus Lazarus geholt, mit dem Endtestbestand gemessen und als Kurve (Kernmaß je Generation, Zerlegung nach Fehlschlägen / Sicherheit / toten Funktionen) dem Abschlussord
+   2026-09-19_123925_INFINITE-EVO 287: **Bauen:** Vier Nischen, Bandit-Gewichtung, Generation 0 (Mutanten), Verträge explizit, Ankläger vollständig (Schritte 2 und 3, Norm-Regel 3.7), Nexus mit Verhandlung, Generalprobe und Pareto je Test, Immunisierung nach 3.10 Fassung 3 (nur bestandene Tests, of
+   2026-09-19_123925_INFINITE-EVO 300: - Verlaufskurve des Hauptlaufs mit Endtestbestand beigefügt (3.5).
+   2026-09-19_123925_INFINITE-EVO 374: Phase 2 ist mit 10 von 11 gewertet — Zeile 7 verlangt „angenommen und im Werk", das Probenpaar K1157/K1158 kam nie ins Werk; lies INFINITE-EVOLUTION-BIOTOP-Masterprompt-v4.md vollständig, Fassung 3 ist ersetzt, das Änderungsverzeichnis oben nimmt deine drei Fu
+
+== 3. PRUEFUNG-Dokumente
+   2026-09-20_014755_PRUEFUNG_Vorbedingung- 5: **Wertung:** Bauteil A gebaut und mechanisch belegt, Wirkung auf Zeile 8 **nicht gemessen**. Bauteil B gebaut, Wirkung **nicht stabil belegt**.
+   2026-09-20_014755_PRUEFUNG_Vorbedingung- 101: Hermes' Begründung gegen ein Pflichtfeld — ein Zitierzwang erzeugt Scheinbegründungen — ist richtig und bleibt bestehen. Die Wertung „erfüllt" trägt trotzdem nicht.
+   2026-09-20_014755_PRUEFUNG_Vorbedingung- 113: Zeile 8 misst den Restanteil **unter den erzeugten Tests**. Bauteil A senkt genau diesen Nenner. Die Zeile misst das Bauteil damit systematisch falsch: **je besser die Sperre wirkt, desto weniger trägt die Zahl.** Bei perfekter Sperre wäre der Nenner null und die Zeile nicht mehr definiert.
+   2026-09-20_014755_PRUEFUNG_Vorbedingung- 127: Zeile 8 bleibt als Zeile bestehen und wird in Tor 4 am echten Werk gemessen, wo die 135 Testfehlschläge den Nenner liefern. Für Vorbedingung 1 ist die Filtergüte das entscheidende Maß.
+   2026-09-20_014755_PRUEFUNG_Vorbedingung- 135: **N1 — Zuordnung berichtigen.** Tabelle mit einer zusätzlichen Spalte: welchem Bauteil ist die Änderung zuzurechnen? Größte Gruppe und unbemerkte Doppelungen gehören nach Lauf 22 der Anweisung. Die Wertung von Bauteil A ist entsprechend zu kürzen.
+   2026-09-20_014755_PRUEFUNG_Vorbedingung- 153: - Die volle Messung von Zeile 8 am echten Werk. Die gehört nach Tor 4, wie Hermes richtig schreibt.
+   2026-09-20_020147_PRUEFUNG2_Vorbedingung 4: **Wertung: noch nicht abgenommen.** Ein einziger Punkt fehlt — er kostet **0 Modellaufrufe**.
+   2026-09-20_020147_PRUEFUNG2_Vorbedingung 80: Die Messung **2 von 5** hat keine Protokollnummer und steht in keiner Tabelle. Die Wertung „mit 3 von 3 Messungen erfüllt" stützt sich auf eine Messung, die nicht belegt ist.
+   2026-09-20_020147_PRUEFUNG2_Vorbedingung 88: **V9 — Die Ansage-Ausführung-Lücke ist kein „später"-Punkt, sondern Vorbedingung für Tor 4.** Hermes stellt sie korrekt nach Fassung 7 zurück und zitiert dabei richtig meinen Abschnitt 6. Aber: In Tor 4 soll Zeile 8 gemessen werden. Wenn der Ankläger von seiner eigenen Ansage abweicht — bei 1 von 2 
+   2026-09-20_020147_PRUEFUNG2_Vorbedingung 114: 3. **Zeile 8 gilt als ungemessen**, solange der Nenner unter 20 erzeugten Tests liegt — Grenze hiermit vorab gesetzt
+   2026-09-20_022543_PRUEFUNG3_Vorbedingung 4: **Wertung: nicht abgenommen** — diesmal nicht wegen der Inhalte, sondern weil sie an der Abholadresse nicht liegen.
+   2026-09-20_022543_PRUEFUNG3_Vorbedingung 60: - Der Zusatzbefund zur Ansage-Abweichung nennt **„1 von 2"**.
+   2026-09-20_022543_PRUEFUNG3_Vorbedingung 70: `#13339` ist benannt, liegt aber im Phase-3-Nachlaufordner. Die Ordnerprüfsumme deckt ihn nicht ab. Eine der drei Messungen, auf die sich die Wertung von Bauteil B stützt, ist damit nicht Teil des versiegelten Belegs.
+   2026-09-20_022543_PRUEFUNG3_Vorbedingung 108: 3. Zeile 8 gilt als ungemessen unterhalb von 20 erzeugten Tests
+   2026-09-20_022543_PRUEFUNG3_Vorbedingung 119: > N7 bis N9 liegen nicht an der Abholadresse: `DATEIEN.txt` ist Byte für Byte dieselbe wie beim letzten Abruf, 54 Zeilen statt 55, Prüfsumme `c5b53d54…` statt der gemeldeten `54dc6b3f…`, und `NACHGANG.md` trägt weiter den Titel „Nachgang N1 bis N6" ohne N7, N8, N9 — bitte prüfen, ob der Upload durch
+   2026-09-20_024630_PRUEFUNG4_Vorbedingung 4: **Wertung: Vorbedingung 1 nicht erfüllt.** Ich stimme Hermes' eigenem Antrag zu, keine Abnahme zu beantragen — **gestützt auf seine Meldung, nicht auf eigene Ausführung.**
+   2026-09-20_024630_PRUEFUNG4_Vorbedingung 73: Der Norm-Eintrag zählt bei Durchgerutscht mit, bei Zeile 8 nicht. Das ist **richtig**, aber nur zur Hälfte begründet.
+   2026-09-20_024630_PRUEFUNG4_Vorbedingung 76: - **Zeile 8** misst die Güte des Werks → Bezugsgröße sind die **erzeugten Funde**. Ein Norm-Eintrag geht nicht ins Werk, zählt also nicht.
+   2026-09-20_024630_PRUEFUNG4_Vorbedingung 101: **V9 bleibt, aber als Messung, nicht als Tor:** Die Abweichungsquote Ansage ↔ Ausführung wird gezählt und berichtet. Sie sagt etwas über die Verlässlichkeit des Anklägers. Sie ist kein Sperrmechanismus.
+   2026-09-20_024630_PRUEFUNG4_Vorbedingung 103: Und die Zeile für Bauteil A wird berichtigt: A ist ein **Kostensparer und Zwangsbefund-Verhinderer**, kein Doppelungsverhinderer. Die 10 gesparten Kammerläufe und die 18 von 65 „KEIN ANGRIFF" bleiben sein Verdienst. Zeile 8 gehört zu C.
+   2026-09-20_024630_PRUEFUNG4_Vorbedingung 111: **Dazu:** V9 als Zähler (Abweichungsquote), V12 (nummerierte Dateinamen), V13 (Mengen im Satz).
+   2026-09-20_024630_PRUEFUNG4_Vorbedingung 120: | Abweichungsquote Ansage ↔ Ausführung | **gezählt, keine Grenze** | Diagnostisch. Eine Grenze ohne Vorwissen wäre geraten. |
+   2026-09-20_024630_PRUEFUNG4_Vorbedingung 126: **Nicht in diesen Lauf:** Zeile 8 am Übungswerk. Sie bleibt bei Tor 4 am echten Werk — der Nenner ist hier nicht zu beschaffen.
+   2026-09-20_024630_PRUEFUNG4_Vorbedingung 134: 3. Zeile 8 gilt als ungemessen unterhalb von 20 erzeugten Funden, und sie gehört zu C, nicht zu A
+   2026-09-20_024630_PRUEFUNG4_Vorbedingung 148: > Dein Antrag, keine Abnahme zu beantragen, ist richtig — Durchgerutscht 2 statt 0 reißt den Maßstab, und dass du das gegen dein eigenes Bauteil gemeldet hast, ist der eigentliche Beleg dieser Runde; nachprüfen konnte ich es allerdings nicht, weil mein Abrufweg zum dritten Mal den alten Stand liefer
+   2026-09-20_040048_PRUEFUNG6_Lauf-25_2026 4: **Wertung: nicht abgenommen.** Drei Punkte, einer davon an der harten Budgetgrenze. Zwei davon kosten null Modellaufrufe.
+   2026-09-20_040048_PRUEFUNG6_Lauf-25_2026 17: Und das, was mir am meisten wert ist: **Hermes hat selbst gemeldet, dass der Lauf C keinen Gegenstand lieferte** — 0 erzeugte Einträge, 0 Aufrufe — und selbst „nicht gemessen" darauf geschrieben. Er hat die Messgerätänderung vor dem Lauf offengelegt, seinen eigenen Ablesefehler beim grünen Eichfall 
+   2026-09-20_040048_PRUEFUNG6_Lauf-25_2026 108: 17. **Der Gesamtstand der Kasse wird bei jeder Meldung gegen die Summe der Einzelläufe geprüft**, und jede Abweichung wird benannt, bevor sie jemand anders findet.
+
+== 4. Abweichungsquote in T3 und vor-t4
+
+== 5. gesamtstand: Norm-Zeile
+   ABWEICHUNGEN-01.md 143: ### A11 — Eichproben bestehen teilweise aus falschen Gründen; die Normprobe liest das falsche Feld
+   ABWEICHUNGEN-01.md 146: **A11: Eichproben bestehen teilweise aus falschen Gründen; die Normprobe liest das falsche Feld**
+   ABWEICHUNGEN-01.md 150: Nebenwirkung legt nur A lahm: der angekündigte messbare Gewinn in B wird nicht gebaut und nicht geprüft; jeder Ablehnungsgrund mit dem Namen A reicht. Die Normprobe greift auf u.get('masse') zu, obwohl Aegis sein Urteil unter 'mass' hält; der Fallback macht daraus Zuwachs 0 und leeren Testbestand. S
+   ABWEICHUNGEN-01.md 154: **B-04: Norm-Eichprobe besteht wegen falschem Rückgabeschlüssel ohne Normnachweis**
+   ABWEICHUNGEN-01.md 158: Die Prüflambda liest u[masse], Aegis liefert aber u[mass]. Damit werden Zuwachs und Testbestand durch leere Defaults ersetzt: int(... or 0)==0 und Datei nicht in [] sind unabhängig vom tatsächlichen Anklägerurteil wahr. Zusätzlich importiert die Probe ein erst im Kandidaten angelegtes Modul; sie erz
+   ABWEICHUNGEN-01.md 210: Die Probenerzeuger setzen ist_probe, Aegis schreibt neue Fund-/Normtests und Ansagen aber ohne entsprechende Bereichsisolierung in den normalen Immunsystem-/Protokollvorrat. Die drei Gedächtnis-Eintrittsstellen schützen ihre Tabellen, nicht die Aegis-Aufnahmestellen. Eichproben räumen diese Nebenwir
+   ABWEICHUNGEN-01.md 482: _angriff schreibt die aktuelle neue Behauptung schon vor dem Testschreiben als aegis.ansage. aufnahmesperre fragt später bisherige_behauptungen erneut ab; diese Funktion enthält ausdrücklich auch alle angesagten Behauptungen desselben Laufs/Bereichs. Es gibt keinen Ausschluss des aktuellen Angriffs.
+   ABWEICHUNGEN-01.md 659: Dienst.vorlage sucht angriff, norm, tests_neu usw. im Kandidatenfeld masse. Aegis.fertig schreibt dort nur Messwerte plus _dateien/_basis_paar/_urteil_f2; die ausführliche Anklage steht im Protokoll, nicht in diesen masse-Feldern. Der ausgegebene anklaeger-Block bleibt so gewöhnlich leer. Die Kurve 
+   ABWEICHUNGEN-01.md 712: - „Vier Eichproben bestanden“ war bei der Normprobe keine Aussage über die Normregel. `masse` statt `mass`, `norm=[]`, `zuwachs=None` und Ablehnung schon durch Pareto sind dokumentiert. Die frühere 4-von-4-Abnahme darf für den untersuchten Stand nicht als Nachweis der Normzeile fortgeschrieben werde
+   BERICHT.md 15: - Die Norm-Eichprobe konnte ohne Normprüfung grün werden (`masse` statt `mass`; historische Ergebnisse mit `norm=[]`, `zuwachs=None`). Ein früheres „vier bestanden“ beweist diese Torzeile nicht.
+   GRUNDSAETZE-2a-01.md 12: - **A11/B-04/B-05:** Meine Norm-Eichprobe beweist nicht einmal, dass sie diese Regel erreicht. Sie liest `masse` statt `mass`; historische grüne Ergebnisse nennen `norm=[]` und `zuwachs=None`, während die Ablehnung aus Pareto beziehungsweise Verfassung stammt. Beispiel #12538 ist im Protokollanhang 
+   OFFENE-PUNKTE-01.md 18: Vor einem neuen Messlauf müssen mindestens die falsch grüne Norm-Eichprobe, verbindlicher Vorspann/Rauschanbindung, Fundklassifikation sowie A/C-Wechselwirkung und B-Mindestanteil geklärt/repariert werden. Kernschutz-/Aufnahmepfad-Lücken sind vor einem echten Betriebswerk zusätzlich zu schließen. We
+=== Ende R73 ===

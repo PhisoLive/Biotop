@@ -1,0 +1,523 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 03 · Teil 192 (Teile 166–239 dieses Stands) · enthält R196 bis R196
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+[R196 · Fortsetzung, Stück 10 von 22]
+faelle = {'gewoehnlich': ('a b', 'a_b'), 'rand': (' a b ', 'a_b'), 'gross': ('A B', 'A_B'), 'lang': ('x x x x x x x x x x x x x x x x x x x x x x x x x ', 'x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x'), ...}
+status = 'abgelehnt'
+
+    @pytest.mark.parametrize("fall,faelle,status", [
+        # Review 03 Nr. 1 (x1): an 0aac612 überlebte der Kandidat, 14 von 14 ValueError-Beobachtungen „gedeckt“ durch den
+        # Test mit doppeltem Leerzeichen. Jetzt: Tab und Zeilenumbruch sind eigene Merkmale — abgelehnt.
+        ("x1_doppelt", {**SOLL, "doppelt": ("a  b", "a_b")}, "abgelehnt"),
+        # Kontrolle: ohne den Test mit doppeltem Leerzeichen — abgelehnt (wie an 0aac612)
+        ("x1k_ohne_doppelt", SOLL, "abgelehnt"),
+    ])
+    def test_h1_doppeltes_leerzeichen_deckt_keinen_tab_rueckschritt(tmp_path, monkeypatch, fall, faelle, status):
+        neu = QUELLE.replace(ALT_NORMIEREN, K1)
+>       u, v = R3._pruefen(tmp_path, monkeypatch, R3._diff(QUELLE, neu), nische="sicher", werk_extra=_norm_tests(faelle))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_04.py:59: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_h1_doppeltes_leerzeichen_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0ce0cb0>
+diff = '--- a/probewerk/werk/kern.py\n+++ b/probewerk/werk/kern.py\n@@ -29,7 +29,9 @@\n \n def normieren(text: str) -> str:\n...\n+        raise ValueError("Steuerzeichen")\n+    return "_".join(text.split())\n \n \n def _alt(text: str) -> str:\n'
+nische = 'sicher'
+werk_extra = {'tests/test_werk_normieren_gewoehnlich.py': "from probewerk.werk.kern import normieren\n\n\ndef test_normieren_gewoeh...n('x x x x x x x x x x x x x x x x x x x x x x x x x ') == 'x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x'\n", ...}
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+_ test_h1_doppeltes_leerzeichen_deckt_keinen_tab_rueckschritt[x1k_ohne_doppelt-faelle1-abgelehnt] _
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_h1_doppeltes_leerzeichen_1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0ce3c80>
+fall = 'x1k_ohne_doppelt'
+faelle = {'gewoehnlich': ('a b', 'a_b'), 'rand': (' a b ', 'a_b'), 'gross': ('A B', 'A_B'), 'lang': ('x x x x x x x x x x x x x x x x x x x x x x x x x ', 'x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x'), ...}
+status = 'abgelehnt'
+
+    @pytest.mark.parametrize("fall,faelle,status", [
+        # Review 03 Nr. 1 (x1): an 0aac612 überlebte der Kandidat, 14 von 14 ValueError-Beobachtungen „gedeckt“ durch den
+        # Test mit doppeltem Leerzeichen. Jetzt: Tab und Zeilenumbruch sind eigene Merkmale — abgelehnt.
+        ("x1_doppelt", {**SOLL, "doppelt": ("a  b", "a_b")}, "abgelehnt"),
+        # Kontrolle: ohne den Test mit doppeltem Leerzeichen — abgelehnt (wie an 0aac612)
+        ("x1k_ohne_doppelt", SOLL, "abgelehnt"),
+    ])
+    def test_h1_doppeltes_leerzeichen_deckt_keinen_tab_rueckschritt(tmp_path, monkeypatch, fall, faelle, status):
+        neu = QUELLE.replace(ALT_NORMIEREN, K1)
+>       u, v = R3._pruefen(tmp_path, monkeypatch, R3._diff(QUELLE, neu), nische="sicher", werk_extra=_norm_tests(faelle))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_04.py:59: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_h1_doppeltes_leerzeichen_1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0ce3c80>
+diff = '--- a/probewerk/werk/kern.py\n+++ b/probewerk/werk/kern.py\n@@ -29,7 +29,9 @@\n \n def normieren(text: str) -> str:\n...\n+        raise ValueError("Steuerzeichen")\n+    return "_".join(text.split())\n \n \n def _alt(text: str) -> str:\n'
+nische = 'sicher'
+werk_extra = {'tests/test_werk_normieren_gewoehnlich.py': "from probewerk.werk.kern import normieren\n\n\ndef test_normieren_gewoeh...n('x x x x x x x x x x x x x x x x x x x x x x x x x ') == 'x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x'\n", ...}
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+_ test_h1_gegenprobe_tests_je_formvariante_decken_den_rueckschritt_nicht_und_die_behebung_schon _
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_h1_gegenprobe_tests_je_fo0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0cd8d10>
+
+    def test_h1_gegenprobe_tests_je_formvariante_decken_den_rueckschritt_nicht_und_die_behebung_schon(tmp_path, monkeypatch):
+        """Gegenprobe: ein Test je Formvariante (auch Tab, Zeilenumbruch, CRLF, NBSP, doppelt) — die BEABSICHTIGTE Änderung
+        „ _“ ist gedeckt, wer dieselben Tests hat, deckt auch Tab/LF: da K1 bei Tab/LF wirft, fallen die Tab/LF-Tests am
+        Kandidaten und sind KEINE deckenden Tests — der Kandidat bleibt abgelehnt. Mit der richtigen Behebung (Tab/LF werden
+        wie Leerzeichen behandelt) bestehen alle Tests: überlebt."""
+        alle = {**SOLL, "tab": ("a\tb", "a_b"), "lf": ("a\nb", "a_b"), "crlf": ("a\r\nb", "a_b"), "nbsp": ("a\u00a0b", "a_b"),
+                "doppelt": ("a  b", "a_b")}
+        richtig = QUELLE.replace(ALT_NORMIEREN, '    return "_".join(text.split())\n')
+>       u, v = R3._pruefen(tmp_path, monkeypatch, R3._diff(QUELLE, richtig), nische="sicher", werk_extra=_norm_tests(alle))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_04.py:75: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_h1_gegenprobe_tests_je_fo0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0cd8d10>
+diff = '--- a/probewerk/werk/kern.py\n+++ b/probewerk/werk/kern.py\n@@ -29,7 +29,7 @@\n \n def normieren(text: str) -> str:\n...ernt."""\n-    return " ".join(text.split())\n+    return "_".join(text.split())\n \n \n def _alt(text: str) -> str:\n'
+nische = 'sicher'
+werk_extra = {'tests/test_werk_normieren_gewoehnlich.py': "from probewerk.werk.kern import normieren\n\n\ndef test_normieren_gewoeh...n('x x x x x x x x x x x x x x x x x x x x x x x x x ') == 'x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x'\n", ...}
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+____ test_h2_tab_aufruf_ohne_zusicherung_haelt_nichts_fest[False-abgelehnt] ____
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_h2_tab_aufruf_ohne_zusich0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0cdb740>
+mit_zusicherung = False, status = 'abgelehnt'
+
+    @pytest.mark.parametrize("mit_zusicherung,status", [
+        # Review 03 Nr. 2 (x2): an 0aac612 „hielt“ der Test den Tab-Rückschritt fest, weil die Verfälschung JEDEN Aufruf von
+        # normieren traf und die Zusicherung auf normieren("a b") fiel. Jetzt verfälscht der Aufzeichner nur Aufrufe mit Tab.
+        (False, "abgelehnt"),
+        # Gegenprobe: derselbe Test sichert den Tab-Aufruf zu — dann hält er ihn fest (und der Rückschritt wird sichtbar: der
+        # Test fällt am Kandidaten; mit der richtigen Behebung überlebt er — siehe H1-Gegenprobe).
+        (True, "abgelehnt"),
+    ])
+    def test_h2_tab_aufruf_ohne_zusicherung_haelt_nichts_fest(tmp_path, monkeypatch, mit_zusicherung, status):
+        tests = _norm_tests({k: v for k, v in SOLL.items() if k != "gewoehnlich"})
+        koerper = ('    assert normieren("a\\tb c") == "a_b_c"\n' if mit_zusicherung else '    normieren("a\\tb c")\n')
+        tests["tests/test_werk_normieren_x.py"] = ("from probewerk.werk.kern import normieren\n\n\ndef test_normieren_x():\n"
+                                                    + koerper + '    assert normieren("a b") == "a_b"\n')
+        neu = QUELLE.replace(ALT_NORMIEREN, K2)
+>       u, v = R3._pruefen(tmp_path, monkeypatch, R3._diff(QUELLE, neu), nische="sicher", werk_extra=tests)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_04.py:97: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_h2_tab_aufruf_ohne_zusich0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0cdb740>
+diff = '--- a/probewerk/werk/kern.py\n+++ b/probewerk/werk/kern.py\n@@ -29,7 +29,9 @@\n \n def normieren(text: str) -> str:\n...+    if "\\t" in text:\n+        return text\n+    return "_".join(text.split())\n \n \n def _alt(text: str) -> str:\n'
+nische = 'sicher'
+werk_extra = {'tests/test_werk_normieren_rand.py': "from probewerk.werk.kern import normieren\n\n\ndef test_normieren_rand():\n    ...rk.kern import normieren\n\n\ndef test_normieren_zahlform():\n    assert normieren('a 01 2.50') == 'a_01_2.50'\n", ...}
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+____ test_h2_tab_aufruf_ohne_zusicherung_haelt_nichts_fest[True-abgelehnt] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_h2_tab_aufruf_ohne_zusich1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0cdb110>
+mit_zusicherung = True, status = 'abgelehnt'
+
+    @pytest.mark.parametrize("mit_zusicherung,status", [
+        # Review 03 Nr. 2 (x2): an 0aac612 „hielt“ der Test den Tab-Rückschritt fest, weil die Verfälschung JEDEN Aufruf von
+        # normieren traf und die Zusicherung auf normieren("a b") fiel. Jetzt verfälscht der Aufzeichner nur Aufrufe mit Tab.
+        (False, "abgelehnt"),
+        # Gegenprobe: derselbe Test sichert den Tab-Aufruf zu — dann hält er ihn fest (und der Rückschritt wird sichtbar: der
+        # Test fällt am Kandidaten; mit der richtigen Behebung überlebt er — siehe H1-Gegenprobe).
+        (True, "abgelehnt"),
+    ])
+    def test_h2_tab_aufruf_ohne_zusicherung_haelt_nichts_fest(tmp_path, monkeypatch, mit_zusicherung, status):
+        tests = _norm_tests({k: v for k, v in SOLL.items() if k != "gewoehnlich"})
+        koerper = ('    assert normieren("a\\tb c") == "a_b_c"\n' if mit_zusicherung else '    normieren("a\\tb c")\n')
+        tests["tests/test_werk_normieren_x.py"] = ("from probewerk.werk.kern import normieren\n\n\ndef test_normieren_x():\n"
+                                                    + koerper + '    assert normieren("a b") == "a_b"\n')
+        neu = QUELLE.replace(ALT_NORMIEREN, K2)
+>       u, v = R3._pruefen(tmp_path, monkeypatch, R3._diff(QUELLE, neu), nische="sicher", werk_extra=tests)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_04.py:97: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_h2_tab_aufruf_ohne_zusich1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0cdb110>
+diff = '--- a/probewerk/werk/kern.py\n+++ b/probewerk/werk/kern.py\n@@ -29,7 +29,9 @@\n \n def normieren(text: str) -> str:\n...+    if "\\t" in text:\n+        return text\n+    return "_".join(text.split())\n \n \n def _alt(text: str) -> str:\n'
+nische = 'sicher'
+werk_extra = {'tests/test_werk_normieren_rand.py': "from probewerk.werk.kern import normieren\n\n\ndef test_normieren_rand():\n    ...rk.kern import normieren\n\n\ndef test_normieren_zahlform():\n    assert normieren('a 01 2.50') == 'a_01_2.50'\n", ...}
+
+    def _pruefen(tmp_path, monkeypatch, diff, nische="schnell", werk_extra=None):
+        monkeypatch.setattr(kammer, "IMAGE", "biotop-kammer:1")
+        w = tmp_path / "werk"
+        _anlegen(w, werk_extra)
+        con = sqlite3.connect(":memory:", isolation_level=None)
+        con.row_factory = sqlite3.Row
+        con.executescript(datenbank.SCHEMA)
+        con.execute("INSERT INTO kandidaten(id,lauf_id,generation,bereich,nische,status,diff) VALUES(7,1,1,'werk',?,'erzeugt',?)",
+                    (nische, diff))
+        monkeypatch.setattr(aegis, "aufrufen", lambda *a, **k: SimpleNamespace(text="KEIN ANGRIFF"))
+        basis = messgeraet.messen(w, ["werk"], PAKET, REFERENZLAST)
+>       assert basis["gueltig"], basis.get("grund")
+E       AssertionError: Kammer abgebrochen (rc=1)
+E       assert False
+
+tests/test_vor_t4_03.py:173: AssertionError
+______________ test_h2_fixture_fehler_zaehlt_nicht_als_festhalten ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_h2_fixture_fehler_zaehlt_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0cdb4a0>
+
+    def test_h2_fixture_fehler_zaehlt_nicht_als_festhalten(tmp_path, monkeypatch):
+        """Review 03 Nr. 2 (gelesen, nicht gemessen): eine Fixture, die das Ergebnis von f verwendet, machte jeden Test zum
+        „festhaltenden“. Jetzt ist ein Fehler im Aufbau 'fehler', nicht 'fail'. Gemessen am Aufzeichner (Kammer)."""
+        import test_vor_t4_02 as R2
+        w, code, _, ref, image = R2._deckungswerk(tmp_path, "py")
+        monkeypatch.setattr(kammer, "IMAGE", image)
+        test = ("import pytest\nfrom paket.m.a import f\n\n\n@pytest.fixture\ndef wert():\n    assert f('a') == 'A'\n    return 1\n\n\n"
+                "def test_m_deckt_a(wert):\n    assert f('a') is not None\n")
+        tests = {"tests/test_m_deckung.py": test}
+>       d = vv.deckende_aufrufe(w, code, tests, {"test_m_deckung.py::test_m_deckt_a"})
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_04.py:119: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/verhaltensvergleich.py:479: in deckende_aufrufe
+    d = _aufzeichnen(werk, dateien, module, pfade, None)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/pytest-of-root/pytest-0/test_h2_fixture_fehler_zaehlt_0/werk_py')
+dateien = {'paket/m/a.py': 'def f(x: str) -> str:\n    return x.upper()\n', 'tests/test_m_deckung.py': "import pytest\nfrom pake...\ndef wert():\n    assert f('a') == 'A'\n    return 1\n\n\ndef test_m_deckt_a(wert):\n    assert f('a') is not None\n"}
+module = ['paket.m.a'], pfade = ['tests/test_m_deckung.py'], verfaelschen = None
+
+    def _aufzeichnen(werk: Path, dateien: dict, module: list[str], pfade: list[str], verfaelschen: dict | None) -> dict:
+        from ..kern import sprachprofil
+        if sprachprofil.ist_typescript(Path(werk)):
+            from ..kern import typescript
+            try:
+                d, _ = typescript._aufruf(Path(werk), "deckung", dateien=dateien, zeitlimit_s=240, module=module,
+                                          testdateien=pfade, verfaelschen=verfaelschen)
+            except typescript.TypeScriptFehler as e:
+                raise SondeAusgefallen(f"Deckungsaufzeichner ausgefallen: {str(e)[:300]}") from e
+        else:
+            d = _python_sonde(Path(werk), dateien, {"modus": "deckung", "module": module, "testdateien": pfade,
+                                                    "verfaelschen": verfaelschen, "test_frist": TEST_FRIST_S}, None)
+        if not d.get("gueltig"):
+>           raise SondeAusgefallen(f"Deckungsaufzeichner ausgefallen: {str(d.get('grund') or d.get('rc'))[:300]}")
+E           biotop.organe.verhaltensvergleich.SondeAusgefallen: Deckungsaufzeichner ausgefallen: Python-Sonde ohne Ergebnis (rc=1): failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory
+
+biotop/organe/verhaltensvergleich.py:457: SondeAusgefallen
+________________ test_h3_iterator_objekt_bleibt_erhalten[True] _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_h3_iterator_objekt_bleibt0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0cda990>
+mit_attribut = True
+
+    @pytest.mark.parametrize("mit_attribut", [True, False])
+    def test_h3_iterator_objekt_bleibt_erhalten(tmp_path, monkeypatch, mit_attribut):
+        """Review 03 Nr. 3 (p18): an 0aac612 ersetzte die Sonde das Iterator-Objekt durch einen Generator, die Last brach bei
+        `r.nummer` still ab, die Änderung an doppel(3) blieb unsichtbar (0 Abweichungen, tragfähig). Kontrolle p18b ohne
+        Attributzugriff: 6 Abweichungen. Jetzt in beiden Fällen gesehen; das Iterator-Objekt ist gezählt."""
+        last = "from paket.m.a import leser, doppel\nr = leser('a b c')\nnext(r)\n" + ("n = r.nummer\n" if mit_attribut else "") + "doppel(3)"
+>       r = _organ(tmp_path, monkeypatch, LS.format("2 * x"), LS.format("2 * x + (1 if x == 3 else 0)"), last)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_04.py:153: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_vor_t4_04.py:138: in _organ
+    return vv.pruefen(w, {"paket/m/a.py": neu}, ref, ["m"], {"tests": [], "aufrufe": []})
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/pytest-of-root/pytest-0/test_h3_iterator_objekt_bleibt0/w')
+code = {'paket/m/a.py': "class Leser:\n    def __init__(self, text: str):\n        self.teile = text.split()\n        self.nu...: str) -> 'Leser':\n    return Leser(text)\n\n\ndef doppel(x: int) -> int:\n    return 2 * x + (1 if x == 3 else 0)\n"}
+referenzlast = "import sys\nsys.path.insert(0, '/werk')\n\n\ndef last_m():\n    from paket.m.a import leser, doppel\n    r = leser('a b c')\n    next(r)\n    n = r.nummer\n    doppel(3)\n"
+bereiche = ['m'], deckende = {'tests': [], 'aufrufe': []}
+korpus_erweitert = True, deckungsregel = 'muster'
+
+    def pruefen(werk: Path, code: dict[str, str], referenzlast: str | None, bereiche: list[str],
+                deckende: dict | Callable[[list[str]], dict], *, korpus_erweitert: bool = True,
+                deckungsregel: str = "muster") -> dict:
+        """Vorgeneration (Werk wie es ist) gegen Kandidat (Werk + `code`), dieselbe Sonde, dieselbe Last.
+    
+        `deckende`: {"tests", "aufrufe", "haelt", "blind"} (deckende_aufrufe) — oder ein Aufruf (Abweichungen → dieses
+        dict), der erst ausgewertet wird, wenn es Abweichungen gibt (spart Kammerläufe).
+        Rückgabe mit `ausgefuehrt`, `geurteilt`, `tragfaehig`, `grund` und `grund_art` (für den Neutralzähler)."""
+        from ..kern import sprachprofil
+        python = not sprachprofil.ist_typescript(Path(werk))
+        module = geaenderte_module(code, python=python)
+        # S1c (D): geänderte Dateien im Quellpaket, die keine Quellmodule sind — die Sonde beobachtet sie nicht (Enthaltung);
+        # außerhalb des Quellpakets gezählt wie bisher (`nicht_quelldateien_ausserhalb`).
+        d_innen, d_aussen = nicht_quelldateien(werk, code, python)
+        basis = {"module": module, "bereiche": sorted(bereiche), "kappe": KAPPE, "sprache": "python" if python else "typescript",
+                 "deckungsregel": deckungsregel, "korpus_erweitert": korpus_erweitert,
+                 "werkzeugdateien": werkzeugdateien(code) if python else [], "nicht_quelldateien_ausserhalb": d_aussen}
+        ausserhalb: dict[str, str] = {p: _D_GRUND for p in d_innen}      # S1c: Wirkung außerhalb der Beobachtung (C, D)
+        if not module and ausserhalb:
+            return {**basis, "ausgefuehrt": False, "geurteilt": False, "tragfaehig": False, "enthaltung": True,
+                    "grund_art": "wirkung_ausserhalb_beobachtung", "ausserhalb": ausserhalb,
+                    "grund": (f"Enthaltung (S1c, D): {len(ausserhalb)} geänderte Datei(en) im Quellpaket, die kein "
+                              f"Quellmodul sind — die Sonde beobachtet sie nicht: {sorted(ausserhalb)[:3]}"),
+                    "beobachtungen": 0, "abweichungen": [], "ungedeckt": [], "gedeckt": {}}
+        if not module:
+            return {**basis, "ausgefuehrt": False, "geurteilt": True, "tragfaehig": True,
+                    "grund_art": "keine_quellaenderung",
+                    "grund": "Kandidat ändert keine Quellmodule — Verhalten der Quellen unverändert"
+                             + (f" (Werkzeugdateien nicht beobachtbar: {basis['werkzeugdateien']})" if basis["werkzeugdateien"] else ""),
+                    "beobachtungen": 0, "abweichungen": [], "ungedeckt": [], "gedeckt": {}}
+        if not referenzlast:
+            # Konfiguration, kein Urteil über den Kandidaten (Review 03 Nr. 3): ohne Referenzlast misst die Sonde nicht.
+            raise SondeAusgefallen("keine Referenzlast — die Verhaltenssonde kann nicht messen")
+        # Behebungsrunde 6 (Entscheidung 3): die vom Kandidaten betroffenen Funktionen (Syntaxbaum)
+        nennung: dict = {}
+        betroffen = betroffene_funktionen(werk, code, module, python=python, nennung=nennung)
+        alt = beobachten(werk, {}, referenzlast, module, bereiche, korpus_erweitert=korpus_erweitert)
+        if not alt.get("gueltig"):
+            if alt.get("art") != "inhalt":
+>               raise SondeAusgefallen(f"Sonde an der Vorgeneration ausgefallen ({alt.get('art')}): {str(alt.get('grund'))[:300]}")
+E               biotop.organe.verhaltensvergleich.SondeAusgefallen: Sonde an der Vorgeneration ausgefallen (infrastruktur): Python-Sonde ohne Ergebnis (rc=1): failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory
+
+biotop/organe/verhaltensvergleich.py:1937: SondeAusgefallen
+________________ test_h3_iterator_objekt_bleibt_erhalten[False] ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_h3_iterator_objekt_bleibt1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0ce0da0>
+mit_attribut = False
+
+    @pytest.mark.parametrize("mit_attribut", [True, False])
+    def test_h3_iterator_objekt_bleibt_erhalten(tmp_path, monkeypatch, mit_attribut):
+        """Review 03 Nr. 3 (p18): an 0aac612 ersetzte die Sonde das Iterator-Objekt durch einen Generator, die Last brach bei
+        `r.nummer` still ab, die Änderung an doppel(3) blieb unsichtbar (0 Abweichungen, tragfähig). Kontrolle p18b ohne
+        Attributzugriff: 6 Abweichungen. Jetzt in beiden Fällen gesehen; das Iterator-Objekt ist gezählt."""
+        last = "from paket.m.a import leser, doppel\nr = leser('a b c')\nnext(r)\n" + ("n = r.nummer\n" if mit_attribut else "") + "doppel(3)"
+>       r = _organ(tmp_path, monkeypatch, LS.format("2 * x"), LS.format("2 * x + (1 if x == 3 else 0)"), last)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_04.py:153: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_vor_t4_04.py:138: in _organ
+    return vv.pruefen(w, {"paket/m/a.py": neu}, ref, ["m"], {"tests": [], "aufrufe": []})
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/pytest-of-root/pytest-0/test_h3_iterator_objekt_bleibt1/w')
+code = {'paket/m/a.py': "class Leser:\n    def __init__(self, text: str):\n        self.teile = text.split()\n        self.nu...: str) -> 'Leser':\n    return Leser(text)\n\n\ndef doppel(x: int) -> int:\n    return 2 * x + (1 if x == 3 else 0)\n"}
+referenzlast = "import sys\nsys.path.insert(0, '/werk')\n\n\ndef last_m():\n    from paket.m.a import leser, doppel\n    r = leser('a b c')\n    next(r)\n    doppel(3)\n"
+bereiche = ['m'], deckende = {'tests': [], 'aufrufe': []}
+korpus_erweitert = True, deckungsregel = 'muster'
+
+    def pruefen(werk: Path, code: dict[str, str], referenzlast: str | None, bereiche: list[str],
+                deckende: dict | Callable[[list[str]], dict], *, korpus_erweitert: bool = True,
+                deckungsregel: str = "muster") -> dict:
+        """Vorgeneration (Werk wie es ist) gegen Kandidat (Werk + `code`), dieselbe Sonde, dieselbe Last.
+    
+        `deckende`: {"tests", "aufrufe", "haelt", "blind"} (deckende_aufrufe) — oder ein Aufruf (Abweichungen → dieses
+        dict), der erst ausgewertet wird, wenn es Abweichungen gibt (spart Kammerläufe).
+        Rückgabe mit `ausgefuehrt`, `geurteilt`, `tragfaehig`, `grund` und `grund_art` (für den Neutralzähler)."""
+        from ..kern import sprachprofil
+        python = not sprachprofil.ist_typescript(Path(werk))
+        module = geaenderte_module(code, python=python)
+        # S1c (D): geänderte Dateien im Quellpaket, die keine Quellmodule sind — die Sonde beobachtet sie nicht (Enthaltung);
+        # außerhalb des Quellpakets gezählt wie bisher (`nicht_quelldateien_ausserhalb`).
+        d_innen, d_aussen = nicht_quelldateien(werk, code, python)
+        basis = {"module": module, "bereiche": sorted(bereiche), "kappe": KAPPE, "sprache": "python" if python else "typescript",
+                 "deckungsregel": deckungsregel, "korpus_erweitert": korpus_erweitert,
+                 "werkzeugdateien": werkzeugdateien(code) if python else [], "nicht_quelldateien_ausserhalb": d_aussen}
+        ausserhalb: dict[str, str] = {p: _D_GRUND for p in d_innen}      # S1c: Wirkung außerhalb der Beobachtung (C, D)
+        if not module and ausserhalb:
+            return {**basis, "ausgefuehrt": False, "geurteilt": False, "tragfaehig": False, "enthaltung": True,
+                    "grund_art": "wirkung_ausserhalb_beobachtung", "ausserhalb": ausserhalb,
+                    "grund": (f"Enthaltung (S1c, D): {len(ausserhalb)} geänderte Datei(en) im Quellpaket, die kein "
+                              f"Quellmodul sind — die Sonde beobachtet sie nicht: {sorted(ausserhalb)[:3]}"),
+                    "beobachtungen": 0, "abweichungen": [], "ungedeckt": [], "gedeckt": {}}
+        if not module:
+            return {**basis, "ausgefuehrt": False, "geurteilt": True, "tragfaehig": True,
+                    "grund_art": "keine_quellaenderung",
+                    "grund": "Kandidat ändert keine Quellmodule — Verhalten der Quellen unverändert"
+                             + (f" (Werkzeugdateien nicht beobachtbar: {basis['werkzeugdateien']})" if basis["werkzeugdateien"] else ""),
+                    "beobachtungen": 0, "abweichungen": [], "ungedeckt": [], "gedeckt": {}}
+        if not referenzlast:
+            # Konfiguration, kein Urteil über den Kandidaten (Review 03 Nr. 3): ohne Referenzlast misst die Sonde nicht.
+            raise SondeAusgefallen("keine Referenzlast — die Verhaltenssonde kann nicht messen")
+        # Behebungsrunde 6 (Entscheidung 3): die vom Kandidaten betroffenen Funktionen (Syntaxbaum)
+        nennung: dict = {}
+        betroffen = betroffene_funktionen(werk, code, module, python=python, nennung=nennung)
+        alt = beobachten(werk, {}, referenzlast, module, bereiche, korpus_erweitert=korpus_erweitert)
+        if not alt.get("gueltig"):
+            if alt.get("art") != "inhalt":
+>               raise SondeAusgefallen(f"Sonde an der Vorgeneration ausgefallen ({alt.get('art')}): {str(alt.get('grund'))[:300]}")
+E               biotop.organe.verhaltensvergleich.SondeAusgefallen: Sonde an der Vorgeneration ausgefallen (infrastruktur): Python-Sonde ohne Ergebnis (rc=1): failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory
+
+biotop/organe/verhaltensvergleich.py:1937: SondeAusgefallen
+________________ test_h4_zustand_von_self_auch_mit_slots[slots] ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_h4_zustand_von_self_auch_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0cdb590>
+art = 'slots'
+
+    @pytest.mark.parametrize("art", ["slots", "dataclass_slots", "ohne_slots"])
+    def test_h4_zustand_von_self_auch_mit_slots(tmp_path, monkeypatch, art):
+        """Review 03 Nr. 4 (p19, p20): an 0aac612 0 Abweichungen bei __slots__ und dataclass(slots=True), Kontrolle ohne
+        __slots__ 28. Jetzt wird der Zustand von self auch dort verglichen."""
+        if art == "slots":
+            alt, neu = KS.format(slots="    __slots__ = ('stand',)\n\n", faktor=""), KS.format(slots="    __slots__ = ('stand',)\n\n", faktor="2 * ")
+        elif art == "dataclass_slots":
+            alt, neu = DC.format(faktor=""), DC.format(faktor="2 * ")
+        else:
+            alt, neu = KS.format(slots="", faktor=""), KS.format(slots="", faktor="2 * ")
+>       r = _organ(tmp_path, monkeypatch, alt, neu, LAST_K)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_04.py:176: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_vor_t4_04.py:138: in _organ
+    return vv.pruefen(w, {"paket/m/a.py": neu}, ref, ["m"], {"tests": [], "aufrufe": []})
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/pytest-of-root/pytest-0/test_h4_zustand_von_self_auch_0/w')
+code = {'paket/m/a.py': "class Konto:\n    __slots__ = ('stand',)\n\n    def __init__(self, stand: int):\n        self.stand = stand\n\n    def buchen(self, b: int) -> None:\n        self.stand += 2 * b\n"}
+referenzlast = "import sys\nsys.path.insert(0, '/werk')\n\n\ndef last_m():\n    from paket.m.a import Konto\n    k = Konto(1)\n    k.buchen(2)\n    k.buchen(3)\n"
+bereiche = ['m'], deckende = {'tests': [], 'aufrufe': []}
+korpus_erweitert = True, deckungsregel = 'muster'
+
+    def pruefen(werk: Path, code: dict[str, str], referenzlast: str | None, bereiche: list[str],
+                deckende: dict | Callable[[list[str]], dict], *, korpus_erweitert: bool = True,
+                deckungsregel: str = "muster") -> dict:
+        """Vorgeneration (Werk wie es ist) gegen Kandidat (Werk + `code`), dieselbe Sonde, dieselbe Last.
+    
+        `deckende`: {"tests", "aufrufe", "haelt", "blind"} (deckende_aufrufe) — oder ein Aufruf (Abweichungen → dieses
+        dict), der erst ausgewertet wird, wenn es Abweichungen gibt (spart Kammerläufe).
+        Rückgabe mit `ausgefuehrt`, `geurteilt`, `tragfaehig`, `grund` und `grund_art` (für den Neutralzähler)."""
+        from ..kern import sprachprofil
+        python = not sprachprofil.ist_typescript(Path(werk))
+        module = geaenderte_module(code, python=python)
+        # S1c (D): geänderte Dateien im Quellpaket, die keine Quellmodule sind — die Sonde beobachtet sie nicht (Enthaltung);
+        # außerhalb des Quellpakets gezählt wie bisher (`nicht_quelldateien_ausserhalb`).
+        d_innen, d_aussen = nicht_quelldateien(werk, code, python)
+        basis = {"module": module, "bereiche": sorted(bereiche), "kappe": KAPPE, "sprache": "python" if python else "typescript",
+                 "deckungsregel": deckungsregel, "korpus_erweitert": korpus_erweitert,
+                 "werkzeugdateien": werkzeugdateien(code) if python else [], "nicht_quelldateien_ausserhalb": d_aussen}
+        ausserhalb: dict[str, str] = {p: _D_GRUND for p in d_innen}      # S1c: Wirkung außerhalb der Beobachtung (C, D)
+        if not module and ausserhalb:
+            return {**basis, "ausgefuehrt": False, "geurteilt": False, "tragfaehig": False, "enthaltung": True,
+                    "grund_art": "wirkung_ausserhalb_beobachtung", "ausserhalb": ausserhalb,
+                    "grund": (f"Enthaltung (S1c, D): {len(ausserhalb)} geänderte Datei(en) im Quellpaket, die kein "
+                              f"Quellmodul sind — die Sonde beobachtet sie nicht: {sorted(ausserhalb)[:3]}"),
+                    "beobachtungen": 0, "abweichungen": [], "ungedeckt": [], "gedeckt": {}}
+        if not module:
+            return {**basis, "ausgefuehrt": False, "geurteilt": True, "tragfaehig": True,
+                    "grund_art": "keine_quellaenderung",
+                    "grund": "Kandidat ändert keine Quellmodule — Verhalten der Quellen unverändert"
+                             + (f" (Werkzeugdateien nicht beobachtbar: {basis['werkzeugdateien']})" if basis["werkzeugdateien"] else ""),
+                    "beobachtungen": 0, "abweichungen": [], "ungedeckt": [], "gedeckt": {}}
+        if not referenzlast:
+            # Konfiguration, kein Urteil über den Kandidaten (Review 03 Nr. 3): ohne Referenzlast misst die Sonde nicht.
+            raise SondeAusgefallen("keine Referenzlast — die Verhaltenssonde kann nicht messen")
+        # Behebungsrunde 6 (Entscheidung 3): die vom Kandidaten betroffenen Funktionen (Syntaxbaum)
+        nennung: dict = {}
+        betroffen = betroffene_funktionen(werk, code, module, python=python, nennung=nennung)
+        alt = beobachten(werk, {}, referenzlast, module, bereiche, korpus_erweitert=korpus_erweitert)
+        if not alt.get("gueltig"):
+            if alt.get("art") != "inhalt":
+>               raise SondeAusgefallen(f"Sonde an der Vorgeneration ausgefallen ({alt.get('art')}): {str(alt.get('grund'))[:300]}")
+E               biotop.organe.verhaltensvergleich.SondeAusgefallen: Sonde an der Vorgeneration ausgefallen (infrastruktur): Python-Sonde ohne Ergebnis (rc=1): failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory
+
+biotop/organe/verhaltensvergleich.py:1937: SondeAusgefallen
+___________ test_h4_zustand_von_self_auch_mit_slots[dataclass_slots] ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_h4_zustand_von_self_auch_1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0d19550>
+art = 'dataclass_slots'
+
+    @pytest.mark.parametrize("art", ["slots", "dataclass_slots", "ohne_slots"])
+    def test_h4_zustand_von_self_auch_mit_slots(tmp_path, monkeypatch, art):
+        """Review 03 Nr. 4 (p19, p20): an 0aac612 0 Abweichungen bei __slots__ und dataclass(slots=True), Kontrolle ohne
+        __slots__ 28. Jetzt wird der Zustand von self auch dort verglichen."""
+        if art == "slots":
+            alt, neu = KS.format(slots="    __slots__ = ('stand',)\n\n", faktor=""), KS.format(slots="    __slots__ = ('stand',)\n\n", faktor="2 * ")
+        elif art == "dataclass_slots":
+            alt, neu = DC.format(faktor=""), DC.format(faktor="2 * ")
+        else:
+            alt, neu = KS.format(slots="", faktor=""), KS.format(slots="", faktor="2 * ")
+>       r = _organ(tmp_path, monkeypatch, alt, neu, LAST_K)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_vor_t4_04.py:176: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_vor_t4_04.py:138: in _organ
+    return vv.pruefen(w, {"paket/m/a.py": neu}, ref, ["m"], {"tests": [], "aufrufe": []})
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/pytest-of-root/pytest-0/test_h4_zustand_von_self_auch_1/w')
+code = {'paket/m/a.py': 'import dataclasses\n\n\n@dataclasses.dataclass(slots=True)\nclass Konto:\n    stand: int\n\n    def buchen(self, b: int) -> None:\n        self.stand += 2 * b\n'}
+referenzlast = "import sys\nsys.path.insert(0, '/werk')\n\n\ndef last_m():\n    from paket.m.a import Konto\n    k = Konto(1)\n    k.buchen(2)\n    k.buchen(3)\n"
+bereiche = ['m'], deckende = {'tests': [], 'aufrufe': []}
+korpus_erweitert = True, deckungsregel = 'muster'
+
+    def pruefen(werk: Path, code: dict[str, str], referenzlast: str | None, bereiche: list[str],

@@ -1,0 +1,14 @@
+#!/bin/bash
+# Nur lesend: Umgebung und Einzelheiten
+export TMPDIR=/tmp/review-vor-t4-05
+cd /root/biotop
+echo "== node lokal?"; which node nodejs 2>&1 | head -3; node --version 2>&1 | head -1
+echo "== Referenzlasten"; ls biotop/kern/referenzlast/
+echo "== uebungswerk"; ls /root/uebungswerk /root/uebungswerk-p2 2>&1 | head -30
+echo "== TS-Runner: Promise/then/async"; git show HEAD:biotop/kern/ts/verhalten-runner.mjs | grep -n -E "Promise|\.then|async|istIterator =|function istIterator|function istEingebautOderGenerator" | head -20
+echo "== TS kanon: VERFAELSCHT-Objekt, typeof function"; git show HEAD:biotop/kern/ts/kanon.mjs | sed -n '31,46p'
+echo "== TS Build/Target"; grep -rn -E "target|esbuild|tsx|tsconfig" biotop/kern/ts/*.mjs biotop/kern/typescript.py 2>/dev/null | head -12
+echo "== TEILLAUF-1 Grund der 2 roten"; grep -n -E "gekappt|Enthaltung|zurueckgestellt:|grund" /root/biotop-vor-t4-05/bau/TEILLAUF-1.txt | head -8
+echo "== integration-Tests, die vorspann/lauf fahren"; grep -ln "integration" tests/*.py | head; grep -n -E "pytest.mark.integration|pytestmark" tests/*.py | head
+echo "== Masterprompt Tor 4 (Werk, Sprache, Groesse)"; grep -n -i -E "T4|Tor 4|Werk|Altlast|Zeilen|Python|TypeScript" /root/biotop-vor-t4-05/bau/MASTERPROMPT-V8-TOR4.txt | head -40
+echo "== UEBERGABE (Ende)"; tail -30 /root/biotop-vor-t4-05/UEBERGABE.md

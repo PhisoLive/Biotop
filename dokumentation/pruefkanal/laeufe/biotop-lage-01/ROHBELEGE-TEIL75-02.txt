@@ -1,0 +1,453 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 75 (Teile 4–165 dieses Stands) · enthält R74 bis R76
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R74 · Teil G: Umfang je Werk (find/wc/grep, nur lesend) für FK25
+Beginn: 2026-09-25 16:27:07 CEST (UTC+0200)
+Ende:   2026-09-25 16:27:08 CEST (UTC+0200)
+Dauer:  1.5 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/sicherung/biotop-lage-01/entwurf/lage-werke/g1_werke_umfang.sh
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/lage-werke/g1_werke_umfang.sh (wörtlich) ---
+#!/usr/bin/env bash
+# BIOTOP-LAGE-01 Teil G (nur lesend): Umfang je Werk mit find / wc / grep, für FK25.
+# Keine Ausführung von Biotop-Code, kein Import, keine Datenbank. Schreibt nichts außer auf stdout.
+# Je Werkordner: Dateien (ohne .git, node_modules, __pycache__, .pytest_cache, .mypy_cache, dist, coverage),
+# Quelldateien außerhalb tests/ (*.py *.ts *.js *.mjs) mit Zeilen, Testdateien in tests/ mit Zeilen,
+# Testfunktionen (Python: Zeilen „def test_…“; TypeScript: Zeilen, die mit it( / test( / it.x( / test.x( beginnen),
+# Baumprüfsumme (sha256 über „sha256sum“ aller Dateien mit relativem Pfad, sortiert; erste 16 Zeichen).
+set -u
+if [ -e /tmp/biotop-kammer-exklusiv ]; then
+  echo "ABBRUCH: /tmp/biotop-kammer-exklusiv besteht (Zeitmessung läuft) — nichts gezählt"; exit 3
+fi
+date '+Stand: %Y-%m-%d %H:%M:%S %Z (UTC%z)'
+
+zaehle() {
+  d="$1"
+  if [ ! -d "$d" ]; then echo "$d | NICHT GEFUNDEN"; return; fi
+  alle=$(cd "$d" && find . \( -name .git -o -name node_modules -o -name __pycache__ -o -name .pytest_cache -o -name .mypy_cache -o -name dist -o -name coverage \) -prune -o -type f -print | wc -l)
+  q_n=$(cd "$d" && find . \( -name .git -o -name node_modules -o -name __pycache__ -o -name tests -o -name .pytest_cache \) -prune -o -type f \( -name '*.py' -o -name '*.ts' -o -name '*.js' -o -name '*.mjs' \) -print | wc -l)
+  q_z=$(cd "$d" && find . \( -name .git -o -name node_modules -o -name __pycache__ -o -name tests -o -name .pytest_cache \) -prune -o -type f \( -name '*.py' -o -name '*.ts' -o -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -r cat | wc -l)
+  if [ -d "$d/tests" ]; then
+    t_n=$(find "$d/tests" -name __pycache__ -prune -o -type f \( -name '*.py' -o -name '*.ts' -o -name '*.js' -o -name '*.mjs' \) -print | wc -l)
+    t_z=$(find "$d/tests" -name __pycache__ -prune -o -type f \( -name '*.py' -o -name '*.ts' -o -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -r cat | wc -l)
+    py_t=$(grep -rhE '^[[:space:]]*(async[[:space:]]+)?def test_' "$d/tests" --include='*.py' | wc -l)
+    ts_t=$(grep -rhE '^[[:space:]]*(it|test)(\.[a-z]+)?[[:space:]]*\(' "$d/tests" --include='*.ts' --include='*.js' --include='*.mjs' | wc -l)
+  else
+    t_n=0; t_z=0; py_t=0; ts_t=0
+  fi
+  git_ja=$([ -d "$d/.git" ] && echo "git" || echo "-")
+  baum=$(cd "$d" && find . \( -name .git -o -name node_modules -o -name __pycache__ -o -name .pytest_cache -o -name .mypy_cache -o -name dist -o -name coverage \) -prune -o -type f -print0 | sort -z | xargs -0 -r sha256sum | sha256sum | cut -c1-16)
+  mz=$(stat -c '%y' "$d" | cut -c1-19)
+  echo "$d | Dateien $alle | Quelle $q_n Dateien / $q_z Zeilen | Tests $t_n Dateien / $t_z Zeilen | Testfunktionen py $py_t ts $ts_t | $git_ja | Baum $baum | Ordner-mtime $mz"
+}
+
+echo "== A. lagerhaus (Übungswerk 1): Ausgangs- und Arbeitsordner"
+for d in /root/uebungswerk /root/uebungswerk-nachlauf /root/uebungswerk-p2 /root/uebungswerk-p3 /root/uebungswerk-p3b /root/uebungswerk-p3c /root/uebungswerk-p3d; do zaehle "$d"; done
+echo "== B. lagerhaus-Kopien in /root/biotop/daten/werke/ (je Lauf eingelegt)"
+for d in /root/biotop/daten/werke/lagerhaus /root/biotop/daten/werke/lagerhaus-*; do zaehle "$d"; done
+echo "== C. logmuehle (Übungswerk 2)"
+for d in /root/uebungswerk2 /root/biotop/daten/werke/logmuehle-*; do zaehle "$d"; done
+echo "== D. T3 versandwerk (TypeScript)"
+for d in /root/versandwerk-t3 /root/versandwerk-t3-02 /root/biotop/daten/werke/versandwerk-t3-02; do zaehle "$d"; done
+echo "== E. Werkordner der Datenbankzweige VB1 und R02 (Namen, dann Umfang)"
+find /root/phase-4-vorbedingung-1/privat/werke /root/phase-4-vorbedingung-1/privat/werkquelle /root/reparatur-02/privat-cli/werk -mindepth 1 -maxdepth 1 -type d | sort
+for d in $(find /root/phase-4-vorbedingung-1/privat/werke /root/phase-4-vorbedingung-1/privat/werkquelle /root/reparatur-02/privat-cli/werk -mindepth 1 -maxdepth 1 -type d | sort); do zaehle "$d"; done
+echo "== F. Prüfwerke der Behebungsrunden (Erzeuger-Module in /root/biotop/tests, nicht ausgeführt)"
+for f in /root/biotop/tests/drahtwerk.py /root/biotop/tests/speicherwerk.py; do
+  echo "$f | Zeilen $(wc -l < "$f") | Bytes $(wc -c < "$f") | mtime $(stat -c '%y' "$f" | cut -c1-19)"
+  echo "   Pfad-Literale (src/… tests/… Paket/…) im Erzeuger, eindeutig:"
+  grep -oE "['\"](src|tests|speicherwerk)/[A-Za-z0-9_./-]+\.(ts|py|mjs|json)['\"]" "$f" | tr -d "'\"" | sort -u | sed 's/^/     /'
+  echo "   Testfunktionen im Erzeugertext (Zeilen mit it( / test( bzw. def test_): $(grep -cE '^[[:space:]]*(it|test)[[:space:]]*\(|def test_' "$f")"
+done
+echo "   Tests, die die Erzeuger nutzen (Dateien in /root/biotop/tests mit „drahtwerk“ bzw. „speicherwerk“):"
+grep -rlE 'drahtwerk|speicherwerk' /root/biotop/tests --include='*.py' | sort | sed 's/^/     /'
+echo "== G. T4/T5/T6: Ordner unter /root (Tiefe 2) mit t4/t5/t6 im Namen"
+find /root -maxdepth 2 -type d \( -iname '*t4*' -o -iname '*t5*' -o -iname '*t6*' \) -not -path '/root/.*' | sort
+echo "   Nennungen „T4-Werk“ / „kein T4“ in /root/biotop-vor-t4-06/*.md:"
+grep -n -iE 'T4-Werk|kein T4|echten T4' /root/biotop-vor-t4-06/*.md | cut -c1-260
+echo "== H. Werke-Tabellen: Anzahl Werkordner in /root/biotop/daten/werke"
+find /root/biotop/daten/werke -mindepth 1 -maxdepth 1 -type d | wc -l
+echo "=== Ende"
+--- Ende /root/sicherung/biotop-lage-01/entwurf/lage-werke/g1_werke_umfang.sh ---
+Ausgabe (vollständig, stdout und stderr):
+Stand: 2026-09-25 16:27:07 CEST (UTC+0200)
+== A. lagerhaus (Übungswerk 1): Ausgangs- und Arbeitsordner
+/root/uebungswerk | Dateien 19 | Quelle 12 Dateien / 508 Zeilen | Tests 4 Dateien / 348 Zeilen | Testfunktionen py 50 ts 0 | git | Baum 7c1138218a5ff02a | Ordner-mtime 2026-09-18 23:26:44
+/root/uebungswerk-nachlauf | Dateien 43 | Quelle 12 Dateien / 720 Zeilen | Tests 28 Dateien / 822 Zeilen | Testfunktionen py 104 ts 0 | - | Baum ff5b7146a8985175 | Ordner-mtime 2026-09-19 22:57:34
+/root/uebungswerk-p2 | Dateien 29 | Quelle 12 Dateien / 637 Zeilen | Tests 14 Dateien / 573 Zeilen | Testfunktionen py 75 ts 0 | - | Baum 5e86791d5e003528 | Ordner-mtime 2026-09-19 02:40:12
+/root/uebungswerk-p3 | Dateien 40 | Quelle 12 Dateien / 713 Zeilen | Tests 25 Dateien / 760 Zeilen | Testfunktionen py 99 ts 0 | - | Baum 1baaa708d1696d74 | Ordner-mtime 2026-09-19 13:01:29
+/root/uebungswerk-p3b | Dateien 42 | Quelle 12 Dateien / 720 Zeilen | Tests 27 Dateien / 809 Zeilen | Testfunktionen py 103 ts 0 | - | Baum 44feeea63b9ca51d | Ordner-mtime 2026-09-19 16:40:40
+/root/uebungswerk-p3c | Dateien 42 | Quelle 12 Dateien / 720 Zeilen | Tests 27 Dateien / 809 Zeilen | Testfunktionen py 103 ts 0 | - | Baum a2adc89bd2497aab | Ordner-mtime 2026-09-19 17:05:45
+/root/uebungswerk-p3d | Dateien 42 | Quelle 12 Dateien / 720 Zeilen | Tests 27 Dateien / 809 Zeilen | Testfunktionen py 103 ts 0 | - | Baum 4fdd2cee7f322b5a | Ordner-mtime 2026-09-19 17:40:00
+== B. lagerhaus-Kopien in /root/biotop/daten/werke/ (je Lauf eingelegt)
+/root/biotop/daten/werke/lagerhaus | Dateien 25 | Quelle 12 Dateien / 497 Zeilen | Tests 10 Dateien / 415 Zeilen | Testfunktionen py 60 ts 0 | git | Baum 6607737ec1c5d60b | Ordner-mtime 2026-09-18 23:44:55
+/root/biotop/daten/werke/lagerhaus-c-25 | Dateien 41 | Quelle 12 Dateien / 721 Zeilen | Tests 26 Dateien / 766 Zeilen | Testfunktionen py 100 ts 0 | git | Baum 649f79dd503eb4f7 | Ordner-mtime 2026-09-20 03:13:51
+/root/biotop/daten/werke/lagerhaus-kasse | Dateien 25 | Quelle 12 Dateien / 496 Zeilen | Tests 10 Dateien / 411 Zeilen | Testfunktionen py 58 ts 0 | git | Baum 7e39e725e56c54d8 | Ordner-mtime 2026-09-19 00:05:05
+/root/biotop/daten/werke/lagerhaus-kasse2 | Dateien 24 | Quelle 12 Dateien / 495 Zeilen | Tests 9 Dateien / 412 Zeilen | Testfunktionen py 59 ts 0 | git | Baum 31055ce5cc329bb0 | Ordner-mtime 2026-09-19 00:11:59
+/root/biotop/daten/werke/lagerhaus-kasse3 | Dateien 20 | Quelle 12 Dateien / 495 Zeilen | Tests 5 Dateien / 359 Zeilen | Testfunktionen py 51 ts 0 | git | Baum 78ab015c75497a1f | Ordner-mtime 2026-09-19 02:09:35
+/root/biotop/daten/werke/lagerhaus-nachlauf | Dateien 37 | Quelle 12 Dateien / 620 Zeilen | Tests 22 Dateien / 761 Zeilen | Testfunktionen py 95 ts 0 | git | Baum 1825fb815456fdc2 | Ordner-mtime 2026-09-19 00:48:48
+/root/biotop/daten/werke/lagerhaus-nachlauf2 | Dateien 25 | Quelle 12 Dateien / 625 Zeilen | Tests 10 Dateien / 510 Zeilen | Testfunktionen py 67 ts 0 | git | Baum 550f732245ef722c | Ordner-mtime 2026-09-19 01:20:35
+/root/biotop/daten/werke/lagerhaus-nachlauf8 | Dateien 21 | Quelle 12 Dateien / 634 Zeilen | Tests 6 Dateien / 392 Zeilen | Testfunktionen py 57 ts 0 | git | Baum 8133daf8c67f674a | Ordner-mtime 2026-09-19 01:33:28
+/root/biotop/daten/werke/lagerhaus-nachlauf9 | Dateien 29 | Quelle 12 Dateien / 637 Zeilen | Tests 14 Dateien / 573 Zeilen | Testfunktionen py 75 ts 0 | git | Baum 5e86791d5e003528 | Ordner-mtime 2026-09-19 01:53:51
+/root/biotop/daten/werke/lagerhaus-ohne-tests | Dateien 15 | Quelle 12 Dateien / 508 Zeilen | Tests 0 Dateien / 0 Zeilen | Testfunktionen py 0 ts 0 | - | Baum 4409565aa1721eac | Ordner-mtime 2026-09-18 23:26:44
+/root/biotop/daten/werke/lagerhaus-p2 | Dateien 42 | Quelle 12 Dateien / 690 Zeilen | Tests 27 Dateien / 801 Zeilen | Testfunktionen py 102 ts 0 | git | Baum 52e92b6d1d4695cf | Ordner-mtime 2026-09-19 02:47:32
+/root/biotop/daten/werke/lagerhaus-p2-13 | Dateien 40 | Quelle 12 Dateien / 713 Zeilen | Tests 25 Dateien / 760 Zeilen | Testfunktionen py 99 ts 0 | git | Baum 1baaa708d1696d74 | Ordner-mtime 2026-09-19 03:49:47
+/root/biotop/daten/werke/lagerhaus-p3-14 | Dateien 40 | Quelle 12 Dateien / 713 Zeilen | Tests 25 Dateien / 760 Zeilen | Testfunktionen py 99 ts 0 | git | Baum 1baaa708d1696d74 | Ordner-mtime 2026-09-19 13:04:19
+/root/biotop/daten/werke/lagerhaus-p3-15 | Dateien 41 | Quelle 12 Dateien / 713 Zeilen | Tests 26 Dateien / 781 Zeilen | Testfunktionen py 101 ts 0 | git | Baum 42fc67666e1b1f95 | Ordner-mtime 2026-09-19 13:11:42
+/root/biotop/daten/werke/lagerhaus-p3-16 | Dateien 42 | Quelle 12 Dateien / 724 Zeilen | Tests 27 Dateien / 809 Zeilen | Testfunktionen py 103 ts 0 | git | Baum 342384e9e4a229c1 | Ordner-mtime 2026-09-19 13:29:15
+/root/biotop/daten/werke/lagerhaus-p3-18 | Dateien 42 | Quelle 12 Dateien / 720 Zeilen | Tests 27 Dateien / 809 Zeilen | Testfunktionen py 103 ts 0 | git | Baum a2adc89bd2497aab | Ordner-mtime 2026-09-19 16:41:26
+/root/biotop/daten/werke/lagerhaus-p3-19 | Dateien 42 | Quelle 12 Dateien / 720 Zeilen | Tests 27 Dateien / 809 Zeilen | Testfunktionen py 103 ts 0 | git | Baum 4fdd2cee7f322b5a | Ordner-mtime 2026-09-19 17:06:41
+/root/biotop/daten/werke/lagerhaus-p3-20 | Dateien 43 | Quelle 12 Dateien / 720 Zeilen | Tests 28 Dateien / 822 Zeilen | Testfunktionen py 104 ts 0 | git | Baum ff5b7146a8985175 | Ordner-mtime 2026-09-19 17:40:25
+/root/biotop/daten/werke/lagerhaus-p3-22 | Dateien 43 | Quelle 12 Dateien / 720 Zeilen | Tests 28 Dateien / 822 Zeilen | Testfunktionen py 104 ts 0 | git | Baum ff5b7146a8985175 | Ordner-mtime 2026-09-19 22:58:03
+/root/biotop/daten/werke/lagerhaus-zeile8-24 | Dateien 40 | Quelle 12 Dateien / 718 Zeilen | Tests 25 Dateien / 760 Zeilen | Testfunktionen py 99 ts 0 | git | Baum 5a74ac2658d5d04e | Ordner-mtime 2026-09-20 00:59:05
+== C. logmuehle (Übungswerk 2)
+/root/uebungswerk2 | Dateien 18 | Quelle 12 Dateien / 482 Zeilen | Tests 4 Dateien / 303 Zeilen | Testfunktionen py 39 ts 0 | git | Baum e8b79a7872758d4e | Ordner-mtime 2026-09-19 13:41:18
+/root/biotop/daten/werke/logmuehle-17 | Dateien 26 | Quelle 12 Dateien / 542 Zeilen | Tests 11 Dateien / 482 Zeilen | Testfunktionen py 59 ts 0 | git | Baum 55eee3ebf4d905a3 | Ordner-mtime 2026-09-19 13:57:32
+/root/biotop/daten/werke/logmuehle-23 | Dateien 26 | Quelle 12 Dateien / 551 Zeilen | Tests 11 Dateien / 482 Zeilen | Testfunktionen py 59 ts 0 | git | Baum 0d7e2144dab95778 | Ordner-mtime 2026-09-19 23:33:29
+== D. T3 versandwerk (TypeScript)
+/root/versandwerk-t3 | Dateien 39 | Quelle 25 Dateien / 1576 Zeilen | Tests 9 Dateien / 785 Zeilen | Testfunktionen py 0 ts 174 | - | Baum e02828866ecfdbca | Ordner-mtime 2026-09-21 02:47:53
+/root/versandwerk-t3-02 | Dateien 41 | Quelle 25 Dateien / 1605 Zeilen | Tests 11 Dateien / 862 Zeilen | Testfunktionen py 0 ts 182 | - | Baum 08030c8a8e7c33c7 | Ordner-mtime 2026-09-21 02:47:53
+/root/biotop/daten/werke/versandwerk-t3-02 | Dateien 55 | Quelle 25 Dateien / 1829 Zeilen | Tests 24 Dateien / 1202 Zeilen | Testfunktionen py 0 ts 213 | git | Baum c3fe002811da369d | Ordner-mtime 2026-09-22 17:28:25
+== E. Werkordner der Datenbankzweige VB1 und R02 (Namen, dann Umfang)
+/root/phase-4-vorbedingung-1/privat/werke/lagerhaus-vorbedingung1-26
+/root/phase-4-vorbedingung-1/privat/werkquelle/lagerhaus
+/root/phase-4-vorbedingung-1/privat/werkquelle/tests
+/root/reparatur-02/privat-cli/werk/lagerhaus
+/root/reparatur-02/privat-cli/werk/tests
+/root/phase-4-vorbedingung-1/privat/werke/lagerhaus-vorbedingung1-26 | Dateien 43 | Quelle 12 Dateien / 757 Zeilen | Tests 28 Dateien / 790 Zeilen | Testfunktionen py 104 ts 0 | git | Baum 368c1d48f2a3b029 | Ordner-mtime 2026-09-20 21:36:12
+/root/phase-4-vorbedingung-1/privat/werkquelle/lagerhaus | Dateien 12 | Quelle 12 Dateien / 721 Zeilen | Tests 0 Dateien / 0 Zeilen | Testfunktionen py 0 ts 0 | - | Baum 6d41bf0d677401c5 | Ordner-mtime 2026-09-19 13:01:29
+/root/phase-4-vorbedingung-1/privat/werkquelle/tests | Dateien 26 | Quelle 26 Dateien / 766 Zeilen | Tests 0 Dateien / 0 Zeilen | Testfunktionen py 0 ts 0 | - | Baum 62ac51916cc13838 | Ordner-mtime 2026-09-20 03:35:48
+/root/reparatur-02/privat-cli/werk/lagerhaus | Dateien 12 | Quelle 12 Dateien / 721 Zeilen | Tests 0 Dateien / 0 Zeilen | Testfunktionen py 0 ts 0 | - | Baum 6d41bf0d677401c5 | Ordner-mtime 2026-09-19 13:01:29
+/root/reparatur-02/privat-cli/werk/tests | Dateien 26 | Quelle 26 Dateien / 766 Zeilen | Tests 0 Dateien / 0 Zeilen | Testfunktionen py 0 ts 0 | - | Baum 62ac51916cc13838 | Ordner-mtime 2026-09-20 03:35:48
+== F. Prüfwerke der Behebungsrunden (Erzeuger-Module in /root/biotop/tests, nicht ausgeführt)
+/root/biotop/tests/drahtwerk.py | Zeilen 233 | Bytes 16319 | mtime 2026-09-25 09:28:54
+   Pfad-Literale (src/… tests/… Paket/…) im Erzeuger, eindeutig:
+     src/alpha/liste.ts
+     src/beta/wert.ts
+     tests/test_alpha.test.ts
+     tests/test_altlast_a1.test.ts
+     tests/test_beta.test.ts
+     tests/vertraege/test_vertrag_alpha_beta.test.ts
+   Testfunktionen im Erzeugertext (Zeilen mit it( / test( bzw. def test_): 0
+/root/biotop/tests/speicherwerk.py | Zeilen 187 | Bytes 6930 | mtime 2026-09-24 00:02:50
+   Pfad-Literale (src/… tests/… Paket/…) im Erzeuger, eindeutig:
+     speicherwerk/__init__.py
+     speicherwerk/text/__init__.py
+     speicherwerk/text/format.py
+     speicherwerk/zahlen/__init__.py
+     speicherwerk/zahlen/statistik.py
+     tests/test_text.py
+     tests/test_zahlen.py
+   Testfunktionen im Erzeugertext (Zeilen mit it( / test( bzw. def test_): 3
+   Tests, die die Erzeuger nutzen (Dateien in /root/biotop/tests mit „drahtwerk“ bzw. „speicherwerk“):
+     /root/biotop/tests/drahtwerk.py
+     /root/biotop/tests/speicherwerk.py
+     /root/biotop/tests/test_verdrahtung.py
+     /root/biotop/tests/test_vor_t4_02.py
+== G. T4/T5/T6: Ordner unter /root (Tiefe 2) mit t4/t5/t6 im Namen
+/root/biotop-vor-t4
+/root/biotop-vor-t4-02
+/root/biotop-vor-t4-03
+/root/biotop-vor-t4-04
+/root/biotop-vor-t4-05
+/root/biotop-vor-t4-06
+   Nennungen „T4-Werk“ / „kein T4“ in /root/biotop-vor-t4-06/*.md:
+/root/biotop-vor-t4-06/EINORDNUNG-U1-U4.md:11:| U-2 | Lastaufrufe tragen seit Entscheidung 7 auch `klein`/`gross` (Überstrenge) | Mehr ungedeckte Abweichungen, also Ablehnung richtiger Behebungen (Fehlalarm). Nie eine Annahme. | nein | Liste: Fehlalarmrate an
+/root/biotop-vor-t4-06/UEBERGABE.md:20:8. **Kappe am echten T4-Werk messen; TypeScript-Proben vor T5.**
+/root/biotop-vor-t4-06/UEBERGABE.md:66:- (8) Kappe und R6-14/R6-15: Messskript für die Aufnahme von T4 vorbereiten, nicht messen (kein T4-Werk); TS → vor T5.
+== H. Werke-Tabellen: Anzahl Werkordner in /root/biotop/daten/werke
+23
+=== Ende
+=== Ende R74 ===
+
+
+R75 · Teil D: letzte Nachprüfungen (schweres Modell je Zweck, kontingent, Aktenschrank/tree-sitter, Oberfläche, Lazarus 26–38, BIOTOP_DB)
+Beginn: 2026-09-25 16:27:22 CEST (UTC+0200)
+Ende:   2026-09-25 16:27:22 CEST (UTC+0200)
+Dauer:  0.3 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/sicherung/biotop-lage-01/entwurf/aufbau/d9_letzte.sh
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/aufbau/d9_letzte.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-LAGE-01 Teil D (nur lesend): letzte Nachprüfungen für FK33/FK34/FK36/FK37.
+# Datenbanken: T3 mit mode=ro (Python-Skript d9_kasse.py); Code nur über git am Commit 0c2f058; ls/grep lesen.
+C=0c2f058
+G="git -C /root/biotop"
+date '+== Zeitpunkt %Y-%m-%d %H:%M:%S %Z (UTC%z)'
+echo "== 1. Kasse T3 (mode=ro): Zwecke des schweren Modells und Spalte kontingent"
+python3 /root/sicherung/biotop-lage-01/entwurf/aufbau/d9_kasse.py
+echo "== 2. 'Aktenschrank', 'tree-sitter', 'Rollentrennung' im Code am Commit"
+$G grep -n -i -E "aktenschrank|tree-sitter|rollentrennung|eigener kern-prozess" $C -- biotop | head -12
+echo "== 3. Oberfläche: ELEMENTE und Routen am Commit (Zeilen mit ELEMENTE; Zahl der ROUTEN-Einträge)"
+$G show $C:biotop/oberflaeche.py | grep -n -E "ELEMENTE" | head -5
+echo "Einträge in ROUTEN (dienst.py): $($G show $C:biotop/dienst.py | sed -n '/^ROUTEN = \[/,/^\]/p' | grep -c -E '^\s+\(\"(GET|POST)\"')"
+echo "Einträge in ELEMENTE (oberflaeche.py, Zeilen mit Element-Tupel): $($G show $C:biotop/oberflaeche.py | sed -n '/^ELEMENTE = \[/,/^\]/p' | grep -c -E '^\s+\(')"
+echo "== 4. Lazarus-Archive der Läufe 26–38 in /root/biotop/daten/lazarus (Anzahl je Lauf)"
+for n in 26 27 28 29 30 31 32 33 34 35 36 37 38; do echo -n "lauf$n: $(ls /root/biotop/daten/lazarus | grep -c "^lauf$n-gen") "; done; echo
+echo "== 5. BIOTOP_DB in T3-Arbeitsdateien (erste 5 Treffer, nur Dateiname:Zeile)"
+grep -rn --include='*.sh' --include='*.py' --include='*.md' -E "BIOTOP_DB=" /root/biotop-t3 2>/dev/null | grep -v -E "/(venv|node_modules|arbeitsstand-sicherung|repo-sicherung-vor-commits)/" | cut -c1-200 | head -5
+echo "== 6. Hilfsskripte im Baum: pruefung/tor1.py startet den Dienst? (Zeilen mit Popen)"
+$G show $C:pruefung/tor1.py | grep -n -E "Popen|8642" | head -5
+--- Ende /root/sicherung/biotop-lage-01/entwurf/aufbau/d9_letzte.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== Zeitpunkt 2026-09-25 16:27:22 CEST (UTC+0200)
+== 1. Kasse T3 (mode=ro): Zwecke des schweren Modells und Spalte kontingent
+-- anthropic/claude-sonnet-5 je Zweck (erste zwei Glieder), Läufe ≥ 26:
+    ('aegis.ansage', 168)
+    ('schwer.aegis', 95)
+-- Spalte kontingent (Wert, Anzahl) über alle Buchungen:
+    [(None, 115), (0, 6558)]
+-- Zweck-Präfix „ausfall“ (erste 3 verschiedene Zwecke) und „phase2“ (Läufe):
+    [('ausfall.hoechstfall',)]
+    [(11, 6), (12, 2)]
+== 2. 'Aktenschrank', 'tree-sitter', 'Rollentrennung' im Code am Commit
+0c2f058:biotop/kern/datenbank.py:4:Phase 1: eine Datei, ein Prozess. Rollentrennung (eigener Kern-Prozess mit
+0c2f058:biotop/organe/landkarte.py:3:Struktur und Aufrufe aus Syntaxbäumen (Python `ast`; tree-sitter steht auf der
+== 3. Oberfläche: ELEMENTE und Routen am Commit (Zeilen mit ELEMENTE; Zahl der ROUTEN-Einträge)
+2:schreibt genau eine Stelle im Kern — die Zuordnung steht in ELEMENTE (Element → Route → Datei:Funktion) und wird von
+12:ELEMENTE = {
+153:    for el, (methode, route, stelle, wirkung) in ELEMENTE.items():
+Einträge in ROUTEN (dienst.py): 19
+Einträge in ELEMENTE (oberflaeche.py, Zeilen mit Element-Tupel): 0
+== 4. Lazarus-Archive der Läufe 26–38 in /root/biotop/daten/lazarus (Anzahl je Lauf)
+lauf26: 0 lauf27: 0 lauf28: 0 lauf29: 0 lauf30: 0 lauf31: 1 lauf32: 3 lauf33: 0 lauf34: 0 lauf35: 0 lauf36: 3 lauf37: 7 lauf38: 9 
+== 5. BIOTOP_DB in T3-Arbeitsdateien (erste 5 Treffer, nur Dateiname:Zeile)
+/root/biotop-t3/lauf37_kette.sh:6:export BIOTOP_DB=/root/biotop-t3/t3.db
+/root/biotop-t3/lauf34_kette.sh:6:export BIOTOP_DB=/root/biotop-t3/t3.db
+/root/biotop-t3/lauf38_evolution.sh:7:export BIOTOP_DB=/root/biotop-t3/t3.db
+/root/biotop-t3/lauf32_kette.sh:6:export BIOTOP_DB=/root/biotop-t3/t3.db
+/root/biotop-t3/umgebung.sh.py:9:    'export BIOTOP_DB=/root/biotop-t3/t3.db',
+== 6. Hilfsskripte im Baum: pruefung/tor1.py startet den Dienst? (Zeilen mit Popen)
+100:srv = subprocess.Popen([sys.executable, "-m", "biotop.dienst", "8642"], cwd="/root/biotop", env={**os.environ, "PYTHONPATH": "/root/biotop"},
+105:    req = urllib.request.Request("http://127.0.0.1:8642" + pfad, method=methode, data=json.dumps(body).encode() if body else None,
+=== Ende R75 ===
+
+
+R76 · Teil E: Belegstellen im Biotop-Quelltext (nur lesen, kein Import)
+Beginn: 2026-09-25 16:27:40 CEST (UTC+0200)
+Ende:   2026-09-25 16:27:41 CEST (UTC+0200)
+Dauer:  0.7 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/soll-ist/e3_code_suche.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/soll-ist/e3_code_suche.py (wörtlich) ---
+#!/usr/bin/env python3
+"""Teil E (SOLL-IST), nur lesend: gezielte Suche im Biotop-Quelltext nach Belegstellen für Forderungen aus
+Masterprompt v8 (Abschnitte 3, 5, 6, 7). Liest nur Dateien (kein Import, keine Ausführung von Biotop-Code),
+schreibt nichts. Durchsucht /root/biotop/biotop/**/*.py (ohne __pycache__) und die Wurzel von /root/biotop
+(nur Namen, Tiefe 2, ohne .git, daten, werke, node_modules, .venv). Je Muster: Zahl der Dateien mit Treffer,
+Zahl der Trefferzeilen, bis zu 4 Fundstellen (Datei:Zeile, gekürzt)."""
+import os
+import re
+from pathlib import Path
+
+WURZEL = Path('/root/biotop')
+PAKET = WURZEL / 'biotop'
+MUSTER = [
+    ('Aufnahme ZIP', r'zipfile|\.zip\b'),
+    ('Aufnahme Git-Adresse', r'git clone|git_adresse|git-adresse|\bclone\b'),
+    ('Ethische Prüfung', r'ethi'),
+    ('tree-sitter', r'tree_sitter|tree-sitter|treesitter'),
+    ('Aktenschrank/Embedding', r'aktenschrank|embedding|cosinus|cosine'),
+    ('Zusammenfassung mit Prüfsumme (Landkarte)', r'zusammenfassung.*(sha|pruefsumme)|(sha|pruefsumme).*zusammenfassung'),
+    ('Kontingent (Abo/schwer)', r'kontingent'),
+    ('Nexus-Wiederholung höchstens dreimal', r'dreimal|max_wiederhol|hoechstens.?3|wiederholung.*3\b'),
+    ('Geschmack Vorhersage', r'geschmack'),
+    ('Tablet/Viewport', r'viewport|tablet'),
+    ('Jury', r'\bjury\b'),
+    ('Klassenmaß', r'klassenmass|klassen_mass'),
+    ('Tauschregel', r'tausch'),
+    ('Abbruch Befehl', r'def abbrechen|abbruch'),
+    ('ist_probe', r'ist_probe'),
+    ('Mindestanteil werkübergreifend', r'mindestanteil|werkuebergreifend'),
+    ('Behauptung vorab (Ansage)', r'ansage|behauptung_vorab|vorab'),
+    ('Verbundausfall', r'ausfall'),
+    ('Verlaufskurve', r'verlaufskurve|kurve'),
+    ('Rollen/Datenbankrolle Kern', r'rolle|schreibrecht'),
+    ('Express/Helmet (Torwächter Vorgänger)', r'express|helmet|cors'),
+    ('gitleaks/CodeQL/Dependabot', r'gitleaks|codeql|dependabot'),
+    ('Anmeldung/401', r'\b401\b'),
+    ('Budget-Vorprüfung', r'vorpruefung'),
+]
+
+
+def dateien():
+    for p in sorted(PAKET.rglob('*.py')):
+        if '__pycache__' in p.parts:
+            continue
+        yield p
+
+
+alle = list(dateien())
+print(f'Durchsucht: {len(alle)} .py-Dateien unter {PAKET}')
+inhalte = {p: p.read_text(errors='replace').splitlines() for p in alle}
+for name, rx in MUSTER:
+    r = re.compile(rx, re.I)
+    treffer = []
+    for p, zeilen in inhalte.items():
+        for i, z in enumerate(zeilen, 1):
+            if r.search(z):
+                treffer.append((p, i, z.strip()))
+    dat = sorted({str(p.relative_to(WURZEL)) for p, _, _ in treffer})
+    print(f'\n## {name} — Muster /{rx}/: {len(treffer)} Zeilen in {len(dat)} Dateien')
+    for p, i, z in treffer[:4]:
+        print(f'   {p.relative_to(WURZEL)}:{i}: {z[:150]}')
+
+print('\n## Wurzel /root/biotop (Tiefe 2, nur Namen; ohne .git, daten, werke, node_modules, .venv)')
+AUS = {'.git', 'daten', 'werke', 'node_modules', '.venv', '__pycache__'}
+for eintrag in sorted(os.listdir(WURZEL)):
+    if eintrag in AUS:
+        print(f'   {eintrag}/ (ausgelassen)')
+        continue
+    p = WURZEL / eintrag
+    if p.is_dir():
+        kinder = sorted(os.listdir(p))
+        print(f'   {eintrag}/ ({len(kinder)} Einträge): {", ".join(kinder[:12])}{" …" if len(kinder) > 12 else ""}')
+    else:
+        print(f'   {eintrag}')
+for ci in ('.github', '.gitlab-ci.yml', '.pre-commit-config.yaml', '.gitleaks.toml', 'pyproject.toml', 'package.json'):
+    print(f'   vorhanden {ci}: {(WURZEL / ci).exists()}')
+--- Ende /root/sicherung/biotop-lage-01/entwurf/soll-ist/e3_code_suche.py ---
+Ausgabe (vollständig, stdout und stderr):
+Durchsucht: 48 .py-Dateien unter /root/biotop/biotop
+
+## Aufnahme ZIP — Muster /zipfile|\.zip\b/: 3 Zeilen in 1 Dateien
+   biotop/organe/aufnahme.py:13: import zipfile
+   biotop/organe/aufnahme.py:43: if q.is_file() and q.suffix == ".zip":
+   biotop/organe/aufnahme.py:44: with zipfile.ZipFile(q) as z:
+
+## Aufnahme Git-Adresse — Muster /git clone|git_adresse|git-adresse|\bclone\b/: 1 Zeilen in 1 Dateien
+   biotop/organe/aufnahme.py:40: subprocess.run(["git", "clone", "-q", "--depth", "1", quelle, str(ziel)], check=True, timeout=300)
+
+## Ethische Prüfung — Muster /ethi/: 12 Zeilen in 1 Dateien
+   biotop/organe/aufnahme.py:2: ethische Prüfung. Kein Fremdcode außerhalb der Kammer.
+   biotop/organe/aufnahme.py:25: ETHIK_WOERTER = ["weapon", "missile", "munition", "rüstung", "waffe", "kriegsger", "surveillance", "überwachung",
+   biotop/organe/aufnahme.py:28: MODELL_ETHIK = ("openrouter", "openai/gpt-5.6-luna")
+   biotop/organe/aufnahme.py:92: def _ethik(con: sqlite3.Connection, lauf_id: int, werk: Path, zahlen: dict) -> dict:
+
+## tree-sitter — Muster /tree_sitter|tree-sitter|treesitter/: 1 Zeilen in 1 Dateien
+   biotop/organe/landkarte.py:3: Struktur und Aufrufe aus Syntaxbäumen (Python `ast`; tree-sitter steht auf der
+
+## Aktenschrank/Embedding — Muster /aktenschrank|embedding|cosinus|cosine/: 0 Zeilen in 0 Dateien
+
+## Zusammenfassung mit Prüfsumme (Landkarte) — Muster /zusammenfassung.*(sha|pruefsumme)|(sha|pruefsumme).*zusammenfassung/: 0 Zeilen in 0 Dateien
+
+## Kontingent (Abo/schwer) — Muster /kontingent/: 10 Zeilen in 3 Dateien
+   biotop/kern/datenbank.py:42: zweck TEXT, kontingent INTEGER, protokoll_nr INTEGER);
+   biotop/kern/kasse.py:100: "COALESCE(SUM(tokens_aus),0) a, COALESCE(SUM(kontingent),0) q FROM kasse WHERE lauf_id=?",
+   biotop/kern/kasse.py:112: "kontingent_aufrufe": z["q"],
+   biotop/kern/kasse.py:240: tokens_ein: int, tokens_aus: int, zweck: str, protokoll_nr: int, kontingent: bool = False,
+
+## Nexus-Wiederholung höchstens dreimal — Muster /dreimal|max_wiederhol|hoechstens.?3|wiederholung.*3\b/: 1 Zeilen in 1 Dateien
+   biotop/organe/eichung.py:11: - Ein gesperrter Bereich wird vor jedem weiteren Lauf neu gemessen. Meldet derselbe Bereich dreimal
+
+## Geschmack Vorhersage — Muster /geschmack/: 21 Zeilen in 5 Dateien
+   biotop/__main__.py:74: s = sub.add_parser("gedaechtnis"); s.add_argument("aktion", choices=["import", "art", "projekt", "geschmack"]); s.add_argument("lauf", type=int, nargs
+   biotop/__main__.py:163: _p([dict(z) for z in con.execute("SELECT werk, quelle, entscheidung, COUNT(*) n FROM geschmack GROUP BY werk, quelle, entscheidung")])
+   biotop/dienst.py:166: "geschmack": gedaechtnis.geschmack_vorhersage(con, kid)})
+   biotop/lauf.py:589: gedaechtnis.geschmack_merken(con, werk["id"], lauf_id, nummer, kid, "frei", grund, von)
+
+## Tablet/Viewport — Muster /viewport|tablet/: 3 Zeilen in 2 Dateien
+   biotop/kern/py/verhalten.py:146: _IMMUTABLE = 1 << 8         # Py_TPFLAGS_IMMUTABLETYPE: in C definierte Heap-Typen (3.12: _io.StringIO, deque, array …)
+   biotop/oberflaeche.py:5: Der HTML/JS-Text ist bewusst schlicht (kein Framework), vom Tablet bedienbar (große Schaltflächen, eine Spalte).
+   biotop/oberflaeche.py:34: <html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+
+## Jury — Muster /\bjury\b/: 12 Zeilen in 4 Dateien
+   biotop/kern/register.py:238: "Immunisierung nur mit einem Fund; im Verdrahtungslauf ohne Fund (bestehende Zusicherungen Jury-"
+   biotop/lauf.py:15: from .organe import aegis, aufnahme, entropie, gedaechtnis, genesis, jury, kammer, landkarte, lazarus, masseichung, mentor, nischen, verfassung, vertr
+   biotop/lauf.py:358: # 3.5 weiche Maße: Gleichstand in allen harten Maßen zwischen den zwei Besten → Jury (nur bei Einstimmigkeit)
+   biotop/lauf.py:359: if len(ueberlebende) >= 2 and jury.gleichstand(ueberlebende[0], ueberlebende[1]) and wert(ueberlebende[0])[:2] == wert(ueberlebende[1])[:2]:
+
+## Klassenmaß — Muster /klassenmass|klassen_mass/: 0 Zeilen in 0 Dateien
+
+## Tauschregel — Muster /tausch/: 84 Zeilen in 8 Dateien
+   biotop/kern/messgeraet.py:19: sonst +25 %; Tauschregel der Verfassung kann laufzeit auf ×5 heben, wenn im
+   biotop/kern/messgeraet.py:494: def grenzen_f2(ausgang: dict, kandidat: dict, bereiche: list[str], tausch: dict | None = None,
+   biotop/kern/messgeraet.py:500: F4-Regel: ohne Kernmaßgewinn nur Rauschtoleranz; mit Kernmaßgewinn Tauschregel der Verfassung
+   biotop/kern/messgeraet.py:501: (Vorgabe Laufzeit × 2, Speicher/Bauzeit/Zyklen +25 %). `tausch` z. B. {"laufzeit_faktor": 2,
+
+## Abbruch Befehl — Muster /def abbrechen|abbruch/: 44 Zeilen in 12 Dateien
+   biotop/__main__.py:178: print(f"ABBRUCH: {e}", file=sys.stderr)
+   biotop/kern/kasse.py:149: nr = protokoll.schreiben(con, "kasse.abbruch", lauf_id=lauf_id, modell=modell, zweck=zweck, auftrag_ausgegeben_eur=round(a, 6),
+   biotop/kern/kasse.py:157: con, "kasse.abbruch", lauf_id=lauf_id, modell=modell, zweck=zweck,
+   biotop/kern/kasse.py:295: """Vor dem ersten Aufruf einer Generation: bisher + Kostenvoranschlag (teuerste bisherige Generation) > Budget → Abbruch."""
+
+## ist_probe — Muster /ist_probe/: 15 Zeilen in 6 Dateien
+   biotop/kern/datenbank.py:35: ist_probe INTEGER DEFAULT 0);
+   biotop/lauf.py:285: cur = con.execute("INSERT INTO kandidaten(lauf_id, generation, bereich, nische, anbieter, modell, diff, begruendung, status, grund, erstellt_am, vertr
+   biotop/organe/aegis.py:809: probe_ohne_modell and "ist_probe" in k.keys() and k["ist_probe"] == 1):
+   biotop/organe/aegis.py:810: raise ValueError("Reine Probeoption verlangt probe_ohne_modell=True und ist_probe=1")
+
+## Mindestanteil werkübergreifend — Muster /mindestanteil|werkuebergreifend/: 7 Zeilen in 2 Dateien
+   biotop/organe/gedaechtnis.py:462: # Mindestanteil des werkübergreifenden Blocks (Fassung 6, 3.12): Der fremde Block belegt mindestens die
+   biotop/organe/mentor.py:84: pruefung = {"anzahl": len(rs), "anzahl_ok": 3 <= len(rs) <= 5, "pflichtfelder_ok": [], "artgedaechtnis_werkuebergreifend": [], "eigenes_werk_projektge
+   biotop/organe/mentor.py:85: "richtungen_mit_werkuebergreifendem_verweis": 0}
+   biotop/organe/mentor.py:95: pruefung["artgedaechtnis_werkuebergreifend"].append(k); fremd.append(k)
+
+## Behauptung vorab (Ansage) — Muster /ansage|behauptung_vorab|vorab/: 97 Zeilen in 8 Dateien
+   biotop/anbieter/__init__.py:88: # Konservative Vorabreservierung für Textmodelle: UTF-8-Bytes plus
+   biotop/kern/kasse.py:183: Der Weg lockert die Regel NICHT. Er bucht den HÖCHSTFALL: die volle Vorab-Reservierung
+   biotop/kern/register.py:171: _E("aegis._ansage", "biotop.organe.aegis:_angriff", "generation",
+   biotop/kern/register.py:172: "Ansage vor dem Angriff (Ansagefilter als Diagnose)", ("Z8",)),
+
+## Verbundausfall — Muster /ausfall/: 139 Zeilen in 14 Dateien
+   biotop/anbieter/__init__.py:25: # Fehler als Ausfall wie bisher (null Beitrag). Befund aus Lauf 29/30: qwen lieferte
+   biotop/anbieter/__init__.py:41: Eine Zeitüberschreitung bleibt Ausfall nach Verfassungssatz 8.
+   biotop/anbieter/__init__.py:42: Ein Infrastrukturfehler ohne Wiederholungshinweis zählt sofort als Ausfall.
+   biotop/anbieter/__init__.py:44: if fehler.ausfallart != 'infrastruktur':
+
+## Verlaufskurve — Muster /verlaufskurve|kurve/: 17 Zeilen in 5 Dateien
+   biotop/__main__.py:71: s = sub.add_parser("kurve"); s.add_argument("lauf", type=int); s.add_argument("--testbestand-von-lauf", type=int)
+   biotop/__main__.py:144: elif a.cmd == "kurve":
+   biotop/__main__.py:145: _p(L.kurve_nachrechnen(con, a.lauf, a.testbestand_von_lauf))
+   biotop/kern/messgeraet.py:22: Kernmaß FASSUNG 1 (nur noch zur Nachrechnung der Kurve von Lauf 2):
+
+## Rollen/Datenbankrolle Kern — Muster /rolle|schreibrecht/: 15 Zeilen in 7 Dateien
+   biotop/kern/datenbank.py:4: Phase 1: eine Datei, ein Prozess. Rollentrennung (eigener Kern-Prozess mit
+   biotop/kern/datenbank.py:5: ausschließlichem Schreibrecht) steht auf der Liste für danach.
+   biotop/lauf.py:345: gedaechtnis.art_merken(con, werk["id"], lauf_id, kid, "ueberlebt" if u["status"] == "ueberlebt" else "abgelehnt", bereichsrolle=b)
+   biotop/lauf.py:500: gedaechtnis.art_merken(con, werk["id"], lauf_id, kid, "angenommen", bereichsrolle=b)
+
+## Express/Helmet (Torwächter Vorgänger) — Muster /express|helmet|cors/: 3 Zeilen in 2 Dateien
+   biotop/kern/befundklassen.py:103: if klasse not in ('no-new-func', 'security/detect-eval-with-expression'):
+   biotop/kern/befundklassen.py:130: if klasse in ('no-new-func', 'security/detect-eval-with-expression'):
+   biotop/organe/eichproben_ts.py:23: s,e=r['expression_start'],r['expression_end']
+
+## gitleaks/CodeQL/Dependabot — Muster /gitleaks|codeql|dependabot/: 0 Zeilen in 0 Dateien
+
+## Anmeldung/401 — Muster /\b401\b/: 8 Zeilen in 2 Dateien
+   biotop/dienst.py:4: `Authorization: Bearer <token>`; ohne gültigen Token → 401. Es gibt keinen
+   biotop/dienst.py:34: ("GET", r"^/$"),  # Oberfläche (HTML); ohne Token wird nur die Anmeldemaske geliefert, alle Daten-Routen bleiben 401
+   biotop/dienst.py:95: return self._senden(401, {"fehler": "Anmeldung fehlgeschlagen"})
+   biotop/dienst.py:99: return self._senden(401, {"fehler": "Anmeldung erforderlich"})
+
+## Budget-Vorprüfung — Muster /vorpruefung/: 15 Zeilen in 5 Dateien
+   biotop/anbieter/__init__.py:198: schaetzung = kasse.vorpruefung(con, lauf_id, modell, geschaetzt, max_tokens, zweck)
+   biotop/kern/kasse.py:116: def vorpruefung(
+   biotop/kern/kasse.py:179: Ein Ausfall mit unbekanntem Verbrauch sperrt jeden weiteren Aufruf (siehe `vorpruefung`).
+   biotop/kern/kasse.py:189: `automatisch=True` kennzeichnet die Klärung aus `vorpruefung` (Festlegung Chat-Claude:
+
+## Wurzel /root/biotop (Tiefe 2, nur Namen; ohne .git, daten, werke, node_modules, .venv)
+   .git/ (ausgelassen)
+   .gitignore
+   README.md
+   biotop/ (11 Einträge): __init__.py, __main__.py, __pycache__, anbieter, dienst.py, kern, lauf.py, nachspiel.py, oberflaeche.py, organe, tor4.py
+   daten/ (ausgelassen)
+   kammer/ (2 Einträge): Dockerfile, typescript
+   pruefung/ (63 Einträge): abbruch_pruefen.py, anklaeger_vielfalt.py, archivierung_pruefen.py, aufnahmesperre_gegenprobe.py, aufnahmesperre_pruefen.py, bauteilA_mechanik.py, behauptungen_nachtragen.py, doppelungen_befund.py, doppelungen_neu.py, eichgegenstand_betriebszweck.py, eichgegenstand_pruefen.py, eichgegenstand_verfassung.py …
+   pruefung_vorbedingung1/ (11 Einträge): auswerten.py, bauteile_pruefen.py, bestand_erheben.py, lauf_kommando.py, liefern.py, messen.py, schlussdiagnose.py, uebergabe_schreiben.py, vorbereiten.py, zaehlen.py, zaehler_pruefen.py
+   pytest.ini
+   requirements-test.txt
+   tests/ (66 Einträge): __pycache__, conftest.py, drahtwerk.py, speicherwerk.py, test_ansage_aufnahme.py, test_artvorlage.py, test_doppelungsschluessel.py, test_eichproben.py, test_junit_zeugen.py, test_kernmass_pareto.py, test_messnachweise.py, test_nachweis_verbraucher.py …
+   verfassungen/ (6 Einträge): lagerhaus.md, lagerhaus.regeln.json, logmuehle.md, logmuehle.regeln.json, vertraege-lagerhaus, vertraege-logmuehle
+   vorhanden .github: False
+   vorhanden .gitlab-ci.yml: False
+   vorhanden .pre-commit-config.yaml: False
+   vorhanden .gitleaks.toml: False
+   vorhanden pyproject.toml: False
+   vorhanden package.json: False
+=== Ende R76 ===

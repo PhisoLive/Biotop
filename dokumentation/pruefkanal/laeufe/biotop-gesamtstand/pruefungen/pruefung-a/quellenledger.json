@@ -1,0 +1,393 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "id": 1,
+      "url": "file:///root/.hermes/cache/documents/doc_8d640daa6c3c_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v6.md",
+      "title": "Masterprompt Fassung 6 (lokales Übergabedokument)",
+      "accessed": "2026-09-20",
+      "quotes": [
+        {
+          "text": "Baue ein System, in das man ein Software-Werk hineinlegt (Quelltext beliebiger Art, als ZIP, Git-Adresse oder Ordner) und das dieses Werk in Generationen auf ein messbar höheres Niveau hebt — jeden Bereich einzeln, das Ganze stimmig. Nicht die KI entscheidet, ob etwas besser ist, sondern die Messung; die KI erzeugt Vorschläge, die Messung wählt aus. Das System verändert seinen eigenen Code niemals während es läuft; es hebt ausschließlich Werke, die Philipp hineinlegt.",
+          "added": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "url": "file:///root/biotop/biotop/organe/aufnahme.py",
+      "title": "aufnahme.py",
+      "accessed": "2026-09-20",
+      "quotes": [
+        {
+          "text": "ENDUNGEN = {\".py\": \"Python\", \".js\": \"JavaScript\", \".ts\": \"TypeScript\", \".go\": \"Go\", \".rs\": \"Rust\",\n            \".java\": \"Java\", \".rb\": \"Ruby\", \".sh\": \"Shell\", \".md\": \"Markdown\", \".toml\": \"TOML\", \".json\": \"JSON\"}\nAUSSCHLUSS = {\".git\", \"node_modules\", \"__pycache__\", \".pytest_cache\", \"dist\", \"coverage\", \".venv\", \"venv\"}",
+          "added": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "url": "file:///root/biotop/biotop/organe/landkarte.py",
+      "title": "landkarte.py",
+      "accessed": "2026-09-20",
+      "quotes": [
+        {
+          "text": "def bereiche_finden(werk: Path, paket: str) -> list[str]:\n    wurzel = werk / paket\n    return sorted(p.name for p in wurzel.iterdir() if p.is_dir() and (p / \"__init__.py\").exists())\n\n\ndef dateien_je_bereich(werk: Path, paket: str, bereich: str) -> list[Path]:\n    return sorted((werk / paket / bereich).rglob(\"*.py\"))",
+          "added": "2026-09-20"
+        },
+        {
+          "text": "\"\"\"Organ 3.2: Landkarte — Zoomstufen, Straßen, abgeleitete Verträge.\n\nStruktur und Aufrufe aus Syntaxbäumen (Python `ast`; tree-sitter steht auf der\nListe für danach, weil Phase 1 nur Python-Werke hat — Entscheidung Hermes).\nZusammenfassungen je Stufe durch ein Modell, in der Datenbank mit Prüfsumme\nder Quelldatei; veraltete Zusammenfassungen werden neu erzeugt.",
+          "added": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "url": "file:///root/biotop/kammer/Dockerfile",
+      "title": "Dockerfile",
+      "accessed": "2026-09-20",
+      "quotes": [
+        {
+          "text": "FROM python:3.12-slim\nRUN pip install --no-cache-dir pytest==8.3.3 bandit==1.7.10 vulture==2.13 && useradd -m -u 10001 kammer\nWORKDIR /werk\nUSER kammer",
+          "added": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "url": "file:///root/biotop/biotop/__main__.py",
+      "title": "__main__.py",
+      "accessed": "2026-09-20",
+      "quotes": [
+        {
+          "text": "s = sub.add_parser(\"lauf\"); s.add_argument(\"aktion\", choices=[\"anlegen\"]); s.add_argument(\"--budget\", type=float, required=True)\n    s = sub.add_parser(\"einlegen\"); s.add_argument(\"lauf\", type=int); s.add_argument(\"name\"); s.add_argument(\"quelle\")",
+          "added": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "url": "file:///root/biotop/biotop/lauf.py",
+      "title": "lauf.py",
+      "accessed": "2026-09-20",
+      "quotes": [
+        {
+          "text": "def einlegen(con: sqlite3.Connection, lauf_id: int, name: str, quelle: str) -> dict:\n    ok, meld = kammer.bereit()\n    if not ok:\n        raise LaufFehler(meld)\n    try:\n        bericht = aufnahme.aufnehmen(con, name, quelle, lauf_id)\n    except aufnahme.MessgeraetFehlt as e:\n        with transaktion(con):\n            con.execute(\"UPDATE laeufe SET status='gestoppt', grund=?, beendet_am=? WHERE id=?\", (str(e), protokoll.jetzt(), lauf_id))\n        protokoll.schreiben(con, \"lauf.gestoppt\", lauf_id=lauf_id, grund=str(e), generationen=0)\n        raise LaufFehler(f\"Messgerät fehlt — Lauf {lauf_id} gestoppt, 0 Generationen gestartet. {e}\") from e\n    with transaktion(con):\n        con.execute(\"UPDATE laeufe SET werk_id=?, status='aufgenommen' WHERE id=?\", (bericht[\"werk_id\"], lauf_id))\n    return bericht",
+          "added": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "url": "file:///root/biotop/biotop/organe/genesis.py",
+      "title": "genesis.py",
+      "accessed": "2026-09-20",
+      "quotes": [
+        {
+          "text": "def dateien_im_diff(diff: str) -> list[str]:\n    return sorted(set(re.findall(r\"^\\+\\+\\+ b/(\\S+)\", diff, re.M)) | set(re.findall(r\"^diff --git a/(\\S+) b/\", diff, re.M)))",
+          "added": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "url": "file:///root/biotop/biotop/kern/diffwerk.py",
+      "title": "diffwerk.py",
+      "accessed": "2026-09-20",
+      "quotes": [
+        {
+          "text": "if zeile.startswith(\"--- \"):\n            quelle = zeile[4:].strip()\n            aktuell = DateiDiff(pfad=\"\", hunks=[], neu_angelegt=(quelle == \"/dev/null\"))\n            hunk = None\n            continue\n        if zeile.startswith(\"+++ \"):\n            ziel = zeile[4:].strip()\n            if aktuell is None:\n                aktuell = DateiDiff(pfad=\"\", hunks=[])\n            if ziel == \"/dev/null\":\n                aktuell.geloescht = True\n            else:\n                aktuell.pfad = re.sub(r\"^[ab]/\", \"\", ziel.split(\"\\t\")[0])\n            dateien.append(aktuell)",
+          "added": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "url": "file:///root/biotop/biotop/organe/aegis.py",
+      "title": "aegis.py",
+      "accessed": "2026-09-20",
+      "quotes": [
+        {
+          "text": "def kandidat_dateien(werk: Path, diff: str) -> dict[str, str | None] | None:\n    try:\n        out: dict[str, str | None] = {}\n        for d in diffwerk.parsen(diff):\n            f = werk / d.pfad\n            out[d.pfad] = diffwerk.anwenden(f.read_text() if f.exists() else None, d)\n        return out if out else None\n    except Exception:  # noqa: BLE001\n        return None\n\n\ndef diff_grund(werk: Path, diff: str) -> str:\n    try:\n        for d in diffwerk.parsen(diff):\n            f = werk / d.pfad\n            diffwerk.anwenden(f.read_text() if f.exists() else None, d)\n        return \"\"\n    except Exception as e:  # noqa: BLE001\n        return str(e)[:300]",
+          "added": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "url": "file:///root/biotop/biotop/organe/kammer.py",
+      "title": "kammer.py",
+      "accessed": "2026-09-20",
+      "quotes": [
+        {
+          "text": "def _kopie(werk: Path, ziel: Path) -> None:\n    shutil.copytree(\n        werk, ziel, symlinks=False,\n        ignore=shutil.ignore_patterns(\".git\", \"__pycache__\", \".pytest_cache\", \"node_modules\", \".env*\"),\n    )",
+          "added": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "url": "file:///root/biotop/biotop/kern/messgeraet.py",
+      "title": "messgeraet.py",
+      "accessed": "2026-09-20",
+      "quotes": [
+        {
+          "text": "# --- Zyklen zwischen Bereichen ---\nkanten = set()\nfor b in bereiche:\n    for wurzel, _, dateien in os.walk(os.path.join(werk, paket, b)):\n        for f in dateien:\n            if f.endswith(\".py\"):\n                for zeile in open(os.path.join(wurzel, f)):\n                    for b2 in bereiche:\n                        if b2 != b and (f\"{paket}.{b2}\" in zeile or f\"from ..{b2}\" in zeile or f\"from .{b2}\" in zeile and False):\n                            kanten.add((b, b2))\ndef zyklen():\n    adj = {}\n    for a, c in kanten: adj.setdefault(a, set()).add(c)\n    z = 0\n    for start in bereiche:\n        stapel = [start]; gesehen = set()\n        while stapel:\n            k = stapel.pop()\n            for n in adj.get(k, ()):\n                if n == start: z += 1; stapel = []; break\n                if n not in gesehen: gesehen.add(n); stapel.append(n)\n    return z\nergebnis[\"werk\"][\"zyklen\"] = zyklen()\nergebnis[\"werk\"][\"kanten\"] = sorted(kanten)",
+          "added": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "url": "file:///root/biotop/biotop/kern/datenbank.py",
+      "title": "datenbank.py",
+      "accessed": "2026-09-20",
+      "quotes": [
+        {
+          "text": "CREATE TABLE IF NOT EXISTS vertraege (\n  id INTEGER PRIMARY KEY, werk_id INTEGER, bereich TEXT, text TEXT,\n  herkunft TEXT, quelle TEXT);",
+          "added": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "url": "file:///root/biotop/biotop/organe/lazarus.py",
+      "title": "lazarus.py",
+      "accessed": "2026-09-20",
+      "quotes": [
+        {
+          "text": "if ziel == werk:\n        # Arbeitskopie aus dem Git-Tag, Landkarte/Verlauf danach markieren\n        _git(werk, \"checkout\", \"-q\", \"-f\", z[\"tag\"])\n        _git(werk, \"checkout\", \"-q\", \"-B\", \"main\")\n        _git(werk, \"clean\", \"-qfd\")\n        with transaktion(con):\n            con.execute(\"UPDATE generationen SET status='verworfen_durch_rueckkehr' WHERE lauf_id=? AND nummer>? AND status='angenommen'\", (lauf_id, generation))\n            werk_id = con.execute(\"SELECT werk_id FROM laeufe WHERE id=?\", (lauf_id,)).fetchone()[\"werk_id\"]\n            con.execute(\"UPDATE landkarte SET pruefsumme='veraltet' WHERE werk_id=? AND stufe<=2\", (werk_id,))\n    else:\n        if ziel.exists():\n            shutil.rmtree(ziel)\n        ziel.mkdir(parents=True)\n        with tarfile.open(z[\"archiv\"]) as t:\n            t.extractall(ziel, filter=\"data\")\n    ps, n = pruefsumme_werk(ziel)\n    stimmt = ps == z[\"pruefsumme\"]\n    protokoll.schreiben(con, \"lazarus.rueckkehr\", lauf_id=lauf_id, generation=generation, tag=z[\"tag\"],\n                        ziel=str(ziel), pruefsumme_erwartet=z[\"pruefsumme\"], pruefsumme_gemessen=ps, stimmt=stimmt, dateien=n)\n    return {\"generation\": generation, \"tag\": z[\"tag\"], \"pruefsumme_erwartet\": z[\"pruefsumme\"], \"pruefsumme_gemessen\": ps,\n            \"stimmt\": stimmt, \"dateien\": n, \"masse\": lj(z[\"masse\"])}",
+          "added": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "url": "file:///root/biotop/pruefung/vorspann.py",
+      "title": "vorspann.py",
+      "accessed": "2026-09-20",
+      "quotes": [
+        {
+          "text": "A = Path(sys.argv[1]); LAUF = int(sys.argv[2])\ncon = verbinden()\nlauf = L._lauf(con, LAUF); werk = L._werk(con, lauf[\"werk_id\"]); pfad = Path(werk[\"pfad\"])\nmass = lj(lauf[\"mass\"]); paket, bereiche = mass[\"paket\"], mass[\"bereiche\"]\nref = L._referenzlast(werk[\"name\"], paket)\nbasis_gen = L.letzte_angenommene(con, LAUF); basis = lj(basis_gen[\"masse\"])\nausgang = lj(con.execute(\"SELECT masse FROM generationen WHERE lauf_id=? AND nummer=0\", (LAUF,)).fetchone()[\"masse\"])\nkanten = [(z[\"von\"], z[\"nach\"], z[\"art\"]) for z in con.execute(\"SELECT von, nach, art FROM strassen WHERE werk_id=?\", (werk[\"id\"],))]\nbstr = landkarte.bereichs_strassen(kanten, paket)\n\nz = [f\"# Generation minus eins — vollständiger Vorspann, Lauf {LAUF}, Werk {werk['name']}\",\n     f\"# Zugleich Nachmessung der Tor-2-Zeilen Nebenwirkung, Regression, Norm, Vertrag (Vorgabe Philipp)\"]\n\nz.append(\"\\n## 1. Rauschmessung (Toleranz je Bereich, bereichsweise Sperre)\")\nr = eichung.rauschmessung(con, LAUF, werk[\"id\"], pfad, bereiche, paket, ref)\nz += [\"  \" + s for s in eichung.text(r)]\n\nz.append(\"\\n## 2. Eichgegenstand (versiegelt, je Werk einmal)\")\ng = eichgegenstand.sichern(con, werk[\"id\"], LAUF, pfad)\nz += [\"  \" + s for s in eichgegenstand.text(g)]\n\nz.append(\"\\n## 3. Fund-Neubewertung (offene Funde am Ausgang nachmessen)\")\nt0 = time.time()\nf = fundpruefung.bewerten(con, werk[\"id\"], LAUF, pfad)\neichung.kosten_buchen(con, LAUF, werk[\"id\"], \"fundpruefung\", f[\"kammerlaeufe\"], time.time() - t0, modellaufrufe=0, kosten_eur=0.0)\nz.append(f\"  {f['bezugsgroesse']}, {f['kammerlaeufe']} Kammerläufe\")\nfor e in f[\"ergebnisse\"]:\n    if e[\"geaendert\"]:\n        z.append(f\"    {e['name']}: {e['alt']} → {e['neu']}\")\n\nz.append(\"\\n## 4. Die vier Proben am versiegelten Gegenstand (= Tor-2-Zeilen, nachgemessen)\")\np = eichproben.proben(con, LAUF, werk[\"id\"], pfad, paket, bereiche, bstr, basis, ausgang, ref,\n                      mass.get(\"grenzen\") or {}, generation=basis_gen[\"nummer\"])\nz += [\"  \" + s for s in eichproben.text(p)]\n\nz.append(\"\\n## Ergebnis des Vorspanns\")\nz.append(f\"  Lauf startet: {r['lauf_startet'] and p['bestanden']} \"\n         f\"(Rauschmessung {r['lauf_startet']}, Proben {p['bestanden']})\")\nz.append(\"\\n## Eichkosten (getrennt von der Laufsumme)\")\nz += [\"  \" + s for s in eichung.kosten_text(eichung.kosten(con, LAUF), bereiche=len(bereiche))]\n(A / f\"15-vorspann-lauf{LAUF}.txt\").write_text(\"\\n\".join(z) + \"\\n\")\nprint(\"\\n\".join(z))",
+          "added": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "url": "file:///root/biotop/biotop/organe/verfassung.py",
+      "title": "verfassung.py",
+      "accessed": "2026-09-20",
+      "quotes": [
+        {
+          "text": "def einlegen(con: sqlite3.Connection, werk_id: int, text: str, regeln: dict, quelle: str, von: str) -> None:\n    \"\"\"regeln: {\"uebungswerk\": bool, \"tausch\": {...}, \"einstiege\": {\"B307\": {...}}, \"verbotene_muster\": [...]}\"\"\"\n    con.executescript(SCHEMA)\n    with transaktion(con):\n        con.execute(\"INSERT OR REPLACE INTO verfassung_werk(werk_id, text, regeln, quelle, eingelegt_am, eingelegt_von) VALUES (?,?,?,?,?,?)\",\n                    (werk_id, text, json.dumps(regeln, ensure_ascii=False), quelle, protokoll.jetzt(), von))\n    protokoll.schreiben(con, \"verfassung.eingelegt\", werk_id=werk_id, quelle=quelle, von=von, saetze=text.count(\"\\n\") + 1,\n                        uebungswerk=regeln.get(\"uebungswerk\", False), tausch=regeln.get(\"tausch\"))\n\n\ndef lesen(con: sqlite3.Connection, werk_id: int) -> dict | None:\n    con.executescript(SCHEMA)\n    z = con.execute(\"SELECT * FROM verfassung_werk WHERE werk_id=?\", (werk_id,)).fetchone()\n    if not z:\n        return None\n    d = dict(z)\n    d[\"regeln\"] = lj(d[\"regeln\"]) or {}",
+          "added": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "url": "file:///root/biotop/biotop/organe/eichung.py",
+      "title": "eichung.py",
+      "accessed": "2026-09-20",
+      "quotes": [
+        {
+          "text": "def _messen_einmal(pfad: Path, bereiche: list[str], paket: str, ref: str) -> dict:\n    m = messgeraet.messen(pfad, bereiche, paket, ref)\n    return {b: (m[\"bereiche\"].get(b) or {}).get(\"laufzeit_ms\") for b in bereiche}\n\n\ndef rauschmessung(con: sqlite3.Connection, lauf_id: int, werk_id: int, pfad: Path, bereiche: list[str],\n                  paket: str, ref: str) -> dict:\n    \"\"\"Fünf Messungen am UNVERÄNDERTEN Werk; je Bereich Toleranz, Sperre und Vorgeschichte.\n    Rückgabe: {\"toleranz\": {bereich: faktor}, \"gesperrt\": [...], \"bereiche\": {...}, \"lauf_startet\": bool}.\"\"\"\n    _tabelle(con)\n    import time\n    t0 = time.time()\n    kammerlaeufe = 0\n    roh: dict[str, list[float]] = {b: [] for b in bereiche}\n    for _ in range(messgeraet.RAUSCH_MESSUNGEN):\n        kammerlaeufe += 1\n        for b, v in _messen_einmal(pfad, bereiche, paket, ref).items():\n            if v is not None:\n                roh[b].append(float(v))\n\n    ergebnis, toleranz, gesperrt = {}, {}, []\n    for b in bereiche:\n        e = messgeraet.rauschtoleranz_aus_werten(roh[b])\n        # Aussetzer: einmal nachmessen, damit wieder fünf brauchbare Werte vorliegen (Fassung 6).\n        if e.get(\"nachmessen\") and e.get(\"aussetzer\"):\n            fehlend = messgeraet.RAUSCH_MESSUNGEN - len([w for w in roh[b] if w not in e[\"aussetzer\"]])\n            nach = []\n            for _ in range(max(0, fehlend)):\n                kammerlaeufe += 1\n                v = _messen_einmal(pfad, [b], paket, ref).get(b)\n                if v is not None:\n                    nach.append(float(v))\n            protokoll.schreiben(con, \"eichung.aussetzer\", lauf_id=lauf_id, bereich=b, verworfen=e[\"aussetzer\"],\n                                nachgemessen=[round(x, 2) for x in nach],\n                                regel=\"Einzelwert über dem Fünffachen des Medians ist ein Maschinenaussetzer (Fassung 6)\")\n            behalten = [w for w in roh[b] if w not in e[\"aussetzer\"]] + nach\n            e = messgeraet.rauschtoleranz_aus_werten(behalten)",
+          "added": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "url": "file:///root/biotop/biotop/kern/referenzlast/logmuehle.py",
+      "title": "logmuehle.py",
+      "accessed": "2026-09-20",
+      "quotes": [
+        {
+          "text": "_ZEILEN = None\n\n\ndef _zeilen(n=4000):\n    global _ZEILEN\n    if _ZEILEN is None:\n        pfade = [\"/\", \"/api/werke\", \"/api/werke?seite=2\", \"/static/app.js\", \"/api/lauf/13\", \"/gesund\", \"/api/kasse\", \"/bild.png\"]\n        status = [200, 200, 200, 304, 404, 500, 201, 403]\n        _ZEILEN = [\n            f'203.0.113.{i % 250} - {\"anna\" if i % 3 else \"-\"} [19/Sep/2026:{i % 24:02d}:{i % 60:02d}:{(i * 7) % 60:02d} +0200] '\n            f'\"GET {pfade[i % len(pfade)]} HTTP/1.1\" {status[(i * 5) % len(status)]} {(i * 37) % 5000} \"-\" \"curl/8.5\"'\n            for i in range(n)\n        ] + [\"murks\"] * (n // 100)\n    return _ZEILEN",
+          "added": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "url": "file:///root/biotop/biotop/organe/eichproben.py",
+      "title": "eichproben.py",
+      "accessed": "2026-09-20",
+      "quotes": [
+        {
+          "text": "def _diff(rel: str, alt: str, neu: str) -> str:\n    \"\"\"Vollständiger Datei-Diff (kein Kontextabgleich nötig — der Diffwerk-Teil wendet ihn als Ersetzung an).\"\"\"\n    a = alt.splitlines(); n = neu.splitlines()\n    kopf = f\"--- a/{rel}\\n+++ b/{rel}\\n@@ -1,{len(a)} +1,{len(n)} @@\\n\"\n    return kopf + \"\\n\".join([\"-\" + z for z in a] + [\"+\" + z for z in n]) + \"\\n\"\n\n\ndef _neue_datei(rel: str, inhalt: str) -> str:\n    n = inhalt.splitlines()\n    return f\"--- /dev/null\\n+++ b/{rel}\\n@@ -0,0 +1,{len(n)} @@\\n\" + \"\\n\".join(\"+\" + z for z in n) + \"\\n\"\n\n\ndef _lahmlegen(pfad: Path, paket: str, bereich: str) -> tuple[str, str]:\n    \"\"\"Erste öffentliche Funktion des Bereichs wirkungslos machen → bestehende Tests des Bereichs fallen.\n    Rückgabe: (Diff, Beschreibung). Mechanisch über den Syntaxbaum, kein Textanker.\"\"\"\n    for datei, fn in _funktionen(pfad, paket, bereich):\n        quelle = datei.read_text()\n        zeilen = quelle.splitlines()\n        einzug = \" \" * (fn.col_offset + 4)\n        # nach der Signatur (und einem etwaigen Docstring) ein `return None` einsetzen\n        ziel = fn.body[0].lineno - 1\n        if isinstance(fn.body[0], ast.Expr) and isinstance(getattr(fn.body[0], \"value\", None), ast.Constant) \\\n                and isinstance(fn.body[0].value.value, str):\n            ziel = (fn.body[0].end_lineno or fn.body[0].lineno)\n        neu = zeilen[:ziel] + [f\"{einzug}return None  # Eichprobe: Funktion wirkungslos\"] + zeilen[ziel:]\n        rel = str(datei.relative_to(pfad))\n        return _diff(rel, quelle, \"\\n\".join(neu) + \"\\n\"), f\"{rel}::{fn.name} liefert None\"\n    raise RuntimeError(f\"Bereich {bereich} hat keine öffentliche Funktion — Probe nicht baubar\")\n\n\ndef _beschleunigen(pfad: Path, paket: str, bereich: str) -> tuple[str, str]:\n    \"\"\"Eine reine Funktion des Bereichs mit einem Merkspeicher versehen → Laufzeit sinkt messbar.\"\"\"\n    for datei, fn in _funktionen(pfad, paket, bereich):\n        if fn.args.args and not any(a.arg == \"self\" for a in fn.args.args):\n            quelle = datei.read_text()\n            zeilen = quelle.splitlines()\n            speicher = f\"_eichprobe_speicher_{fn.name}\"\n            einzug = \" \" * (fn.col_offset + 4)\n            args = \", \".join(a.arg for a in fn.args.args)\n            ziel = fn.body[0].lineno - 1\n            if isinstance(fn.body[0], ast.Expr) and isinstance(getattr(fn.body[0], \"value\", None), ast.Constant) \\\n                    and isinstance(fn.body[0].value.value, str):\n                ziel = (fn.body[0].end_lineno or fn.body[0].lineno)\n            kopf = [f\"{einzug}_s = {speicher}\",\n                    f\"{einzug}try:\",\n                    f\"{einzug}    _k = ({args},)\",\n                    f\"{einzug}    if _k in _s:\",\n                    f\"{einzug}        return _s[_k]\",\n                    f\"{einzug}except TypeError:\",\n                    f\"{einzug}    _k = None\"]\n            rumpf = zeilen[ziel:]\n            # Rückgaben durch Merken ersetzen: nur die erste Ebene, sonst zu invasiv\n            neu = zeilen[:ziel] + kopf + rumpf\n            neu = [f\"{speicher} = {{}}\", \"\"] + neu\n            rel = str(datei.relative_to(pfad))\n            return _diff(rel, quelle, \"\\n\".join(neu) + \"\\n\"), f\"{rel}::{fn.name} bekommt einen Merkspeicher\"\n    raise RuntimeError(f\"Bereich {bereich} hat keine geeignete Funktion — Probe nicht baubar\")",
+          "added": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "url": "file:///root/biotop/biotop/organe/eichgegenstand.py",
+      "title": "eichgegenstand.py",
+      "accessed": "2026-09-20",
+      "quotes": [
+        {
+          "text": "def _kandidatenpaare(con, werk_id: int, pfad: Path) -> list[dict]:\n    \"\"\"Alle Bereichspaare mit explizitem Vertrag, deren Vertragsdatei im Werk liegt. Sortiert = deterministisch.\"\"\"\n    _tabelle(con)\n    aus = []\n    for z in con.execute(\"SELECT von_bereich, nach_bereich, pfad FROM vertraege_explizit WHERE werk_id=? \"\n                         \"ORDER BY von_bereich, nach_bereich\", (werk_id,)):\n        datei = pfad / z[\"pfad\"]\n        if datei.exists():\n            aus.append({\"von_bereich\": z[\"von_bereich\"], \"nach_bereich\": z[\"nach_bereich\"], \"vertrag_pfad\": z[\"pfad\"],\n                        \"zeilen\": len(datei.read_text().splitlines())})\n    return aus\n\n\ndef _tragende_paare(con, werk_id: int, paare: list[dict]) -> tuple[dict, str]:\n    \"\"\"Welche Bereichspaare liegen auf dem von der Verfassung als tragend benannten Pfad? (Fassung 6)\n\n    Reihenfolge der Quellen — nie geraten, immer benannt:\n    1. Ausdrückliche Angabe in den Regeln des Werks: {\"tragender_pfad\": [[\"bericht\",\"preise\"], ...]}.\n       Beim Handelssystem ist das der Orderpfad mit Risikomodulen und Verlustgrenze; Philipp setzt ihn in der\n       Verfassung, zusammen mit Verlustgrenze und Hebelgrenzen.\n    2. NUR BEI ÜBUNGSWERKEN: abgeleitet aus dem Verfassungstext — ein Paar gilt als tragend, wenn beide Bereiche\n       in EINEM Satz gemeinsam genannt werden, gewichtet nach der Zahl solcher Sätze.\n       Diese Ableitung ist eine **Wortstatistik**: Sie findet, was oft zusammen genannt wird, nicht was trägt.\n       Für ein Werk mit Betriebszweck ist das zu wenig — dort entscheidet sie unter Umständen über den Orderpfad.\n       Fehlt bei einem solchen Werk die ausdrückliche Angabe, wird NICHT abgeleitet: das Organ meldet und wartet\n       (wie beim fehlenden Bereichspaar, Satz 6 „laut scheitern, nie still\").\n    3. Keine Verfassung / keine Nennung bei einem Übungswerk: leeres Ergebnis, dann entscheidet die Vertragsgröße.\n\n    Rückgabe: ({(von, nach): gewicht}, Herkunft als Text). Ein `fehlt_ausdruecklich`-Vermerk in der Herkunft\n    signalisiert dem Aufrufer, dass er anhalten muss.\n    \"\"\"\n    z = con.execute(\"SELECT text, regeln FROM verfassung_werk WHERE werk_id=?\", (werk_id,)).fetchone()\n    if not z:\n        return {}, \"keine Verfassung hinterlegt\"\n    regeln = lj(z[\"regeln\"]) or {}\n    ausdruecklich = regeln.get(\"tragender_pfad\")\n    if ausdruecklich:\n        g = {}\n        for eintrag in ausdruecklich:\n            g[(eintrag[0], eintrag[1])] = 100\n        return g, \"ausdrückliche Angabe in den Regeln des Werks (tragender_pfad)\"\n\n    if not regeln.get(\"uebungswerk\"):\n        return {}, (\"FEHLT_AUSDRUECKLICH: Werk mit Betriebszweck ohne `tragender_pfad` in den Regeln. Die Ableitung \"\n                    \"aus dem Verfassungstext ist eine Wortstatistik (sie findet, was oft zusammen genannt wird, nicht \"\n                    \"was trägt) und ist hier nicht zulässig — der tragende Pfad muss ausdrücklich in der Verfassung \"\n                    \"stehen, beim Handelssystem der Orderpfad mit Risikomodulen und Verlustgrenze.\")",
+          "added": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "url": "file:///root/biotop/biotop/organe/gedaechtnis.py",
+      "title": "gedaechtnis.py",
+      "accessed": "2026-09-20",
+      "quotes": [
+        {
+          "text": "def ist_probe(k) -> bool:\n    \"\"\"Probenkandidaten (Eichproben des Vorspanns, eingeschleuste Proben) gehören in KEIN Gedächtnis (Fassung 6).\n\n    Grund: Der Vorspann läuft ab Fassung 5 vor JEDEM Lauf. Ein eingeschleuster Regressionskandidat würde im\n    Projektgedächtnis später echte Kandidaten sperren, ein Probenmuster im Artgedächtnis als Erfahrung an fremde\n    Werke weitergereicht, eine Probenentscheidung im Geschmacksgedächtnis als Philipps Geschmack gelernt.\n    In Phase 2 genügte die Kennzeichnung `nische='probe'`, weil es die Gedächtnisse noch nicht gab.\n\n    **Grundlage ist das gesetzte Merkmal `kandidaten.ist_probe`**, das der Erzeuger der Probe setzt — nicht der\n    Name. Namen sind eine Verabredung, die ein späterer Einbau anders schreibt: Die Jury-Proben liefen unter\n    eigenen Bereichsmarken und wären bei reiner Nischenprüfung durchgerutscht — dieselbe Fehlerklasse wie die\n    Doppelungserkennung, die auf den Ort statt auf die Behauptung sah.\n    Nische und Bereichsname bleiben als ZWEITER Weg für Altbestand aus Phase 2/3, in dem das Feld noch fehlt.\n\n    Die Proben bleiben in der Datenbank und im Bericht sichtbar — nur die Gedächtnisse lesen sie nicht.\n    \"\"\"\n    if k is None:\n        return False\n    schluessel = k.keys()\n    if \"ist_probe\" in schluessel and k[\"ist_probe\"]:\n        return True                                     # gesetztes Merkmal — die Grundlage\n    nische = (k[\"nische\"] if \"nische\" in schluessel else None) or \"\"\n    bereich = (k[\"bereich\"] if \"bereich\" in schluessel else None) or \"\"\n    return nische in PROBEN_NISCHEN or nische.startswith(PROBEN_MARKE) or bereich.startswith(PROBEN_MARKE)\n\n\n# ---------------------------------------------------------------- Projektgedächtnis\ndef werkname(con, werk_id: int) -> str:\n    z = con.execute(\"SELECT bericht FROM werke WHERE id=?\", (werk_id,)).fetchone()\n    b = lj(z[\"bericht\"]) if z and z[\"bericht\"] else {}\n    return (b or {}).get(\"paket\") or \"werk\"\n\n\ndef projekt_merken(con, werk_id: int, lauf_id: int, kandidat_id: int, werk_pfad, dateien_neu: dict | None = None) -> None:\n    \"\"\"Nach einer Ablehnung: den gescheiterten Weg aufnehmen. Probenkandidaten NICHT (Fassung 6).\"\"\"\n    tabellen(con)\n    k = con.execute(\"SELECT * FROM kandidaten WHERE id=?\", (kandidat_id,)).fetchone()\n    if not k or k[\"status\"] not in (\"abgelehnt\",) or not k[\"diff\"]:\n        return\n    if ist_probe(k):\n        protokoll.schreiben(con, \"gedaechtnis.probe_uebersprungen\", lauf_id=lauf_id, kandidat=kandidat_id,\n                            gedaechtnis=\"projekt\", nische=k[\"nische\"], bereich=k[\"bereich\"],\n                            grund=\"Probenkandidat — kommt in kein Gedächtnis (Fassung 6); bleibt in der Datenbank sichtbar\")\n        return",
+          "added": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "url": "file:///root/biotop/biotop/organe/fundpruefung.py",
+      "title": "fundpruefung.py",
+      "accessed": "2026-09-20",
+      "quotes": [
+        {
+          "text": "def _testnamen(code: str) -> list[str]:\n    try:\n        baum = ast.parse(code)\n    except SyntaxError:\n        return []\n    return [k.name for k in baum.body if isinstance(k, ast.FunctionDef) and k.name.startswith(\"test_\")]\n\n\ndef _ausfuehren(pfad: Path, name: str, code: str) -> tuple[bool, bool, str]:\n    \"\"\"(besteht, absturz_im_werk, Ausgabe) — ein Kammerlauf je Fund.\"\"\"\n    datei = f\"tests/test_neubewertung_{name}.py\"\n    e = kammer.ausfuehren(pfad, [\"python\", \"-m\", \"pytest\", \"-q\", \"-p\", \"no:cacheprovider\", datei],\n                          dateien={datei: code}, zeitlimit_s=90)\n    aus = (e.stdout or \"\") + (e.stderr or \"\")\n    besteht = \" passed\" in aus and \" failed\" not in aus and \" error\" not in aus.lower()\n    # Absturz im Werk = eine Ausnahme, die NICHT aus einer Zusicherung des Tests stammt.\n    absturz = (not besteht) and (\"Error\" in aus or \"Exception\" in aus) and \"AssertionError\" not in aus\n    return besteht, absturz, aus[-400:]",
+          "added": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "url": "file:///root/biotop/biotop/organe/generation0.py",
+      "title": "generation0.py",
+      "accessed": "2026-09-20",
+      "quotes": [
+        {
+          "text": "def _testlauf(werk: Path, dateien: dict[str, str]) -> tuple[bool, str]:\n    \"\"\"True = mindestens ein Test fällt (Mutant gefangen). Rückgabe (gefangen, fallende Tests).\"\"\"\n    e = kammer.ausfuehren(werk, [\"python\", \"-m\", \"pytest\", \"-q\", \"-p\", \"no:cacheprovider\", \"--tb=no\", \"-x\", \"-q\"], zeitlimit_s=90, dateien=dateien)\n    fallen = re.findall(r\"^FAILED (\\S+)\", e.stdout, re.M)\n    gefangen = e.rc != 0\n    return gefangen, \", \".join(fallen[:3]) or (\"Zeitlimit/Absturz\" if gefangen and not fallen else \"\")",
+          "added": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "url": "file:///root/biotop/biotop/kern/befundklassen.py",
+      "title": "befundklassen.py",
+      "accessed": "2026-09-20",
+      "quotes": [
+        {
+          "text": "KLASSEN = {\n    \"B307\": {\n        \"beschreibung\": \"Use of possibly insecure function eval(): Eingaben werden als Python-Ausdruck ausgewertet. \"\n                        \"Bekannte Umgehungen eines eingeschränkten eval (auch mit leeren __builtins__): Objekt-Introspektion \"\n                        \"(().__class__.__base__.__subclasses__() erreicht ~160 Klassen inkl. BuiltinImporter → os, subprocess), \"\n                        \"__globals__ von Funktionsobjekten, Format-String-Zugriffe auf Attribute, Ausdrucks-Explosion. \"\n                        \"Ein Auswerter, der den Ausdruck erst ausführt und dann das Ergebnis verwirft, ist NICHT behoben — \"\n                        \"die Nebenwirkung ist schon passiert.\",\n        # (name, ausdruck, nebenwirkung_marker): Ausdrücke liefern eine ZAHL, damit eine Typprüfung nach der Auswertung sie nicht rettet;\n        # Ausdrücke mit Marker setzen eine Umgebungsvariable — wird sie gesetzt, wurde Code ausgeführt.\n        \"umgehungen\": [\n            (\"introspektion_subclasses\", \"().__class__.__base__.__subclasses__().__len__()\", None),\n            (\"introspektion_mro\", \"().__class__.__mro__[1].__subclasses__().__len__()\", None),\n            (\"globals_ueber_funktion\", \"(lambda: 0).__globals__.__len__()\", None),\n            (\"format_string_attribut\", \"'{0.__class__.__base__.__subclasses__}'.format(()).__len__()\", None),\n            (\"import_os_ueber_klasse_nebenwirkung\",\n             \"[c for c in ().__class__.__base__.__subclasses__() if c.__name__ == 'BuiltinImporter'][0].load_module('os').environ.setdefault('BIOTOP_UMGEHUNG_B307', 'ausgefuehrt').__len__()\",\n             \"BIOTOP_UMGEHUNG_B307\"),\n            (\"getattr_kette_nebenwirkung\",\n             \"().__class__.__base__.__subclasses__().__class__.__mro__[0].__init__.__globals__.setdefault('BIOTOP_UMGEHUNG_B307_G', 1)\",\n             None),\n        ],\n    },\n    \"B602\": {\n        \"beschreibung\": \"subprocess call with shell=True: Ein Befehl vom Aufrufer wird durch eine Shell interpretiert. Bekannte \"\n                        \"Umgehungen einer Scheinlösung (z. B. Anführungszeichen um den Befehl, Verbotsliste einzelner Zeichen, \"\n                        \"shlex.quote auf den GANZEN String): Verkettung mit ';' oder '&&', Kommandosubstitution $(…) und Backticks, \"\n                        \"Umleitung '>' in Dateien, Umgebungsvariablen. Behoben heißt: keine Shell (Argumentliste, shell=False) — \"\n                        \"ein Verkettungsversuch führt den zweiten Befehl NICHT aus und setzt keinen Nebeneffekt-Marker.\",\n        # Marker-Datei: der zweite Befehl legt sie an; existiert sie, wurde die Shell benutzt.\n        \"umgehungen\": [\n            (\"verkettung_semikolon\", \"cat; touch {marker}\", \"{marker}\"),\n            (\"verkettung_und\", \"cat && touch {marker}\", \"{marker}\"),\n            (\"kommandosubstitution\", \"cat $(touch {marker})\", \"{marker}\"),\n            (\"backticks\", \"cat `touch {marker}`\", \"{marker}\"),\n            (\"umleitung\", \"cat > {marker}\", \"{marker}\"),\n        ],\n        \"art\": \"shell\",\n    },\n    \"B404\": {\n        \"beschreibung\": \"import subprocess: nur Hinweis (LOW); verschwindet mit B602 nicht zwingend. Zählt 1 Punkt.\",\n        \"umgehungen\": [],\n    },\n    \"B102\": {\n        \"beschreibung\": \"Use of exec(): Eingaben werden als Python-Anweisungen ausgeführt. Umgehungen wie B307.\",\n        \"umgehungen\": [\n            (\"introspektion_subclasses\", \"().__class__.__base__.__subclasses__().__len__()\", None),\n            (\"globals_ueber_funktion\", \"(lambda: 0).__globals__.__len__()\", None),\n        ],\n    },\n}\n\n\ndef immuntest_code(klasse: str, einstieg_import: str, einstieg_aufruf: str, fehlerklasse_import: str, fehlerklasse: str) -> str | None:\n    \"\"\"Erzeugt eine pytest-Datei: jede Umgehung muss mit `fehlerklasse` abgewiesen werden, OHNE ausgeführt\n    worden zu sein (Nebenwirkungs-Marker bleibt ungesetzt). `einstieg_aufruf` enthält den Platzhalter {formel}.\"\"\"\n    k = KLASSEN.get(klasse)\n    if not k or not k[\"umgehungen\"]:\n        return None\n    if k.get(\"art\") == \"shell\":\n        return _immuntest_shell(klasse, k, einstieg_import, einstieg_aufruf)",
+          "added": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "url": "file:///root/biotop/biotop/anbieter/__init__.py",
+      "title": "__init__.py",
+      "accessed": "2026-09-20",
+      "quotes": [
+        {
+          "text": "def _tokens_schaetzen(text: str) -> int:\n    return max(1, len(text) // 3)",
+          "added": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "url": "file:///root/biotop/biotop/kern/kasse.py",
+      "title": "kasse.py",
+      "accessed": "2026-09-20",
+      "quotes": [
+        {
+          "text": "def vorpruefung(\n    con: sqlite3.Connection, lauf_id: int, modell: str, tokens_ein_geschaetzt: int,\n    max_tokens_aus: int, zweck: str,\n) -> float:\n    \"\"\"Wirft BudgetErschoepft, wenn bisher + Schätzung > Budget. Rückgabe: Schätzung in €.\"\"\"\n    s = stand(con, lauf_id)\n    schaetzung = kosten_eur(modell, tokens_ein_geschaetzt, max_tokens_aus)\n    if AUFTRAG_BUDGET_EUR and AUFTRAG_LAUF_AB and lauf_id >= AUFTRAG_LAUF_AB:\n        a = auftrag_stand(con)\n        if a + schaetzung > AUFTRAG_BUDGET_EUR:\n            nr = protokoll.schreiben(con, \"kasse.abbruch\", lauf_id=lauf_id, modell=modell, zweck=zweck, auftrag_ausgegeben_eur=round(a, 6),\n                                     schaetzung_eur=round(schaetzung, 6), auftrag_budget_eur=AUFTRAG_BUDGET_EUR,\n                                     meldung=\"AUFTRAGSBUDGET erschöpft — Aufruf NICHT ausgeführt\")\n            with transaktion(con):\n                con.execute(\"UPDATE laeufe SET status='abgebrochen', grund=? WHERE id=?\", (f\"Auftragsbudget erschöpft vor Aufruf (Protokoll #{nr})\", lauf_id))\n            raise BudgetErschoepft(f\"Auftragsbudget {AUFTRAG_BUDGET_EUR:.2f} € erschöpft: {a:.4f} € + {schaetzung:.4f} €. Protokoll #{nr}.\")\n    if s[\"budget_eur\"] is not None and s[\"ausgegeben_eur\"] + schaetzung > s[\"budget_eur\"]:\n        nr = protokoll.schreiben(\n            con, \"kasse.abbruch\", lauf_id=lauf_id, modell=modell, zweck=zweck,\n            ausgegeben_eur=s[\"ausgegeben_eur\"], schaetzung_eur=round(schaetzung, 6),\n            budget_eur=s[\"budget_eur\"], aufrufe_bisher=s[\"aufrufe\"],\n            meldung=\"Budget erschöpft — Aufruf NICHT ausgeführt\",\n        )\n        with transaktion(con):\n            con.execute(\n                \"UPDATE laeufe SET status='abgebrochen', grund=? WHERE id=?\",\n                (f\"Budget erschöpft vor Aufruf (Protokoll #{nr})\", lauf_id),\n            )\n        raise BudgetErschoepft(\n            f\"Budget {s['budget_eur']:.2f} € erschöpft: ausgegeben {s['ausgegeben_eur']:.4f} € \"\n            f\"+ Schätzung {schaetzung:.4f} € für {modell} ({zweck}). Aufruf nicht ausgeführt. \"\n            f\"Protokoll #{nr}.\"\n        )\n    return schaetzung\n\n\ndef buchen(\n    con: sqlite3.Connection, lauf_id: int, anbieter: str, modell: str,\n    tokens_ein: int, tokens_aus: int, zweck: str, protokoll_nr: int, kontingent: bool = False,\n) -> float:\n    k = 0.0 if kontingent else kosten_eur(modell, tokens_ein, tokens_aus)\n    with transaktion(con):\n        con.execute(\n            \"INSERT INTO kasse(lauf_id, zeit, anbieter, modell, tokens_ein, tokens_aus, \"\n            \"kosten_eur, zweck, kontingent, protokoll_nr) VALUES (?,?,?,?,?,?,?,?,?,?)\",\n            (lauf_id, protokoll.jetzt(), anbieter, modell, tokens_ein, tokens_aus, k,\n             zweck, 1 if kontingent else 0, protokoll_nr),\n        )\n    return k",
+          "added": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": 26,
+      "url": "file:///root/biotop/biotop/organe/mentor.py",
+      "title": "mentor.py",
+      "accessed": "2026-09-20",
+      "quotes": [
+        {
+          "text": "MODELL = (\"openrouter\", \"anthropic/claude-sonnet-5\")  # schwerer Aufruf (Abschnitt 6), zweck-Präfix schwer.",
+          "added": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": 27,
+      "url": "file:///root/biotop/biotop/organe/jury.py",
+      "title": "jury.py",
+      "accessed": "2026-09-20",
+      "quotes": [
+        {
+          "text": "JUROREN = [(\"openrouter\", \"openai/gpt-5.6-luna\"), (\"openrouter\", \"google/gemini-3.5-flash-lite\"), (\"openrouter\", \"deepseek/deepseek-v4.1-flash\")]",
+          "added": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": 28,
+      "url": "file:///root/biotop/biotop/kern/protokoll.py",
+      "title": "protokoll.py",
+      "accessed": "2026-09-20",
+      "quotes": [
+        {
+          "text": "def schreiben(con: sqlite3.Connection, art: str, **inhalt) -> int:\n    \"\"\"Hängt eine Zeile an. Rückgabe: laufende Nummer.\"\"\"\n    with transaktion(con):\n        letzte = con.execute(\"SELECT hash FROM protokoll ORDER BY nr DESC LIMIT 1\").fetchone()\n        hash_vor = letzte[\"hash\"] if letzte else \"0\" * 64\n        zeit = jetzt()\n        inhalt_s = j(inhalt)\n        h = hashlib.sha256(f\"{hash_vor}|{zeit}|{art}|{inhalt_s}\".encode()).hexdigest()\n        cur = con.execute(\n            \"INSERT INTO protokoll(zeit, art, inhalt, hash_vor, hash) VALUES (?,?,?,?,?)\",\n            (zeit, art, inhalt_s, hash_vor, h),\n        )\n        return cur.lastrowid\n\n\ndef pruefen(con: sqlite3.Connection) -> tuple[bool, int]:\n    \"\"\"Prüft die Hash-Kette. Rückgabe (in Ordnung, geprüfte Zeilen).\"\"\"\n    vor = \"0\" * 64\n    n = 0\n    for z in con.execute(\"SELECT * FROM protokoll ORDER BY nr\"):\n        n += 1\n        erwartet = hashlib.sha256(\n            f\"{z['hash_vor']}|{z['zeit']}|{z['art']}|{z['inhalt']}\".encode()\n        ).hexdigest()\n        if z[\"hash_vor\"] != vor or z[\"hash\"] != erwartet:\n            return False, n\n        vor = z[\"hash\"]\n    return True, n",
+          "added": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": 29,
+      "url": "file:///root/biotop/biotop/dienst.py",
+      "title": "dienst.py",
+      "accessed": "2026-09-20",
+      "quotes": [
+        {
+          "text": "def starten(host: str = \"127.0.0.1\", port: int = 8642):\n    Handler.con = verbinden()\n    srv = HTTPServer((host, port), Handler)\n    print(f\"Biotop-Dienst auf {host}:{port} — {len(ROUTEN)} Routen, Anmeldezwang aktiv\", flush=True)\n    srv.serve_forever()",
+          "added": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "url": "file:///root/biotop/biotop/oberflaeche.py",
+      "title": "oberflaeche.py",
+      "accessed": "2026-09-20",
+      "quotes": [
+        {
+          "text": "# Element-ID im HTML → (HTTP-Methode, Route, Kernstelle „modul.funktion“, Lese-/Schreibzugriff)\nELEMENTE = {\n    \"anmelden\":            (\"POST\", \"/anmelden\",                        \"kern/anmeldung.py:anmelden\",             \"schreibt tokens\"),\n    \"abmelden\":            (\"—\",    \"sessionStorage.clear\",             \"oberflaeche.py:JS abmelden\",              \"löscht Token im Browser\"),\n    \"lauf-wahl\":           (\"GET\",  \"/laeufe\",                          \"dienst.py:do_GET /laeufe$\",               \"liest laeufe\"),\n    \"werk-landkarte\":      (\"GET\",  \"/werke/<id>/landkarte\",            \"dienst.py:do_GET /werke/<id>/landkarte\",  \"liest landkarte, strassen, vertraege\"),\n    \"verfassung\":          (\"GET\",  \"/laeufe/<id>/verfassung\",          \"organe/verfassung.py:lesen\",              \"liest verfassung_werk\"),\n    \"mass\":                (\"GET\",  \"/laeufe/<id>\",                     \"dienst.py:do_GET /laeufe/<id>$\",          \"liest laeufe.mass (eingefroren)\"),\n    \"kurve\":               (\"GET\",  \"/laeufe/<id>/generationen\",        \"dienst.py:do_GET /laeufe/<id>/generationen\", \"liest generationen.masse\"),\n    \"generation-aktuell\":  (\"GET\",  \"/laeufe/<id>/kandidaten\",          \"dienst.py:do_GET /laeufe/<id>/kandidaten\", \"liest kandidaten je Nische\"),\n    \"vorlage\":             (\"GET\",  \"/laeufe/<id>/vorlage\",             \"dienst.py:do_GET /laeufe/<id>/vorlage\",   \"liest generationen(vorgelegt), kandidaten.diff/masse, Anklägerurteil, gedaechtnis.geschmack_vorhersage\"),\n    \"freigabe-frei\":       (\"POST\", \"/laeufe/<id>/freigabe\",            \"lauf.py:freigabe\",                        \"schreibt generationen.status, protokoll freigabe.frei, geschmack\"),\n    \"freigabe-ablehnen\":   (\"POST\", \"/laeufe/<id>/freigabe\",            \"lauf.py:freigabe\",                        \"schreibt generationen.status, lazarus.rueckkehr, geschmack\"),\n    \"entropie\":            (\"GET\",  \"/laeufe/<id>/entropie\",            \"organe/entropie.py:verlauf\",              \"liest entropie\"),\n    \"kasse\":               (\"GET\",  \"/laeufe/<id>/kasse\",               \"kern/kasse.py:stand\",                     \"liest kasse\"),\n    \"archiv\":              (\"GET\",  \"/laeufe/<id>/lazarus\",             \"organe/lazarus.py:liste\",                 \"liest lazarus\"),\n    \"mentor-richtungen\":   (\"GET\",  \"/laeufe/<id>/mentor\",              \"dienst.py:do_GET /laeufe/<id>/mentor\",    \"liest mentor\"),\n    \"richtung-waehlen\":    (\"POST\", \"/laeufe/<id>/richtung\",            \"organe/mentor.py:waehlen\",                \"schreibt laeufe.richtung, mentor.gewaehlt, protokoll mentor.gewaehlt\"),\n    \"immunsystem\":         (\"GET\",  \"/laeufe/<id>/immunsystem\",         \"dienst.py:do_GET /laeufe/<id>/immunsystem\", \"liest immunsystem\"),\n    \"protokoll\":           (\"GET\",  \"/protokoll\",                       \"kern/protokoll.py:lesen\",                 \"liest protokoll\"),\n}",
+          "added": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": 31,
+      "url": "file:///root/gesamtstand-01/pruefung-a/historie/a41838c-eltern-messgeraet.py",
+      "title": "a41838c-eltern-messgeraet.py",
+      "accessed": "2026-09-20",
+      "quotes": [
+        {
+          "text": "best = None\n        for _ in range(3):\n            try:\n                t0 = time.perf_counter(); fn(); d = (time.perf_counter() - t0) * 1000\n            except Exception as e:\n                d = None; ergebnis[\"bereiche\"][b][\"laufzeit_fehler\"] = repr(e)[:300]; break\n            best = d if best is None else min(best, d)\n        ergebnis[\"bereiche\"][b][\"laufzeit_ms\"] = round(best, 2) if best is not None else None",
+          "added": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": 32,
+      "url": "file:///root/gesamtstand-01/pruefung-a/historie/7c73d403c18755dda26655c78ac7290c446d9f45-aegis.py",
+      "title": "7c73d403c18755dda26655c78ac7290c446d9f45-aegis.py",
+      "accessed": "2026-09-20",
+      "quotes": [
+        {
+          "text": "def bisherige_behauptungen(con, werk_id: int, bereich: str, limit: int = 25) -> list[str]:\n    \"\"\"Welche Behauptungen hat der Ankläger in diesem Bereich schon aufgestellt? (Fassung 6)\n\n    Gemessen in Phase 2/3: 68,5 % der erzeugten Angriffstests wiederholten eine bereits vorhandene Behauptung —\n    acht Tests sagten dasselbe über `lager/reserviert`. Zwei Drittel der Aufrufe brachten also nichts Neues und\n    kosteten trotzdem. Deshalb werden dem Ankläger vor jedem Angriff seine bisherigen Behauptungen dieses Bereichs\n    vorgelegt, mit dem Auftrag, eine andere zu finden. Das ist Text im ohnehin fälligen Aufruf, kostet nichts extra.\n    \"\"\"\n    aus = []\n    for z in con.execute(\"SELECT ursprung FROM immunsystem WHERE werk_id=? AND bereich=? ORDER BY id DESC LIMIT 200\",\n                         (werk_id, bereich)):\n        t = z[\"ursprung\"] or \"\"\n        if \"behauptung=\" in t:\n            for s in t.split(\"behauptung=\", 1)[1].strip().split(\" \"):\n                if \"|\" in s and s not in aus:\n                    aus.append(s)\n    return aus[:limit]\n\n\ndef _angriff(con, lauf_id, werk_id, paket, bereich, diff, dateien, werk, klassen: list[str]) -> tuple[str | None, str]:\n    quelle = []\n    for d in sorted((werk / paket / bereich).rglob(\"*.py\")):\n        rel = str(d.relative_to(werk))\n        inhalt = dateien.get(rel, d.read_text())\n        if inhalt is not None:\n            quelle.append(f\"### {rel}\\n```python\\n{inhalt}\\n```\")\n    vertraege = \"\\n\".join(f\"- {z['text']} ({z['quelle']})\" for z in con.execute(\n        \"SELECT text, quelle FROM vertraege WHERE werk_id=? AND bereich=? AND herkunft='docstring'\", (werk_id, bereich)))\n    verf = verfassung.lesen(con, werk_id)\n    verf_text = (\"\\n\\nVERFASSUNG DES WERKS:\\n\" + verf[\"text\"]) if verf else \"\"\n    befund_text = \"\"\n    modell = MODELL_ANGRIFF\n    if klassen:\n        befund_text = \"\\n\\nSTATISCHE BEFUNDKLASSE(N) DER BERÜHRTEN STELLE (3.7 F2 — greife die bekannten Umgehungen an):\\n\" + \"\\n\".join(\n            \"- \" + befundklassen.beschreibung(k) for k in klassen)\n        modell = MODELL_ANGRIFF_SCHWER\n    # Fassung 6: bisherige Behauptungen vorlegen — gegen Wiederholung derselben Zusicherung (68,5 % gemessen).\n    schon = bisherige_behauptungen(con, werk_id, bereich)\n    schon_text = (\"\\n\\nDIESE BEHAUPTUNGEN HAST DU IN DIESEM BEREICH SCHON AUFGESTELLT \"\n                  \"(Form: <Funktion>|<Zusicherung>):\\n\" + \"\\n\".join(f\"- {s}\" for s in schon) +\n                  \"\\n\\nStelle eine ANDERE Behauptung auf: ein anderes Ziel oder eine andere Art von Zusicherung. \"\n                  \"Ein Test, der eine dieser Behauptungen wiederholt, wird als Doppelung verworfen und bringt nichts. \"\n                  \"Findest du nichts Neues, antworte mit KEIN ANGRIFF — das ist kein Fehlschlag.\") if schon else \"\"\n    try:\n        a = aufrufen(con, lauf_id, *modell, ANGRIFF_SYSTEM,\n                     f\"BEREICH {bereich} (Paket {paket})\\n\\nVERTRÄGE:\\n{vertraege or 'keine dokumentiert'}{verf_text}{befund_text}{schon_text}\\n\\nDIFF:\\n```diff\\n{diff}\\n```\\n\\nQUELLTEXT NACH DIFF:\\n\" + \"\\n\\n\".join(quelle),\n                     zweck=(\"schwer.\" if klassen else \"\") + f\"aegis.angriff.{bereich}\", max_tokens=2500, temperatur=0.3)\n    except AnbieterFehler as e:\n        protokoll.schreiben(con, \"aegis.fehler\", lauf_id=lauf_id, fehler=str(e)[:300])\n        return None, modell[1]\n    if \"KEIN ANGRIFF\" in a.text[:200]:\n        return None, modell[1]\n    m = re.search(r\"```python\\s*\\n(.*?)```\", a.text, re.S)\n    return (m.group(1) if m else None), modell[1]",
+          "added": "2026-09-20"
+        }
+      ]
+    }
+  ]
+}

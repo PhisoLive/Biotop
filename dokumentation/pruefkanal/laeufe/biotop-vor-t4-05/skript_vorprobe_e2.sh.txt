@@ -1,0 +1,57 @@
+#!/bin/bash
+# Vorprobe E2: Was meldet pytest (reprcrash) für die drei Fehlschlagarten — lokal (venv) und in der Kammer biotop-kammer:1?
+set -u
+D=/tmp/r5-vorprobe-e2
+rm -rf $D && mkdir -p $D/tests
+cat > $D/werk.py <<'EOF'
+def g(x):
+    return x.strip()
+
+
+def pruefe(x):
+    assert isinstance(x, str), "werk-assert"
+    return x
+EOF
+cat > $D/conftest.py <<'EOF'
+import os
+import sys
+sys.path.insert(0, os.path.dirname(__file__))
+
+
+def pytest_runtest_logreport(report):
+    if report.when == 'call' and report.outcome == 'failed':
+        c = report.longrepr.reprcrash
+        print(f"\n@@ {report.nodeid.split('::')[-1]} | path={os.path.basename(str(c.path))} | msg={str(c.message)[:70]!r}")
+EOF
+cat > $D/tests/test_arten.py <<'EOF'
+import pytest
+from werk import g, pruefe
+
+
+class V:
+    pass
+
+
+def test_assert_rewrite():
+    assert g(" a ") == "b"
+
+
+def test_werk_ausnahme():
+    assert g(V()) == "a"
+
+
+def test_did_not_raise():
+    with pytest.raises(ValueError):
+        g(" a ")
+
+
+def test_werk_assert():
+    pruefe(V())
+
+
+def test_explizit():
+    raise AssertionError("im test")
+EOF
+echo "== lokal"; cd $D && /root/biotop-t3/venv/bin/python -m pytest -q -s -p no:cacheprovider tests 2>&1 | grep "@@"
+echo "== kammer"; docker run --rm --network none -v $D:/w -w /w biotop-kammer:1 python -m pytest -q -s -p no:cacheprovider tests 2>&1 | grep "@@\|pytest [0-9]"
+docker run --rm --network none biotop-kammer:1 python -m pytest --version 2>&1 | head -2

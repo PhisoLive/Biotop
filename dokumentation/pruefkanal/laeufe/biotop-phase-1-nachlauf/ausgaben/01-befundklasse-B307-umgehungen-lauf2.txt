@@ -1,0 +1,90 @@
+# Befundklasse B307 — bekannte Umgehungen als Immuntest (biotop/kern/befundklassen.py), in der Kammer ausgeführt
+# Erster Katalogentwurf (nur 'wirft FormelFehler') bestand fälschlich an beiden Ständen, weil auswerten() das Ergebnis NACH der Ausführung verwirft;
+# Katalog daraufhin auf Zahl-Ergebnisse + Nebenwirkungs-Marker umgestellt. Entscheidung Hermes; Lehre: der Test muss Ausführung messen, nicht Abweisung.
+
+--- Testdatei ---
+# Immuntest der Befundklasse B307 (Kern: biotop/kern/befundklassen.py) — bekannte Umgehungen eines eingeschraenkten eval/exec.
+# Jede Umgehung muss abgewiesen werden, bevor sie ausgefuehrt wird: Ergebnisse sind Zahlen (Typpruefung rettet nicht),
+# Nebenwirkungs-Varianten setzen eine Umgebungsvariable, die danach nicht existieren darf.
+import os
+import pytest
+import signal
+from lagerhaus.formeln import auswerten
+from lagerhaus.formeln import FormelFehler
+
+def _abgewiesen(formel, marker=None):
+    if marker: os.environ.pop(marker, None)
+    def _alarm(*a): raise TimeoutError('Ausdruck nicht in 5 s abgewiesen')
+    signal.signal(signal.SIGALRM, _alarm); signal.alarm(5)
+    try:
+        with pytest.raises(FormelFehler):
+            auswerten(formel, 1, 1.0, 1.0)
+    finally:
+        signal.alarm(0)
+    if marker:
+        assert os.environ.get(marker) is None, 'Umgehung wurde AUSGEFUEHRT (Marker gesetzt) und erst danach abgewiesen'
+
+def test_umgehung_B307_introspektion_subclasses():
+    _abgewiesen('().__class__.__base__.__subclasses__().__len__()', None)
+
+def test_umgehung_B307_introspektion_mro():
+    _abgewiesen('().__class__.__mro__[1].__subclasses__().__len__()', None)
+
+def test_umgehung_B307_globals_ueber_funktion():
+    _abgewiesen('(lambda: 0).__globals__.__len__()', None)
+
+def test_umgehung_B307_format_string_attribut():
+    _abgewiesen("'{0.__class__.__base__.__subclasses__}'.format(()).__len__()", None)
+
+def test_umgehung_B307_import_os_ueber_klasse_nebenwirkung():
+    _abgewiesen("[c for c in ().__class__.__base__.__subclasses__() if c.__name__ == 'BuiltinImporter'][0].load_module('os').environ.setdefault('BIOTOP_UMGEHUNG_B307', 'ausgefuehrt').__len__()", 'BIOTOP_UMGEHUNG_B307')
+
+def test_umgehung_B307_getattr_kette_nebenwirkung():
+    _abgewiesen("().__class__.__base__.__subclasses__().__class__.__mro__[0].__init__.__globals__.setdefault('BIOTOP_UMGEHUNG_B307_G', 1)", None)
+
+
+== Lauf-2-Ausgangszustand (/root/uebungswerk, eval mit vollen builtins) ==
+FFFFF.                                                                   [100%]
+=================================== FAILURES ===================================
+/werk/tests/test_formeln_immun_befundklasse_B307.py:15: Failed: DID NOT RAISE <class 'lagerhaus.formeln.auswertung.FormelFehler'>
+/werk/tests/test_formeln_immun_befundklasse_B307.py:15: Failed: DID NOT RAISE <class 'lagerhaus.formeln.auswertung.FormelFehler'>
+/werk/tests/test_formeln_immun_befundklasse_B307.py:15: Failed: DID NOT RAISE <class 'lagerhaus.formeln.auswertung.FormelFehler'>
+/werk/tests/test_formeln_immun_befundklasse_B307.py:15: Failed: DID NOT RAISE <class 'lagerhaus.formeln.auswertung.FormelFehler'>
+/werk/tests/test_formeln_immun_befundklasse_B307.py:15: Failed: DID NOT RAISE <class 'lagerhaus.formeln.auswertung.FormelFehler'>
+=============================== warnings summary ===============================
+tests/test_formeln_immun_befundklasse_B307.py::test_umgehung_B307_import_os_ueber_klasse_nebenwirkung
+  <frozen importlib._bootstrap>:530: DeprecationWarning: the load_module() method is deprecated and slated for removal in Python 3.15; use exec_module() instead
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_formeln_immun_befundklasse_B307.py::test_umgehung_B307_introspektion_subclasses
+FAILED tests/test_formeln_immun_befundklasse_B307.py::test_umgehung_B307_introspektion_mro
+FAILED tests/test_formeln_immun_befundklasse_B307.py::test_umgehung_B307_globals_ueber_funktion
+FAILED tests/test_formeln_immun_befundklasse_B307.py::test_umgehung_B307_format_string_attribut
+FAILED tests/test_formeln_immun_befundklasse_B307.py::test_umgehung_B307_import_os_ueber_klasse_nebenwirkung
+5 failed, 1 passed, 1 warning in 0.02s
+
+
+== Lauf-2-Endstand Gen 5 (__builtins__ leer) ==
+FFFFF.                                                                   [100%]
+=================================== FAILURES ===================================
+/werk/tests/test_formeln_immun_befundklasse_B307.py:15: Failed: DID NOT RAISE <class 'lagerhaus.formeln.auswertung.FormelFehler'>
+/werk/tests/test_formeln_immun_befundklasse_B307.py:15: Failed: DID NOT RAISE <class 'lagerhaus.formeln.auswertung.FormelFehler'>
+/werk/tests/test_formeln_immun_befundklasse_B307.py:15: Failed: DID NOT RAISE <class 'lagerhaus.formeln.auswertung.FormelFehler'>
+/werk/tests/test_formeln_immun_befundklasse_B307.py:15: Failed: DID NOT RAISE <class 'lagerhaus.formeln.auswertung.FormelFehler'>
+/werk/tests/test_formeln_immun_befundklasse_B307.py:15: Failed: DID NOT RAISE <class 'lagerhaus.formeln.auswertung.FormelFehler'>
+=============================== warnings summary ===============================
+tests/test_formeln_immun_befundklasse_B307.py::test_umgehung_B307_import_os_ueber_klasse_nebenwirkung
+  <frozen importlib._bootstrap>:530: DeprecationWarning: the load_module() method is deprecated and slated for removal in Python 3.15; use exec_module() instead
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_formeln_immun_befundklasse_B307.py::test_umgehung_B307_introspektion_subclasses
+FAILED tests/test_formeln_immun_befundklasse_B307.py::test_umgehung_B307_introspektion_mro
+FAILED tests/test_formeln_immun_befundklasse_B307.py::test_umgehung_B307_globals_ueber_funktion
+FAILED tests/test_formeln_immun_befundklasse_B307.py::test_umgehung_B307_format_string_attribut
+FAILED tests/test_formeln_immun_befundklasse_B307.py::test_umgehung_B307_import_os_ueber_klasse_nebenwirkung
+5 failed, 1 passed, 1 warning in 0.02s
+
+
+Direkte Probe: eval('().__class__.__base__.__subclasses__()', {'__builtins__': {}}) → 159 Klassen erreichbar (Chat-Claude: 162; Kammer-Python 3.12-slim: hier)

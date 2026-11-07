@@ -1,0 +1,296 @@
+// Läuft in der Kammer, nachdem verhalten.mjs die geänderten Module eingewickelt hat.
+// Installiert den Aufzeichner, führt die Referenzlast aus (beobachten() und last_<bereich>())
+// und schreibt die Beobachtungen nach /tmp/ts-vv-ergebnis.json.
+//
+// Je Funktion werden die ersten KAPPE äußeren Aufrufe beobachtet. Nach dem echten Aufruf
+// (dessen Ergebnis der Aufrufer bekommt) folgen drei Zusatzaufrufe; vor jedem wird der Zustand
+// der Eingaben festgehalten und danach vollständig wiederhergestellt, so dass der Aufrufer
+// genau den Zustand nach dem echten Aufruf weiterverwendet:
+//   @alias               dieselben Referenzen sofort noch einmal
+//   @mutation            Zahlenblätter an Ort und Stelle geändert (gleiche Referenzen, gleiche Längen)
+//   @nach_ruecksetzung   wieder auf den Zustand nach dem echten Aufruf gesetzt, erneut aufgerufen
+import fs from 'node:fs';
+import {createHash} from 'node:crypto';
+
+const req = JSON.parse(fs.readFileSync('/tmp/ts-vv-anfrage.json', 'utf8'));
+const KAPPE = req.kappe ?? 8;
+const RAND_KAPPE = req.rand_kappe ?? 16;
+const beob = {}, zaehler = {}, zaehlerRand = {}, beispiele = {};
+let tiefe = 0;
+
+function kan(x, anc) {
+  if (x === null) return null;
+  switch (typeof x) {
+    case 'number':
+      if (Number.isNaN(x)) return '__NaN';
+      if (!Number.isFinite(x)) return x > 0 ? '__Inf' : '__-Inf';
+      return Object.is(x, -0) ? '__-0' : x;
+    case 'string': case 'boolean': return x;
+    case 'undefined': return '__undefined';
+    case 'bigint': return '__big:' + x;
+    case 'function': return '__fn';
+    case 'symbol': return '__sym';
+  }
+  if (anc.has(x)) return '__zyklus';
+  anc.add(x);
+  let r;
+  if (Array.isArray(x)) r = x.map(v => kan(v, anc));
+  else if (x instanceof Map) r = {__map: [...x.entries()].map(([k, v]) => [kan(k, anc), kan(v, anc)])};
+  else if (x instanceof Set) r = {__set: [...x.values()].map(v => kan(v, anc))};
+  else if (x instanceof Error) r = {__fehler: x.constructor?.name ?? 'Error', meldung: String(x.message)};
+  else if (x instanceof Date) r = {__datum: x.getTime()};
+  else { r = {}; for (const k of Object.keys(x).sort()) r[k] = kan(x[k], anc); }
+  anc.delete(x);
+  return r;
+}
+
+function wert(f) {
+  try {
+    const v = f();
+    if (v && typeof v.then === 'function') return {text: '__promise', roh: v};
+    return {text: JSON.stringify(kan(v, new Set())), roh: v};
+  } catch (e) {
+    return {text: 'Fehler:' + (e?.constructor?.name ?? 'unbekannt'), fehler: e};
+  }
+}
+
+function knapp(t) {
+  if (t.length <= 200) return t;
+  return t.slice(0, 120) + '…#' + createHash('sha256').update(t).digest('hex').slice(0, 16);
+}
+
+function schlicht(x) {
+  return x !== null && typeof x === 'object'
+    && (Array.isArray(x) || Object.getPrototypeOf(x) === Object.prototype || Object.getPrototypeOf(x) === null);
+}
+
+// Zustand aller erreichbaren Arrays und schlichten Objekte (Tiefe ≤ 4) festhalten.
+function schnappschuss(args) {
+  const log = [], seen = new Set();
+  function geh(x, t) {
+    if (!schlicht(x) || seen.has(x) || t > 4) return;
+    seen.add(x);
+    if (Array.isArray(x)) { log.push([x, x.slice(), true]); for (const v of x) geh(v, t + 1); }
+    else { log.push([x, Object.assign({}, x), false]); for (const k of Object.keys(x)) geh(x[k], t + 1); }
+  }
+  for (const a of args) geh(a, 0);
+  return log;
+}
+
+function zuruecksetzen(log) {
+  for (const [o, kopie, istArray] of log) {
+    try {
+      if (istArray) { o.length = 0; for (const v of kopie) o.push(v); }
+      else {
+        for (const k of Object.keys(o)) if (!Object.prototype.hasOwnProperty.call(kopie, k)) delete o[k];
+        Object.assign(o, kopie);
+      }
+    } catch { /* eingefroren oder schreibgeschützt: bleibt, wie es ist */ }
+  }
+}
+
+// Zahlenblätter an Ort und Stelle ändern — gleiche Referenzen, gleiche Längen. Rückgabe: Anzahl.
+function mutieren(args) {
+  let n = 0;
+  const seen = new Set();
+  function geh(x, t) {
+    if (!schlicht(x) || seen.has(x) || t > 4) return;
+    seen.add(x);
+    for (const k of Object.keys(x)) {
+      const v = x[k];
+      if (typeof v === 'number' && Number.isFinite(v)) {
+        try { x[k] = v * 10 + 7; n++; } catch { /* eingefroren */ }
+      } else if (v && typeof v === 'object') geh(v, t + 1);
+    }
+  }
+  for (const a of args) geh(a, 0);
+  return n;
+}
+
+// Ein Aufruf mit den vier Mustern. Rückgabe: das Ergebnis des echten Aufrufs ({roh} oder {fehler}).
+function muster(schluessel, args, call) {
+  tiefe++;
+  try {
+    const erst = wert(() => call(...args));
+    beob[schluessel] = knapp(erst.text);
+    const stand = schnappschuss(args);
+    beob[`${schluessel}@alias`] = knapp(wert(() => call(...args)).text);
+    zuruecksetzen(stand);
+    if (mutieren(args) > 0) {
+      beob[`${schluessel}@mutation`] = knapp(wert(() => call(...args)).text);
+      zuruecksetzen(stand);
+      beob[`${schluessel}@nach_ruecksetzung`] = knapp(wert(() => call(...args)).text);
+      zuruecksetzen(stand);
+    }
+    return erst;
+  } finally {
+    tiefe--;
+  }
+}
+
+// --- Beispiele und Randfälle (Fassung 8): packbare Kopien von Argumenten, damit die Kandidatenseite dieselben
+// Aufrufe bekommt wie die Vorgeneration (Beispiele reisen über Python zurück in die zweite Kammer).
+function pack(x, t = 0) {
+  if (t > 6 || x === undefined) return {__u: 1};
+  if (x === null || typeof x === 'string' || typeof x === 'boolean') return x;
+  if (typeof x === 'number') return Number.isFinite(x) ? x : {__num: String(x)};
+  if (typeof x === 'bigint') return {__big: String(x)};
+  if (typeof x === 'function' || typeof x === 'symbol') throw Error('nicht packbar');
+  if (Array.isArray(x)) return x.slice(0, 20).map(v => pack(v, t + 1));
+  if (x instanceof Map) return {__map: [...x.entries()].slice(0, 20).map(([k, v]) => [pack(k, t + 1), pack(v, t + 1)])};
+  if (x instanceof Set) return {__set: [...x.values()].slice(0, 20).map(v => pack(v, t + 1))};
+  if (x instanceof Date) return {__date: x.getTime()};
+  const proto = Object.getPrototypeOf(x);
+  if (proto !== Object.prototype && proto !== null) throw Error('Klasseninstanz nicht packbar');
+  const o = {};
+  for (const k of Object.keys(x)) o[k] = pack(x[k], t + 1);
+  return {__obj: o};
+}
+function unpack(x) {
+  if (x === null || typeof x !== 'object') return x;
+  if (Array.isArray(x)) return x.map(unpack);
+  if ('__u' in x) return undefined;
+  if ('__num' in x) return Number(x.__num);
+  if ('__big' in x) return BigInt(x.__big);
+  if ('__map' in x) return new Map(x.__map.map(([k, v]) => [unpack(k), unpack(v)]));
+  if ('__set' in x) return new Set(x.__set.map(unpack));
+  if ('__date' in x) return new Date(x.__date);
+  if ('__obj' in x) { const o = {}; for (const k of Object.keys(x.__obj)) o[k] = unpack(x.__obj[k]); return o; }
+  return x;
+}
+function blaetter(p, f) {             // packierte Struktur, Blätter umschreiben
+  if (Array.isArray(p)) return p.map(v => blaetter(v, f));
+  if (p && typeof p === 'object' && '__obj' in p) { const o = {}; for (const k of Object.keys(p.__obj)) o[k] = blaetter(p.__obj[k], f); return {__obj: o}; }
+  return f(p);
+}
+function schrumpfen(p) {            // leer, einzeln, doppelt, Grenzwerte — aus einem beobachteten Wert
+  const out = [p];
+  if (Array.isArray(p)) {
+    out.push([]);
+    if (p.length) { out.push([p[0]], [p[0], p[0]], [blaetter(p[0], v => typeof v === 'number' ? 0 : typeof v === 'string' ? '' : v)]); }
+  } else if (p && typeof p === 'object' && '__obj' in p) {
+    out.push(blaetter(p, v => typeof v === 'number' ? 0 : v), blaetter(p, v => typeof v === 'string' ? '' : v),
+             blaetter(p, v => typeof v === 'number' ? -1 : v));
+  } else if (typeof p === 'number') out.push(0, -1, 1);
+  else if (typeof p === 'string') out.push('', ' ');
+  return out;
+}
+function teilen(t, zeichen) {         // Aufteilen auf oberster Klammerebene
+  const teile = []; let tiefe_ = 0, start = 0;
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if ('<([{'.includes(c)) tiefe_++;
+    else if ('>)]}'.includes(c)) tiefe_--;
+    else if (c === zeichen && tiefe_ === 0) { teile.push(t.slice(start, i).trim()); start = i + 1; }
+  }
+  teile.push(t.slice(start).trim());
+  return teile.filter(Boolean);
+}
+function umschlossen(t) {            // '(…)' und die erste Klammer schließt erst am Ende
+  if (!t.startsWith('(') || !t.endsWith(')')) return false;
+  let tiefe_ = 0;
+  for (let i = 0; i < t.length; i++) {
+    if (t[i] === '(') tiefe_++;
+    else if (t[i] === ')') { tiefe_--; if (tiefe_ === 0 && i < t.length - 1) return false; }
+  }
+  return true;
+}
+function typKandidaten(t, b, stufe = 0) {
+  if (!t || stufe > 3) return [];
+  t = t.trim();
+  for (let alt = ''; alt !== t;) {            // readonly und umschließende Klammern abwechselnd abstreifen
+    alt = t;
+    while (t.startsWith('readonly ')) t = t.slice(9).trim();
+    if (umschlossen(t)) t = t.slice(1, -1).trim();
+  }
+  const teile = teilen(t, '|');
+  if (teile.length > 1) {
+    const ohne = teile.filter(s => s !== 'undefined' && s !== 'null');
+    const lit = ohne.filter(s => /^(['"]).*\1$/.test(s)).map(s => s.slice(1, -1));
+    const rest = ohne.filter(s => !/^(['"]).*\1$/.test(s)).flatMap(s => typKandidaten(s, b, stufe + 1)).slice(0, 6);
+    return [...lit, ...rest, ...(teile.includes('undefined') ? [{__u: 1}] : [])];
+  }
+  if (t === 'number') return [0, 1, -1, 2, 0.5, 100];
+  if (t === 'string') return ['', 'a', ' ', 'Ä-1', 'x'.repeat(40)];
+  if (t === 'boolean') return [false, true];
+  let m = t.match(/^(.+)\[\]$/), innen = m ? m[1] : null;
+  if (innen === null) { m = t.match(/^(?:Readonly)?Array<(.+)>$/); innen = m ? m[1] : null; }
+  if (innen !== null) {
+    const eb = Array.isArray(b) && b.length ? b[0] : undefined;
+    let e = typKandidaten(innen, eb, stufe + 1);
+    if (!e.length && eb !== undefined) e = schrumpfen(eb);
+    const out = [[]];
+    if (e.length) {
+      out.push([e[0]], [e[0], e[0]]);
+      for (const v of e.slice(1, 4)) out.push([v]);
+      if (e.length >= 3) out.push([e[0], e[1], e[2]]);
+    }
+    if (Array.isArray(b)) out.push(b.slice(0, 20));
+    return out;
+  }
+  if (/^(['"]).*\1$/.test(t)) return [t.slice(1, -1)];
+  if (/^-?\d+(\.\d+)?$/.test(t)) return [Number(t)];
+  return b !== undefined ? schrumpfen(b) : [];
+}
+function argumentlisten(typen, beispiel) {
+  const k = typen.map((typ, j) => {
+    const b = beispiel ? beispiel[j] : undefined;
+    let c = typKandidaten(typ, b);
+    if (b !== undefined) c = [b, ...c];
+    if (!c.length) c = [{__obj: {}}, []];             // unbekannter Typ ohne Beispiel: tastend
+    const gesehen = new Set();
+    return c.filter(v => { const s = JSON.stringify(v); if (gesehen.has(s)) return false; gesehen.add(s); return true; });
+  });
+  if (!typen.length) return [[]];
+  const grund = k.map(c => c[0]);
+  const listen = [grund];
+  for (let j = 0; j < k.length; j++) for (const v of k[j].slice(1)) { const l = grund.slice(); l[j] = v; listen.push(l); }
+  const gesehen = new Set();
+  return listen.filter(l => { const s = JSON.stringify(l); if (gesehen.has(s)) return false; gesehen.add(s); return true; })
+               .slice(0, RAND_KAPPE);
+}
+
+globalThis.__vvAufzeichnen = (name, args, call) => {
+  if (tiefe > 0) return call(...args);
+  const i = zaehler[name] = (zaehler[name] ?? -1) + 1;
+  if (i === 0 && !(name in beispiele)) { try { beispiele[name] = args.map(a => pack(a)); } catch { beispiele[name] = null; } }
+  if (i >= KAPPE) return call(...args);
+  const erst = muster(`${name}#${i}`, args, call);
+  if (erst.fehler) throw erst.fehler;
+  return erst.roh;
+};
+
+let out;
+try {
+  const ref = await import('file:///werk/_biotop_referenz.ts');
+  const korpus = [];
+  if (typeof ref.beobachten === 'function') korpus.push('beobachten');
+  for (const b of req.bereiche) if (typeof ref['last_' + b] === 'function') korpus.push('last_' + b);
+  for (const k of korpus) {
+    try { await ref[k](); beob['korpus:' + k] = 'ok'; }
+    catch (e) { beob['korpus:' + k] = 'Fehler:' + (e?.constructor?.name ?? 'unbekannt'); }
+  }
+  // Randfall-Korpus: jede exportierte Funktion der geänderten Module, Signaturen und Beispiele der Vorgeneration.
+  const quelleBeispiele = req.beispiele ?? beispiele;
+  for (const m of req.module ?? []) {
+    let mod;
+    try { mod = await import('/werk/dist/' + m + '.js'); } catch { continue; }
+    for (const [f, typen] of Object.entries((req.signaturen ?? {})[m] ?? {})) {
+      const fn = mod[f];
+      if (typeof fn !== 'function') continue;       // vom Kandidaten entfernt: Python weist das getrennt aus
+      const name = `${m}:${f}`;
+      argumentlisten(typen ?? [], (quelleBeispiele ?? {})[name] ?? undefined).forEach((liste, i) => {
+        const erst = muster(`${name}~rand#${i}`, unpack(liste), (...a) => fn(...a));
+        if (!erst.fehler) zaehlerRand[name] = (zaehlerRand[name] ?? 0) + 1;
+      });
+    }
+  }
+  if (req.module?.length) korpus.push('randfaelle');
+  out = {gueltig: true, beobachtungen: beob, korpus, aufgerufen: zaehler, aufgerufen_rand: zaehlerRand,
+         kappe: KAPPE, rand_kappe: RAND_KAPPE, ...(req.beispiele ? {} : {beispiele})};
+} catch (e) {
+  // Die Referenzlast lädt die eingewickelten Module; scheitert der Import, ist das ein Befund
+  // über den gebauten Stand (z. B. Laufzeitfehler beim Modulladen), kein totes Messgerät.
+  out = {gueltig: false, art: 'inhalt', grund: String(e?.stack || e).slice(0, 2000)};
+}
+fs.writeFileSync('/tmp/ts-vv-ergebnis.json', JSON.stringify(out));

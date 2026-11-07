@@ -1,0 +1,50 @@
+EB8 · P2 vorbereiten: Fundstelle der Kennung (nur lesend, geschwärzt)
+Beginn: 2026-09-25 23:43:25 CEST (UTC+0200)
+Ende:   2026-09-25 23:43:26 CEST (UTC+0200)
+Dauer:  0.3 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/biotop-einlagerung/arbeit/p2_lesen.py
+--- Inhalt von /root/biotop-einlagerung/arbeit/p2_lesen.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-EINLAGERUNG-01 (nur lesend): Wo steht in der Datei aus P2 ein Wert aus einer .env-Datei (≥ 8 Zeichen)?
+Die Datei wird hier im Skript genannt, nicht auf der Befehlszeile (Vorsorge SPERRE-01 aus BIOTOP-LAGE-01).
+Ausgabe je Treffer: Zeile, Variablenname der Quelle, Länge; die Zeile selbst mit geschwärztem Wert, gekürzt auf 200 Zeichen.
+Dazu: Rechte, Besitzer, Größe, SHA-256 der Datei und die übrigen Dateien des Ordners."""
+import hashlib
+import os
+import stat
+import sys
+from pathlib import Path
+
+sys.path.insert(0, '/root/sicherung/biotop-lage-01/arbeit')
+import geheimnis  # noqa: E402  (werte(): .env-Werte ≥ 8 Zeichen und auth.json-Werte ≥ 12 Zeichen)
+
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+ORD = Path(f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe/biotop-lage-01/zwischenbericht-20260925-163807-r114')
+p = ORD / 'ZWISCHENBERICHT.md'
+wt = geheimnis.werte()
+d = p.read_bytes()
+st = p.stat()
+print(f'Datei: laeufe/biotop-lage-01/zwischenbericht-20260925-163807-r114/ZWISCHENBERICHT.md · {len(d)} B · SHA-256 '
+      f'{hashlib.sha256(d).hexdigest()} · Rechte {stat.filemode(st.st_mode)} · uid {st.st_uid} gid {st.st_gid}')
+for i, z in enumerate(d.decode('utf-8', 'replace').splitlines(), 1):
+    for v, quelle in wt.items():
+        if v in z:
+            print(f'Zeile {i}: Wert aus {quelle.split(":")[0].replace("/root/", "~/")}:{quelle.split(":")[-1]} '
+                  f'({len(v)} Zeichen) · Zeile geschwärzt: {z.replace(v, "[GESCHWÄRZT]")[:200]}')
+print('Ordnerinhalt:')
+for q in sorted(ORD.iterdir()):
+    s = q.stat()
+    print(f'  {q.name} · {s.st_size} B · {stat.filemode(s.st_mode)} · uid {s.st_uid} gid {s.st_gid}')
+--- Ende /root/biotop-einlagerung/arbeit/p2_lesen.py ---
+Ausgabe (vollständig, stdout und stderr):
+Datei: laeufe/biotop-lage-01/zwischenbericht-20260925-163807-r114/ZWISCHENBERICHT.md · 11021 B · SHA-256 c96667d256604f8ec0c72a16141f048e66f4b915aa64db49fa7470d015f23df0 · Rechte -rw------- · uid 0 gid 988
+Zeile 12: Wert aus ~/.hermes/.env:TELEGRAM_ALLOWED_USERS (10 Zeichen) · Zeile geschwärzt: {"platform": "telegram", "chat_id": "[GESCHWÄRZT]", "chat_type": "dm", "user_id": "[GESCHWÄRZT]", "message_id": "8239", "source_message_id": "8239"}
+Ordnerinhalt:
+  DATEIEN.txt · 543 B · -rw-r----- · uid 0 gid 988
+  MANIFEST.sha256 · 254 B · -rw-r----- · uid 0 gid 988
+  PRUEFSUMME-ORDNER.txt · 65 B · -rw-r----- · uid 0 gid 988
+  UEBERGABE-1-UEBERGABE.md · 5754 B · -rw-r----- · uid 0 gid 988
+  ZWISCHENBERICHT.md · 11021 B · -rw------- · uid 0 gid 988
+=== Ende EB8 ===

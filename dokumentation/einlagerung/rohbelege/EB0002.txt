@@ -1,0 +1,180 @@
+EB2 · Schritt 1: Stillstandsprüfung am Anfang
+Beginn: 2026-09-25 23:24:14 CEST (UTC+0200)
+Ende:   2026-09-25 23:24:14 CEST (UTC+0200)
+Dauer:  0.9 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/biotop-einlagerung/arbeit/s1_stillstand.sh anfang
+--- Inhalt von /root/biotop-einlagerung/arbeit/s1_stillstand.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-EINLAGERUNG-01 · Stillstandsprüfung (nur lesend): Läuft etwas mit Biotop-Bezug?
+# Geprüft: Prozesse, Container, Kammer-Sperre, Cron (root, /etc), systemd-Zeitgeber und -Dienste, at-Aufträge,
+# Hermes-Cron-Jobs (mit Skriptinhalt auf Biotop-Bezug), Delegationen (Subagenten) laut Manifest, Wächter-Auftrag,
+# Hermes-Hintergrundprozesse (Wecker) über die Prozessliste.
+# Aufruf: s1_stillstand.sh <anlass>
+echo "== Anlass: ${1:-?}"
+date '+== Zeitpunkt %Y-%m-%d %H:%M:%S %Z (UTC%z)'
+MUSTER='biotop|pytest|kammer|vitest|tsc |wecker|nachspiel|unshare|docker run|sleep '
+echo "== 1. Prozesse, deren Befehlszeile auf /${MUSTER}/ passt (PID, Start, Laufzeit, Befehl; ohne diese Prüfung selbst)"
+ps -eo pid,ppid,lstart,etime,args --sort=start_time | grep -E "$MUSTER" | grep -v -E "grep -E|s1_stillstand|eb.py" > /root/biotop-einlagerung/tmp/ps-treffer.txt
+if [ -s /root/biotop-einlagerung/tmp/ps-treffer.txt ]; then cat /root/biotop-einlagerung/tmp/ps-treffer.txt; else echo "(keine)"; fi
+echo "Anzahl Treffer: $(wc -l < /root/biotop-einlagerung/tmp/ps-treffer.txt)"
+echo "-- Einordnung je Treffer: Biotop-Bezug, wenn die Befehlszeile /root/biotop, biotop-, kammer, pytest, nachspiel, wecker oder unshare nennt"
+grep -c -E "/root/biotop|biotop-|kammer|pytest|nachspiel|wecker|unshare" /root/biotop-einlagerung/tmp/ps-treffer.txt | sed 's/^/Prozesse mit Biotop-Bezug: /'
+echo "== 2. Container (docker ps -a: laufende und gestoppte)"
+docker ps -a --no-trunc --format '{{.ID}} | {{.Image}} | {{.Status}} | {{.Names}}'
+echo "laufend: $(docker ps -q | wc -l) · gesamt (auch gestoppt): $(docker ps -aq | wc -l)"
+echo "== 3. Kammer-Sperrdatei /tmp/biotop-kammer-exklusiv"
+ls -ld /tmp/biotop-kammer-exklusiv 2>&1
+echo "== 4. Cron: crontab root, /var/spool/cron/crontabs, /etc/crontab, /etc/cron.d"
+crontab -l 2>&1
+ls -la /var/spool/cron/crontabs 2>&1
+grep -v -E '^\s*(#|$)' /etc/crontab 2>&1
+ls -la /etc/cron.d 2>&1
+grep -l -i -E 'biotop|hermes' /etc/cron.d/* /etc/crontab /var/spool/cron/crontabs/* 2>/dev/null | sed 's/^/Datei mit biotop|hermes: /' || true
+echo "== 5. systemd-Zeitgeber (alle) und Dienste/Zeitgeber mit biotop im Namen oder im Befehl"
+systemctl list-timers --all --no-pager 2>&1
+for t in $(systemctl list-timers --all --no-legend --no-pager | grep -o '[A-Za-z0-9@_.-]*\.timer' | sort -u); do
+  s=$(systemctl show -p Unit --value "$t"); e=$(systemctl show -p ExecStart --value "$s" | grep -o 'argv\[\]=[^;]*' | head -1)
+  echo "$t -> $s -> $e" | grep -i -E 'biotop|hermes|kammer' && echo "  ^ Biotop/Hermes-Bezug" || true
+done
+systemctl list-units --all --no-pager --no-legend 2>&1 | grep -i -E 'biotop|kammer' || echo "(keine systemd-Einheit mit biotop/kammer im Namen)"
+echo "== 6. at-Aufträge"
+command -v atq >/dev/null && atq || echo "(at nicht installiert)"
+echo "== 7. Hermes-Cron-Jobs (jobs.json) mit Skript und Biotop-Bezug des Skripts"
+python3 /root/biotop-einlagerung/arbeit/s1_cronjobs.py
+echo "== 8. Subagenten: Delegations-Manifeste mit laufendem Status"
+python3 /root/biotop-einlagerung/arbeit/s1_delegationen.py
+echo "== 9. Zwischenbericht-Wächter: auftrag.json (Ziel der Zwischenberichte) und Herzschlag"
+cat /root/.hermes/zwischenbericht/auftrag.json; echo
+python3 -c "import json;d=json.load(open('/root/.hermes/zwischenbericht/herzschlag.json'));print('Herzschlag', d.get('zeit'), 'Eltern:', d.get('eltern','')[:80])"
+echo "== 10. Hermes: pending/, pending_messages/, hooks/ (könnten etwas später auslösen)"
+find /root/.hermes/pending /root/.hermes/pending_messages /root/.hermes/hooks -maxdepth 3 2>&1 | head -30
+echo "== 11. kanban.db (Hermes-Aufgabentafel): Tabellen und Zeilen (nur lesend, immutable, keine -wal vorhanden?)"
+ls -la /root/.hermes/kanban.db* 2>&1
+python3 /root/biotop-einlagerung/arbeit/s1_kanban.py
+echo "== Ende $(date '+%Y-%m-%d %H:%M:%S %Z')"
+--- Ende /root/biotop-einlagerung/arbeit/s1_stillstand.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== Anlass: anfang
+== Zeitpunkt 2026-09-25 23:24:14 CEST (UTC+0200)
+== 1. Prozesse, deren Befehlszeile auf /biotop|pytest|kammer|vitest|tsc |wecker|nachspiel|unshare|docker run|sleep / passt (PID, Start, Laufzeit, Befehl; ohne diese Prüfung selbst)
+(keine)
+Anzahl Treffer: 0
+-- Einordnung je Treffer: Biotop-Bezug, wenn die Befehlszeile /root/biotop, biotop-, kammer, pytest, nachspiel, wecker oder unshare nennt
+Prozesse mit Biotop-Bezug: 0
+== 2. Container (docker ps -a: laufende und gestoppte)
+laufend: 0 · gesamt (auch gestoppt): 0
+== 3. Kammer-Sperrdatei /tmp/biotop-kammer-exklusiv
+ls: cannot access '/tmp/biotop-kammer-exklusiv': No such file or directory
+== 4. Cron: crontab root, /var/spool/cron/crontabs, /etc/crontab, /etc/cron.d
+no crontab for root
+total 8
+drwx-wx--T 2 root crontab 4096 Mar 31  2024 .
+drwxr-xr-x 3 root root    4096 Jul 25 15:05 ..
+SHELL=/bin/sh
+17 *	* * *	root	cd / && run-parts --report /etc/cron.hourly
+25 6	* * *	root	test -x /usr/sbin/anacron || { cd / && run-parts --report /etc/cron.daily; }
+47 6	* * 7	root	test -x /usr/sbin/anacron || { cd / && run-parts --report /etc/cron.weekly; }
+52 6	1 * *	root	test -x /usr/sbin/anacron || { cd / && run-parts --report /etc/cron.monthly; }
+total 28
+drwxr-xr-x   2 root root  4096 Jul 25 15:10 .
+drwxr-xr-x 126 root root 12288 Sep 25 06:38 ..
+-rw-r--r--   1 root root   102 Mar 31  2024 .placeholder
+-rw-r--r--   1 root root   201 Apr  8  2024 e2scrub_all
+-rw-r--r--   1 root root   396 Jan  9  2024 sysstat
+== 5. systemd-Zeitgeber (alle) und Dienste/Zeitgeber mit biotop im Namen oder im Befehl
+NEXT                                  LEFT LAST                               PASSED UNIT                           ACTIVATES
+Fri 2026-09-25 23:24:30 CEST           16s Fri 2026-09-25 23:22:30 CEST 1min 43s ago anfragen-melder.timer          anfragen-melder.service
+Fri 2026-09-25 23:24:30 CEST           16s Fri 2026-09-25 23:22:30 CEST 1min 43s ago seiten-wache.timer             seiten-wache.service
+Fri 2026-09-25 23:25:10 CEST           56s Fri 2026-09-25 23:24:10 CEST       3s ago netz-wache.timer               netz-wache.service
+Fri 2026-09-25 23:25:10 CEST           56s Fri 2026-09-25 23:24:10 CEST       3s ago speicher-mitschreiber.timer    speicher-mitschreiber.service
+Fri 2026-09-25 23:25:40 CEST      1min 26s Fri 2026-09-25 23:20:40 CEST 3min 33s ago meldebremse-sammlung.timer     meldebremse-sammlung.service
+Fri 2026-09-25 23:29:30 CEST          5min Fri 2026-09-25 23:14:30 CEST     9min ago melder-wache.timer             melder-wache.service
+Fri 2026-09-25 23:30:00 CEST          5min Fri 2026-09-25 23:20:00 CEST 4min 13s ago sysstat-collect.timer          sysstat-collect.service
+Fri 2026-09-25 23:31:30 CEST          7min Fri 2026-09-25 23:21:30 CEST 2min 43s ago bild-wache.timer               bild-wache.service
+Sat 2026-09-26 00:00:00 CEST         35min Fri 2026-09-25 00:00:00 CEST      23h ago dpkg-db-backup.timer           dpkg-db-backup.service
+Sat 2026-09-26 00:00:00 CEST         35min Fri 2026-09-25 00:00:00 CEST      23h ago logrotate.timer                logrotate.service
+Sat 2026-09-26 00:07:00 CEST         42min Fri 2026-09-25 00:07:00 CEST      23h ago sysstat-summary.timer          sysstat-summary.service
+Sat 2026-09-26 00:28:21 CEST       1h 4min Fri 2026-09-25 00:45:56 CEST      22h ago zertifikat-wache.timer         zertifikat-wache.service
+Sat 2026-09-26 00:40:55 CEST      1h 16min Fri 2026-09-25 00:40:55 CEST      22h ago update-notifier-download.timer update-notifier-download.service
+Sat 2026-09-26 00:50:20 CEST      1h 26min Fri 2026-09-25 00:50:20 CEST      22h ago systemd-tmpfiles-clean.timer   systemd-tmpfiles-clean.service
+Sat 2026-09-26 00:53:25 CEST      1h 29min Fri 2026-09-25 23:15:40 CEST     8min ago fwupd-refresh.timer            fwupd-refresh.service
+Sat 2026-09-26 01:22:25 CEST      1h 58min Fri 2026-09-25 16:38:00 CEST       6h ago apt-daily.timer                apt-daily.service
+Sat 2026-09-26 02:08:21 CEST      2h 44min Fri 2026-09-25 20:07:40 CEST 3h 16min ago formular-wache.timer           formular-wache.service
+Sat 2026-09-26 06:22:25 CEST            6h Fri 2026-09-25 06:24:07 CEST      17h ago analytics-wache.timer          analytics-wache.service
+Sat 2026-09-26 06:26:12 CEST            7h Fri 2026-09-25 06:38:37 CEST      16h ago apt-daily-upgrade.timer        apt-daily-upgrade.service
+Sat 2026-09-26 09:17:09 CEST            9h Fri 2026-09-25 14:30:25 CEST       8h ago motd-news.timer                motd-news.service
+Sat 2026-09-26 11:28:30 CEST           12h Fri 2026-09-25 07:29:11 CEST      15h ago man-db.timer                   man-db.service
+Sun 2026-09-27 03:10:24 CEST      1 day 3h Sun 2026-09-20 03:10:40 CEST   5 days ago e2scrub_all.timer              e2scrub_all.service
+Sun 2026-09-27 13:54:11 CEST     1 day 14h Sun 2026-09-20 14:10:00 CEST   5 days ago update-notifier-motd.timer     update-notifier-motd.service
+Mon 2026-09-28 01:28:35 CEST        2 days Mon 2026-09-21 00:23:08 CEST   4 days ago fstrim.timer                   fstrim.service
+Tue 2026-10-06 02:25:00 CEST 1 week 3 days -                                       - kaltstart-ankuendigung.timer   kaltstart-ankuendigung.service
+Tue 2026-10-06 03:00:00 CEST 1 week 3 days -                                       - kaltstart.timer                kaltstart.service
+-                                        - -                                       - apport-autoreport.timer        apport-autoreport.service
+-                                        - -                                       - snapd.snap-repair.timer        snapd.snap-repair.service
+-                                        - -                                       - ua-timer.timer                 ua-timer.service
+
+29 timers listed.
+analytics-wache.timer -> analytics-wache.service -> argv[]=/opt/node22/bin/node /opt/hermes/projekte/milieulux/_werkzeug/analytics-wache.mjs --modus trocken --melden --aus /opt/hermes/projekte/milieulux/laeufe/seo-1-messung/BELEGE/wache-taeglich 
+  ^ Biotop/Hermes-Bezug
+kaltstart-ankuendigung.timer -> kaltstart-ankuendigung.service -> argv[]=/usr/bin/python3 /opt/hermes/kaltstart.py ankuendigen --minuten 40 
+  ^ Biotop/Hermes-Bezug
+kaltstart.timer -> kaltstart.service -> argv[]=/usr/bin/python3 /opt/hermes/kaltstart.py fahren 
+  ^ Biotop/Hermes-Bezug
+meldebremse-sammlung.timer -> meldebremse-sammlung.service -> argv[]=/usr/bin/python3 /opt/hermes/melden.py --sammelmeldung 
+  ^ Biotop/Hermes-Bezug
+(keine systemd-Einheit mit biotop/kammer im Namen)
+== 6. at-Aufträge
+(at nicht installiert)
+== 7. Hermes-Cron-Jobs (jobs.json) mit Skript und Biotop-Bezug des Skripts
+Jobs in jobs.json: 2
+- id 26fbb1513a1a | zwischenbericht-waechter | Zeitplan {"kind": "interval", "minutes": 1, "display": "every 1m"} | enabled True | state scheduled | nächster Lauf 2026-09-25T23:24:54.492364+02:00 | Skript zwischenbericht_waechter.py | ohne Agent True | Biotop-Bezug JA (über auftrag.json: biotop-vor-t4-06) | aktiv JA
+- id 5825fd644daa | Endmeldung Runde 5 (vor T4) | Zeitplan {"kind": "once", "run_at": "2026-09-24T23:53:16.849038+02:00", "display": "once in 1m"} | enabled False | state completed | nächster Lauf None | Skript biotop_endmeldung_r5.py | ohne Agent True | Biotop-Bezug JA | aktiv nein
+Aktive Jobs mit Biotop-Bezug: 1
+== 8. Subagenten: Delegations-Manifeste mit laufendem Status
+Manifeste: 30 · Status je Delegation: {'None': 30}
+Laufend: 0
+== 9. Zwischenbericht-Wächter: auftrag.json (Ziel der Zwischenberichte) und Herzschlag
+{
+ "auftrag": "biotop-vor-t4-06",
+ "uebergabe": [
+  "/root/biotop-vor-t4-06/UEBERGABE.md"
+ ],
+ "repos": [
+  "/root/biotop"
+ ],
+ "arbeitsordner": [
+  "/root/biotop-vor-t4-06",
+  "/root/biotop/biotop",
+  "/root/biotop/tests",
+  "/root/biotop/pruefung"
+ ],
+ "ausschluss": []
+}
+
+Herzschlag 2026-09-25T23:23:54+02:00 Eltern: /usr/local/lib/hermes-agent/venv/bin/python -m cron.scheduler --external-worker-
+== 10. Hermes: pending/, pending_messages/, hooks/ (könnten etwas später auslösen)
+/root/.hermes/pending
+/root/.hermes/pending/memory
+/root/.hermes/pending/memory/e17f5b20.json
+/root/.hermes/pending/memory/5a509904.json
+/root/.hermes/pending/memory/2cff9583.json
+/root/.hermes/pending/memory/a10fa902.json
+/root/.hermes/pending_messages
+/root/.hermes/hooks
+== 11. kanban.db (Hermes-Aufgabentafel): Tabellen und Zeilen (nur lesend, immutable, keine -wal vorhanden?)
+-rw-r--r-- 1 root root 118784 Sep 14 00:41 /root/.hermes/kanban.db
+-rw-r--r-- 1 root root      0 Sep 14 00:41 /root/.hermes/kanban.db.dispatch.lock
+-rw-r--r-- 1 root root      0 Sep 14 00:41 /root/.hermes/kanban.db.init.lock
+gelesen: immutable (keine -wal mit Inhalt)
+kanban_notify_subs: 0 Zeilen
+sqlite_sequence: 0 Zeilen
+task_attachments: 0 Zeilen
+task_comments: 0 Zeilen
+task_events: 0 Zeilen
+task_links: 0 Zeilen
+task_runs: 0 Zeilen
+tasks: 0 Zeilen
+== Ende 2026-09-25 23:24:14 CEST
+=== Ende EB2 ===

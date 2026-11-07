@@ -1,0 +1,383 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 25 (Teile 4–165 dieses Stands) · enthält R36 bis R36
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R36 · Vorbereitung Sicherung: Werkzeuge, zweiter Sicherungsort, Arbeitsordner unter /root, SQLite-Dateien im Umfang (nur lesend)
+Beginn: 2026-09-25 16:12:46 CEST (UTC+0200)
+Ende:   2026-09-25 16:12:52 CEST (UTC+0200)
+Dauer:  6.0 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/sicherung/biotop-lage-01/arbeit/s2_vorbereitung.sh
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/s2_vorbereitung.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-LAGE-01 (nur lesend): Vorbereitung der Sicherung — Werkzeuge vorhanden? zweiter Sicherungsort eingerichtet?
+# Was sind die Arbeitsordner unter /root (Kopf der Übergabe/README)? SQLite-Dateien im Umfang?
+date '+== Zeitpunkt %Y-%m-%d %H:%M:%S %Z (UTC%z)'
+echo '== Werkzeuge'
+for w in tar gzip pigz zstd rsync sqlite3 rclone restic borg unshare; do printf '%-8s ' "$w"; command -v "$w" || echo 'FEHLT'; done
+echo '== Zweiter Sicherungsort: Konfigurationen (nur Existenz und Namen, keine Inhalte)'
+for p in /root/.config/rclone/rclone.conf /root/.config/restic /root/.config/borg /etc/restic /root/.aws/credentials \
+         /root/.s3cfg /root/.ssh/config; do [ -e "$p" ] && echo "VORHANDEN: $p" || echo "fehlt: $p"; done
+[ -f /root/.ssh/config ] && grep -i -E '^\s*Host\s' /root/.ssh/config | sed 's/^/  ssh-config Host: /'
+echo '-- Einhängepunkte (ohne Pseudo-Dateisysteme)'
+findmnt -rn -o TARGET,SOURCE,FSTYPE | grep -v -E ' (proc|sysfs|cgroup2?|devpts|tmpfs|mqueue|securityfs|pstore|bpf|tracefs|debugfs|hugetlbfs|fusectl|configfs|autofs|devtmpfs|overlay|nsfs|ramfs|squashfs|efivarfs|binfmt_misc) '
+echo '-- systemd-Einheiten mit backup/sicherung/restic/borg/rclone im Namen'
+systemctl list-unit-files --no-pager 2>/dev/null | grep -i -E 'backup|sicher|restic|borg|rclone' || echo '  keine'
+echo '-- crontab-Einträge (root, /etc/cron.*) mit backup/sicherung/rsync/rclone'
+{ crontab -l 2>/dev/null; cat /etc/crontab /etc/cron.d/* 2>/dev/null; } | grep -i -E 'backup|sicher|rsync|rclone|restic|borg' || echo '  keine'
+echo '== Arbeitsordner unter /root: erste Zeile von UEBERGABE.md / README* / BERICHT.md (Zuordnung Biotop ja/nein)'
+for d in /root/reparatur-01 /root/reparatur-02 /root/gesamtstand-01 /root/wiedereinstieg-01 /root/biotop-einstieg-20260921-0122 \
+         /root/traeger-umstellung-2026-09-20_22-32-03Z /root/versiegelt /root/w7 /root/phase-4-vorbedingung-1 /root/biotop-t3 \
+         /root/uebungswerk /root/uebungswerk2 /root/versandwerk-t3 /root/versandwerk-t3-02; do
+  echo "-- $d"
+  for f in UEBERGABE.md README.md README BERICHT.md ZWISCHENBERICHT.md AUFTRAG.md; do
+    [ -f "$d/$f" ] && { printf '   %s: ' "$f"; head -c 300 "$d/$f" | head -3 | tr '\n' ' '; echo; }
+  done
+  ls -1 "$d" 2>/dev/null | head -12 | tr '\n' ' '; echo
+done
+echo '== SQLite-Dateien (Magie „SQLite format 3“) in /root/biotop, Arbeitsordnern, /root/.hermes (Pfad, Bytes)'
+python3 - <<'EOF'
+import os
+wurzeln = ['/root/biotop', '/root/biotop-t3', '/root/phase-4-vorbedingung-1', '/root/reparatur-01', '/root/reparatur-02',
+           '/root/gesamtstand-01', '/root/wiedereinstieg-01', '/root/biotop-einstieg-20260921-0122',
+           '/root/traeger-umstellung-2026-09-20_22-32-03Z', '/root/versiegelt', '/root/w7', '/root/.hermes'] + \
+          [f'/root/{d}' for d in os.listdir('/root') if d.startswith(('biotop-vor-t4', 'uebungswerk', 'versandwerk'))]
+aus = {'node_modules', '.venv', 'venv', '__pycache__', '.pytest_cache', '.git'}
+n = 0
+for w in sorted(set(wurzeln)):
+    for d, ds, fs in os.walk(w):
+        ds[:] = [x for x in ds if x not in aus]
+        for f in fs:
+            p = os.path.join(d, f)
+            try:
+                if os.path.islink(p) or os.path.getsize(p) < 100:
+                    continue
+                with open(p, 'rb') as h:
+                    if h.read(16) == b'SQLite format 3\x00':
+                        n += 1
+                        print(f'  {os.path.getsize(p):>11} {p}')
+            except OSError:
+                pass
+print(f'  Anzahl SQLite-Dateien: {n}')
+EOF
+--- Ende /root/sicherung/biotop-lage-01/arbeit/s2_vorbereitung.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== Zeitpunkt 2026-09-25 16:12:46 CEST (UTC+0200)
+== Werkzeuge
+tar      /usr/bin/tar
+gzip     /usr/bin/gzip
+pigz     /usr/bin/pigz
+zstd     /usr/bin/zstd
+rsync    /usr/bin/rsync
+sqlite3  FEHLT
+rclone   FEHLT
+restic   FEHLT
+borg     FEHLT
+unshare  /usr/bin/unshare
+== Zweiter Sicherungsort: Konfigurationen (nur Existenz und Namen, keine Inhalte)
+fehlt: /root/.config/rclone/rclone.conf
+fehlt: /root/.config/restic
+fehlt: /root/.config/borg
+fehlt: /etc/restic
+fehlt: /root/.aws/credentials
+fehlt: /root/.s3cfg
+fehlt: /root/.ssh/config
+-- Einhängepunkte (ohne Pseudo-Dateisysteme)
+/dev udev devtmpfs
+/ /dev/vda1 ext4
+/proc/sys/fs/binfmt_misc systemd-1 autofs
+/boot /dev/vda16 ext4
+/boot/efi /dev/vda15 vfat
+-- systemd-Einheiten mit backup/sicherung/restic/borg/rclone im Namen
+dpkg-db-backup.service                       static          -
+dpkg-db-backup.timer                         enabled         enabled
+-- crontab-Einträge (root, /etc/cron.*) mit backup/sicherung/rsync/rclone
+  keine
+== Arbeitsordner unter /root: erste Zeile von UEBERGABE.md / README* / BERICHT.md (Zuordnung Biotop ja/nein)
+-- /root/reparatur-01
+INTEGRATIONSENTSCHEIDUNG-RUNDE2.md RUNDE2-INTEGRATIONSFEHLER.json acb_abschlussvergleich.py acb_nachpruefen.py aegis2_integrieren.py audit-elternabgleich audit_elternabgleich.py auftrag_eingrenzen.py auftrag_eingrenzen_02.py auftragseingrenzung-01-https.json auftragseingrenzung-02-https.json auftragspraezisierung-02-https.json 
+-- /root/reparatur-02
+AUSGANG.json HTTPS-ENTWURF.json HTTPS-SCHLUSS.json ausgang belege cli_pruefen.py liefern.py privat-cli pruefen.py review review_vorbereiten.py temp 
+-- /root/gesamtstand-01
+abschluss_vorbereiten.py belege_pruefen.py berichte_zahlen.py bestand.db bestand.db-shm bestand.db-wal erheben.py gegenfaelle.py organe_berichten.py pruefung-a pruefung-b tests_messen.py 
+-- /root/wiedereinstieg-01
+ABSCHLUSS-ABRUF-01.json abschluss.py aufrufwache belege eichbelege eichung.py traeger-einmal.py traegernachweis vorbereiten.py 
+-- /root/biotop-einstieg-20260921-0122
+   ZWISCHENBERICHT.md: # Phase 4 — lesender Einstieg, kein fachlicher Start  Messstand: 2026-09-21T01:37:48.244902+02:00. Dieser Auftrag bestätigt Quellen und Bestand; er startet keine Phase, keinen Lauf, keinen Review, keine Modellprobe und keinen Verfassungsentwurf. Freigaben am echten Werk ausschließlich durch Phil
+BESTAND-AKTUELL.json BETRIEB-AKTUELL.json DATEIEN.txt KASSE-AKTUELL.json KASSE.md LAUF26-BUCHUNGEN.json LESEGRENZE.json LIEFERUNG.json MANIFEST.sha256 MESSAUSGABE.json MOA-BEITRAGSEINGANG.json PRUEFSUMME-ORDNER.txt 
+-- /root/traeger-umstellung-2026-09-20_22-32-03Z
+   ZWISCHENBERICHT.md: # Trägerumstellung — Zwischenabschluss, keine Gesamtfreigabe  **Nicht vollständig abgeschlossen.** Astra nimmt die große Eingabe an. Opus 5 hat die Großprobe inhaltlich abgelehnt. Der Gateway-Neustart ist blockiert und wurde nicht ausgeführt. Eine neue CLI-Instanz ist kein Ersatz für diesen 
+ABSCHLUSSPRUEFUNG-AUSGABE.json API-AUFRUFE.json BELEGE.tar.gz CLI-RAW.txt CLI-STATUS.txt DATEIEN.txt EINGABE-MESSUNG.json ERGEBNIS-gross-http.json ERGEBNIS-klein-http.json ERGEBNIS-status-http.json GATEWAY-IST.txt GROSS-AUSWERTUNG-AUSGABE.txt 
+-- /root/versiegelt
+GESCHMACK-regel-P1.md MUTANTEN-phase2.json MUTANTEN-phase3.json SCHWAECHEN-logmuehle.md SCHWAECHEN-uebungswerk.md t3-versandwerk 
+-- /root/w7
+01-auth-list.err 01-auth-list.txt 02-config-get-model.err 02-config-get-model.txt 03-config-get-fallback.err 03-config-get-fallback.txt 04-fallback-list.err 04-fallback-list.txt 05-config-get-auxiliary.err 05-config-get-auxiliary.txt 06-doctor.err 06-doctor.txt 
+-- /root/phase-4-vorbedingung-1
+AUFTRAG-REGELN.md AUSGANG.json ERGEBNIS-DETAIL.md LIEFERUNG-entwurf.json LIEFERUNG-schluss.json MESSPLAN.md SITZUNGSWECHSEL.md UEBERGABE-PHASE-4.md VERPACKUNGSKONTROLLE.json __pycache__ abschluss-entwurf ausgang 
+-- /root/biotop-t3
+ABSCHLUSSBERICHT.md ARBEITSTEILUNG.md BEFUNDKLASSE-TS.json BELEG-ABSCHLUSS.json BELEG-ABSCHLUSS.txt BELEG-ANNAHMEN-KETTE.json BELEG-ANNAHMEN-KETTE.txt BELEG-AUSFALL-EXAKT.txt BELEG-AUSFALL-GEKLAERT.txt BELEG-AUSFALL-KLAERUNG.txt BELEG-AUSFALL-PREISE.json BELEG-AUSFALL-PREISE.txt 
+-- /root/uebungswerk
+   README.md: # lagerhaus  Kleines Warenwirtschaftswerk mit vier Bereichen: 
+README.md lagerhaus pyproject.toml tests 
+-- /root/uebungswerk2
+   README.md: # logmuehle  Befehlszeilenwerkzeug zur Auswertung von Zugriffsprotokollen (Common Log Format), Python, ohne Abhängigkeiten. 
+README.md logmuehle pyproject.toml tests 
+-- /root/versandwerk-t3
+   README.md: # versandwerk  Fiktives lokales Sendungsprüfwerk und künstlich präparierte Übungsfixture. Nicht für produktiven Versand oder andere Betriebszwecke geeignet. Die Präparation ist außerhalb des Werks dokumentiert; dieses Paket enthält keine Auflösung. 
+README.md package.json src tests tsconfig.json tsconfig.tests.json vitest.config.ts 
+-- /root/versandwerk-t3-02
+   README.md: # versandwerk  Fiktives lokales Sendungsprüfwerk und künstlich präparierte Übungsfixture. Nicht für produktiven Versand oder andere Betriebszwecke geeignet. Die Präparation ist außerhalb des Werks dokumentiert; dieses Paket enthält keine Auflösung. 
+README.md package.json src tests tsconfig.json tsconfig.tests.json vitest.config.ts 
+== SQLite-Dateien (Magie „SQLite format 3“) in /root/biotop, Arbeitsordnern, /root/.hermes (Pfad, Bytes)
+    348147712 /root/.hermes/state.db
+       118784 /root/.hermes/kanban.db
+       143360 /root/.hermes/shared-state.db
+        20480 /root/.hermes/cron/deliveries.db
+       724992 /root/.hermes/cron/executions.db
+     29659136 /root/biotop/daten/biotop.db
+    276733952 /root/biotop-t3/t3.db
+     29659136 /root/biotop-t3/repo-sicherung-vor-commits/daten/biotop.db
+    278564864 /root/biotop-t3/schnappschuss-abschluss3/t3.db
+     29659136 /root/gesamtstand-01/bestand.db
+     31748096 /root/phase-4-vorbedingung-1/privat/biotop.db
+     29659136 /root/reparatur-01/ausgang.db
+     30433280 /root/reparatur-01/privat-63-vorspann-zweite-runde/privat.db
+       192512 /root/reparatur-01/eltern-reviewpruefung/pruefer-eichung/tmp/pytest/test_blocked_area_must_include0/isolated.db
+       159744 /root/reparatur-01/eltern-reviewpruefung/pruefer-eichung/tmp/pytest/test_valid_route_reaches_gener0/isolated.db
+       159744 /root/reparatur-01/eltern-reviewpruefung/pruefer-eichung/tmp/pytest/test_sealed_contract_replaceme0/isolated.db
+       151552 /root/reparatur-01/eltern-reviewpruefung/pruefer-eichung/tmp/pytest/test_failed_gen0_must_block_ma0/isolated.db
+       102400 /root/reparatur-01/eltern-reviewpruefung/pruefer-eichung/tmp/pytest/test_private_db_and_work_chang0/isolated.db
+     30453760 /root/reparatur-01/eltern-vorspann-01/privat.db
+        90112 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_verhandlung_ohne_vollstae0/pruefung.db
+        94208 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_pflichtvorspann_fundskip_0/pruefung.db
+       102400 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_regression_nennt_einzelte1/paar.db
+        98304 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_gescheitertes_nachmessen_1/pruefung.db
+        90112 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_norm_paar_schliesst_falsc0/original.db
+       143360 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_messgeraetwechsel_od8/pruefung.db
+       159744 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_stufenfolge_und_eing4/pruefung.db
+        90112 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_verhandlung_ausgefuehrtes1/pruefung.db
+       143360 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_eichausgang_wird_get0/pruefung.db
+       151552 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_generation_reicht_va0/pruefung.db
+       114688 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_unbrauchbare_messung10/pruefung.db
+       102400 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_nebenwirkung_braucht_gewi0/paar.db
+       143360 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_stufenfolge_und_eing0/pruefung.db
+       106496 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_alte_laeufe_nicht_na0/pruefung.db
+        90112 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_verhandlung_ohne_vollstae2/pruefung.db
+       102400 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_regression_nennt_einzelte0/paar.db
+       151552 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_messgeraetwechsel_od0/pruefung.db
+        98304 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_aussetzer_wird_ungekuerzt0/pruefung.db
+       143360 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_unvollstaendige_eich5/pruefung.db
+       114688 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_unbrauchbare_messung9/pruefung.db
+       102400 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_test_eigener_fehler_ist_k1/vertrag.db
+        90112 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_verhandlung_ohne_vollstae10/pruefung.db
+       167936 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_gesperrter_bereich_e0/pruefung.db
+       143360 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_teilrauschen_wird_an0/pruefung.db
+        90112 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_verhandlung_ohne_vollstae6/pruefung.db
+       114688 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_unbrauchbare_messung6/pruefung.db
+       167936 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_generalprobe_nimmt_w0/pruefung.db
+       143360 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_nachweis_bindet_voll0/pruefung.db
+       151552 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_vollstaendiger_ablau0/pruefung.db
+       114688 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_unbrauchbare_messung3/pruefung.db
+        90112 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_normmechanik_bleibt_getre1/normzeit.db
+       102400 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_test_eigener_fehler_ist_k3/vertrag.db
+       114688 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_unvollstaendige_eich7/pruefung.db
+       151552 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_stufenfolge_und_eing2/pruefung.db
+       102400 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_normgegenprobe_braucht_au0/vertrag.db
+        94208 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_pruefskript_ist_wrapper_m0/pruefung.db
+     29659136 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_vier_paare_am_kopierten_p0/privat.db
+       102400 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_vertrag_braucht_konkreten0/paar.db
+        90112 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_verhandlung_ohne_vollstae11/pruefung.db
+       135168 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_unbrauchbare_messung11/pruefung.db
+        94208 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_generation_ohne_vorspann_0/pruefung.db
+       143360 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_cli_vorspann_fuehrt_0/pruefung.db
+        90112 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_verhandlung_ausgefuehrtes2/pruefung.db
+        90112 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_verhandlung_ohne_vollstae7/pruefung.db
+        90112 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_normmechanik_bleibt_getre0/normzeit.db
+       114688 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_unbrauchbare_messung1/pruefung.db
+       143360 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_unvollstaendige_eich6/pruefung.db
+       143360 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_eichgegenstand_bleib0/pruefung.db
+       106496 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_voraussetzungen_vor_1/pruefung.db
+       143360 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_unvollstaendige_eich2/pruefung.db
+       151552 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_messgeraetwechsel_od2/pruefung.db
+        94208 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_cli_sperre_hat_exit_eins_3/pruefung.db
+       102400 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_nebenwirkung_gewinnt_auch0/paar.db
+     29659136 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_benannter_vertrag_am_kopi0/bestand.db
+       102400 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_vertrag_braucht_konkreten1/paar.db
+        90112 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_norm_paar_schliesst_falsc1/original.db
+        90112 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_verhandlung_ausgefuehrtes0/pruefung.db
+        90112 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_verhandlung_ohne_vollstae12/pruefung.db
+       151552 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_stufenfolge_und_eing1/pruefung.db
+       106496 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_voraussetzungen_vor_3/pruefung.db
+       143360 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_unvollstaendige_eich0/pruefung.db
+        90112 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_verhandlung_vollstaendige0/pruefung.db
+       106496 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_voraussetzungen_vor_0/pruefung.db
+       102400 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_test_eigener_fehler_ist_k2/vertrag.db
+       151552 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_messgeraetwechsel_od4/pruefung.db
+        90112 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_verhandlung_ohne_vollstae13/pruefung.db
+       143360 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_unvollstaendige_eich4/pruefung.db
+       114688 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_unbrauchbare_messung7/pruefung.db
+       106496 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_pflichtvorspann_ausgefueh0/pruefung.db
+        90112 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_verhandlung_ohne_vollstae14/pruefung.db
+       102400 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unbaubare_probe_bleibt_un0/paar.db
+       151552 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_messgeraetwechsel_od1/pruefung.db
+       102400 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_vier_paare_ohne_freeze_un0/paar.db
+       102400 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_verhandlung_erzeugt_0/pruefung.db
+       114688 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_unbrauchbare_messung4/pruefung.db
+       143360 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_quellenwechsel_waehr0/pruefung.db
+        94208 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_cli_sperre_hat_exit_eins_2/pruefung.db
+       143360 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_unvollstaendige_eich3/pruefung.db
+       114688 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_unbrauchbare_messung2/pruefung.db
+       102400 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_reine_probeoption_ist_mar1/probe.db
+       102400 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_test_eigener_fehler_ist_k5/vertrag.db
+       102400 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_nebenwirkung_braucht_gewi1/paar.db
+       106496 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_alte_laeufe_nicht_na1/pruefung.db
+        94208 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_gate_verweigerung_hat_pha0/pruefung.db
+       143360 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_probenkosten_aus_pri0/pruefung.db
+       102400 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_normgegenprobe_braucht_au2/vertrag.db
+       151552 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_messgeraetwechsel_od7/pruefung.db
+       106496 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_alte_laeufe_nicht_na2/pruefung.db
+       106496 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_voraussetzungen_vor_2/pruefung.db
+       114688 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_unbrauchbare_messung5/pruefung.db
+       167936 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_generalprobe_nimmt_w1/pruefung.db
+        90112 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_verhandlung_ohne_vollstae1/pruefung.db
+        90112 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_verhandlung_ohne_vollstae5/pruefung.db
+       102400 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_normgegenprobe_braucht_au1/vertrag.db
+       151552 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_stufenfolge_und_eing3/pruefung.db
+       143360 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_eichgegenstand_bleib1/pruefung.db
+        90112 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_verhandlung_ohne_vollstae8/pruefung.db
+       110592 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_pflichtvorspann_leerer_fu0/pruefung.db
+        94208 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_cli_sperre_hat_exit_eins_1/pruefung.db
+       102400 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_normgegenprobe_braucht_au3/vertrag.db
+       102400 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_fehlender_gegenstand_ist_0/paar.db
+       151552 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_messgeraetwechsel_od6/pruefung.db
+       102400 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_test_eigener_fehler_ist_k4/vertrag.db
+        90112 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_verhandlung_ohne_vollstae4/pruefung.db
+        94208 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_vorstufen_ohne_vorspann_s1/pruefung.db
+       143360 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_erfolgreicher_vorspa0/pruefung.db
+       106496 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_alte_laeufe_nicht_na3/pruefung.db
+        98304 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_gescheitertes_nachmessen_0/pruefung.db
+       102400 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_test_eigener_fehler_ist_k0/vertrag.db
+        90112 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_fund_abbruch_mit_vertrags0/fund.db
+        90112 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_verhandlung_ohne_vollstae3/pruefung.db
+       151552 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_messgeraetwechsel_od3/pruefung.db
+        90112 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_reine_probeoption_ist_mar0/probe.db
+       143360 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_unvollstaendige_eich1/pruefung.db
+        90112 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_verhandlung_ohne_vollstae9/pruefung.db
+        94208 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_vorstufen_ohne_vorspann_s0/pruefung.db
+       114688 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_unbrauchbare_messung0/pruefung.db
+       114688 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_unbrauchbare_messung8/pruefung.db
+       151552 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_messgeraetwechsel_od5/pruefung.db
+       102400 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_modulhelfer_und_konstante0/vertrag.db
+        94208 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_cli_sperre_hat_exit_eins_0/pruefung.db
+       102400 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-37/test_test_eigener_fehler_ist_k1/vertrag.db
+       102400 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-37/test_test_eigener_fehler_ist_k3/vertrag.db
+       102400 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-37/test_test_eigener_fehler_ist_k2/vertrag.db
+       102400 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-37/test_test_eigener_fehler_ist_k5/vertrag.db
+       102400 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-37/test_test_eigener_fehler_ist_k4/vertrag.db
+       102400 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-37/test_test_eigener_fehler_ist_k0/vertrag.db
+       102400 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-36/test_test_eigener_fehler_ist_k1/vertrag.db
+       102400 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-36/test_test_eigener_fehler_ist_k3/vertrag.db
+       102400 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-36/test_test_eigener_fehler_ist_k2/vertrag.db
+       102400 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-36/test_test_eigener_fehler_ist_k5/vertrag.db
+       102400 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-36/test_test_eigener_fehler_ist_k4/vertrag.db
+       102400 /root/reparatur-01/eltern-temp/pytest-of-root/pytest-36/test_test_eigener_fehler_ist_k0/vertrag.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-8/test_verhandlung_ohne_vollstae0/pruefung.db
+        94208 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-8/test_pflichtvorspann_fundskip_0/pruefung.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-8/test_verhandlung_ausgefuehrtes1/pruefung.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-8/test_verhandlung_ohne_vollstae2/pruefung.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-8/test_verhandlung_ohne_vollstae10/pruefung.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-8/test_verhandlung_ohne_vollstae6/pruefung.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-8/test_verhandlung_ohne_vollstae11/pruefung.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-8/test_verhandlung_ausgefuehrtes2/pruefung.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-8/test_verhandlung_ohne_vollstae7/pruefung.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-8/test_verhandlung_ausgefuehrtes0/pruefung.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-8/test_verhandlung_ohne_vollstae12/pruefung.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-8/test_verhandlung_vollstaendige0/pruefung.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-8/test_verhandlung_ohne_vollstae13/pruefung.db
+       106496 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-8/test_pflichtvorspann_ausgefueh0/pruefung.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-8/test_verhandlung_ohne_vollstae14/pruefung.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-8/test_verhandlung_ohne_vollstae1/pruefung.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-8/test_verhandlung_ohne_vollstae5/pruefung.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-8/test_verhandlung_ohne_vollstae8/pruefung.db
+       110592 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-8/test_pflichtvorspann_leerer_fu0/pruefung.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-8/test_verhandlung_ohne_vollstae4/pruefung.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-8/test_fund_abbruch_mit_vertrags0/fund.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-8/test_verhandlung_ohne_vollstae3/pruefung.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-8/test_verhandlung_ohne_vollstae9/pruefung.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_verhandlung_ohne_vollstae0/pruefung.db
+        94208 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_pflichtvorspann_fundskip_0/pruefung.db
+       143360 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_messgeraetwechsel_od8/pruefung.db
+       159744 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_stufenfolge_und_eing4/pruefung.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_verhandlung_ausgefuehrtes1/pruefung.db
+       143360 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_eichausgang_wird_get0/pruefung.db
+       159744 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_generation_reicht_va0/pruefung.db
+       114688 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_unbrauchbare_messung10/pruefung.db
+       143360 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_stufenfolge_und_eing0/pruefung.db
+       106496 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_alte_laeufe_nicht_na0/pruefung.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_verhandlung_ohne_vollstae2/pruefung.db
+       151552 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_messgeraetwechsel_od0/pruefung.db
+       143360 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_unvollstaendige_eich5/pruefung.db
+       114688 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_unbrauchbare_messung9/pruefung.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_verhandlung_ohne_vollstae10/pruefung.db
+       167936 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_gesperrter_bereich_e0/pruefung.db
+       143360 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_teilrauschen_wird_an0/pruefung.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_verhandlung_ohne_vollstae6/pruefung.db
+       114688 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_unbrauchbare_messung6/pruefung.db
+       167936 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_generalprobe_nimmt_w0/pruefung.db
+       143360 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_nachweis_bindet_voll0/pruefung.db
+       159744 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_vollstaendiger_ablau0/pruefung.db
+       114688 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_unbrauchbare_messung3/pruefung.db
+       114688 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_unvollstaendige_eich7/pruefung.db
+       159744 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_stufenfolge_und_eing2/pruefung.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_verhandlung_ohne_vollstae11/pruefung.db
+       135168 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_unbrauchbare_messung11/pruefung.db
+        94208 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_generation_ohne_vorspann_0/pruefung.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_verhandlung_ausgefuehrtes2/pruefung.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_verhandlung_ohne_vollstae7/pruefung.db
+       114688 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_unbrauchbare_messung1/pruefung.db
+       143360 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_unvollstaendige_eich6/pruefung.db
+       143360 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_eichgegenstand_bleib0/pruefung.db
+       106496 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_voraussetzungen_vor_1/pruefung.db
+       143360 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_unvollstaendige_eich2/pruefung.db
+       151552 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_messgeraetwechsel_od2/pruefung.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_verhandlung_ausgefuehrtes0/pruefung.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_verhandlung_ohne_vollstae12/pruefung.db
+       159744 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_stufenfolge_und_eing1/pruefung.db
+       106496 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_voraussetzungen_vor_3/pruefung.db
+       143360 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_unvollstaendige_eich0/pruefung.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_verhandlung_vollstaendige0/pruefung.db
+       106496 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_voraussetzungen_vor_0/pruefung.db
+       151552 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_messgeraetwechsel_od4/pruefung.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_verhandlung_ohne_vollstae13/pruefung.db
+       143360 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_unvollstaendige_eich4/pruefung.db
+       114688 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_unbrauchbare_messung7/pruefung.db
+       106496 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_pflichtvorspann_ausgefueh0/pruefung.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_verhandlung_ohne_vollstae14/pruefung.db
+       151552 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_messgeraetwechsel_od1/pruefung.db
+       102400 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_verhandlung_erzeugt_0/pruefung.db
+       114688 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_unbrauchbare_messung4/pruefung.db
+       143360 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_quellenwechsel_waehr0/pruefung.db
+       143360 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_unvollstaendige_eich3/pruefung.db
+       114688 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_unbrauchbare_messung2/pruefung.db
+       106496 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_alte_laeufe_nicht_na1/pruefung.db
+        94208 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_gate_verweigerung_hat_pha0/pruefung.db
+       143360 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_probenkosten_aus_pri0/pruefung.db
+       151552 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_messgeraetwechsel_od7/pruefung.db
+       106496 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_alte_laeufe_nicht_na2/pruefung.db
+       106496 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_voraussetzungen_vor_2/pruefung.db
+       114688 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_unbrauchbare_messung5/pruefung.db
+       167936 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_generalprobe_nimmt_w1/pruefung.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_verhandlung_ohne_vollstae1/pruefung.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_verhandlung_ohne_vollstae5/pruefung.db
+       159744 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_stufenfolge_und_eing3/pruefung.db
+       143360 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_eichgegenstand_bleib1/pruefung.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_verhandlung_ohne_vollstae8/pruefung.db
+       110592 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_pflichtvorspann_leerer_fu0/pruefung.db
+       151552 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_messgeraetwechsel_od6/pruefung.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_verhandlung_ohne_vollstae4/pruefung.db
+        94208 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_vorstufen_ohne_vorspann_s1/pruefung.db
+       143360 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_erfolgreicher_vorspa0/pruefung.db
+       106496 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_unit_alte_laeufe_nicht_na3/pruefung.db
+        90112 /root/reparatur-01/nachbesserung-02/verbraucher/tmp/pytest-of-root/pytest-10/test_fund_abbruch_mit_vertrags0/fund.db

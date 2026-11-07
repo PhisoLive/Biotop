@@ -1,0 +1,528 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 129 (Teile 4–165 dieses Stands) · enthält R143 bis R143
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+[R143 · Fortsetzung, Stück 2 von 3]
+          f'{z(fb)} CEST), I3 {len(ordner)} → {len(kopie_o)} Ordner (+ `laeufe/{ERF_ORDNER}/`, 3 Dateien). *gerechnet*',
+          f'- Abgleich 1 am Original: unzugeordnet {len(offen_l)} Läufe, {len(offen_o)} Ordner: '
+          f'{sorted(offen_l | offen_o) or "keine"}.',
+          f'- Abgleich 1 an der Kopie: unzugeordnet {len(g_l)} Läufe, {len(g_o)} Ordner: {sorted(g_l | g_o)}.',
+          f'- Neu unzugeordnet (Kopie − Original): {neu}; weggefallen (Original − Kopie): {weg or "keine"}.',
+          f'- **Gegenprobe angeschlagen: {"ja" if angeschlagen else "NEIN"}** — Bedingung: neu unzugeordnet sind genau '
+          f'{erwartet} und nichts fällt weg. Genau diese beiden und sonst nichts unzugeordnet: '
+          f'{"ja" if genau else "nein (die im Original offenen stehen in Abgleich 1)"}.',
+          '- Regel: Zuordnung nur mit Beleg (Nennung im Ordnertext, Zweig-Arbeitsordner, Chronikzeile, Nennung des '
+          f'Ordnernamens in einer Biotop-Nachricht bis {z(grenze_beleg)} CEST oder in einer Auftragsdatei); der eigene '
+          f'Ordner `{a.eigener_ordner}` zählt nicht als Beleg.']
+    if a.gegenprobe:
+        text = ['# GEGENPROBE — Abgleich 9 (BIOTOP-LAGE-01 Fassung 2, Abschnitt 5)', '',
+                f'Aufruf: `{aufruf}` · Lesezeitpunkt {z(beginn)} CEST · Stichzeitpunkt {z(stich)} CEST · Laufzeit '
+                f'{time.time() - T0:.1f} s', ''] + gp + ['']
+        schreibe(aus, 'GEGENPROBE.md', '\n'.join(text), K, L)
+        print('\n'.join(gp))
+        print(f'Laufzeit {time.time() - T0:.1f} s')
+        return
+
+    # =========================================================================================== Ausgabe aufbauen
+    wk = weitere_kassen({tuple(r_) for n_, _, _ in ZWEIGE for r_ in Z[n_].get('kasse', [])},
+                        {p_ for _, _, p_ in ZWEIGE})
+    lese['weitere_kassen'] = jetzt()
+    def fn(pfad):
+        return str(pfad).replace(str(L), '{LAEUFE}')
+
+    kopf = ['# INVENTAR — Bestandsaufnahme und Abgleich (BIOTOP-LAGE-01 Fassung 2, Abschnitt 5)', '',
+            f'Entwurf Teil I. Erzeugt von `{fn(Path(sys.argv[0]).resolve())}` (SHA-256 '
+            f'`{sha_datei(Path(sys.argv[0]).resolve())}`), Aufruf `{aufruf}`.',
+            f'Lesebeginn {z(beginn)} CEST · Stichzeitpunkt {z(stich)} CEST · alle Zeiten CEST (UTC+2), Rohzeiten der '
+            'Kasse in UTC. Jede Zahl ist *abgelesen* (Quelle genannt) oder *gerechnet* (Rechenweg genannt). Adressen im '
+            'Prüfkanal: `{LAEUFE}/<ordner>/`. Kosten je Lauf stehen nur in `KASSE`, Budgets in `CHRONIK` (FK20), Umfang '
+            'je Werk in `LAGE` (FK25), Torzeilen in `TORE`, Fassungen in `ENTSCHEIDUNGEN` (FK15).', '']
+
+    # ---- 1. Quellen und Quellenabdeckung
+    q = []
+    q.append('Lesezeitpunkte: ' + ', '.join(f'{k} {z(v)}' for k, v in lese.items()) + '. *abgelesen* (Uhr des '
+             'Servers)')
+    rows = []
+    ts_n = [e['dt'] for e in nach]
+    rows.append(['Nachrichtenverzeichnis (Sitzungsdatenbank, Auszug `' + str(vpfad.relative_to(W) if str(vpfad).startswith(str(W)) else vpfad) + '/nachrichten.jsonl`)',
+                 f'{z(min(ts_n)) if ts_n else "—"} bis {z(v_mtime)} (Erzeugung der Datei)',
+                 f'{len(nach)} Nachrichten user/assistant mit Text, Dubletten zusammengefasst; ab 18.09. 00:00',
+                 'Werkzeugausgaben nicht einzeln; Auszug endet mit seiner Erzeugung'])
+    for name, kz, pfad in ZWEIGE:
+        info = Z[name]
+        if 'kasse' not in info:
+            rows.append([f'Kasse {name} `{pfad}`', 'NICHT GELESEN', info['modus'], ''])
+            continue
+        kz_ = [zeit(r[2]) for r in info['kasse']]
+        pg = info['prot_gesamt']
+        rows.append([f'Kasse {name} `{pfad}` ({info["modus"]}, -wal vorher {info["wal_vorher"]} / nachher '
+                     f'{info.get("wal_nachher")} Bytes)',
+                     f'Buchungen {z(min(kz_))} bis {z(max(kz_))}; Protokoll {z(zeit(pg[1]))} bis {z(zeit(pg[2]))}',
+                     f'{len(info["laeufe"])} Läufe, {len(info["kasse"])} Buchungen, {pg[0]} Protokollzeilen',
+                     f'Datei zuletzt geändert {z(info["mtime"])}'])
+    gz = [c['zeit'] for c in commits]
+    rows.append(['git `/root/biotop` (alle Zweige)', f'{z(min(gz)) if gz else "—"} bis {z(lese["git"])} (Lesen)',
+                 f'{len(commits)} Commits seit 18.09.', 'nur Eingechecktes; Arbeitsstand über --git-status'])
+    oz = [o['aelteste'] for o in ordner] + [o['juengste'] for o in ordner]
+    rows.append(['Prüfkanal `{LAEUFE}/biotop-*`, `gedaechtnis`', f'{z(min(oz))} bis {z(max(oz))} (Datei-mtime)',
+                 f'{len(ordner)} Ordner', 'mtime zeigt nur die letzte Änderung einer Datei'])
+    rows.append(['Dateisystem `/root/biotop` (mtime)', f'ab 21.09. bis {z(lese["dateien"])}',
+                 f'{len(geaendert)} Dateien geändert', 'frühere Änderungen derselben Datei unsichtbar'])
+    rows.append(['OpenRouter-Nutzungsanzeige (`arbeit/OR-STAND.jsonl`, Abfragen durch Hermes)',
+                 ', '.join(z(zeit(o['zeit'])) for o in or_stand) or 'QUELLE FEHLT', f'{len(or_stand)} Abfragen',
+                 'nur Summen je UTC-Tag/-Woche/-Monat zum Abfragezeitpunkt'])
+    rows.append(['Weitere Kassen-Datenbanken unter `/root` (Suche `*.db`, Tiefe ≤ 5)', f'Lesen {z(lese["weitere_kassen"])}',
+                 f'{wk["mit_kasse"]} Dateien mit Tabelle kasse, davon {wk["mit_zeilen"]} mit Zeilen; Zeilen in keinem '
+                 f'der vier Zweige: {wk["fremd"]} ({wk["fremd_eur"]:.4f} €)',
+                 f'nicht geöffnet {len(wk["nicht"])} (Baum /root/biotop mit -wal > 0), Lesefehler {len(wk["fehler"])}; '
+                 'ohne .hermes, sicherung, node_modules, .git, venv — Liste `LISTEN`, Abschnitt 7'])
+    if wk['fremd']:
+        B.luecke(f'{wk["fremd"]} Kassenzeilen in weiteren Datenbanken unter /root, in keinem der vier Zweige '
+                 f'({wk["fremd_eur"]:.4f} €)', 'Lauf oder Test außerhalb der vier Zweige',
+                 'Datenbanken einzeln zuordnen (Lauf, Test oder Kopie; `LISTEN`, Abschnitt 7)', 'Hermes')
+    if wk['nicht'] or wk['fehler']:
+        B.luecke(f'{len(wk["nicht"]) + len(wk["fehler"])} Datenbanken unter /root nicht gelesen',
+                 'im Baum /root/biotop mit -wal > 0 (nicht geöffnet, REGELN) oder Lesefehler',
+                 'nach Ende des Baus S1c erneut ausführen', 'Hermes')
+    rows.append(['Chronik (Teil F)', ', '.join(d.name for d in chronik_dateien) if chronik_dateien else
+                 'NICHT VORHANDEN beim Lesen', f'{len(chronik)} Zeilen C…',
+                 '' if chronik_dateien else f'kein `CHRONIK*.md` in `{a.chronik}`; Abgleich 1 (Chronik) und 4 (Status) '
+                 'werden beim erneuten Aufruf nach Teil F ausgeführt'])
+    q += [''] + tabelle(['Quelle', 'abgedeckter Zeitraum', 'Umfang', 'Einschränkung'], rows)
+    # Sitzungen, Zurücksetzungen, Verdichtungen
+    tele = defaultdict(list)
+    erste_abs = {}
+    for e in sorted(nach, key=lambda x: x['dt']):
+        erste_abs.setdefault(e['sitzung'], e['absender'])
+        tele[(e['sitzung'], e['quelle'], e['biotop'])].append(e['dt'])
+    alle_tele = sorted([(min(v), max(v), k[0], len(v)) for k, v in tele.items() if k[1] == 'telegram' and k[2] == 'ja'])
+    kette = [x for x in alle_tele if erste_abs.get(x[2]) != 'Hermes→Subagent']
+    sub_tele = [x for x in alle_tele if erste_abs.get(x[2]) == 'Hermes→Subagent']
+    q += ['', f'**Telegram-Kette (Biotop ja):** {len(kette)} Sitzungen mit Nachrichten, also {max(len(kette) - 1, 0)} '
+          'Sitzungswechsel (Zurücksetzung oder Umschaltung) — *abgelesen* aus dem Verzeichnis; Endgrund aus R12 '
+          '(Stand 25.09. 15:12), soweit dort geführt. Auslegung Hermes: Eine Sitzung mit Quelle telegram, deren erste '
+          'Nachricht ein Auftrag Hermes→Subagent ist, gehört nicht zur Kette (Subagent-Sitzung mit geerbter Quelle).', '']
+    q += tabelle(['Sitzung', 'erste Nachricht', 'letzte Nachricht', 'Nachrichten', 'Endgrund (R12)'],
+                 [[k, z(a0), z(a1), n, (r12.get(k) or {}).get('end_reason') or '—'] for a0, a1, k, n in kette])
+    if sub_tele:
+        q += ['', f'Nicht in der Kette: {len(sub_tele)} Sitzungen mit Quelle telegram, erste Nachricht Auftrag '
+              'Hermes→Subagent: ' + '; '.join(f'{k} ({z(a0)} – {z(a1)}, {n} Nachrichten, Endgrund R12 '
+                                             f'{(r12.get(k) or {}).get("end_reason") or "—"})' for a0, a1, k, n in sub_tele)
+              + ' (*abgelesen*).']
+        B.luecke(f'{len(sub_tele)} Sitzungen mit Quelle telegram beginnen mit einem Auftrag Hermes→Subagent '
+                 f'({", ".join(x[2] for x in sub_tele)})', 'Quelle der Sitzung und Absender-Einordnung ihrer '
+                 'Nachrichten (Hermes oder Subagent) mechanisch nicht sicher', 'Sitzungsart in der Sitzungsdatenbank '
+                 'prüfen (Elternsitzung) und Verzeichnis neu erzeugen', 'Hermes')
+    bio_zeiten = sorted(e['dt'] for e in nach if e['biotop'] == 'ja' and e['dt'] <= stich)
+    pausen = sorted(((bio_zeiten[i] - bio_zeiten[i - 1], bio_zeiten[i - 1], bio_zeiten[i])
+                     for i in range(1, len(bio_zeiten))), reverse=True)[:5]
+    verd = Counter(e['sitzung'] for e in nach if e['absender'] == 'System-Verdichtung' and e['dt'] <= stich)
+    q += ['', f'**Verdichtungen:** {sum(verd.values())} Verdichtungsmeldungen in {len(verd)} Sitzungen (*abgelesen*, '
+          'Absender System-Verdichtung). R14: ' + ('; '.join(f'active {x} compacted {y}: {n}' for x, y, n in r14)
+                                                   if r14 else 'NICHT GEFUNDEN') +
+          ' — verdichtete Nachrichten bleiben als Zeilen erhalten (R14), das Verzeichnis führt sie.']
+    q += ['', '**Längste Pausen zwischen zwei Biotop-Nachrichten** (*gerechnet*): ' +
+          '; '.join(f'{z(x)} – {z(y)} ({d.total_seconds() / 3600:.1f} h)' for d, x, y in pausen) +
+          '. Eine Pause ist keine Lücke der Quelle: Die Sitzungsdatenbank führt jede Nachricht; in einer Pause wurde '
+          'nichts geschrieben.']
+    ungedeckt = []
+    if v_mtime < stich:
+        ungedeckt.append(f'Nachrichten nach {z(v_mtime)} (Erzeugung des Verzeichnisses) bis zum Stich {z(stich)}')
+        B.luecke(f'Nachrichtenverzeichnis endet {z(v_mtime)} CEST, Stich {z(stich)} CEST', 'Auszug vor dem Stich '
+                 'erzeugt', 'Verzeichnis zum Stich neu erzeugen (--verlauf <neu>) und inventar.py erneut ausführen',
+                 'Hermes')
+    q += ['', '**Spannen 18.09. 00:00 bis Stich ohne Quelle:** ' + ('; '.join(ungedeckt) if ungedeckt else
+          'keine — die Sitzungsdatenbank führt Nachrichten ab 14.09. lückenlos (R12), Kasse und git sind bis zum '
+          'Lesezeitpunkt gelesen.') + ' *gerechnet* (Vereinigung der Zeiträume oben)']
+    if nach_danach:
+        q.append(f'- Nachrichten nach dem Stich im Verzeichnis: {nach_danach} (nicht gezählt).')
+    B.ab('1. Quellen und Quellenabdeckung', q)
+
+    # ---- 2. I1 Läufe
+    s = [f'Quellen: Tabellen `laeufe`, `kasse`, `werke`, `protokoll` (art `lauf.%`) der Zweige STAMM, VB1, R02, T3; '
+         'Abfragen: `SELECT id, werk_id, budget_eur, status, begonnen_am, beendet_am, grund, mass, richtung, freigabe '
+         'FROM laeufe`, `SELECT * FROM kasse`, `SELECT nr, zeit, art, json_extract(inhalt,\'$.lauf_id\') … FROM '
+         f'protokoll WHERE art LIKE \'lauf.%\'`. Zeitpunkt {z(lese["kasse"])}.',
+         '**Entdoppelung (Regel, Auslegung Hermes):** Ein Lauf ist das Paar (Laufnummer, begonnen_am); dieselbe Nummer '
+         'mit anderem Beginn ist ein anderer Lauf (Kennung `<Zweig des ersten Vorkommens>/<Nummer>`). Eine '
+         'Kassenzeile zählt einmal, wenn sie in mehreren Zweigen mit allen Spalten gleich ist. Beleg der Regel: gleiche '
+         'id, anderer Inhalt — ' + '; '.join(f'{n1}↔{n2}: {x} von {y} gemeinsamen ids' for (n1, n2), (x, y) in
+                                             gleiche_id_anders.items()) +
+         ' (*gerechnet*); eine Entdoppelung nur nach id wäre also falsch. Kassenzeilen, die zu verschiedenen Läufen '
+         f'gehören würden: {konflikte}.',
+         f'**Anzahl:** {len(L1)} Läufe (*gerechnet*, Paare), Laufnummern {min(l["nr"] for l in L1)}–'
+         f'{max(l["nr"] for l in L1)}; Kasse {len(kasse)} verschiedene Buchungen aus '
+         f'{sum(len(Z[n].get("kasse", [])) for n in namen_z)} Zeilen der vier Zweige (*gerechnet*). Aufrufe = '
+         'Buchungen des Laufs; Kosten je Lauf → `KASSE-TEIL1.csv`. Ergebnisort und Zuordnungsart aus Abgleich 1.', '']
+    s += tabelle(['Zweig', 'Läufe', 'Buchungen', 'davon auch in anderen Zweigen', 'nur in diesem Zweig',
+                  'Summe kosten_eur (Zweig)'],
+                 [[n, len(Z[n].get('laeufe', [])), len(Z[n].get('kasse', [])),
+                   sum(1 for e in kasse.values() if kz in e['zweige'] and len(e['zweige']) > 1),
+                   sum(1 for e in kasse.values() if e['zweige'] == [kz]),
+                   eur(sum((r[Z[n]['kasse_sp'].index('kosten_eur')] or 0) for r in Z[n].get('kasse', [])))
+                   if Z[n].get('kasse_sp') else '—'] for n, kz, _ in ZWEIGE])
+    s += ['', '*abgelesen* (Zweig), *gerechnet* (Entdoppelung). Die Summe der Kasse ohne Doppelzählung steht in I8.', '']
+    s += tabelle(['Lauf', 'Zweige', 'Beginn', 'Ende', 'Status', 'Werk', 'Aufrufe', 'Protokoll', 'Ergebnisort',
+                  'Zuordnung'],
+                 [[l['schluessel'], l['zweige'], z(l['beginn'], True), z(l['ende'], True), l['status'], l['werk'],
+                   l['buchungen'], ','.join(x.replace('lauf.', '') for x in l['prot']) or '—',
+                   f'{{LAEUFE}}/{l["ort"]}/' if l['ort'] else 'NICHT GEFUNDEN', l['ort_art']] for l in L1])
+    s.append('')
+    s.append('Zweige: S = STAMM, V = VB1, R = R02, T = T3. „Protokoll“: Ereignisse `lauf.*` des Laufs (entdoppelt).')
+    abw = [l for l in L1 if l['abweichend']]
+    s.append(f'- Läufe mit abweichenden Feldern zwischen Zweigen: {len(abw)}' +
+             (': ' + '; '.join(f'{l["schluessel"]} ({", ".join(l["abweichend"])})' for l in abw) if abw else '.'))
+    nicht_ab = [l for l in L1 if l['status'] in ('laeuft', 'bereit', 'kartiert', 'angelegt') and not l['ende']]
+    s.append(f'- Läufe ohne Ende mit Status laeuft/bereit/kartiert/angelegt: {len(nicht_ab)} von {len(L1)}: ' +
+             ', '.join(f'{l["schluessel"]} ({l["status"]}, letzte Buchung {z(l["letzte"], True)})' for l in nicht_ab)
+             + ' (*abgelesen*).')
+    laeuft = [l for l in nicht_ab if l['status'] == 'laeuft']
+    if laeuft:
+        B.widerspruch(f'Kasse führt {len(laeuft)} Läufe als „laeuft“ ({", ".join(l["schluessel"] for l in laeuft)}), '
+                      'letzte Buchung jeweils Tage vor dem Stich', 'Kasse T3, Tabelle laeufe (status, beendet_am)',
+                      'R2 (Schritt 1, 25.09. 14:49 CEST): keine Prozesse mit „biotop“, „pytest“, „kammer“, „vitest“ '
+                      'oder „tsc“ im Befehl, 0 Container')
+    B.ab('2. I1 Läufe', s)
+
+    # ---- 3. I2 Aufträge und Meldungen
+    bio = [e for e in nach_stich if e['biotop'] == 'ja']
+    c_aa = Counter((e['absender'], e['art']) for e in bio)
+    s = [f'Quelle: `{vpfad}/nachrichten.jsonl` (ohne Inhalt) und `wortlaut.jsonl` (geschwärzt, nur zur Einordnung '
+         f'gelesen), erzeugt {z(v_mtime)}; Einordnung Absender und Biotop ja/nein durch `arbeit/verlauf_extrakt.py` '
+         f'(Auslegung Hermes, steht dort). Zeitpunkt {z(lese["verlauf"])}.',
+         f'**Anzahl:** {len(nach_stich)} Nachrichten bis zum Stich, davon Biotop ja {len(bio)}, nein '
+         f'{len(nach_stich) - len(bio)} (*abgelesen*). Beginn BIOTOP-LAGE-01 (erste Nachricht mit der Kennung): '
+         f'{z(abeginn)}.', '', ART_REGEL, '']
+    arten = ['Auftrag', 'Anweisung', 'Frage', 'Meldung', 'Zwischentext']
+    abs_l = sorted({e['absender'] for e in bio})
+    s += tabelle(['Absender (Biotop ja)'] + arten + ['Summe'],
+                 [[x] + [c_aa[(x, y)] for y in arten] + [sum(c_aa[(x, y)] for y in arten)] for x in abs_l])
+    s.append('')
+    s.append('*gerechnet*: Zählung über das Verzeichnis. Die vollständige Liste (Zeit, Absender, Art, Sitzung, '
+             'Biotop ja/nein, ohne Inhalt) steht in `LISTEN`, Abschnitt 3.')
+    af = [f for f in i4 if f['typ'] in AUFTRAGSTYPEN]
+    af_sha = {}
+    for f in sorted(af, key=lambda x: x['mtime']):
+        af_sha.setdefault(f['sha'], f)
+    s += ['', f'**Auftragsdateien auf der Platte:** {len(af)} Fundorte, {len(af_sha)} verschiedene Inhalte (SHA-256) — '
+          'Liste in I4. *gerechnet*']
+    B.ab('3. I2 Aufträge und Meldungen', s)
+
+    # ---- 4. I3 Abschlussordner
+    s = [f'Quelle: Prüfkanal `{{LAEUFE}}/` (Verzeichnis gelesen mit os.walk), Zeitpunkt {z(lese["pruefkanal"])}. '
+         f'**Anzahl:** {len(ordner)} Ordner (`biotop-*` und `gedaechtnis`); weitere Ordner anderer Vorhaben unter '
+         f'`laeufe/`: {andere_ordner} (nur gezählt). *abgelesen*',
+         'Entstehung = älteste, letzte Änderung = jüngste Datei-mtime. „Läufe genannt“: Laufnummern, die in *.md/*.txt '
+         'des Ordners oder in Dateipfaden stehen (Muster „Lauf n“, „Läufe n–m“, „lauf38“).', '']
+    s += tabelle(['Ordner', 'Dateien', 'Entstehung', 'letzte Änderung', 'Einstieg', 'zugehörig (Abgleich 1)'],
+                 [[f'{{LAEUFE}}/{o["name"]}/', o['dateien'], z(o['aelteste'], True), z(o['juengste'], True),
+                   ', '.join(o['einstieg'][:3]) + (' …' if len(o['einstieg']) > 3 else ''),
+                   (('Läufe ' + ', '.join(o['laeufe_hier'])) if o['laeufe_hier'] else
+                    (f'Nennung {o["nennung"][0][0]} {o["nennung"][0][1]} ({z(o["nennung"][0][3], True)})'
+                     if o['nennung'] else (f'Chronik {",".join(o["chronik"])}' if o['chronik'] else 'NICHT GEFUNDEN')))]
+                  for o in ordner])
+    B.ab('4. I3 Abschlussordner', s)
+
+    # ---- 5. I4 Fassungen und Auftragsdateien
+    s = [f'Quellen: (a) `arbeit/dokumente/` — Wortlaut der Dokumente aus der Sitzungsdatenbank (R15, R17); (b) Suche '
+         f'nach Dateiname (Typregeln unten) und nach Inhalt (erste Zeile „# INFINITE EVOLUTION“ oder „# … Auftrag …“) '
+         f'in {len(i4_wurzeln(L, a.eigener_ordner))} Wurzeln: `/root/biotop`, Arbeitsordner `/root/biotop-*`, '
+         '`/root/phase-4-*`, `/root/reparatur-0*`, `/root/wiedereinstieg*`, `/root/gesamtstand*`, `/root/uebungswerk*`, '
+         '`/root/versandwerk*`, `auftrag/`, `arbeit/dokumente/` und Dokumentenspeicher `/root/.hermes/cache/documents` '
+         '(beide nur mit „biotop“ im Inhalt), Prüfkanal `biotop-*`/`gedaechtnis` (ohne den eigenen Ordner), '
+         f'Biotop-Ordner in `/tmp`; ohne {", ".join(sorted(AUSLASSEN_I4))}. Zeitpunkt {z(lese["i4"])}.',
+         f'**Anzahl:** {i4_gesehen} *.md/*.txt gesehen, {len(i4)} Treffer, {len(set(f["sha"] for f in i4))} verschiedene '
+         f'Inhalte; ohne „biotop“ im Inhalt ausgelassen: {i4_fremd} (anderes Vorhaben). *gerechnet*', '',
+         '**Masterprompt-Fassungen** (SHA-256 des Wortlauts ohne und mit abschließendem Zeilenumbruch; '
+         '„Plattenkopien“ = Dateien mit gleichem SHA-256):', '']
+    s += tabelle(['Fassung', 'eingegangen', 'Bytes', 'SHA-256 (ohne NL)', 'Stand-Zeile', 'Plattenkopien'],
+                 [[f'v{d["version"]}', z(d['zeit'], True), d['bytes'], d['sha'], d['stand'][:60],
+                   '; '.join(kopien.get(d['version'], [])) or 'keine'] for d in sorted(fass, key=lambda x: x['version'])])
+    s += ['', f'Bruchstücke (Masterprompt-Dokumente unter 10.000 Bytes, aus Verdichtungen): {len(bruch)} — ' +
+          ', '.join(f'{d["name"]} ({d["bytes"]} Bytes, {z(d["zeit"], True)})' for d in bruch), '',
+          '**Typregeln (Auslegung Hermes, nach Dateiname):** ' + '; '.join(f'{t}: `{r.pattern}`' for t, r in TYPREGELN) +
+          '. Treffer nur nach Inhalt: Typ aus der ersten Zeile.', '']
+    grp = defaultdict(list)
+    for f in i4:
+        grp[f['sha']].append(f)
+    zeilen_i4 = []
+    for sha, fs in sorted(grp.items(), key=lambda kv: min(x['mtime'] for x in kv[1])):
+        f0 = min(fs, key=lambda x: x['mtime'])
+        zeilen_i4.append([f0['typ'] + (f' v{f0["fassung"]}' if f0.get('fassung') else ''), z(f0['mtime'], True),
+                          f0['bytes'], sha[:16], len(fs), fn(f0['pfad']) + (' …' if len(fs) > 1 else '')])
+    s += tabelle(['Typ', 'Datum (mtime)', 'Bytes', 'SHA-256 (16)', 'Fundorte', 'erster Fundort'], zeilen_i4)
+    s += ['', 'Vollständige SHA-256 und alle Fundorte: `LISTEN`, Abschnitt 6.']
+    B.ab('5. I4 Fassungen und Auftragsdateien', s)
+
+    # ---- 6. I5 Werke
+    werke = {}
+    for name, kz, _ in ZWEIGE:
+        for (wid, wn, wp, wq, wa, sp_, stt) in Z[name].get('werke', []):
+            e = werke.setdefault((wn, wa), {'name': wn, 'zweige': [], 'pfade': set(), 'quellen': set(),
+                                            'sprache': sp_, 'status': stt, 'aufgenommen': zeit(wa)})
+            e['zweige'].append(f'{kz}{wid}')
+            e['pfade'].add(wp)
+            e['quellen'].add(wq or '')
+
+    def werkart(n):
+        m = re.search(r'-t(\d)(?:-|$)', n)
+        if m:
+            return f'Testwerk T{m.group(1)}'
+        if n.startswith('lagerhaus'):
+            return 'Übungswerk lagerhaus'
+        if n.startswith('logmuehle'):
+            return 'Übungswerk logmuehle'
+        return 'UNBEKANNT'
+    platte = [p for p in sorted(Path('/root').iterdir()) if p.is_dir() and re.match(r'(uebungswerk|versandwerk)', p.name)]
+    for base in (BIOTOP / 'daten' / 'werke', Path('/root/phase-4-vorbedingung-1/privat/werke')):
+        if base.is_dir():
+            platte += sorted(x for x in base.iterdir() if x.is_dir())
+    if Path('/root/reparatur-02/privat-cli/werk').is_dir():
+        platte.append(Path('/root/reparatur-02/privat-cli/werk'))
+    ref = set()
+    for e in werke.values():
+        ref |= {x.rstrip('/') for x in e['pfade'] | e['quellen'] if x}
+    nur_platte = [str(p) for p in platte if str(p) not in ref]
+    fehlt = [(e['name'], p) for e in werke.values() for p in e['pfade'] if p and not Path(p).exists()]
+    t456 = sorted({e['name'] for e in werke.values() if re.search(r'(?i)(^|[-_])t[4-6]([-_]|$)', e['name'])} |
+                  {p.name for p in Path('/root').iterdir() if p.is_dir() and 'vor-t4' not in p.name and
+                   re.search(r'(?i)(^|[-_])t[4-6]([-_]|$)', p.name)})
+    s = [f'Quellen: Tabelle `werke` der vier Zweige (`SELECT id, name, pfad, quelle, aufgenommen_am, sprache, status`), '
+         f'Werkordner auf der Platte (`/root/uebungswerk*`, `/root/versandwerk*`, `/root/biotop/daten/werke/*`, '
+         f'`/root/phase-4-vorbedingung-1/privat/werke/*`, `/root/reparatur-02/privat-cli/werk`). Zeitpunkt '
+         f'{z(lese["kasse"])}.',
+         f'**Anzahl:** {len(werke)} Werke in der Kasse (entdoppelt nach Name und Aufnahmezeit), {len(platte)} Werkordner '
+         'auf der Platte. *gerechnet* Art nach Name (Auslegung Hermes: „lagerhaus*“, „logmuehle*“ = Übungswerk, '
+         '„…-t<n>…“ = Testwerk T<n>). Umfang (Dateien, Zeilen, Tests) → `LAGE` FK25.', '']
+    s += tabelle(['Werk', 'Art', 'Sprache', 'aufgenommen', 'Zweige/id', 'Pfad', 'Quelle'],
+                 [[e['name'], werkart(e['name']), e['sprache'], z(e['aufgenommen'], True), ' '.join(e['zweige']),
+                   '; '.join(sorted(e['pfade'])), '; '.join(sorted(x for x in e['quellen'] if x)) or '—']
+                  for e in sorted(werke.values(), key=lambda x: x['aufgenommen'] or AB18)])
+    s += ['', f'- Werkordner auf der Platte ohne Eintrag in einer Kasse (weder Pfad noch Quelle): {len(nur_platte)}' +
+          (': ' + ', '.join(f'`{x}`' for x in nur_platte) if nur_platte else '.'),
+          f'- Werke der Kasse, deren Pfad fehlt: {len(fehlt)}' +
+          (': ' + ', '.join(f'{n} `{p}`' for n, p in fehlt) if fehlt else '.'),
+          f'- T4, T5, T6: {"gefunden: " + ", ".join(t456) if t456 else "NICHT GEFUNDEN (kein Werk in einer Kasse, kein Ordner unter /root mit t4/t5/t6 außer den Arbeitsordnern vor-t4)"}.']
+    if nur_platte:
+        B.luecke(f'{len(nur_platte)} Werkordner ohne Kasseneintrag ({", ".join(Path(x).name for x in nur_platte)})',
+                 'weder Pfad noch Quelle eines Werks der vier Zweige',
+                 'Herkunft je Ordner klären (Ausgang eines Laufs, Zwischenstand, Kopie) und in FK25 nennen', 'Hermes')
+    B.ab('6. I5 Werke', s)
+
+    # ---- 7. I6 Commits und Änderungen
+    refs = [x.split('\x1f') for x in refs_out.splitlines() if '\x1f' in x]
+    s = [f'Quellen: `git --no-optional-locks -C /root/biotop log --all --since=2026-09-18T00:00:00+02:00 '
+         f'--format=%H…%s` (rc {rc}), `git log --all --no-walk --format=%H %D` (rc {rc2}), `git rev-parse HEAD` '
+         f'(rc {rc3}), `git rev-parse --symbolic-full-name --all` (rc {rc4}), `git log --all --since=2026-09-21 '
+         f'--name-only` (rc {rc5}); Dateisystem `os.walk(/root/biotop)` ohne .git, __pycache__, node_modules. '
+         f'Zeitpunkt {z(lese["git"])} / {z(lese["dateien"])}.',
+         f'**Anzahl:** {len(commits)} Commits seit 18.09. bis zum Stich (*abgelesen*); HEAD `{head.strip()[:12]}`; '
+         f'Referenzen: {", ".join(x.strip() for x in refnamen.splitlines()) or "—"}; Markierungen (tags): '
+         f'{sum(1 for x in refnamen.splitlines() if x.startswith("refs/tags/"))}; Spitzen mit Dekoration: '
+         + '; '.join(f'`{h[:7]}` {d}' for h, d in refs) + '.',
+         f'Autoren: ' + ', '.join(f'{n} ({c})' for n, c in Counter(f'{c["autor"]} <{c["mail"]}>' for c in commits)
+                                  .most_common()) + ' (*gerechnet*).',
+         f'**Geänderte Dateien seit 21.09. 00:00 bis zum Stich:** {len(geaendert)} (zusammen '
+         f'{sum(e["bytes"] for e in geaendert)} Bytes); nach dem Stich geändert: {len(nach_stich_geaendert)} '
+         '(*abgelesen*, mtime). Liste mit Zeit und Größe: `LISTEN`, Abschnitt 5.',
+         '**Nicht Eingechecktes:** ' + (f'aus `{a.git_status}`: {len(gstatus)} Zeilen, je Kennung: ' +
+                                         ', '.join(f'`{k}` {n}' for k, n in Counter(x[:2] for x in gstatus).most_common())
+                                         if gstatus is not None else
+                                         'NICHT ERHOBEN (kein --git-status übergeben; Hermes erhebt es selbst, kein '
+                                         'git status durch dieses Skript).')]
+    je_ordner = Counter(e['pfad'].split('/')[0] for e in geaendert)
+    s.append('Geänderte Dateien je oberster Ebene: ' + ', '.join(f'{k} {n}' for k, n in je_ordner.most_common()) +
+             ' (*gerechnet*).')
+    B.ab('7. I6 Commits und Änderungen', s)
+
+    # ---- 8. I7 Gedächtnis
+    g = L / 'gedaechtnis'
+    gd = []
+    if g.is_dir():
+        for p in sorted(g.iterdir()):
+            if p.is_file():
+                m = re.match(r'([A-Z][A-Z-]*?)-(\d+)\.', p.name)
+                gd.append([p.name, m.group(1) if m else '—', int(m.group(2)) if m else '—',
+                           z(dt.datetime.fromtimestamp(p.stat().st_mtime, TZ)), p.stat().st_size, sha_datei(p)[:16]])
+    arten_g = defaultdict(set)
+    for r in gd:
+        if r[2] != '—':
+            arten_g[r[1]].add(r[2])
+    luecken_g = {k: sorted(set(range(1, max(v) + 1)) - v) for k, v in arten_g.items()}
+    s = [f'Quelle: `{{LAEUFE}}/gedaechtnis/` (Verzeichnis), Zeitpunkt {z(lese["pruefkanal"])}. **Anzahl:** {len(gd)} '
+         'Dateien (*abgelesen*).', '']
+    s += tabelle(['Datei', 'Art', 'Nummer', 'Datum (mtime)', 'Bytes', 'SHA-256 (16)'], gd)
+    s += ['', 'Nummern je Art lückenlos ab 1: ' + ', '.join(f'{k}: {"ja" if not v else "fehlend " + str(v)}'
+                                                             for k, v in luecken_g.items()) + ' (*gerechnet*).']
+    B.ab('8. I7 Gedächtnis', s)
+
+    # ---- 9. I8 Kosten
+    k_tag = defaultdict(float)
+    k_tag_n = Counter()
+    for e in kasse.values():
+        if e['zeit'] and e['zeit'] <= stich:
+            k_tag[tag(e['zeit'])] += e['row']['kosten_eur'] or 0
+            k_tag_n[tag(e['zeit'])] += 1
+    summe = sum(e['row']['kosten_eur'] or 0 for e in kasse.values() if e['zeit'] and e['zeit'] <= stich)
+    eich = {}
+    for name, kz, _ in ZWEIGE:
+        sp = Z[name].get('eich_sp', [])
+        for r in Z[name].get('eich', []):
+            eich.setdefault(tuple(r), (name, dict(zip(sp, r))))
+    eich_mit = [v for v in eich.values() if (v[1].get('modellaufrufe') or 0) > 0]
+    gedeckt = 0
+    for name, d in eich_mit:
+        key = schluessel_je[name].get(d['lauf_id'])
+        ende_e = zeit(d['erstellt_am'])
+        anf = ende_e - dt.timedelta(seconds=(d.get('dauer_s') or 0) + 2)
+        bu = sorted((b for b in kasse_je_lauf.get(key, []) if b['zeit'] and anf <= b['zeit'] <= ende_e
+                     + dt.timedelta(seconds=1)), key=lambda b: b['zeit'])
+        n_a = int(d.get('modellaufrufe') or 0)
+        ziel = d.get('kosten_eur') or 0
+        if n_a and any(abs(sum(b['row']['kosten_eur'] or 0 for b in bu[i:i + n_a]) - ziel) <= 1e-6 * n_a
+                       for i in range(0, max(len(bu) - n_a + 1, 0))):
+            gedeckt += 1
+    s = [f'Quellen: Kasse der vier Zweige (entdoppelt wie I1), Tabelle `eichkosten` (entdoppelt nach allen Spalten), '
+         f'Umrechnung des Biotops: `USD_JE_EUR = {kurs}` ({kurs_q}; Kosten € = USD ÷ {kurs}), OpenRouter-Anzeige aus '
+         f'`arbeit/OR-STAND.jsonl` ({len(or_stand)} Abfragen durch Hermes, dieses Skript fragt OpenRouter nicht ab).',
+         f'**Anzahl:** {len(kasse)} Buchungen, Summe {eur(summe)} € bis zum Stich (*gerechnet*: Summe kosten_eur der '
+         f'entdoppelten Buchungen). Je Lauf → `KASSE-TEIL1.csv`; je Tag → Tagesbilanz (Abschnitt 10, Abgleich 7). '
+         'Aufbau `KASSE`: zuerst die Läufe (Summe je Lauf), dann alle entdoppelten Buchungen (Spalten der Tabelle '
+         'kasse, dazu Lauf und Zweige), zuletzt die Tabelle eichkosten (je Zweig); jeder Teil beginnt mit der '
+         'Kopfzeile seiner Tabelle.',
+         f'Eichkosten: {len(eich)} Zeilen, davon mit Modellaufrufen {len(eich_mit)}; bei {gedeckt} von {len(eich_mit)} '
+         'stehen im Zeitfenster [erstellt_am − dauer_s − 2 s, erstellt_am + 1 s] so viele aufeinanderfolgende '
+         'Kassenbuchungen desselben Laufs wie Modellaufrufe, deren Summe kosten_eur der Eichkosten-Zeile auf 1e-6 € '
+         'gleicht (die Tabelle eichkosten rundet auf 6 Nachkommastellen) — diese Eichkosten sind in der Kassensumme '
+         'enthalten, nicht zusätzlich (*gerechnet*, Auslegung Hermes).']
+    if gedeckt < len(eich_mit):
+        B.luecke(f'{len(eich_mit) - gedeckt} von {len(eich_mit)} Eichkosten-Zeilen mit Modellaufrufen ohne passende '
+                 'Kassenbuchungen im Zeitfenster', 'Zuordnung Eichkosten ↔ Kasse mechanisch nicht gefunden',
+                 'Buchungen der Eichung einzeln belegen (protokoll_nr)', 'Hermes')
+    B.ab('9. I8 Kosten', s)
+
+    # ---- 10. Abgleiche
+    s = []
+    # A1
+    zl = [l for l in L1 if l['ort']]
+    schwach = [l for l in L1 if l['ort'] and 'Zeitfenster' not in l['ort_art'] and 'Zweig' not in l['ort_art']]
+    s += ['### Abgleich 1 — Lauf ↔ Chronik ↔ Ordner', '',
+          f'- Lauf → Ordner: zugeordnet {len(zl)} von {len(L1)}; davon über Zeitfenster oder Zweig-Arbeitsordner '
+          f'{len(zl) - len(schwach)}, nur über Nennung außerhalb des Zeitfensters {len(schwach)}' +
+          (' (' + ', '.join(f'{l["schluessel"]}→{l["ort"]}' for l in schwach) + ')' if schwach else '') +
+          f'; offen {len(offen_l)}' + (': ' + ', '.join(sorted(offen_l)) if offen_l else '') + '. *gerechnet*',
+          f'- Ordner → Lauf oder Auftrag: {len(ordner)} Ordner; über Lauf {sum(1 for o in ordner if o["laeufe_hier"])}, '
+          f'über Auftrag (Nennung) {sum(1 for o in ordner if o["zuordnung"].startswith("Auftrag"))}, offen '
+          f'{len(offen_o)}' + (': ' + ', '.join(sorted(offen_o)) if offen_o else '') + '. *gerechnet*']
+    if chronik is None or not chronik_dateien:
+        s.append(f'- Lauf ↔ Chronik: **NICHT AUSGEFÜHRT** — `CHRONIK*.md` lag in `{a.chronik}` beim Lesen nicht vor; '
+                 'bei erneutem Aufruf nach Teil F wird der Abgleich ausgeführt.')
+        B.luecke('Abgleich Lauf ↔ Chronik nicht ausgeführt', 'Chronik (Teil F) lag beim Lauf des Skripts nicht vor',
+                 'inventar.py nach Fertigstellung der Chronik erneut ausführen', 'Hermes')
+    else:
+        ohne = [l['schluessel'] for l in L1 if not l['chronik']]
+        s.append(f'- Lauf ↔ Chronik: {len(L1) - len(ohne)} von {len(L1)} Läufen in einer Chronikzeile genannt; ohne '
+                 f'Zeile: {len(ohne)}' + (': ' + ', '.join(ohne) if ohne else '') + ' (*gerechnet*; Laufnummern in '
+                 'Chronikzeilen, Nummer 26 ist mehrdeutig).')
+        for x in ohne:
+            B.luecke(f'Lauf {x} ohne Chronikzeile', 'keine Zeile der Chronik nennt die Laufnummer',
+                     'Zeile ergänzen oder Lauf ausdrücklich zuordnen', 'Hermes (Teil F)')
+    for x in sorted(offen_l):
+        l = next(l for l in L1 if l['schluessel'] == x)
+        ev = [p for p in prot_je_lauf.get(l['key'], []) if p[1] in ('lauf.verworfen', 'lauf.abgebrochen', 'lauf.gestoppt')]
+        erkl = f'Protokoll {ev[0][1]} {z(ev[0][0], True)}' if ev else None
+        s.append(f'  - {x}: kein Ordner nennt Lauf {l["nr"]}; ' + (f'erklärt durch {erkl}, Grund laut Kasse: '
+                                                                    f'„{l["grund"][:140]}“' if erkl else 'nicht erklärt'))
+        if not erkl:
+            B.luecke(f'Lauf {x} ohne Abschlussordner', 'kein Ordner im Prüfkanal nennt die Laufnummer',
+                     'Ordner zuordnen oder Lauf als ordnerlos erklären (Chronik)', 'Hermes')
+    for x in sorted(offen_o):
+        B.luecke(f'Ordner {{LAEUFE}}/{x}/ keinem Lauf oder Auftrag zugeordnet',
+                 'kein Lauf mit Ergebnisort, keine Nennung in Nachricht, Auftragsdatei oder Chronik',
+                 'Auftrag des Ordners belegen', 'Hermes')
+    # A2
+    s += ['', '### Abgleich 2 — Laufnummern lückenlos', '']
+    rows = []
+    for name, kz, _ in ZWEIGE:
+        n_ = sorted(r[0] for r in Z[name].get('laeufe', []))
+        if not n_:
+            rows.append([name, 'NICHT GELESEN', '', ''])
+            continue
+        fehlend = sorted(set(range(1, max(n_) + 1)) - set(n_))
+        rows.append([name, f'{min(n_)}–{max(n_)} ({len(n_)} Nummern)', ', '.join(map(str, fehlend)) or 'keine',
+                     ', '.join(str(x) for x, c in Counter(n_).items() if c > 1) or 'keine'])
+    s += tabelle(['Zweig', 'Nummern', 'fehlend', 'doppelt'], rows)
+    alle_nr = Counter(l['nr'] for l in L1)
+    mehr = {n: [l['schluessel'] for l in L1 if l['nr'] == n] for n, c in alle_nr.items() if c > 1}
+    fehlend_ges = sorted(set(range(1, max(alle_nr) + 1)) - set(alle_nr))
+    s += ['', f'- Über alle Zweige: Nummern 1–{max(alle_nr)}, fehlend: {fehlend_ges or "keine"}; mehrfach vergeben '
+          f'(verschiedene Läufe mit derselben Nummer): ' +
+          ('; '.join(f'{n}: {", ".join(v)}' for n, v in mehr.items()) if mehr else 'keine') +
+          '. Erklärung: Die Zweige VB1, R02 und T3 sind Kopien des Stamms nach Lauf 25 und zählen je für sich weiter '
+          '(R25); die Nummer allein ist deshalb keine eindeutige Kennung — Zuordnungstafel in Abgleich 8. *gerechnet*']
+    for n in fehlend_ges:
+        B.luecke(f'Laufnummer {n} fehlt in allen Zweigen', 'keine Zeile in laeufe', 'Herkunft klären', 'Hermes')
+    fremd_nr = defaultdict(list)
+    for o in ordner:
+        if not o['eigener'] and not o.get('erfunden'):
+            for n in o['laeufe_genannt']:
+                if n not in alle_nr:
+                    fremd_nr[n].append(o['name'])
+    s.append('- In Ordnertexten genannte Laufnummern ohne Lauf in einer der vier Kassen: ' + (
+        '; '.join(f'{n} ({", ".join(v)})' for n, v in sorted(fremd_nr.items())) if fremd_nr else 'keine') +
+        ' (*gerechnet*; das Muster „Lauf n“/„Läufe n–m“ trifft auch Zahlen anderer Bedeutung — je Nummer offen, bis '
+        'die Fundstelle gelesen ist).')
+    if fremd_nr:
+        B.luecke(f'{len(fremd_nr)} in Ordnertexten genannte Laufnummern ohne Lauf in einer Kasse '
+                 f'({", ".join(map(str, sorted(fremd_nr)))})', 'mechanisch nicht unterscheidbar: Zahl anderer Bedeutung, '
+                 'anderer Nummernkreis oder Lauf außerhalb der vier Zweige', 'Fundstellen lesen und je Nummer einordnen '
+                 '(Ordner: `LISTEN`, Abschnitt 2)', 'Hermes')
+    # A3
+    s += ['', '### Abgleich 3 — Fassungen v1 bis zur höchsten, Verweise', '']
+    vers = sorted(d['version'] for d in fass)
+    hoechste = max(vers) if vers else 0
+    fehlend_v = sorted(set(range(1, hoechste + 1)) - set(vers))
+    refs_v = Counter()
+    quellen_v = defaultdict(set)
+    for e, t in [(e, wort.get(e['id'], '')) for e in nach_stich if e['biotop'] == 'ja']:
+        for x in FASSUNG_RE.findall(t or ''):
+            refs_v[int(x)] += 1
+            quellen_v[int(x)].add('Nachrichten')
+    for o in ordner:
+        if o['eigener']:
+            continue
+        for v_, c in o['fassungen'].items():
+            refs_v[v_] += c
+            quellen_v[v_].add('Prüfkanal')
+    for c in commits:
+        for x in FASSUNG_RE.findall(c['nachricht']):
+            refs_v[int(x)] += 1
+            quellen_v[int(x)].add('git')
+    ohne_fassung = sorted(v_ for v_ in refs_v if v_ not in vers)
+    s += [f'- Fassungen im Wortlaut (arbeit/dokumente, ≥ 10.000 Bytes): {", ".join(f"v{x}" for x in vers)}; höchste '
+          f'v{hoechste}; fehlend zwischen v1 und v{hoechste}: {fehlend_v or "keine"} (*gerechnet*).',
+          f'- Verweise „Masterprompt … v<n>/Fassung <n>/F<n>“ in Biotop-Nachrichten, Prüfkanal-Texten und '
+          f'Commit-Nachrichten: ' + ', '.join(f'v{k}: {n} ({"/".join(sorted(quellen_v[k]))})'
+                                               for k, n in sorted(refs_v.items())) + ' (*gerechnet*).',
+          f'- Verweise auf eine Fassung ohne Wortlaut: {", ".join(f"v{x}" for x in ohne_fassung) or "keine"}.']
+    for v_ in fehlend_v:
+        B.luecke(f'Masterprompt-Fassung v{v_} NICHT GEFUNDEN', 'kein Dokument im Wortlaut',
+                 'Philipp fragen oder Sitzungsdatenbank nachsuchen', 'Hermes/Philipp')
+    for v_ in ohne_fassung:
+        B.luecke(f'Verweis auf Masterprompt v{v_} ohne vorhandene Fassung', f'{refs_v[v_]} Verweise',
+                 'Verweise prüfen (Schreibfehler, andere Kennung?) oder Fassung beschaffen', 'Hermes')
+    # A4
+    s += ['', '### Abgleich 4 — Status je Auftrag', '']
+    auftr = [e for e in bio if e['absender'] == 'Philipp' and e['art'] in ('Auftrag', 'Anweisung')]
+    sub = [e for e in bio if e['absender'] == 'Hermes→Subagent']
+    bericht_da = {e['sitzung'] for e in bio if e['absender'] == 'Subagent'}
+    mit_status = 0
+    for e in auftr:
+        e['status'] = 'UNBEKANNT'
+        for c in (chronik or []):
+            if e['id'] in c['ids'] or (c['zeit'] and abs((c['zeit'] - e['dt']).total_seconds()) <= 600):
+                if c['status']:
+                    e['status'] = c['status'] + f' ({c["id"]})'
+                    mit_status += 1
+                    break

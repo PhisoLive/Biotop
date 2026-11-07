@@ -1,0 +1,44 @@
+# Tor 1 Zeilen 1–4 — Auswertung Hauptlauf (Lauf 2, Übungswerk lagerhaus)
+Zeit: 2026-09-18T22:18:11.226+00:00
+
+## Zeile 1 — Landkarte
+Bereiche erkannt (Biotop): ['bericht', 'formeln', 'lager', 'preise'] → 4 von 4 (Bezug: 4 Verzeichnisse mit __init__.py unter lagerhaus/)
+Straßen: Hermes zählte vor dem Lauf per grep 13 Import-Zeilen (12-strassen-hermes-grep.txt); Biotop fand 13 Kanten (13-landkarte-kennzahlen.json) → 13 von 13
+Bereichs-Straßen (Bereich→Bereich): [('bericht', 'lager'), ('bericht', 'preise'), ('preise', 'formeln')] — erwartet: preise→formeln, bericht→lager, bericht→preise (3 von 3)
+
+## Zeile 2 — Schwächen (versiegelte Liste /root/versiegelt/SCHWAECHEN-uebungswerk.md, sha256 35190807…)
+Angenommene Generationen: [0, 1, 3, 5] (Bezug: 7 gestartete Generationen 1–7, davon 3 angenommen, 4 abgelehnt)
+S1 Sicherheitslücke (formeln, eval mit vollen builtins): __builtins__ jetzt leer im Werk = True; Immuntests im Werk: ['aegis_k28_formeln']; bandit-Punkte formeln 3 → 3 (bandit meldet eval weiterhin, B307) → GEFUNDEN und in Gen 3 BEHOBEN (Nachweis: 3 Tests __import__/pow/eval werfen FormelFehler; bandit-Maß unverändert)
+S2 Leistungsbremse (lager, O(n²) bestand aus Journal): laufzeit lager 139.73 → 137.28 ms; Bestand-Cache im Werk: False → NICHT BEHOBEN (Kandidaten: keiner mit messbarer Laufzeitsenkung; die Nische 'Der Sichere' hat den Auftrag Fehler, nicht Geschwindigkeit)
+S3 Vertragsverletzung (lager, reservierung_einloesen senkt Reservierung nicht): Fix im Werk = True; Immuntests: ['aegis_k29_lager', 'aegis_k30_lager']; lager.tests 14 → 17 → GEFUNDEN und BEHOBEN (Gen 3)
+S4 Toter Code (preise, _alte_rabattlogik/_rabatt_tabelle_alt): tote_funktionen preise 2 → 0; im Werk noch vorhanden: 0 Treffer → GEFUNDEN und BEHOBEN (Gen 1)
+S5 Randbedingung (preise, Staffel > statt >=): '>=' im Werk = True; Immuntests: ['aegis_k31_preise', 'aegis_k32_preise', 'aegis_k47_preise']; preise.tests 19 → 23 → GEFUNDEN und BEHOBEN (Gen 3)
+ERGEBNIS Zeile 2: 4 von 5 Schwächen gefunden und in angenommenen Generationen behoben (S1, S3, S4, S5); S2 offen. Kernmaß 39 → 51
+
+## Zeile 3 — Kein Rückschritt
+Gen 1 gegen Vorgeneration: gesunken = nichts; Kernmaß 39 → 41; Tests gesamt 50 → 50, fehlgeschlagen 0
+Gen 3 gegen Vorgeneration: gesunken = nichts; Kernmaß 41 → 49; Tests gesamt 50 → 58, fehlgeschlagen 0
+Gen 5 gegen Vorgeneration: gesunken = nichts; Kernmaß 49 → 51; Tests gesamt 58 → 60, fehlgeschlagen 0
+Rohwerte je angenommene Generation (Bereich: tests_bestanden/fehl/sicherheit/tot/laufzeit_ms/groesste_fn):
+  Gen 0: bericht: 7/0/0/0/25.84/18; formeln: 10/0/3/0/68.48/31; lager: 14/0/0/0/139.73/10; preise: 19/0/0/2/77.01/11; werk zyklen 0
+  Gen 1: bericht: 7/0/0/0/25.47/18; formeln: 10/0/3/0/66.99/31; lager: 14/0/0/0/142.0/10; preise: 19/0/0/0/76.39/11; werk zyklen 0
+  Gen 3: bericht: 7/0/0/0/26.33/18; formeln: 13/0/3/0/68.4/31; lager: 17/0/0/0/141.94/11; preise: 21/0/0/0/77.85/11; werk zyklen 0
+  Gen 5: bericht: 7/0/0/0/24.53/18; formeln: 13/0/3/0/67.25/31; lager: 17/0/0/0/137.28/11; preise: 23/0/0/0/74.68/11; werk zyklen 0
+ERGEBNIS Zeile 3: In 0 von 3 angenommenen Generationen ist ein hartes Maß gesunken (laufzeit_ms mit 15 % Toleranz, groesste_funktion 25 %, alle anderen 0 %)
+
+## Zeile 4 — Halluzinationsprobe (sauberer Bereich: bericht)
+  K9 Gen 1 openai/gpt-4.1-mini: abgelehnt — kein hartes Maß gestiegen (Maße unverändert: bericht)
+  K10 Gen 1 google/gemini-2.5-flash: abgelehnt — Diff nicht anwendbar: lagerhaus/bericht/__init__.py: Kontext nicht gefunden: '  - Alle Funktionen sind frei vo
+  K17 Gen 2 openai/gpt-4.1-mini: abgelehnt — kein hartes Maß gestiegen (Maße unverändert in bericht)
+  K18 Gen 2 google/gemini-2.5-flash: abgelehnt — kein hartes Maß gestiegen (Maße unverändert in bericht)
+  K25 Gen 3 openai/gpt-4.1-mini: abgelehnt — kein hartes Maß gestiegen (Maße unverändert in bericht)
+  K26 Gen 3 google/gemini-2.5-flash: abgelehnt — hartes Maß gesunken: bericht.laufzeit_ms: 25.47 → 41.1
+  K33 Gen 4 openai/gpt-4.1-mini: abgelehnt — kein hartes Maß gestiegen (Maße unverändert in bericht)
+  K34 Gen 4 google/gemini-2.5-flash: abgelehnt — hartes Maß gesunken: bericht.laufzeit_ms: 26.33 → 31.54
+  K41 Gen 5 openai/gpt-4.1-mini: abgelehnt — kein hartes Maß gestiegen (Maße unverändert in bericht)
+  K42 Gen 5 google/gemini-2.5-flash: abgelehnt — kein hartes Maß gestiegen (Maße unverändert in bericht)
+  K49 Gen 6 openai/gpt-4.1-mini: abgelehnt — Diff nicht anwendbar: lagerhaus/bericht/auswertung.py: Kontext nicht gefunden: 'from typing import DefaultDict
+  K50 Gen 6 google/gemini-2.5-flash: abgelehnt — hartes Maß gesunken: bericht.laufzeit_ms: 24.53 → 28.38
+  K57 Gen 7 openai/gpt-4.1-mini: abgelehnt — kein hartes Maß gestiegen (Maße unverändert in bericht)
+  K58 Gen 7 google/gemini-2.5-flash: abgelehnt — kein hartes Maß gestiegen (Maße unverändert in bericht)
+ERGEBNIS Zeile 4: 0 von 14 Kandidaten im Bereich bericht angenommen; git diff gen0..gen5 -- lagerhaus/bericht: 'leer (0 Dateien geändert)'

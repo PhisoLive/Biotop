@@ -1,0 +1,151 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 35 (Teile 4–165 dieses Stands) · enthält R39 bis R39
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R39 · Teil H: FK08/FK09 gelöschte Dateien in git, Rückbau-Commits, Reflog, Dateibesitzer und Änderungszeiten unter /root/biotop (nur lesend)
+Beginn: 2026-09-25 16:13:25 CEST (UTC+0200)
+Ende:   2026-09-25 16:13:25 CEST (UTC+0200)
+Dauer:  0.6 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/sicherung/biotop-lage-01/entwurf/lage-offen/h1_git_fs.sh
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/lage-offen/h1_git_fs.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-LAGE-01 Teil H (nur lesend): FK08/FK09 — gelöschte/umbenannte Dateien in der git-Geschichte von /root/biotop,
+# Commit-Nachrichten mit Rückbau-Wörtern, Reflog-Einträge ohne commit, Dateibesitzer und jüngste Änderungen unter
+# /root/biotop (ohne .git), Besitzer der Arbeitsordner. Kein git status, kein git diff ohne Commit.
+date '+== Zeitpunkt %Y-%m-%d %H:%M:%S %Z (UTC%z)'
+if [ -e /tmp/biotop-kammer-exklusiv ]; then echo "Kammer-Sperre besteht: Dateisuche ausgelassen"; KAMMER=1; else echo "Kammer-Sperre besteht nicht"; KAMMER=0; fi
+cd /root/biotop || exit 1
+echo "== git log --all --diff-filter=D --name-only (gelöschte Dateien je Commit)"
+git log --all --diff-filter=D --date=format:'%Y-%m-%d %H:%M:%S %z' --format='-- %h | %ad | %an | %s' --name-only
+echo "== Anzahl gelöschter Dateipfade über alle Commits: $(git log --all --diff-filter=D --format= --name-only | grep -c .)"
+echo "== git log --all --diff-filter=R -M --name-status (Umbenennungen)"
+git log --all -M --diff-filter=R --date=format:'%Y-%m-%d %H:%M:%S %z' --format='-- %h | %ad | %s' --name-status
+echo "== Commit-Nachrichten mit Rückbau-Wörtern (revert, rückgängig, zurück, entfernt, verworfen, gestrichen, gelöscht)"
+git log --all --date=format:'%Y-%m-%d %H:%M:%S %z' --format='%h | %ad | %s' | grep -iE 'revert|rückgängig|rueckgaengig|zurück|zurueck|entfernt|verworfen|gestrichen|gelöscht|geloescht' || echo "(keine)"
+echo "== Reflog-Einträge, die kein Commit sind"
+git reflog --date=format:'%Y-%m-%d %H:%M:%S %z' --format='%h %gd %gs' | grep -v ' commit' || echo "(keine)"
+echo "== git log --all Autor/Committer je Commit seit 2026-09-18 (Anzahl je Paar)"
+git log --all --since='2026-09-18 00:00' --format='%an <%ae> / %cn <%ce>' | sort | uniq -c
+if [ "$KAMMER" = 0 ]; then
+  echo "== Besitzer der Dateien unter /root/biotop (ohne .git, ohne __pycache__/.pytest_cache/node_modules)"
+  find /root/biotop \( -path /root/biotop/.git -o -name __pycache__ -o -name .pytest_cache -o -name node_modules \) -prune -o -type f -printf '%u:%g\n' | sort | uniq -c
+  echo "== Besitzer inkl. .git"
+  find /root/biotop -type f -printf '%u:%g\n' | sort | uniq -c
+  echo "== Dateien unter /root/biotop (ohne .git/Zwischenspeicher) mit Änderungszeit ab 2026-09-18, je Tag"
+  find /root/biotop \( -path /root/biotop/.git -o -name __pycache__ -o -name .pytest_cache -o -name node_modules \) -prune -o -type f -newermt '2026-09-18 00:00' -printf '%TY-%Tm-%Td\n' | sort | uniq -c
+  echo "== Die 25 jüngsten Dateien unter /root/biotop (ohne .git/Zwischenspeicher): Besitzer Zeit Pfad"
+  find /root/biotop \( -path /root/biotop/.git -o -name __pycache__ -o -name .pytest_cache -o -name node_modules \) -prune -o -type f -printf '%u %TY-%Tm-%Td %TH:%TM %p\n' | sort -k2,3 | tail -25
+fi
+echo "== Besitzer der Arbeitsordner (oberste Ebene)"
+stat -c '%U:%G %y %n' /root/biotop /root/biotop-t3 /root/biotop-vor-t4* /root/phase-4-vorbedingung-1 /root/reparatur-01 /root/reparatur-02 /root/versehentlich 2>&1
+echo "== Inhalt /root/versehentlich (nur Namen, Größe, Zeit)"
+ls -la /root/versehentlich 2>&1 | head -20
+echo "== Benutzerkonten mit Anmeldeshell (getent passwd, nur Name/Shell)"
+getent passwd | awk -F: '$7 !~ /(nologin|false|sync)$/ {print $1, $7}'
+echo "== Letzte Anmeldungen (last -n 20 -R: ohne Rechnername/Adresse, falls vorhanden)"
+last -n 20 -F -R 2>&1 | head -25
+--- Ende /root/sicherung/biotop-lage-01/entwurf/lage-offen/h1_git_fs.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== Zeitpunkt 2026-09-25 16:13:25 CEST (UTC+0200)
+Kammer-Sperre besteht nicht
+== git log --all --diff-filter=D --name-only (gelöschte Dateien je Commit)
+== Anzahl gelöschter Dateipfade über alle Commits: 0
+== git log --all --diff-filter=R -M --name-status (Umbenennungen)
+== Commit-Nachrichten mit Rückbau-Wörtern (revert, rückgängig, zurück, entfernt, verworfen, gestrichen, gelöscht)
+e77cead | 2026-09-19 21:55:11 +0200 | F6: Probenkandidaten kommen in kein Gedaechtnis (Sperre an allen drei Eintrittsstellen); Altbestand aus Phase 3 entfernt
+8565ddb | 2026-09-19 17:55:41 +0200 | Kurven-Skript; Lauf-20-Skript; Lauf 19 verworfen
+38fde3d | 2026-09-19 17:05:45 +0200 | Satz 2 F4: gescheiterte Wege aus verworfenen Laeufen zaehlen nicht; Lauf 18 verworfen
+8d23ce2 | 2026-09-19 13:25:58 +0200 | 3.8 Schritt 2: Verhandlung hängt an der Benennung; Schritt 2 vor Kandidatentests; Lauf 15 verworfen (Satz 2 F4)
+3282ed2 | 2026-09-19 13:08:41 +0200 | F4: Äquivalenz-Raster (beobachten) erweitert, laut scheitern; Mutanten Phase 3 versiegelt; Lauf 14 verworfen
+b499747 | 2026-09-19 04:55:29 +0200 | Verhandlung: Kandidatenstatus vor Paarprüfung zurücksetzen
+== Reflog-Einträge, die kein Commit sind
+67457ac HEAD@{2026-09-19 15:10:15 +0200} reset: moving to HEAD
+== git log --all Autor/Committer je Commit seit 2026-09-18 (Anzahl je Paar)
+     19 Hermes (Biotop) <hermes@biotop.local> / Hermes (Biotop) <hermes@biotop.local>
+     46 hermes <hermes@biotop> / hermes <hermes@biotop>
+     10 hermes <hermes@local> / hermes <hermes@local>
+== Besitzer der Dateien unter /root/biotop (ohne .git, ohne __pycache__/.pytest_cache/node_modules)
+   3030 root:root
+== Besitzer inkl. .git
+   4047 root:root
+== Dateien unter /root/biotop (ohne .git/Zwischenspeicher) mit Änderungszeit ab 2026-09-18, je Tag
+    365 2026-09-18
+   2079 2026-09-19
+    233 2026-09-20
+    102 2026-09-21
+    197 2026-09-22
+     12 2026-09-23
+     18 2026-09-24
+     24 2026-09-25
+== Die 25 jüngsten Dateien unter /root/biotop (ohne .git/Zwischenspeicher): Besitzer Zeit Pfad
+root 2026-09-24 19:33 /root/biotop/biotop/kern/ts/verhalten-runner.mjs
+root 2026-09-25 03:24 /root/biotop/biotop/nachspiel.py
+root 2026-09-25 03:24 /root/biotop/biotop/organe/stufe2.py
+root 2026-09-25 03:24 /root/biotop/tests/test_vorspann.py
+root 2026-09-25 04:41 /root/biotop/biotop/tor4.py
+root 2026-09-25 04:41 /root/biotop/tests/test_tor4_zeilen.py
+root 2026-09-25 06:21 /root/biotop/tests/test_vor_t4_04.py
+root 2026-09-25 06:22 /root/biotop/biotop/organe/aegis.py
+root 2026-09-25 06:22 /root/biotop/tests/test_vor_t4_05.py
+root 2026-09-25 08:14 /root/biotop/biotop/kern/py/verhalten.py
+root 2026-09-25 08:19 /root/biotop/biotop/__main__.py
+root 2026-09-25 08:19 /root/biotop/tests/test_vor_t4_06_register.py
+root 2026-09-25 08:22 /root/biotop/biotop/organe/vorspann.py
+root 2026-09-25 08:23 /root/biotop/tests/test_nachweis_verbraucher.py
+root 2026-09-25 09:28 /root/biotop/biotop/kern/register.py
+root 2026-09-25 09:28 /root/biotop/tests/drahtwerk.py
+root 2026-09-25 09:28 /root/biotop/tests/test_verdrahtung.py
+root 2026-09-25 09:55 /root/biotop/biotop/lauf.py
+root 2026-09-25 09:55 /root/biotop/tests/test_stufe2_eichphase.py
+root 2026-09-25 09:55 /root/biotop/tests/test_vor_t4_06_hermes.py
+root 2026-09-25 12:13 /root/biotop/biotop/organe/verhaltensvergleich.py
+root 2026-09-25 12:13 /root/biotop/tests/test_t3_eichpfad.py
+root 2026-09-25 12:48 /root/biotop/tests/test_t3_python_annahmen.py
+root 2026-09-25 15:18 /root/biotop/tests/test_vor_t4_06.py
+root 2026-09-25 15:55 /root/biotop/daten/biotop.db-shm
+== Besitzer der Arbeitsordner (oberste Ebene)
+root:root 2026-09-21 12:08:58.144523468 +0200 /root/biotop
+root:root 2026-09-23 12:26:28.851978391 +0200 /root/biotop-t3
+root:root 2026-09-23 22:27:53.564332801 +0200 /root/biotop-vor-t4
+root:root 2026-09-24 02:10:06.683907137 +0200 /root/biotop-vor-t4-02
+root:root 2026-09-24 11:44:58.995603884 +0200 /root/biotop-vor-t4-03
+root:root 2026-09-24 17:19:43.794240410 +0200 /root/biotop-vor-t4-04
+root:root 2026-09-24 23:45:51.313209873 +0200 /root/biotop-vor-t4-05
+root:root 2026-09-25 12:52:04.582459908 +0200 /root/biotop-vor-t4-06
+root:root 2026-09-21 00:09:32.339680183 +0200 /root/phase-4-vorbedingung-1
+root:root 2026-09-20 20:01:34.619429059 +0200 /root/reparatur-01
+root:root 2026-09-20 20:55:18.339280093 +0200 /root/reparatur-02
+root:root 2026-08-23 05:43:24.268863703 +0200 /root/versehentlich
+== Inhalt /root/versehentlich (nur Namen, Größe, Zeit)
+total 8
+drwxr-xr-x  2 root root 4096 Aug 23 05:43 .
+drwx------ 48 root root 4096 Sep 25 14:48 ..
+== Benutzerkonten mit Anmeldeshell (getent passwd, nur Name/Shell)
+root /bin/bash
+== Letzte Anmeldungen (last -n 20 -R: ohne Rechnername/Adresse, falls vorhanden)
+root     pts/1        Fri Sep 18 23:06:09 2026 - Sat Sep 19 01:25:15 2026  (02:19)
+root     pts/0        Fri Sep 18 22:56:05 2026 - Sat Sep 19 01:09:57 2026  (02:13)
+root     pts/0        Fri Sep 18 22:52:21 2026 - Fri Sep 18 22:56:03 2026  (00:03)
+root     pts/0        Fri Sep 18 22:49:23 2026 - Fri Sep 18 22:52:19 2026  (00:02)
+root     pts/0        Fri Sep 18 22:48:16 2026 - Fri Sep 18 22:49:22 2026  (00:01)
+root     pts/0        Fri Sep 18 22:42:06 2026 - Fri Sep 18 22:48:09 2026  (00:06)
+root     pts/0        Fri Sep 18 22:33:58 2026 - Fri Sep 18 22:42:04 2026  (00:08)
+root     pts/0        Fri Sep 18 21:44:59 2026 - Fri Sep 18 21:48:00 2026  (00:03)
+root     pts/1        Mon Sep 14 01:11:03 2026 - Mon Sep 14 01:15:34 2026  (00:04)
+root     pts/0        Mon Sep 14 00:58:01 2026 - Mon Sep 14 03:15:57 2026  (02:17)
+root     pts/0        Mon Sep 14 00:29:19 2026 - Mon Sep 14 00:43:45 2026  (00:14)
+root     pts/0        Mon Sep 14 00:14:25 2026 - Mon Sep 14 00:29:15 2026  (00:14)
+root     pts/0        Mon Sep 14 00:09:30 2026 - Mon Sep 14 00:14:16 2026  (00:04)
+root     pts/1        Sun Sep 13 23:44:31 2026 - Sun Sep 13 23:44:57 2026  (00:00)
+root     pts/0        Sun Sep 13 22:11:05 2026 - Sun Sep 13 23:44:32 2026  (01:33)
+root     pts/0        Sun Sep 13 22:08:31 2026 - Sun Sep 13 22:10:57 2026  (00:02)
+root     pts/1        Sat Sep 12 22:41:08 2026 - Sat Sep 12 23:00:17 2026  (00:19)
+root     pts/0        Sat Sep 12 21:49:25 2026 - Sat Sep 12 23:00:14 2026  (01:10)
+root     pts/0        Sat Sep 12 21:43:29 2026 - Sat Sep 12 21:43:44 2026  (00:00)
+root     pts/0        Sat Sep 12 20:56:22 2026 - Sat Sep 12 21:40:26 2026  (00:44)
+
+wtmp begins Fri Jul 31 21:25:30 2026
+=== Ende R39 ===

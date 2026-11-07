@@ -1,0 +1,10 @@
+#!/bin/bash
+# Warten auf das Ende von kammerprobe05 (höchstens ~6 Minuten), dann d1 und meta; Rest von VORHER-43b8fad.txt
+for i in $(seq 1 24); do pgrep -f kammerprobe05.py >/dev/null || break; sleep 15; done
+date -Is
+pgrep -f kammerprobe05.py >/dev/null && echo "kammerprobe05 läuft noch" || echo "kammerprobe05 beendet"
+grep -E "^(d1_|meta)" /tmp/review-vor-t4-05/kammerprobe05.out.txt | cut -c1-1500
+docker ps --format '{{.ID}} {{.Image}} {{.Status}}' | head -3
+echo "== VORHER-43b8fad (Zeilen ab test_v1)"
+grep -E "^  test_v1" /root/biotop-vor-t4-05/proben/VORHER-43b8fad.txt | cut -c1-230
+git -C /root/biotop status --porcelain | head -3; echo "(git status Ende)"

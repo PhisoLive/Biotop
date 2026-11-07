@@ -1,0 +1,7 @@
+Verfassung des Übungswerks „lagerhaus" — Masterprompt v2, Anhang A (Chat-Claude; Philipp hat delegiert)
+1. Was es ist: Ein Rabatt- und Lagerrechner für Verkaufsberichte. Es rechnet Preise mit Staffeln und Rabatten, führt Bestand aus einem Journal mit Reservierungen und erzeugt daraus Auswertungen. Es ist ein Übungswerk ohne Betriebszweck.
+2. Sicherheit vor Geschwindigkeit: Kein Bereich darf Eingaben als Programmcode ausführen — weder mit eval/exec noch mit eingeschränkten Namensräumen. Ein Sicherheitsbefund wiegt mehr als jede Laufzeit. Tauschregel: Die Laufzeit auf der Referenzlast darf bis ×5 gegenüber dem Ausgangszustand steigen, wenn dabei ein statischer Sicherheitsbefund verschwindet; sonst gilt ×2.
+3. Korrektheit vor allem anderen: Kein Bestand unter null; keine Reservierung, die nach dem Einlösen weiter zählt; keine negativen Rabatte; Staffelgrenzen sind inklusiv („ab 10 Stück" gilt bei 10).
+4. Grenzen sind Verträge: Die Schnittstellen zwischen formeln, preise, lager und bericht ändern sich nur, wenn beide Seiten in derselben Generation angepasst und gemeinsam geprüft werden.
+5. bericht ist Ausgabe, keine Logik: Der Bereich rechnet nichts selbst nach, was preise oder lager liefern; er formatiert.
+6. Was nie passieren darf: Ein Kandidat, der Tests entfernt oder abschwächt, um einen Fehlschlag zu beseitigen; ein Kandidat, der einen Sicherheitsbefund durch Ausnahmeregel im Prüfwerkzeug (# nosec, Konfiguration) zum Verschwinden bringt statt durch Code.

@@ -1,0 +1,31 @@
+EB33 · Geheimnissuche: Einordnung des Treffers auth.active_provider
+Beginn: 2026-09-26 00:32:19 CEST (UTC+0200)
+Ende:   2026-09-26 00:32:19 CEST (UTC+0200)
+Dauer:  0.0 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/biotop-einlagerung/arbeit/g_provider.py
+--- Inhalt von /root/biotop-einlagerung/arbeit/g_provider.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-EINLAGERUNG-01 (nur lesend): Ist der auth.json-Wert „auth.active_provider“ (12 Zeichen) ein Geheimnis?
+Vergleicht ihn mit der Liste öffentlicher Anbieternamen von Hermes; ausgegeben wird nur, ob er einer davon ist und welcher
+Anbietername das ist (öffentlich bekannt, kein Zugangswert). Dazu: welche Arten von Treffern EB31 fand (Zählung)."""
+import json
+import re
+from collections import Counter
+from pathlib import Path
+
+a = json.loads(Path('/root/.hermes/auth.json').read_text())
+v = a.get('active_provider')
+BEKANNT = {'[GESCHWÄRZT: Wert aus /root/.hermes/auth.json]', 'anthropic', 'openrouter', 'nous', 'openai', 'gemini', 'copilot', 'xai', 'deepseek'}
+print(f'auth.active_provider: Länge {len(v) if v else 0} · öffentlicher Anbietername: {v in BEKANNT} · '
+      f'Name: {v if v in BEKANNT else "[nicht ausgegeben]"}')
+t = Path('/root/biotop-einlagerung/rohbelege/EB0031.txt').read_text()
+arten = Counter(m for z in t.splitlines() if z.startswith('  biotop-') or z.startswith('  gedaechtnis')
+                for m in re.findall(r"\('([^']+)', \d+\)", z))
+print(f'Treffer-Arten in EB31 (Dateien je Art): {dict(arten)}')
+--- Ende /root/biotop-einlagerung/arbeit/g_provider.py ---
+Ausgabe (vollständig, stdout und stderr):
+auth.active_provider: Länge 12 · öffentlicher Anbietername: True · Name: [GESCHWÄRZT: Wert aus /root/.hermes/auth.json]
+Treffer-Arten in EB31 (Dateien je Art): {'Wert auth.active_provider': 24, 'Muster sk-Schlüssel allgemein': 2, 'Muster Bearer-Token': 2, 'Wert auth.credential_pool.anthropic[1].source': 1, 'Wert auth.credential_pool.openrouter[0].source': 1}
+=== Ende EB33 ===

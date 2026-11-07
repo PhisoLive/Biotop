@@ -1,0 +1,562 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 03 · Teil 221 (Teile 166–239 dieses Stands) · enthält R206 bis R210
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R206 · Größenplan VERLAUF (FK11) aus v3: Menge Philipp/Hermes/Hermes-Zwischentext ab 21.09., größte Einträge, eingelegte Dokumente
+Beginn: 2026-09-25 20:15:09 CEST (UTC+0200)
+Ende:   2026-09-25 20:15:09 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/verlauf_plan.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/verlauf_plan.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Größenplan für VERLAUF (FK11) aus arbeit/verlauf/v3/wortlaut.jsonl.
+Menge: Biotop ja, Zeit ab 21.09.2026 00:00 bis Stich, Absender Philipp, Hermes (Antwort), Hermes-Zwischentext.
+Gibt Anzahl und Bytes je Absender und Tag, die 15 größten Einträge (id, Zeit, Absender, Bytes, erste 70 Zeichen ohne
+Zeilenumbruch, nur für Philipp und Hermes; Kennung eingelegter Dokumente) und die übrigen Absender (nicht in FK11) aus."""
+import collections
+import json
+import re
+from pathlib import Path
+
+V = Path('/root/sicherung/biotop-lage-01/arbeit/verlauf/v3/wortlaut.jsonl')
+MENGE = ('Philipp', 'Hermes', 'Hermes-Zwischentext')
+z = [json.loads(l) for l in V.open(encoding='utf-8')]
+ab = [x for x in z if x['zeit'] >= '2026-09-21' and x['biotop'] == 'ja']
+fk = [x for x in ab if x['absender'] in MENGE]
+print(f'v3: {len(z)} · Biotop ab 21.09.: {len(ab)} · davon FK11-Menge: {len(fk)} · Bytes Text {sum(len(x["text"].encode()) for x in fk)}')
+c = collections.Counter((x['absender'], x['zeit'][:10]) for x in fk)
+b = collections.Counter()
+for x in fk:
+    b[x['absender']] += len(x['text'].encode())
+for a in MENGE:
+    print(f'  {a}: {sum(n for (aa, t), n in c.items() if aa == a)} Einträge, {b[a]} B · je Tag ' +
+          ', '.join(f'{t[5:]}: {n}' for (aa, t), n in sorted(c.items()) if aa == a))
+print('nicht in FK11 (Biotop ab 21.09.): ' + str(dict(collections.Counter(x['absender'] for x in ab if x['absender'] not in MENGE))))
+print('== größte Einträge')
+for x in sorted(fk, key=lambda x: -len(x['text'].encode()))[:15]:
+    kopf = re.sub(r'\s+', ' ', x['text'][:70])
+    dok = re.findall(r'\[Content of ([^\]]{0,80})\]|doc_[0-9a-f]{12}_[^\s\]\)]+', x['text'][:400])
+    print(f'  id {x["id"]} · {x["zeit"]} · {x["absender"]} · {len(x["text"].encode())} B · geschwärzt {x["geschwaerzt"]} · {kopf!r} · Dokument {dok[:2]}')
+print('== Philipp-Einträge mit eingelegtem Dokument (Marke im Text)')
+for x in fk:
+    if x['absender'] == 'Philipp':
+        m = re.findall(r'(doc_[0-9a-f]{12}_[^\s\]\)\'"]+|[A-Za-z0-9_\-]+-Masterprompt-v\d\.md|BIOTOP-LAGE-01[^\s\]]*\.md)', x['text'])
+        if m:
+            print(f'  id {x["id"]} · {x["zeit"]} · {len(x["text"].encode())} B · {sorted(set(m))[:4]}')
+--- Ende /root/sicherung/biotop-lage-01/arbeit/verlauf_plan.py ---
+Ausgabe (vollständig, stdout und stderr):
+v3: 1456 · Biotop ab 21.09.: 763 · davon FK11-Menge: 426 · Bytes Text 614815
+  Philipp: 44 Einträge, 274142 B · je Tag 09-21: 22, 09-22: 3, 09-23: 8, 09-24: 6, 09-25: 5
+  Hermes: 119 Einträge, 233058 B · je Tag 09-21: 49, 09-22: 8, 09-23: 19, 09-24: 26, 09-25: 17
+  Hermes-Zwischentext: 263 Einträge, 107615 B · je Tag 09-21: 112, 09-22: 50, 09-23: 60, 09-24: 37, 09-25: 4
+nicht in FK11 (Biotop ab 21.09.): {'System-Hinweis': 9, 'System-Verdichtung': 9, 'System-Hintergrundprozess': 41, 'Hermes→Subagent': 78, 'Subagent-Zwischentext': 158, 'Subagent': 29, 'System-Delegationsergebnis': 13}
+== größte Einträge
+  id 13998 · 2026-09-23 15:53:53 · Philipp · 95174 B · geschwärzt 0 · "[The user sent a text document: 'INFINITE-EVOLUTION-BIOTOP-Masterpromp" · Dokument ['', 'INFINITE-EVOLUTION-BIOTOP-Masterprompt-v8.md']
+  id 9105 · 2026-09-21 02:14:34 · Philipp · 86026 B · geschwärzt 0 · "[The user sent a text document: 'INFINITE-EVOLUTION-BIOTOP-Masterpromp" · Dokument ['', 'INFINITE-EVOLUTION-BIOTOP-Masterprompt-v7.md']
+  id 20987 · 2026-09-25 14:44:20 · Philipp · 41488 B · geschwärzt 0 · "[The user sent a text document: 'BIOTOP-LAGE-01-Auftrag-v2.md'. Its co" · Dokument ['', 'BIOTOP-LAGE-01-Auftrag-v2.md']
+  id 9867 · 2026-09-21 04:13:12 · Hermes-Zwischentext · 40022 B · geschwärzt 0 · '[PRIOR CONTEXT — for reference only; not a new message] [END OF PRIO' · Dokument []
+  id 14995 · 2026-09-24 02:15:47 · Hermes-Zwischentext · 22462 B · geschwärzt 0 · '[PRIOR CONTEXT — for reference only; not a new message] [END OF PRIO' · Dokument []
+  id 13723 · 2026-09-23 13:26:32 · Hermes · 11760 B · geschwärzt 0 · '# T3: nicht abgenommen. abschluss-03 ist nicht geliefert. Diese Sitzu' · Dokument []
+  id 17397 · 2026-09-25 01:12:03 · Hermes · 11472 B · geschwärzt 0 · '[CONTEXT COMPACTION — REFERENCE ONLY] Earlier turns were compacted int' · Dokument []
+  id 15678 · 2026-09-24 05:30:29 · Hermes · 6955 B · geschwärzt 0 · '**Runde 3 ist nicht fertig und nicht geliefert.** Dieser Turn hat die ' · Dokument []
+  id 14619 · 2026-09-23 22:28:40 · Hermes · 5734 B · geschwärzt 0 · '**Nicht abgenommen.** Ich beantrage keine Abnahme als Vorbedingung für' · Dokument []
+  id 15991 · 2026-09-24 11:46:30 · Hermes · 5518 B · geschwärzt 0 · '**Nicht abgenommen.** K2904 und K3091 wurden wieder nur in 2 von 3 Dur' · Dokument []
+  id 15961 · 2026-09-24 08:50:22 · Hermes · 5445 B · geschwärzt 0 · '**Behebungsrunde 3 ist nicht geliefert.** Ich habe an Linie 3 angehalt' · Dokument []
+  id 14991 · 2026-09-24 02:10:34 · Hermes · 5006 B · geschwärzt 0 · '**Nicht abgenommen.** Eine Gegenprobe des Auftrags ist gescheitert: K2' · Dokument []
+  id 15153 · 2026-09-24 02:15:47 · Hermes · 5006 B · geschwärzt 0 · '**Nicht abgenommen.** Eine Gegenprobe des Auftrags ist gescheitert: K2' · Dokument []
+  id 15368 · 2026-09-24 05:10:02 · Hermes · 5006 B · geschwärzt 0 · '**Nicht abgenommen.** Eine Gegenprobe des Auftrags ist gescheitert: K2' · Dokument []
+  id 10525 · 2026-09-21 06:26:33 · Hermes · 4554 B · geschwärzt 0 · 'Die drei Vorproben laufen noch (zwei fertig, dritte in Arbeit). Ich la' · Dokument []
+== Philipp-Einträge mit eingelegtem Dokument (Marke im Text)
+  id 9105 · 2026-09-21 02:14:34 · 86026 B · ['INFINITE-EVOLUTION-BIOTOP-Masterprompt-v7.md', 'doc_3c96ba267e1c_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v7.md']
+  id 9106 · 2026-09-21 02:14:40 · 1145 B · ['INFINITE-EVOLUTION-BIOTOP-Masterprompt-v7.md']
+  id 13998 · 2026-09-23 15:53:53 · 95174 B · ['INFINITE-EVOLUTION-BIOTOP-Masterprompt-v8.md', 'doc_6640d9a3854f_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v8.md']
+  id 14000 · 2026-09-23 15:53:55 · 1286 B · ['INFINITE-EVOLUTION-BIOTOP-Masterprompt-v8.md']
+  id 20987 · 2026-09-25 14:44:20 · 41488 B · ['BIOTOP-LAGE-01-Auftrag-v2.md', 'INFINITE-EVOLUTION-BIOTOP-Masterprompt-v7.md', 'doc_5bf902863a6d_BIOTOP-LAGE-01-Auftrag-v2.md']
+  id 20990 · 2026-09-25 14:44:22 · 1143 B · ['BIOTOP-LAGE-01-Auftrag-v2.md']
+=== Ende R206 ===
+
+
+R207 · VERLAUF: Aufbau der drei Nachrichten mit eingelegtem Dokument (9105 v7, 13998 v8, 20987 Auftrag) und Abgleich mit den Kopien
+Beginn: 2026-09-25 20:16:46 CEST (UTC+0200)
+Ende:   2026-09-25 20:16:46 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/verlauf_dokumente.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/verlauf_dokumente.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Aufbau der drei Nachrichten mit eingelegtem Dokument (ids 9105, 13998, 20987) in v3:
+erste 300 Zeichen, Lage des Dokumentinhalts (Marker), SHA-256 des Inhalts gegen die bekannten Kopien."""
+import hashlib
+import json
+import re
+from pathlib import Path
+
+V = Path('/root/sicherung/biotop-lage-01/arbeit/verlauf/v3/wortlaut.jsonl')
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+PK = Path(f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe')
+KOPIEN = {9105: [PK / 'biotop-t3-typescript/MASTERPROMPT-v7.md'],
+          13998: sorted(Path('/root/sicherung/biotop-lage-01/ausgabe').glob('MASTERPROMPT-V8-WORTLAUT-TEIL*-01.txt')),
+          20987: [Path('/root/sicherung/biotop-lage-01/auftrag/BIOTOP-LAGE-01-Auftrag-v2.md')]}
+sha = lambda b: hashlib.sha256(b).hexdigest()
+for x in map(json.loads, V.open(encoding='utf-8')):
+    if x['id'] not in KOPIEN:
+        continue
+    t = x['text']
+    print(f'== id {x["id"]} · {x["zeit"]} · {len(t.encode())} B')
+    print('Anfang: ' + repr(t[:300]))
+    print('Ende: ' + repr(t[-160:]))
+    kopie = b''.join(p.read_bytes() for p in KOPIEN[x['id']])
+    print(f'Kopie: {[p.name for p in KOPIEN[x["id"]]]} · {len(kopie)} B · SHA-256 {sha(kopie)}')
+    k = kopie.decode('utf-8')
+    for probe in (k, k.rstrip('\n')):
+        i = t.find(probe)
+        print(f'  Kopie ({len(probe.encode())} B) im Text: {"ja, ab Zeichen " + str(i) if i >= 0 else "nein"}'
+              + (f' · Rest davor {len(t[:i].encode())} B, danach {len(t[i + len(probe):].encode())} B' if i >= 0 else ''))
+--- Ende /root/sicherung/biotop-lage-01/arbeit/verlauf_dokumente.py ---
+Ausgabe (vollständig, stdout und stderr):
+== id 9105 · 2026-09-21 02:14:34 · 86026 B
+Anfang: "[The user sent a text document: 'INFINITE-EVOLUTION-BIOTOP-Masterprompt-v7.md'. Its content has been included below. The file is also saved at: /root/.hermes/cache/documents/doc_3c96ba267e1c_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v7.md]\n\n[Content of INFINITE-EVOLUTION-BIOTOP-Masterprompt-v7.md]:\n# I"
+Ende: '026. Fassungen 1 bis 6 sind durch diese Fassung ersetzt; die jeweils höchste Fassung gilt. Fortschreibung als Fassung 8 bei grundlegenden neuen Erkenntnissen.*\n'
+Kopie: ['MASTERPROMPT-v7.md'] · 85729 B · SHA-256 a3b3ac0c17371306b027591110f528018f62d5c2feb4ad82dc21823f14bd76ed
+  Kopie (85729 B) im Text: ja, ab Zeichen 297 · Rest davor 297 B, danach 0 B
+  Kopie (85728 B) im Text: ja, ab Zeichen 297 · Rest davor 297 B, danach 1 B
+== id 13998 · 2026-09-23 15:53:53 · 95174 B
+Anfang: "[The user sent a text document: 'INFINITE-EVOLUTION-BIOTOP-Masterprompt-v8.md'. Its content has been included below. The file is also saved at: /root/.hermes/cache/documents/doc_6640d9a3854f_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v8.md]\n\n[Content of INFINITE-EVOLUTION-BIOTOP-Masterprompt-v8.md]:\n# I"
+Ende: '026. Fassungen 1 bis 7 sind durch diese Fassung ersetzt; die jeweils höchste Fassung gilt. Fortschreibung als Fassung 9 bei grundlegenden neuen Erkenntnissen.*\n'
+Kopie: ['MASTERPROMPT-V8-WORTLAUT-TEIL1-01.txt', 'MASTERPROMPT-V8-WORTLAUT-TEIL2-01.txt', 'MASTERPROMPT-V8-WORTLAUT-TEIL3-01.txt'] · 94877 B · SHA-256 0c7961e1d2b7eeeb7a6982e419905c54e93a9b12bfa5bea7e6326c0ef58a5d94
+  Kopie (94877 B) im Text: ja, ab Zeichen 297 · Rest davor 297 B, danach 0 B
+  Kopie (94876 B) im Text: ja, ab Zeichen 297 · Rest davor 297 B, danach 1 B
+== id 20987 · 2026-09-25 14:44:20 · 41488 B
+Anfang: "[The user sent a text document: 'BIOTOP-LAGE-01-Auftrag-v2.md'. Its content has been included below. The file is also saved at: /root/.hermes/cache/documents/doc_5bf902863a6d_BIOTOP-LAGE-01-Auftrag-v2.md]\n\n[Content of BIOTOP-LAGE-01-Auftrag-v2.md]:\n# Auftrag BIOTOP-LAGE-01 · Fassung 2 — Biotop siche"
+Ende: 'uftrag>/` im Prüfkanal.\n  - Dein Gedächtnis liegt unter `laeufe/gedaechtnis/` (`STAND-nn.md`, `REGELN-nn.md`, `UNTERBAU-nn.md`). Nur HERMES-1 schreibt dorthin.\n'
+Kopie: ['BIOTOP-LAGE-01-Auftrag-v2.md'] · 41239 B · SHA-256 58ba8834b8c3ec08f8da2e18d3db056150c91c2841ed9aac349bcf2eba216b98
+  Kopie (41239 B) im Text: ja, ab Zeichen 249 · Rest davor 249 B, danach 0 B
+  Kopie (41238 B) im Text: ja, ab Zeichen 249 · Rest davor 249 B, danach 1 B
+=== Ende R207 ===
+
+
+R208 · VERLAUF: Einträge der FK11-Menge mit Verdichtungs- oder Kontextmarken
+Beginn: 2026-09-25 20:17:14 CEST (UTC+0200)
+Ende:   2026-09-25 20:17:14 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/verlauf_marken.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/verlauf_marken.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Einträge der FK11-Menge (v3, Biotop ja, ab 21.09., Philipp/Hermes/Hermes-Zwischentext)
+mit Verdichtungs- oder Kontextmarken: Lage der Marken, Länge vor/nach der Endmarke, erste 160 Zeichen nach der Endmarke."""
+import json
+import re
+from pathlib import Path
+
+V = Path('/root/sicherung/biotop-lage-01/arbeit/verlauf/v3/wortlaut.jsonl')
+MARKEN = [r'\[PRIOR CONTEXT[^\]]*\]', r'\[END OF PRIOR CONTEXT\]', r'\[CONTEXT COMPACTION[^\]]*\]',
+          r'--- END OF CONTEXT SUMMARY[^\n]*', r'\[ASYNC DELEGATION BATCH COMPLETE[^\]]*\]', r'\[OUT-OF-BAND USER MESSAGE[^\]]*\]',
+          r'\[SYSTEM:[^\]]*\]', r'\[Your active task list was preserved[^\]]*\]']
+n = 0
+for x in map(json.loads, V.open(encoding='utf-8')):
+    if not (x['zeit'] >= '2026-09-21' and x['biotop'] == 'ja' and x['absender'] in ('Philipp', 'Hermes', 'Hermes-Zwischentext')):
+        continue
+    t = x['text']
+    treffer = [(m, [f.start() for f in re.finditer(m, t)]) for m in MARKEN]
+    treffer = [(m, p) for m, p in treffer if p]
+    if not treffer:
+        continue
+    n += 1
+    print(f'== id {x["id"]} · {x["zeit"]} · {x["absender"]} · {len(t.encode())} B · Marken ' +
+          ', '.join(f'{m[:28]}@{p[:3]}' for m, p in treffer))
+    for ende in (r'\[END OF PRIOR CONTEXT\]', r'--- END OF CONTEXT SUMMARY[^\n]*'):
+        f = list(re.finditer(ende, t))
+        if f:
+            rest = t[f[-1].end():]
+            print(f'   nach letzter Endmarke {ende[:24]}: {len(rest.encode())} B · {rest.strip()[:160]!r}')
+print(f'Einträge mit Marken: {n}')
+--- Ende /root/sicherung/biotop-lage-01/arbeit/verlauf_marken.py ---
+Ausgabe (vollständig, stdout und stderr):
+== id 9867 · 2026-09-21 04:13:12 · Hermes-Zwischentext · 40022 B · Marken \[PRIOR CONTEXT[^\]]*\]@[0], \[CONTEXT COMPACTION[^\]]*\]@[109], --- END OF CONTEXT SUMMARY[^@[39363]
+   nach letzter Endmarke --- END OF CONTEXT SUMMA: 0 B · ''
+== id 14995 · 2026-09-24 02:15:47 · Hermes-Zwischentext · 22462 B · Marken \[PRIOR CONTEXT[^\]]*\]@[0], \[CONTEXT COMPACTION[^\]]*\]@[109], --- END OF CONTEXT SUMMARY[^@[22126]
+   nach letzter Endmarke --- END OF CONTEXT SUMMA: 0 B · ''
+== id 17397 · 2026-09-25 01:12:03 · Hermes · 11472 B · Marken \[CONTEXT COMPACTION[^\]]*\]@[0], --- END OF CONTEXT SUMMARY[^@[11245]
+   nach letzter Endmarke --- END OF CONTEXT SUMMA: 0 B · ''
+Einträge mit Marken: 3
+=== Ende R208 ===
+
+
+R209 · VERLAUF (FK11) bauen, Probe ohne Schreiben: Teile, Größen, Zählung
+Beginn: 2026-09-25 20:18:17 CEST (UTC+0200)
+Ende:   2026-09-25 20:18:17 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/verlauf_bauen.py --probe
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/verlauf_bauen.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 · FK11 → ausgabe/VERLAUF-TEIL<n>-01.md, dazu AUFTRAG-V2-WORTLAUT-TEIL<n>-01.txt.
+Menge (Auslegung Hermes, FK48): Nachrichtenverzeichnis v3 (arbeit/verlauf/v3/wortlaut.jsonl, bis Stich 17:29:59),
+Biotop ja, ab 21.09.2026 00:00 CEST, Absender Philipp, Hermes (Antwort) und Hermes-Zwischentext.
+- Wortlaut unverändert in einem Codeblock (Schwärzung aus v3 bleibt).
+- Eingelegte Dokumente, die als Datei im Prüfkanal liegen: nur Begleitzeile im Wortlaut, Dokumentinhalt als Verweis
+  mit Adresse und SHA-256 (Gleichheit belegt in R207).
+- Verdichtungszusammenfassungen (Systemtext mit Kontextmarken, R208): nicht abgedruckt, nur gezählt und genannt.
+- Wiederholungen (gleicher Absender, gleicher Wortlaut wie ein früherer Eintrag): nur Verweis auf den ersten.
+Teile ≤ 38.000 B an Eintragsgrenzen; exklusiv geschrieben; Aufruf mit --probe schreibt nichts."""
+import collections
+import datetime as dt
+import hashlib
+import json
+import os
+import re
+import sys
+from pathlib import Path
+
+W = Path('/root/sicherung/biotop-lage-01')
+V = W / 'arbeit/verlauf/v3/wortlaut.jsonl'
+A = W / 'ausgabe'
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+LAEUFE = f'https://milieulux-reinigung-muenchen.de/_akte/{K}/laeufe'
+ORDNER = f'{LAEUFE}/biotop-lage-01'
+MENGE = ('Philipp', 'Hermes', 'Hermes-Zwischentext')
+GRENZE = 38_000
+PROBE = '--probe' in sys.argv
+sha = lambda b: hashlib.sha256(b).hexdigest()
+VERDICHTUNG = {9867, 14995, 17397}
+
+# --- Auftrag v2 im Wortlaut, byte-genau geteilt ---
+auftrag = (W / 'auftrag/BIOTOP-LAGE-01-Auftrag-v2.md').read_bytes()
+teile_a, akt = [], b''
+for z in auftrag.splitlines(keepends=True):
+    if len(akt) + len(z) > GRENZE:
+        teile_a.append(akt); akt = b''
+    akt += z
+teile_a.append(akt)
+assert b''.join(teile_a) == auftrag
+AUFTRAG_NAMEN = [f'AUFTRAG-V2-WORTLAUT-TEIL{k}-01.txt' for k in range(1, len(teile_a) + 1)]
+mp8 = b''.join(p.read_bytes() for p in sorted(A.glob('MASTERPROMPT-V8-WORTLAUT-TEIL*-01.txt')))
+mp7 = (Path(f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe/biotop-t3-typescript/MASTERPROMPT-v7.md')).read_bytes()
+DOK = {
+    9105: (f'{LAEUFE}/biotop-t3-typescript/MASTERPROMPT-v7.md', len(mp7), sha(mp7), 'Masterprompt Fassung 7'),
+    13998: (' · '.join(f'{ORDNER}/MASTERPROMPT-V8-WORTLAUT-TEIL{k}-01.txt' for k in (1, 2, 3)), len(mp8), sha(mp8),
+            'Masterprompt Fassung 8 (drei Teile, Verkettung = Dokument)'),
+    20987: (' · '.join(f'{ORDNER}/{n}' for n in AUFTRAG_NAMEN), len(auftrag), sha(auftrag),
+            'Auftrag BIOTOP-LAGE-01 Fassung 2 (Teile, Verkettung = Dokument)'),
+}
+
+zeilen = [json.loads(l) for l in V.open(encoding='utf-8')]
+menge = sorted((x for x in zeilen if x['zeit'] >= '2026-09-21' and x['biotop'] == 'ja' and x['absender'] in MENGE),
+               key=lambda x: (x['ts'], x['id']))
+zaehl = collections.Counter(x['absender'] for x in menge)
+eintraege, erste, verdichtet, wiederholt, dokumente = [], {}, [], [], []
+
+
+def block(text):
+    lauf = max([len(m) for m in re.findall(r'`+', text)] + [2])
+    zaun = '`' * (lauf + 1)
+    return f'{zaun}text\n{text}\n{zaun}\n'
+
+
+for i, x in enumerate(menge, 1):
+    nr = f'V{i:03d}'
+    t = x['text']
+    kopf = (f'### {nr} · {x["zeit"][8:10]}.{x["zeit"][5:7]}. {x["zeit"][11:]} CEST · {x["absender"]} · '
+            f'Nachricht id {x["id"]} · Sitzung `{x["sitzung"]}` · {len(t.encode())} B'
+            + (f' · geschwärzt {x["geschwaerzt"]}' if x['geschwaerzt'] else '') + '\n\n')
+    if x['id'] in VERDICHTUNG:
+        verdichtet.append(f'{nr} (id {x["id"]}, {x["zeit"]}, {len(t.encode())} B)')
+        rumpf = ('*Nicht abgedruckt:* Verdichtungszusammenfassung, ein Systemtext mit Kontextmarken und keine Nachricht '
+                 'an Philipp (R208). Der Wortlaut steht in der Sitzungsdatenbank, die gesichert ist (SICHERUNG).\n')
+    elif x['id'] in DOK:
+        adr, n, h, was = DOK[x['id']]
+        m = re.search(r'\]:\n', t)
+        rumpf = (block(t[:m.end()].rstrip('\n')) +
+                 f'\n*Dokumentinhalt nicht abgedruckt:* {was}, {n} B, SHA-256 `{h}`: {adr}\n'
+                 f'Gleichheit von Dokumentinhalt und Datei belegt in R207.\n')
+        dokumente.append(f'{nr} (id {x["id"]}): {was}')
+    elif (x['absender'], t.strip()) in erste:
+        rumpf = f'*Wiederholung von {erste[(x["absender"], t.strip())]}* (gleicher Absender, gleicher Wortlaut).\n'
+        wiederholt.append(f'{nr}→{erste[(x["absender"], t.strip())]}')
+    elif not t.strip():
+        rumpf = '*Ohne Text.*\n'
+    else:
+        erste[(x['absender'], t.strip())] = nr
+        rumpf = block(t)
+    eintraege.append((nr, x, kopf + rumpf + '\n'))
+
+# --- Teile bilden (Platz für den Kopf freihalten) ---
+KOPF_PLATZ = {1: 9_000}
+teile, akt = [], []
+for e in eintraege:
+    groesse = sum(len(s[2].encode()) for s in akt)
+    if akt and groesse + len(e[2].encode()) > GRENZE - KOPF_PLATZ.get(len(teile) + 1, 1_800):
+        teile.append(akt); akt = []
+    akt.append(e)
+teile.append(akt)
+namen = [f'VERLAUF-TEIL{k}-01.md' for k in range(1, len(teile) + 1)]
+
+
+def spanne(t):
+    return f'{t[0][0]}–{t[-1][0]} ({t[0][1]["zeit"][8:10]}.{t[0][1]["zeit"][5:7]}. {t[0][1]["zeit"][11:16]} bis ' \
+           f'{t[-1][1]["zeit"][8:10]}.{t[-1][1]["zeit"][5:7]}. {t[-1][1]["zeit"][11:16]})'
+
+
+ausgabe = {}
+for k, t in enumerate(teile, 1):
+    k_ = [f'# BIOTOP-LAGE-01 · Fassung 2 · `VERLAUF-TEIL{k}-01.md` (FK11) · Teil {k} von {len(teile)}', '',
+          f'- **Einträge:** {spanne(t)}.',
+          '- **Stichzeitpunkt:** 25.09.2026 17:29:59 CEST. Alle Zeiten CEST.',
+          f'- **Übersicht, Menge und Regeln:** {ORDNER}/VERLAUF-TEIL1-01.md', '']
+    if k == 1:
+        k_ += ['## Menge und Regeln', '',
+               '- **Quelle:** Nachrichtenverzeichnis v3 (`/root/sicherung/biotop-lage-01/arbeit/verlauf/v3/`, R155; '
+               'aus `/root/.hermes/state.db`, Doppelzeilen entfernt; Zählung START-02 Abschnitt C, R160). '
+               f'Geschwärzt ist jeder Wert aus `.env` und `auth.json`, dazu jedes Schlüsselmuster (Werkzeug `arbeit/geheimnis.py`).',
+               '- **Menge (Auslegung Hermes, FK48):** jede Nachricht vom 21.09.2026 00:00 bis zum Stich, die zum Biotop '
+               'gehört, von Philipp (Aufträge und Anweisungen; darunter Texte in Chat-Claudes Stimme aus Philipps Konto), '
+               'jede Antwort von Hermes und jeder Zwischentext von Hermes. Was Hermes an Subagenten schrieb und was sie '
+               'antworteten, gehört nicht dazu, ebenso wenig System- und Hintergrundmeldungen. Diese Nachrichten stehen '
+               'gezählt in START-02 C und in der Sicherung.',
+               f'- **Zählung:** {len(menge)} Einträge = Philipp {zaehl["Philipp"]} + Hermes (Antworten) {zaehl["Hermes"]} + '
+               f'Zwischentexte von Hermes {zaehl["Hermes-Zwischentext"]} (R206).',
+               f'  - Wortlaut abgedruckt: {len(menge) - len(verdichtet) - len(wiederholt) - len(dokumente)}.',
+               f'  - Nur Begleitzeile, Dokument als Verweis: {len(dokumente)}: ' + '; '.join(dokumente) + '.',
+               f'  - Wiederholung, nur Verweis: {len(wiederholt)}' + (f': {", ".join(wiederholt)}.' if wiederholt else '.'),
+               f'  - Verdichtungszusammenfassung, nicht abgedruckt: {len(verdichtet)}: ' + '; '.join(verdichtet) + '.',
+               '- **Zwischentexte:** Hermes schreibt sie neben Werkzeugaufrufen. Das Gateway stellt sie als eigene '
+               'Telegram-Nachricht zu, wenn `display.interim_assistant_messages` an ist. Dass jeder einzelne '
+               'Zwischentext bei Philipp ankam, ist nicht belegt; das Gateway-Protokoll zeigt keine Zeile dazu (R188).',
+               '- **Absender:** Die Zuordnung zu Philipp, Hermes oder Zwischentext macht `arbeit/verlauf_extrakt.py`. '
+               'Die Regel steht dort.', '',
+               '## Teile', ''] + [f'- Teil {j}: {spanne(tt)}: {ORDNER}/{namen[j - 1]}' for j, tt in enumerate(teile, 1)] + \
+              ['', f'- Auftrag BIOTOP-LAGE-01 Fassung 2 im Wortlaut, {len(auftrag)} B, SHA-256 `{sha(auftrag)}`: ' +
+               ' · '.join(f'{ORDNER}/{n}' for n in AUFTRAG_NAMEN), '']
+    k_ += ['---', '']
+    text = '\n'.join(k_) + ''.join(e[2] for e in t)
+    ausgabe[namen[k - 1]] = text.encode('utf-8')
+for n, b in zip(AUFTRAG_NAMEN, teile_a):
+    ausgabe[n] = b
+
+print(f'{dt.datetime.now():%Y-%m-%d %H:%M:%S} · Einträge {len(menge)} · {dict(zaehl)} · Teile {len(teile)} · '
+      f'Dokumente {len(dokumente)} · Wiederholungen {len(wiederholt)} · Verdichtungen {len(verdichtet)}')
+fehler = 0
+for n, b in ausgabe.items():
+    zu_gross = len(b) > 40_000
+    fehler += zu_gross
+    print(f'{n} · {len(b)} B · SHA-256 {sha(b)}' + (' · ZU GROSS' if zu_gross else ''))
+    if PROBE or zu_gross:
+        continue
+    fd = os.open(A / n, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+    with os.fdopen(fd, 'wb') as f:
+        f.write(b)
+print(f'Auftrag: Verkettung der Teile gleich Original: {b"".join(teile_a) == auftrag} · {len(auftrag)} B · SHA-256 {sha(auftrag)}')
+print(f'{"PROBE, nichts geschrieben" if PROBE else "geschrieben"} · Fehler {fehler}')
+sys.exit(1 if fehler else 0)
+--- Ende /root/sicherung/biotop-lage-01/arbeit/verlauf_bauen.py ---
+Ausgabe (vollständig, stdout und stderr):
+2026-09-25 20:18:17 · Einträge 426 · {'Philipp': 44, 'Hermes': 119, 'Hermes-Zwischentext': 263} · Teile 10 · Dokumente 3 · Wiederholungen 63 · Verdichtungen 3
+VERLAUF-TEIL1-01.md · 33934 B · SHA-256 d23aa6638486a9959295ecb563c996e50cb705eb7ce47d59b9bfb6ea8371e2ab
+VERLAUF-TEIL2-01.md · 36422 B · SHA-256 48e0b5efbea0fde9367fcd7080c814e777d18014e42767c7887754c8626d587d
+VERLAUF-TEIL3-01.md · 36523 B · SHA-256 fe78b82b6ffe95828dac00d8afb28e17cb567be2f0246c8338a03593fa11e410
+VERLAUF-TEIL4-01.md · 34955 B · SHA-256 0900302420fd86700e4a2fa814dd19fb015ec97228a67eb516b16a181f165e92
+VERLAUF-TEIL5-01.md · 34271 B · SHA-256 e854819e6c74794434adc5245812682e99811e078688676c05efbd2f2011e9f9
+VERLAUF-TEIL6-01.md · 31950 B · SHA-256 058a44d6b3b081160fcfca366b40d86485427b391eff8d380cd5f3e3ca06fbd0
+VERLAUF-TEIL7-01.md · 35542 B · SHA-256 7f99d236d21763686207adff9822476434809faf3ee1e5bcd7845d6dbdb6c2bf
+VERLAUF-TEIL8-01.md · 36508 B · SHA-256 d3d2c9d8ccbb3ce174436c0ba5fb72becdcb4d814a2946d23b7f05beee83c14d
+VERLAUF-TEIL9-01.md · 35522 B · SHA-256 b0208ac475857a3fa7577990268307cafb04df79452555b74762e7c94d29c253
+VERLAUF-TEIL10-01.md · 23212 B · SHA-256 e61e3434e0552f95a37fdb48432fae1127038ca6ad30f5cef910193e83e82da4
+AUFTRAG-V2-WORTLAUT-TEIL1-01.txt · 37946 B · SHA-256 f98b92fa5264b0bd212c5d0b36abb8cf5c94fb2cc511483826f69677dea1e1eb
+AUFTRAG-V2-WORTLAUT-TEIL2-01.txt · 3293 B · SHA-256 3c0eff896969fa86d2794dc3575e08b44dca04ca064f9aa69df95a6f86e68d70
+Auftrag: Verkettung der Teile gleich Original: True · 41239 B · SHA-256 58ba8834b8c3ec08f8da2e18d3db056150c91c2841ed9aac349bcf2eba216b98
+PROBE, nichts geschrieben · Fehler 0
+=== Ende R209 ===
+
+
+R210 · VERLAUF (FK11) und Auftrag v2 im Wortlaut schreiben (exklusiv nach ausgabe/)
+Beginn: 2026-09-25 20:18:29 CEST (UTC+0200)
+Ende:   2026-09-25 20:18:29 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/verlauf_bauen.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/verlauf_bauen.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 · FK11 → ausgabe/VERLAUF-TEIL<n>-01.md, dazu AUFTRAG-V2-WORTLAUT-TEIL<n>-01.txt.
+Menge (Auslegung Hermes, FK48): Nachrichtenverzeichnis v3 (arbeit/verlauf/v3/wortlaut.jsonl, bis Stich 17:29:59),
+Biotop ja, ab 21.09.2026 00:00 CEST, Absender Philipp, Hermes (Antwort) und Hermes-Zwischentext.
+- Wortlaut unverändert in einem Codeblock (Schwärzung aus v3 bleibt).
+- Eingelegte Dokumente, die als Datei im Prüfkanal liegen: nur Begleitzeile im Wortlaut, Dokumentinhalt als Verweis
+  mit Adresse und SHA-256 (Gleichheit belegt in R207).
+- Verdichtungszusammenfassungen (Systemtext mit Kontextmarken, R208): nicht abgedruckt, nur gezählt und genannt.
+- Wiederholungen (gleicher Absender, gleicher Wortlaut wie ein früherer Eintrag): nur Verweis auf den ersten.
+Teile ≤ 38.000 B an Eintragsgrenzen; exklusiv geschrieben; Aufruf mit --probe schreibt nichts."""
+import collections
+import datetime as dt
+import hashlib
+import json
+import os
+import re
+import sys
+from pathlib import Path
+
+W = Path('/root/sicherung/biotop-lage-01')
+V = W / 'arbeit/verlauf/v3/wortlaut.jsonl'
+A = W / 'ausgabe'
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+LAEUFE = f'https://milieulux-reinigung-muenchen.de/_akte/{K}/laeufe'
+ORDNER = f'{LAEUFE}/biotop-lage-01'
+MENGE = ('Philipp', 'Hermes', 'Hermes-Zwischentext')
+GRENZE = 38_000
+PROBE = '--probe' in sys.argv
+sha = lambda b: hashlib.sha256(b).hexdigest()
+VERDICHTUNG = {9867, 14995, 17397}
+
+# --- Auftrag v2 im Wortlaut, byte-genau geteilt ---
+auftrag = (W / 'auftrag/BIOTOP-LAGE-01-Auftrag-v2.md').read_bytes()
+teile_a, akt = [], b''
+for z in auftrag.splitlines(keepends=True):
+    if len(akt) + len(z) > GRENZE:
+        teile_a.append(akt); akt = b''
+    akt += z
+teile_a.append(akt)
+assert b''.join(teile_a) == auftrag
+AUFTRAG_NAMEN = [f'AUFTRAG-V2-WORTLAUT-TEIL{k}-01.txt' for k in range(1, len(teile_a) + 1)]
+mp8 = b''.join(p.read_bytes() for p in sorted(A.glob('MASTERPROMPT-V8-WORTLAUT-TEIL*-01.txt')))
+mp7 = (Path(f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe/biotop-t3-typescript/MASTERPROMPT-v7.md')).read_bytes()
+DOK = {
+    9105: (f'{LAEUFE}/biotop-t3-typescript/MASTERPROMPT-v7.md', len(mp7), sha(mp7), 'Masterprompt Fassung 7'),
+    13998: (' · '.join(f'{ORDNER}/MASTERPROMPT-V8-WORTLAUT-TEIL{k}-01.txt' for k in (1, 2, 3)), len(mp8), sha(mp8),
+            'Masterprompt Fassung 8 (drei Teile, Verkettung = Dokument)'),
+    20987: (' · '.join(f'{ORDNER}/{n}' for n in AUFTRAG_NAMEN), len(auftrag), sha(auftrag),
+            'Auftrag BIOTOP-LAGE-01 Fassung 2 (Teile, Verkettung = Dokument)'),
+}
+
+zeilen = [json.loads(l) for l in V.open(encoding='utf-8')]
+menge = sorted((x for x in zeilen if x['zeit'] >= '2026-09-21' and x['biotop'] == 'ja' and x['absender'] in MENGE),
+               key=lambda x: (x['ts'], x['id']))
+zaehl = collections.Counter(x['absender'] for x in menge)
+eintraege, erste, verdichtet, wiederholt, dokumente = [], {}, [], [], []
+
+
+def block(text):
+    lauf = max([len(m) for m in re.findall(r'`+', text)] + [2])
+    zaun = '`' * (lauf + 1)
+    return f'{zaun}text\n{text}\n{zaun}\n'
+
+
+for i, x in enumerate(menge, 1):
+    nr = f'V{i:03d}'
+    t = x['text']
+    kopf = (f'### {nr} · {x["zeit"][8:10]}.{x["zeit"][5:7]}. {x["zeit"][11:]} CEST · {x["absender"]} · '
+            f'Nachricht id {x["id"]} · Sitzung `{x["sitzung"]}` · {len(t.encode())} B'
+            + (f' · geschwärzt {x["geschwaerzt"]}' if x['geschwaerzt'] else '') + '\n\n')
+    if x['id'] in VERDICHTUNG:
+        verdichtet.append(f'{nr} (id {x["id"]}, {x["zeit"]}, {len(t.encode())} B)')
+        rumpf = ('*Nicht abgedruckt:* Verdichtungszusammenfassung, ein Systemtext mit Kontextmarken und keine Nachricht '
+                 'an Philipp (R208). Der Wortlaut steht in der Sitzungsdatenbank, die gesichert ist (SICHERUNG).\n')
+    elif x['id'] in DOK:
+        adr, n, h, was = DOK[x['id']]
+        m = re.search(r'\]:\n', t)
+        rumpf = (block(t[:m.end()].rstrip('\n')) +
+                 f'\n*Dokumentinhalt nicht abgedruckt:* {was}, {n} B, SHA-256 `{h}`: {adr}\n'
+                 f'Gleichheit von Dokumentinhalt und Datei belegt in R207.\n')
+        dokumente.append(f'{nr} (id {x["id"]}): {was}')
+    elif (x['absender'], t.strip()) in erste:
+        rumpf = f'*Wiederholung von {erste[(x["absender"], t.strip())]}* (gleicher Absender, gleicher Wortlaut).\n'
+        wiederholt.append(f'{nr}→{erste[(x["absender"], t.strip())]}')
+    elif not t.strip():
+        rumpf = '*Ohne Text.*\n'
+    else:
+        erste[(x['absender'], t.strip())] = nr
+        rumpf = block(t)
+    eintraege.append((nr, x, kopf + rumpf + '\n'))
+
+# --- Teile bilden (Platz für den Kopf freihalten) ---
+KOPF_PLATZ = {1: 9_000}
+teile, akt = [], []
+for e in eintraege:
+    groesse = sum(len(s[2].encode()) for s in akt)
+    if akt and groesse + len(e[2].encode()) > GRENZE - KOPF_PLATZ.get(len(teile) + 1, 1_800):
+        teile.append(akt); akt = []
+    akt.append(e)
+teile.append(akt)
+namen = [f'VERLAUF-TEIL{k}-01.md' for k in range(1, len(teile) + 1)]
+
+
+def spanne(t):
+    return f'{t[0][0]}–{t[-1][0]} ({t[0][1]["zeit"][8:10]}.{t[0][1]["zeit"][5:7]}. {t[0][1]["zeit"][11:16]} bis ' \
+           f'{t[-1][1]["zeit"][8:10]}.{t[-1][1]["zeit"][5:7]}. {t[-1][1]["zeit"][11:16]})'
+
+
+ausgabe = {}
+for k, t in enumerate(teile, 1):
+    k_ = [f'# BIOTOP-LAGE-01 · Fassung 2 · `VERLAUF-TEIL{k}-01.md` (FK11) · Teil {k} von {len(teile)}', '',
+          f'- **Einträge:** {spanne(t)}.',
+          '- **Stichzeitpunkt:** 25.09.2026 17:29:59 CEST. Alle Zeiten CEST.',
+          f'- **Übersicht, Menge und Regeln:** {ORDNER}/VERLAUF-TEIL1-01.md', '']
+    if k == 1:
+        k_ += ['## Menge und Regeln', '',
+               '- **Quelle:** Nachrichtenverzeichnis v3 (`/root/sicherung/biotop-lage-01/arbeit/verlauf/v3/`, R155; '
+               'aus `/root/.hermes/state.db`, Doppelzeilen entfernt; Zählung START-02 Abschnitt C, R160). '
+               f'Geschwärzt ist jeder Wert aus `.env` und `auth.json`, dazu jedes Schlüsselmuster (Werkzeug `arbeit/geheimnis.py`).',
+               '- **Menge (Auslegung Hermes, FK48):** jede Nachricht vom 21.09.2026 00:00 bis zum Stich, die zum Biotop '
+               'gehört, von Philipp (Aufträge und Anweisungen; darunter Texte in Chat-Claudes Stimme aus Philipps Konto), '
+               'jede Antwort von Hermes und jeder Zwischentext von Hermes. Was Hermes an Subagenten schrieb und was sie '
+               'antworteten, gehört nicht dazu, ebenso wenig System- und Hintergrundmeldungen. Diese Nachrichten stehen '
+               'gezählt in START-02 C und in der Sicherung.',
+               f'- **Zählung:** {len(menge)} Einträge = Philipp {zaehl["Philipp"]} + Hermes (Antworten) {zaehl["Hermes"]} + '
+               f'Zwischentexte von Hermes {zaehl["Hermes-Zwischentext"]} (R206).',
+               f'  - Wortlaut abgedruckt: {len(menge) - len(verdichtet) - len(wiederholt) - len(dokumente)}.',
+               f'  - Nur Begleitzeile, Dokument als Verweis: {len(dokumente)}: ' + '; '.join(dokumente) + '.',
+               f'  - Wiederholung, nur Verweis: {len(wiederholt)}' + (f': {", ".join(wiederholt)}.' if wiederholt else '.'),
+               f'  - Verdichtungszusammenfassung, nicht abgedruckt: {len(verdichtet)}: ' + '; '.join(verdichtet) + '.',
+               '- **Zwischentexte:** Hermes schreibt sie neben Werkzeugaufrufen. Das Gateway stellt sie als eigene '
+               'Telegram-Nachricht zu, wenn `display.interim_assistant_messages` an ist. Dass jeder einzelne '
+               'Zwischentext bei Philipp ankam, ist nicht belegt; das Gateway-Protokoll zeigt keine Zeile dazu (R188).',
+               '- **Absender:** Die Zuordnung zu Philipp, Hermes oder Zwischentext macht `arbeit/verlauf_extrakt.py`. '
+               'Die Regel steht dort.', '',
+               '## Teile', ''] + [f'- Teil {j}: {spanne(tt)}: {ORDNER}/{namen[j - 1]}' for j, tt in enumerate(teile, 1)] + \
+              ['', f'- Auftrag BIOTOP-LAGE-01 Fassung 2 im Wortlaut, {len(auftrag)} B, SHA-256 `{sha(auftrag)}`: ' +
+               ' · '.join(f'{ORDNER}/{n}' for n in AUFTRAG_NAMEN), '']
+    k_ += ['---', '']
+    text = '\n'.join(k_) + ''.join(e[2] for e in t)
+    ausgabe[namen[k - 1]] = text.encode('utf-8')
+for n, b in zip(AUFTRAG_NAMEN, teile_a):
+    ausgabe[n] = b
+
+print(f'{dt.datetime.now():%Y-%m-%d %H:%M:%S} · Einträge {len(menge)} · {dict(zaehl)} · Teile {len(teile)} · '
+      f'Dokumente {len(dokumente)} · Wiederholungen {len(wiederholt)} · Verdichtungen {len(verdichtet)}')
+fehler = 0
+for n, b in ausgabe.items():
+    zu_gross = len(b) > 40_000
+    fehler += zu_gross
+    print(f'{n} · {len(b)} B · SHA-256 {sha(b)}' + (' · ZU GROSS' if zu_gross else ''))
+    if PROBE or zu_gross:
+        continue
+    fd = os.open(A / n, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+    with os.fdopen(fd, 'wb') as f:
+        f.write(b)
+print(f'Auftrag: Verkettung der Teile gleich Original: {b"".join(teile_a) == auftrag} · {len(auftrag)} B · SHA-256 {sha(auftrag)}')
+print(f'{"PROBE, nichts geschrieben" if PROBE else "geschrieben"} · Fehler {fehler}')
+sys.exit(1 if fehler else 0)
+--- Ende /root/sicherung/biotop-lage-01/arbeit/verlauf_bauen.py ---
+Ausgabe (vollständig, stdout und stderr):
+2026-09-25 20:18:29 · Einträge 426 · {'Philipp': 44, 'Hermes': 119, 'Hermes-Zwischentext': 263} · Teile 10 · Dokumente 3 · Wiederholungen 63 · Verdichtungen 3
+VERLAUF-TEIL1-01.md · 33934 B · SHA-256 d23aa6638486a9959295ecb563c996e50cb705eb7ce47d59b9bfb6ea8371e2ab
+VERLAUF-TEIL2-01.md · 36422 B · SHA-256 48e0b5efbea0fde9367fcd7080c814e777d18014e42767c7887754c8626d587d
+VERLAUF-TEIL3-01.md · 36523 B · SHA-256 fe78b82b6ffe95828dac00d8afb28e17cb567be2f0246c8338a03593fa11e410
+VERLAUF-TEIL4-01.md · 34955 B · SHA-256 0900302420fd86700e4a2fa814dd19fb015ec97228a67eb516b16a181f165e92
+VERLAUF-TEIL5-01.md · 34271 B · SHA-256 e854819e6c74794434adc5245812682e99811e078688676c05efbd2f2011e9f9
+VERLAUF-TEIL6-01.md · 31950 B · SHA-256 058a44d6b3b081160fcfca366b40d86485427b391eff8d380cd5f3e3ca06fbd0
+VERLAUF-TEIL7-01.md · 35542 B · SHA-256 7f99d236d21763686207adff9822476434809faf3ee1e5bcd7845d6dbdb6c2bf
+VERLAUF-TEIL8-01.md · 36508 B · SHA-256 d3d2c9d8ccbb3ce174436c0ba5fb72becdcb4d814a2946d23b7f05beee83c14d
+VERLAUF-TEIL9-01.md · 35522 B · SHA-256 b0208ac475857a3fa7577990268307cafb04df79452555b74762e7c94d29c253
+VERLAUF-TEIL10-01.md · 23212 B · SHA-256 e61e3434e0552f95a37fdb48432fae1127038ca6ad30f5cef910193e83e82da4
+AUFTRAG-V2-WORTLAUT-TEIL1-01.txt · 37946 B · SHA-256 f98b92fa5264b0bd212c5d0b36abb8cf5c94fb2cc511483826f69677dea1e1eb
+AUFTRAG-V2-WORTLAUT-TEIL2-01.txt · 3293 B · SHA-256 3c0eff896969fa86d2794dc3575e08b44dca04ca064f9aa69df95a6f86e68d70
+Auftrag: Verkettung der Teile gleich Original: True · 41239 B · SHA-256 58ba8834b8c3ec08f8da2e18d3db056150c91c2841ed9aac349bcf2eba216b98
+geschrieben · Fehler 0
+=== Ende R210 ===

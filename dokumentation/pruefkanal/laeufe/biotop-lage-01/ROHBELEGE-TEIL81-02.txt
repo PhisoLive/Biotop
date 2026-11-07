@@ -1,0 +1,593 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 81 (Teile 4–165 dieses Stands) · enthält R89 bis R92
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R89 · Nachrichtenverzeichnis Stand 2 (arbeit/verlauf/v2/): Review-Bindung der zwei Sitzungen und System-Kennungen [System note/[STILL IN PROGRESS berichtigt (R84, R85, R88)
+Beginn: 2026-09-25 16:42:07 CEST (UTC+0200)
+Ende:   2026-09-25 16:42:08 CEST (UTC+0200)
+Dauer:  1.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/verlauf_extrakt.py v2
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/verlauf_extrakt.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Nachrichtenverzeichnis und Wortlaut aus der Sitzungsdatenbank ab 18.09.2026 00:00 CEST.
+
+Quelle: /root/.hermes/state.db (mode=ro), Tabellen messages und sessions.
+Dubletten: Dieselbe Nachricht steht nach Verdichtungen mehrfach in der Datenbank (R14). Zusammengefasst wird nach
+(Sitzung, Rolle, Zeitstempel, Inhalt); gezählt wird, wie viele Zeilen zusammengefasst wurden.
+Einordnung Absender (Auslegung Hermes, steht in LAGE/FK48):
+  Philipp            — role=user in einer Telegram-Sitzung, ohne Systemkennung am Anfang
+  System-*           — role=user mit Systemkennung ([ASYNC DELEGATION…, [IMPORTANT: Background process…,
+                       [CONTEXT COMPACTION…, [Context from the interrupted…, [SYSTEM…)
+  Hermes             — role=assistant ohne Werkzeugaufruf in einer Telegram-/CLI-Sitzung (Antwort an Philipp)
+  Hermes-Zwischentext — role=assistant mit Text UND Werkzeugaufruf (Arbeitsnotiz; gezählt, nicht im Wortlaut)
+  Hermes→Subagent    — role=user in einer Subagent-Sitzung (Bauauftrag an den Subagenten)
+  Subagent           — role=assistant ohne Werkzeugaufruf in einer Subagent-Sitzung (Schlussbericht)
+  CLI-Probe          — role=user in einer CLI-Sitzung
+Werkzeug-Nachrichten (role=tool) und Werkzeugaufrufe werden je Tag gezählt, nicht einzeln verzeichnet.
+Einordnung Biotop: ja, wenn die Sitzung eine Biotop-Sitzung ist (Telegram-Kette ab 18.09. 20:59 mit Masterprompt v1,
+ihre Subagenten) — sonst nein; CLI-Proben der Modellkennung sind „nein" (Regel 15: eigene Modell-/Anmeldelage).
+Geheimnisse werden vor dem Schreiben geschwärzt (Muster und Werte aus .env/auth.json, wie geheimnis.py).
+Ausgabe: arbeit/verlauf/nachrichten.jsonl (ohne Inhalt), arbeit/verlauf/wortlaut.jsonl (mit Inhalt, geschwärzt),
+Zusammenfassung auf stdout."""
+import datetime as dt
+import hashlib
+import json
+import re
+import sqlite3
+import sys
+from pathlib import Path
+
+sys.path.insert(0, '/root/sicherung/biotop-lage-01/arbeit')
+import geheimnis  # noqa: E402
+
+AUS = Path('/root/sicherung/biotop-lage-01/arbeit/verlauf') / (sys.argv[1] if len(sys.argv) > 1 else '')
+AUS.mkdir(parents=True, exist_ok=True)
+AB = dt.datetime(2026, 9, 18).timestamp()
+con = sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+sess = {r[0]: {'source': r[1], 'title': r[2], 'parent': r[3], 'started': r[4]} for r in con.execute(
+    'SELECT id, source, title, parent_session_id, started_at FROM sessions')}
+
+# Biotop-Sitzungen: Telegram-Kette ab der Masterprompt-v1-Sitzung und alle Subagenten-Sitzungen darunter
+START = '20260918_205818_3767d1c9'
+biotop = set()
+kinder = {}
+for sid, s in sess.items():
+    kinder.setdefault(s['parent'], []).append(sid)
+stapel = [START]
+while stapel:
+    x = stapel.pop()
+    if x in biotop:
+        continue
+    biotop.add(x)
+    stapel += kinder.get(x, [])
+
+WERTE = geheimnis.werte()
+
+
+def schwaerzen(t: str, mid: int):
+    n = 0
+    for name, m in geheimnis.MUSTER.items():
+        t, k = re.subn(m, f'[GESCHWÄRZT: {name}, Fundort state.db Nachricht {mid}]', t)
+        n += k
+    for v, quelle in WERTE.items():
+        if v in t:
+            n += t.count(v)
+            t = t.replace(v, f'[GESCHWÄRZT: Wert aus {quelle.split(":")[0]}, Fundort state.db Nachricht {mid}]')
+    return t, n
+
+
+SYS = [('[ASYNC DELEGATION', 'System-Delegationsergebnis'), ('[IMPORTANT: Background process', 'System-Hintergrundprozess'),
+       ('[IMPORTANT:', 'System-Hintergrundprozess'), ('[CONTEXT COMPACTION', 'System-Verdichtung'),
+       ('[PRIOR CONTEXT', 'System-Verdichtung'), ('[Your active task list', 'System-Hinweis'),
+       ('[System:', 'System-Hinweis'), ("You've reached the maximum", 'System-Hinweis'),
+       ('[SYSTEM', 'System-Hinweis'), ('[Note:', 'System-Hinweis'), ('[System note', 'System-Hinweis'),
+       ('[STILL IN PROGRESS', 'System-Hinweis')]
+# Nicht als System gezählt (Auslegung Hermes, R88): „Gateway message origin …“ (Telegram-Nachricht Philipps mit
+# vorangestellten Herkunftsdaten), „[Replying to: …]“ (Antwort Philipps auf eine Nachricht), „[Content of …]“ (von
+# Philipp eingelegtes Dokument).
+REVIEW_BINDUNG = {'20260924_150913_a9326d': dt.datetime(2026, 9, 24, 16, 10, 41).timestamp(),
+                  '20260924_203120_e6c401': dt.datetime(2026, 9, 24, 21, 51, 24).timestamp()}
+# „[Context from the interrupted assistant response]…" trägt eine echte Nachricht Philipps (Korrektur während einer
+# Antwort, z. B. 25.09. 14:44:22) — sie zählt als Philipp (Auslegung Hermes).
+
+
+def absender(rolle, quelle, inhalt, tool_calls, sid=None, zeit=None):
+    # Zwei Telegram-Sitzungen der Kette begannen als Review-Subagenten und trugen den Chat mit Philipp erst ab dem
+    # Sitzungswechsel ihrer Elternsitzung (R84, R85; ZWEI-REVIEWS.md). Davor: Auftrag von Hermes an den Reviewer und
+    # Nachrichten des Reviewers (Auslegung Hermes, 25.09.).
+    g = REVIEW_BINDUNG.get(sid)
+    if g and zeit is not None and zeit < g:
+        quelle = 'subagent'
+    if rolle == 'user':
+        if quelle == 'subagent':
+            return 'Hermes→Subagent'
+        if quelle == 'cli':
+            return 'CLI-Probe'
+        for pre, name in SYS:
+            if inhalt.lstrip().startswith(pre):
+                return name
+        return 'Philipp'
+    if rolle == 'assistant':
+        hat_tool = bool(tool_calls) and tool_calls not in ('[]', 'null')
+        if quelle == 'subagent':
+            return 'Subagent-Zwischentext' if hat_tool else 'Subagent'
+        return 'Hermes-Zwischentext' if hat_tool else 'Hermes'
+    return rolle
+
+
+zeilen = con.execute("""SELECT id, session_id, role, content, tool_calls, timestamp FROM messages
+                        WHERE timestamp >= ? AND role IN ('user','assistant') ORDER BY timestamp, id""", (AB,))
+gesehen = {}
+for mid, sid, rolle, inhalt, tc, ts in zeilen:
+    inhalt = inhalt or ''
+    key = (sid, rolle, ts, hashlib.sha256(inhalt.encode()).hexdigest())
+    if key in gesehen:
+        gesehen[key]['zeilen'] += 1
+        continue
+    q = sess.get(sid, {}).get('source')
+    a = absender(rolle, q, inhalt, tc, sid, ts)
+    if rolle == 'assistant' and not inhalt.strip():
+        continue  # reiner Werkzeugaufruf ohne Text
+    gesehen[key] = {'id': mid, 'zeit': dt.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S'), 'ts': ts,
+                    'sitzung': sid, 'quelle': q, 'rolle': rolle, 'absender': a,
+                    'biotop': 'ja' if sid in biotop else 'nein', 'bytes': len(inhalt.encode()), 'zeilen': 1,
+                    '_inhalt': inhalt}
+liste = sorted(gesehen.values(), key=lambda x: (x['ts'], x['id']))
+n_geschwaerzt = 0
+with open(AUS / 'nachrichten.jsonl', 'x') as f1, open(AUS / 'wortlaut.jsonl', 'x') as f2:
+    for e in liste:
+        text, n = schwaerzen(e.pop('_inhalt'), e['id'])
+        n_geschwaerzt += n
+        e['geschwaerzt'] = n
+        f1.write(json.dumps(e, ensure_ascii=False) + '\n')
+        f2.write(json.dumps(dict(e, text=text), ensure_ascii=False) + '\n')
+print(f'Biotop-Sitzungen (Kette ab {START}): {len(biotop & set(sess))}')
+print(f'Nachrichten ab 18.09.2026 00:00 CEST (user/assistant mit Text, ohne Dubletten): {len(liste)}; '
+      f'zusammengefasste Dublettenzeilen: {sum(e["zeilen"] - 1 for e in liste)}; Schwärzungen: {n_geschwaerzt}')
+from collections import Counter  # noqa: E402
+c = Counter((e['absender'], e['biotop']) for e in liste)
+for (a, b), n in sorted(c.items()):
+    print(f'  {a:28} Biotop {b:4}: {n}')
+tage = Counter((e['zeit'][:10], e['absender']) for e in liste if e['biotop'] == 'ja')
+print('Je Tag (nur Biotop): Philipp / Hermes / System-* / Hermes→Subagent / Subagent')
+for d in sorted({k[0] for k in tage}):
+    s = sum(n for (t, a), n in tage.items() if t == d and a.startswith('System'))
+    print(f'  {d}: {tage[(d, "Philipp")]} / {tage[(d, "Hermes")]} / {s} / {tage[(d, "Hermes→Subagent")]} / '
+          f'{tage[(d, "Subagent")]}')
+--- Ende /root/sicherung/biotop-lage-01/arbeit/verlauf_extrakt.py ---
+Ausgabe (vollständig, stdout und stderr):
+Biotop-Sitzungen (Kette ab 20260918_205818_3767d1c9): 59
+Nachrichten ab 18.09.2026 00:00 CEST (user/assistant mit Text, ohne Dubletten): 1415; zusammengefasste Dublettenzeilen: 164; Schwärzungen: 28
+  CLI-Probe                    Biotop nein: 8
+  Hermes                       Biotop ja  : 216
+  Hermes                       Biotop nein: 7
+  Hermes-Zwischentext          Biotop ja  : 642
+  Hermes→Subagent              Biotop ja  : 119
+  Philipp                      Biotop ja  : 114
+  Subagent                     Biotop ja  : 47
+  Subagent-Zwischentext        Biotop ja  : 139
+  System-Delegationsergebnis   Biotop ja  : 26
+  System-Hintergrundprozess    Biotop ja  : 50
+  System-Hinweis               Biotop ja  : 26
+  System-Verdichtung           Biotop ja  : 21
+Je Tag (nur Biotop): Philipp / Hermes / System-* / Hermes→Subagent / Subagent
+  2026-09-18: 5 / 5 / 2 / 0 / 0
+  2026-09-19: 26 / 36 / 10 / 0 / 0
+  2026-09-20: 40 / 57 / 39 / 53 / 25
+  2026-09-21: 22 / 49 / 28 / 8 / 2
+  2026-09-22: 3 / 8 / 6 / 2 / 2
+  2026-09-23: 8 / 19 / 15 / 10 / 4
+  2026-09-24: 6 / 26 / 15 / 4 / 2
+  2026-09-25: 4 / 16 / 8 / 42 / 12
+=== Ende R89 ===
+
+
+R90 · Teil D: Nachlesen am Commit 0c2f058 (Aufnahmesperre, Eichfall, Wächter, kasse-Köpfe, freigabe, ROUTEN, ELEMENTE, vorspann) (FK32, FK34, FK50)
+Beginn: 2026-09-25 16:42:54 CEST (UTC+0200)
+Ende:   2026-09-25 16:42:54 CEST (UTC+0200)
+Dauer:  0.0 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/sicherung/biotop-lage-01/entwurf/aufbau/d11_nachlesen.sh
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/aufbau/d11_nachlesen.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-LAGE-01 Teil D (nur lesend): letztes Nachlesen im Code am Commit 0c2f058 für FK32/FK34/FK50.
+# Nur git show / git grep am Commit; keine Wortlaut-Datei auf der Befehlszeile.
+C=0c2f058
+G="git -C /root/biotop"
+echo "== 1. pruefung/aufnahmesperre_pruefen.py (erste 22 Zeilen)"
+$G show $C:pruefung/aufnahmesperre_pruefen.py | head -22
+echo "== 2. pruefung/bauteilA_mechanik.py (erste 14 Zeilen)"
+$G show $C:pruefung/bauteilA_mechanik.py | head -14
+echo "== 3. aegis.aufnahmesperre (Kopf der Funktion, 22 Zeilen)"
+$G show $C:biotop/organe/aegis.py | grep -n -A 21 "^def aufnahmesperre"
+echo "== 4. tests/test_t3_python_annahmen.py (erste 16 Zeilen)"
+$G show $C:tests/test_t3_python_annahmen.py | head -16
+echo "== 5. kasse.py: Funktionsköpfe mit Zeile"
+$G show $C:biotop/kern/kasse.py | grep -n -E "^def |^class "
+echo "== 6. lauf.py Zeilen 553-600 (freigabe)"
+$G show $C:biotop/lauf.py | sed -n '553,600p'
+echo "== 7. dienst.py: ROUTEN (vollständig)"
+$G show $C:biotop/dienst.py | sed -n '/^ROUTEN = \[/,/^\]/p'
+echo "== 8. oberflaeche.py: Schlüssel von ELEMENTE"
+$G show $C:biotop/oberflaeche.py | sed -n '/^ELEMENTE = {/,/^}/p' | grep -o -E '^\s+"[a-z0-9_-]+"' | tr -d ' "' | tr '\n' ' '; echo
+echo "== 9. vorspann.py: def verlangen und def ausfuehren (Kopf, je 12 Zeilen)"
+$G show $C:biotop/organe/vorspann.py | grep -n -A 11 -E "^def (verlangen|ausfuehren)\("
+--- Ende /root/sicherung/biotop-lage-01/entwurf/aufbau/d11_nachlesen.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== 1. pruefung/aufnahmesperre_pruefen.py (erste 22 Zeilen)
+"""Mechanikprüfung der Aufnahmesperre C (F7) — roter und grüner Eichfall, deterministisch, 0 Modellaufrufe.
+
+Maßstab (Chat-Claude, vor der Messung gesetzt):
+  Durchgerutscht an C = 0 · Fehlalarm ≤ 20 % der Sperrungen, jede einzeln belegt
+  je ein roter und ein grüner Eichfall
+
+Die Prüfung ruft die echte Kernfunktion `aegis.aufnahmesperre` auf. Grundsatz 4: Der Wirkungsbereich ist
+eingegrenzt — geprüft wird gegen ein eigenes Prüfwerk, kein echter Bestand wird verändert.
+Aufruf: aufnahmesperre_pruefen.py <ausgaben-dir>
+"""
+import sys
+from pathlib import Path
+sys.path.insert(0, "/root/biotop")
+from biotop.kern import protokoll
+from biotop.kern.datenbank import verbinden, transaktion
+from biotop.organe import aegis
+
+A = Path(sys.argv[1])
+con = verbinden()
+WERK, LAUF, BEREICH, PAKET = 9901, 9901, "lager", "lagerhaus"
+
+CODE = '''from lagerhaus.lager import Lager, NichtGenugBestand
+== 2. pruefung/bauteilA_mechanik.py (erste 14 Zeilen)
+"""Bauteil A (F6 3.7), Mechanikprüfung: Wird ein Angriff mit bereits aufgestellter Behauptung wirklich
+nicht ausgeführt?
+
+An echten Läufen trat der Fall zu selten auf, um ihn zu belegen (Lauf 22 sättigte nach einer Generation mit
+5 Ansagen, Lauf 23 lief an einer frischen Werk-Kopie mit leerem Behauptungsvorrat). Deshalb wird die
+Entscheidung hier mit gestellter Ansage geprüft — ausdrücklich als Mechanikprüfung gekennzeichnet.
+Grundsatz 4: Der Wirkungsbereich ist eingegrenzt (kein Werk wird verändert, keine Tabelle beschrieben
+außer dem Protokoll, das unveränderlich ist).
+Aufruf: bauteilA_mechanik.py <ausgaben-dir>
+"""
+import sys
+from pathlib import Path
+sys.path.insert(0, "/root/biotop")
+from biotop.kern.datenbank import verbinden, lj
+== 3. aegis.aufnahmesperre (Kopf der Funktion, 22 Zeilen)
+732:def aufnahmesperre(con, werk_id: int, lauf_id: int, bereich: str, code: str, testnamen, paket: str,
+733-                   kandidat_id: int, art: str, *, eigene_ansage_nr: int | None = None) -> tuple[list, list]:
+734-    """**Aufnahmesperre C** (Fassung 7, Entscheidung Chat-Claude 20.09.2026).
+735-
+736-    Prüft den Schlüssel des TATSÄCHLICH GESCHRIEBENEN Tests gegen den Vorrat des Bereichs — deterministisch,
+737-    im Kern, ohne Modellaufruf, unmittelbar vor der Aufnahme ins Immunsystem.
+738-
+739-    Warum nicht die Ansage-Sperre (Bauteil A) genügt: Sie bittet ein Sprachmodell, seine Absicht zu erklären,
+740-    und vertraut ihr. Über das, was am Ende im Werk landet, kann sie grundsätzlich nichts zusagen. Gemessen in
+741-    Lauf 24: 2 von 3 erzeugten Einträgen trugen eine Behauptung, die längst im Vorrat stand, ohne je angesagt
+742-    worden zu sein — die Sperre sah die geschriebene Behauptung nie.
+743-
+744-    C verwirft keinen Fund, der etwas Neues behauptet: Weicht der Ankläger von seiner Ansage ab und ist der
+745-    neue Schlüssel neu, bleibt der Fund. Nur die Wiederholung wird abgewiesen.
+746-
+747-    Rückgabe: (aufnehmen, abgewiesen) — je Liste von (testname, schluessel).
+748-    Jede Abweisung wird protokolliert, mit Grund und Gegenstück; nie still verworfen.
+749-    """
+750-    # Ausgenommen ist nur die gerade erzeugte Ansage-Zeile. Der Schlüssel bleibt
+751-    # sperrbar durch frühere Ansagen und jeden bereits aufgenommenen Immuntest.
+752-    vorrat = set(bisherige_behauptungen(con, werk_id, bereich, lauf_id, limit=None,
+753-                                       ohne_ansage_nr=eigene_ansage_nr))
+== 4. tests/test_t3_python_annahmen.py (erste 16 Zeilen)
+"""Prüft dauerhaft: Keine ungeschützte Python-Annahme im TypeScript-Pfad.
+
+Lauf 31 starb an einer einzelnen solchen Stelle (gedaechtnis.aenderungsziel). Diese
+Stellen einzeln zu finden, indem jeweils ein Lauf stirbt, ist der langsamste Weg —
+deshalb prüft dieser Test den gesamten Kern in einem Zug und hält das Ergebnis fest.
+
+Geprüft werden vier Annahmen, die im TS-Pfad falsch wären:
+  def-Muster, .py-Endung, pytest-Auswertung, Python-Syntaxbaum.
+
+Eine Fundstelle gilt als geschützt, wenn eine Sprachweiche in derselben Funktion
+oder an jeder ihrer Aufrufstellen steht. Ungerufene Funktionen (toter Code) können
+keinen Lauf töten. Fälle, deren Weiche weiter oben in der Kette steht, als eine
+Textsuche auflösen kann, stehen in GEPRUEFT — mit Begründung und Zeilennachweis.
+"""
+import ast
+import re
+== 5. kasse.py: Funktionsköpfe mit Zeile
+51:def auftrag_stand(con: sqlite3.Connection) -> float:
+57:class BudgetErschoepft(RuntimeError):
+61:class AuftragsgrenzeFehlt(RuntimeError):
+70:def auftragsgrenze_verlangen() -> tuple[int, float]:
+89:def kosten_eur(modell: str, tokens_ein: int, tokens_aus: int) -> float:
+97:def stand(con: sqlite3.Connection, lauf_id: int) -> dict:
+116:def vorpruefung(
+175:def ausfall_klaeren(con: sqlite3.Connection, lauf_id: int, aufruf_nr: int, beleg: str,
+221:def ausfallklaerungen(con: sqlite3.Connection, lauf_id: int) -> dict:
+238:def buchen(
+253:def bericht_md(con: sqlite3.Connection, lauf_id: int | None = None) -> str:
+275:def generationskosten(con: sqlite3.Connection, lauf_id: int) -> dict[int, float]:
+294:def generation_vorpruefung(con: sqlite3.Connection, lauf_id: int, nummer: int) -> float:
+== 6. lauf.py Zeilen 553-600 (freigabe)
+def freigabe(con: sqlite3.Connection, lauf_id: int, nummer: int, entscheidung: str, grund: str, von: str) -> dict:
+    """Philipp gibt frei oder lehnt ab. Ablehnung → Rückkehr zur Vorgeneration (Lazarus), Grund ins Gedächtnis."""
+    g = con.execute("SELECT * FROM generationen WHERE lauf_id=? AND nummer=?", (lauf_id, nummer)).fetchone()
+    if not g or g["status"] != "vorgelegt":
+        raise LaufFehler(f"Generation {nummer} ist nicht vorgelegt (Status: {g['status'] if g else 'fehlt'})")
+    werk = _werk(con, _lauf(con, lauf_id)["werk_id"])
+    verf = verfassung.lesen(con, werk["id"])
+    uebungswerk = bool(((verf or {}).get("regeln") or {}).get("uebungswerk"))
+    if entscheidung == "frei" and not von.lower().startswith("philipp") and not uebungswerk:
+        raise LaufFehler("Freigabe eines Werks mit Betriebszweck nur durch Philipp (Abschnitt 4 F2) — Vollmacht gilt nur für Übungswerke")
+    vollmacht = "Vollmacht Abschnitt 4 F2 (Übungswerk ohne Betriebszweck, Verfassung regeln.uebungswerk=true)" if (uebungswerk and not von.lower().startswith("philipp")) else None
+    gewaehlt_k = ((lj(g["kandidaten"]) or {}).get("_gewaehlt") or {})
+    if entscheidung == "frei":
+        with transaktion(con):
+            con.execute("UPDATE generationen SET status='angenommen', freigabe_am=?, freigabe_grund=? WHERE lauf_id=? AND nummer=?",
+                        (protokoll.jetzt(), f"{von}: {grund}", lauf_id, nummer))
+            con.execute("UPDATE laeufe SET status='bereit' WHERE id=?", (lauf_id,))
+        g_m = lj(g["masse"]) or {}
+        protokoll.schreiben(con, "freigabe.frei", lauf_id=lauf_id, nummer=nummer, von=von, grund=grund, vollmacht=vollmacht,
+                            kernmass_f2=g_m.get("kernmass_f2"), urteil=g_m.get("_urteil_f2"))
+        for b, kid in gewaehlt_k.items():
+            gedaechtnis.geschmack_merken(con, werk["id"], lauf_id, nummer, kid, "frei", grund, von)
+        r = {"nummer": nummer, "status": "angenommen", "entropie": entropie.messen(con, lauf_id, nummer)}
+        s_ = entropie.pruefen_und_beenden(con, lauf_id)
+        if s_:
+            r["saettigung"] = s_
+        return r
+    for b, kid in gewaehlt_k.items():
+        gedaechtnis.geschmack_merken(con, werk["id"], lauf_id, nummer, kid, "ablehnen", grund, von)
+    vorherige = con.execute("SELECT MAX(nummer) FROM generationen WHERE lauf_id=? AND nummer<? AND status='angenommen'", (lauf_id, nummer)).fetchone()[0]
+    r = lazarus.rueckkehr(con, lauf_id, vorherige, Path(werk["pfad"]))
+    with transaktion(con):
+        con.execute("UPDATE generationen SET status='abgelehnt_philipp', freigabe_am=?, freigabe_grund=? WHERE lauf_id=? AND nummer=?",
+                    (protokoll.jetzt(), f"{von}: {grund}", lauf_id, nummer))
+        con.execute("UPDATE kandidaten SET status='abgelehnt', grund=? WHERE lauf_id=? AND generation=? AND status='angenommen'",
+                    (f"Philipp: {grund}", lauf_id, nummer))
+        con.execute("UPDATE laeufe SET status='bereit' WHERE id=?", (lauf_id,))
+    protokoll.schreiben(con, "freigabe.abgelehnt", lauf_id=lauf_id, nummer=nummer, von=von, grund=grund, rueckkehr=r)
+    return {"nummer": nummer, "status": "abgelehnt_philipp", "rueckkehr": r}
+
+
+def kurve_nachrechnen(con: sqlite3.Connection, lauf_id: int, testbestand_von_lauf: int | None = None) -> dict:
+    """Verlaufskurve eines Laufs mit Formel F2 und dem Endtestbestand nachgerechnet (3.5 F2):
+    jede angenommene Generation wird aus dem Lazarus-Archiv geholt, der Testbestand der
+    letzten angenommenen Generation (oder des angegebenen Laufs) darübergelegt, in der Kammer
+    gemessen. Zeigt, wie viel des alten Zuwachses Werk war und wie viel Tests."""
+    import shutil, tarfile, tempfile
+    lauf = _lauf(con, lauf_id)
+== 7. dienst.py: ROUTEN (vollständig)
+ROUTEN = [
+    ("GET", r"^/$"),  # Oberfläche (HTML); ohne Token wird nur die Anmeldemaske geliefert, alle Daten-Routen bleiben 401
+    ("POST", r"^/anmelden$"),
+    ("POST", r"^/laeufe/(\d+)/abbrechen$"),   # Pflicht, nie gesperrt (F5 Abschnitt 5)
+    ("POST", r"^/laeufe/(\d+)/freigabe$"),
+    ("POST", r"^/laeufe/(\d+)/richtung$"),
+    ("GET", r"^/laeufe/(\d+)/vorlage$"),
+    ("GET", r"^/laeufe/(\d+)/entropie$"),
+    ("GET", r"^/laeufe/(\d+)/mentor$"),
+    ("GET", r"^/laeufe/(\d+)/immunsystem$"),
+    ("GET", r"^/laeufe/(\d+)/verfassung$"),
+    ("GET", r"^/laeufe$"),
+    ("GET", r"^/laeufe/(\d+)$"),
+    ("GET", r"^/laeufe/(\d+)/generationen$"),
+    ("GET", r"^/laeufe/(\d+)/kandidaten$"),
+    ("GET", r"^/laeufe/(\d+)/kasse$"),
+    ("GET", r"^/laeufe/(\d+)/lazarus$"),
+    ("GET", r"^/werke$"),
+    ("GET", r"^/werke/(\d+)/landkarte$"),
+    ("GET", r"^/protokoll$"),
+]
+== 8. oberflaeche.py: Schlüssel von ELEMENTE
+anmelden abmelden lauf-wahl werk-landkarte verfassung mass kurve generation-aktuell vorlage freigabe-frei freigabe-ablehnen entropie kasse archiv mentor-richtungen richtung-waehlen immunsystem protokoll 
+== 9. vorspann.py: def verlangen und def ausfuehren (Kopf, je 12 Zeilen)
+124:def ausfuehren(con, lauf_id):
+125-    """Eichen vor gen0 und Maß. Rohdaten bleiben im Nachweis und im Protokoll."""
+126-    _tabelle(con)
+127-    with transaktion(con):
+128-        if con.execute('SELECT 1 FROM vorspann_nachweise WHERE lauf_id=?', (lauf_id,)).fetchone():
+129-            raise _fehler(lauf_id, 'bereits ein Eichversuch unter dieser ID')
+130-        con.execute("INSERT INTO vorspann_nachweise(lauf_id,status) VALUES(?,'laeuft')", (lauf_id,))
+131-    r = {'lauf_id':lauf_id, 'generation':-1, 'erstellt_am':protokoll.jetzt(),
+132-         'regel':'F6 3.5; Verfassungssatz 2: neues Messgerät verlangt neuen Lauf'}
+133-    try:
+134-        return _ausfuehren(con, lauf_id, r)
+135-    except Exception as e:
+--
+243:def verlangen(con, lauf_id, phase):
+244-    """Jeder Eingang verlangt den versiegelten Nachweis und protokolliert seine Verweigerung."""
+245-    try:
+246-        return _verlangen(con, lauf_id, phase)
+247-    except VorspannFehler as e:
+248-        protokoll.schreiben(con, 'vorspann.verweigert', lauf_id=lauf_id, phase=phase, grund=str(e))
+249-        raise
+250-
+251-
+252-def _verlangen(con, lauf_id, phase):
+253-    from .. import lauf as L
+254-    _tabelle(con)
+=== Ende R90 ===
+
+
+R91 · Teil A: Urheber von Maß-Bestätigung, Richtungswahl, Verfassung, Freigabe im Protokoll (STAMM, T3), nur lesend
+Beginn: 2026-09-25 16:43:57 CEST (UTC+0200)
+Ende:   2026-09-25 16:43:58 CEST (UTC+0200)
+Dauer:  0.2 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/entscheidungen/a8_urheber_db.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/entscheidungen/a8_urheber_db.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil A (nur lesend) — FK19: Wer hat Maß bestätigt, Richtung gewählt, Verfassung eingelegt?
+Je Zweig (STAMM immutable=1 nur bei leerer WAL; T3 mode=ro): Spalten der Tabelle protokoll; dann für die Arten
+'mass.eingefroren', 'mentor.gewaehlt', 'verfassung.eingelegt', 'freigabe.frei' die Werte der Schlüssel
+von / bestaetigt_von / vollmacht / quelle im JSON-Feld (gezählt je Wert, gekürzt auf 120 Zeichen), mit Laufbereich.
+Keine Ausgabe von Nachrichtentext; kein Schreiben."""
+import json
+import sqlite3
+from collections import Counter
+from pathlib import Path
+
+if Path('/tmp/biotop-kammer-exklusiv').exists():
+    raise SystemExit('ABBRUCH: /tmp/biotop-kammer-exklusiv besteht — keine Datenbankabfragen.')
+for name, pfad, stamm in (('STAMM', '/root/biotop/daten/biotop.db', True), ('T3', '/root/biotop-t3/t3.db', False)):
+    wal = Path(pfad + '-wal')
+    if stamm and wal.exists() and wal.stat().st_size > 0:
+        print(f'{name}: NICHT GEÖFFNET (WAL {wal.stat().st_size} Bytes)')
+        continue
+    c = sqlite3.connect(f'file:{pfad}?mode=ro' + ('&immutable=1' if stamm else ''), uri=True)
+    sp = [r[1] for r in c.execute('PRAGMA table_info(protokoll)')]
+    print(f'===== {name}: protokoll-Spalten {sp}')
+    datenfeld = next((s for s in ('daten', 'inhalt', 'nutzlast', 'json', 'details') if s in sp), None)
+    laufsp = 'lauf_id' if 'lauf_id' in sp else None
+    for art in ('mass.eingefroren', 'mentor.gewaehlt', 'verfassung.eingelegt', 'freigabe.frei'):
+        zeilen = c.execute(f"SELECT {laufsp or 'NULL'}, {datenfeld or 'NULL'} FROM protokoll WHERE art=?", (art,)).fetchall()
+        zaehl = Counter()
+        laeufe = [z[0] for z in zeilen if z[0] is not None]
+        for _, d in zeilen:
+            try:
+                j = json.loads(d) if d else {}
+            except (TypeError, ValueError):
+                j = {}
+            wert = []
+            for k in ('von', 'bestaetigt_von', 'vollmacht', 'quelle', 'gewaehlt_von', 'durch'):
+                if k in j:
+                    wert.append(f'{k}={str(j[k])[:120]}')
+            zaehl[' ; '.join(wert) or '(kein von/bestaetigt_von/vollmacht/quelle-Feld)'] += 1
+        print(f'-- {art}: {len(zeilen)} Zeilen, Läufe {min(laeufe) if laeufe else "-"}–{max(laeufe) if laeufe else "-"}')
+        for k, n in zaehl.most_common(12):
+            print(f'   {n:4d} × {k}')
+    c.close()
+--- Ende /root/sicherung/biotop-lage-01/entwurf/entscheidungen/a8_urheber_db.py ---
+Ausgabe (vollständig, stdout und stderr):
+===== STAMM: protokoll-Spalten ['nr', 'zeit', 'art', 'inhalt', 'hash_vor', 'hash']
+-- mass.eingefroren: 23 Zeilen, Läufe -–-
+      5 × bestaetigt_von=Masterprompt v2 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2
+      4 × bestaetigt_von=Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Norm-Regel 3.7 in der Fassung Philipp 19.09.2026; Grenzmasse gegen 
+      3 × bestaetigt_von=Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2; Grenzmaße gegen Bestwert des Laufs; gr
+      2 × bestaetigt_von=Masterprompt v3 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2; groesste_funktion absolut 60
+      1 × bestaetigt_von=Philipp (Auftrag 18.09.2026: Maß laut Masterprompt 3.5 harte Maße; Kernmaß-Formel Entscheidung Hermes)
+      1 × bestaetigt_von=Vorschlag Hermes 18.09.2026 (Bestätigung Philipp offen; Toleranz groesste_funktion 25 %)
+      1 × bestaetigt_von=Hermes (Kassenprobe)
+      1 × bestaetigt_von=Hermes (Kassenprobe 2)
+      1 × bestaetigt_von=Masterprompt v2 3.5
+      1 × bestaetigt_von=Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Verfassung logmuehle Satz 2; Grenzmaße gegen Bestwert d
+      1 × bestaetigt_von=Masterprompt v5 Abschnitt 3.5 (Messlauf Artgedaechtnis-Muster)
+      1 × bestaetigt_von=Masterprompt v6 Abschnitt 3.5 (Messlauf Tor 2 Zeile 8)
+-- mentor.gewaehlt: 11 Zeilen, Läufe -–-
+      3 × von=Hermes (Vollmacht Abschnitt 4, Uebungswerk lagerhaus; Vorgabe Philipp 19.09.2026: Vollmacht deckt die Richtungswahl, pro ; vollmacht=Vollmacht Abschnitt 4 (Übungswerk)
+      2 × von=Hermes (Vollmacht Abschnitt 4, Übungswerk; folgt der Empfehlung des Mentors) ; vollmacht=Vollmacht Abschnitt 4 (Übungswerk)
+      1 × von=Hermes (Vollmacht Abschnitt 4, Übungswerk lagerhaus; Vorgabe Philipp 19.09.2026: Vollmacht deckt die Richtungswahl; folg ; vollmacht=Vollmacht Abschnitt 4 (Übungswerk)
+      1 × von=Hermes (Vollmacht Abschnitt 4, Uebungswerk; Messlauf fuer die Anklaeger-Anweisung) ; vollmacht=Vollmacht Abschnitt 4 (Übungswerk)
+      1 × von=Hermes (Vollmacht Abschnitt 4, Uebungswerk; Messlauf Vorbedingung 1 Phase 4) ; vollmacht=Vollmacht Abschnitt 4 (Übungswerk)
+      1 × von=Hermes (Vollmacht Abschnitt 4, Uebungswerk; Messlauf Bauteil A) ; vollmacht=Vollmacht Abschnitt 4 (Übungswerk)
+      1 × von=Hermes (Vollmacht Abschnitt 4, Uebungswerk; Messlauf Tor 2 Zeile 8, Vorbedingung 1) ; vollmacht=Vollmacht Abschnitt 4 (Übungswerk)
+      1 × von=Hermes (Vollmacht Abschnitt 4, Uebungswerk; Lauf 25 Pfadnachweis C, Freigabe Philipp 20.09.2026) ; vollmacht=Vollmacht Abschnitt 4 (Übungswerk)
+-- verfassung.eingelegt: 18 Zeilen, Läufe -–-
+      7 × von=Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes ; quelle=/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json
+      4 × von=Chat-Claude (Anhang A, Masterprompt v2), eingelegt durch Hermes ; quelle=/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json
+      2 × von=Chat-Claude (Anhang A, Masterprompt v3), eingelegt durch Hermes ; quelle=/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json
+      2 × von=Chat-Claude (Anhang A) ; quelle=verfassungen/lagerhaus.md + verfassungen/lagerhaus.regeln.json
+      1 × von=Chat-Claude (Anhang A) ; quelle=/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json
+      1 × von=Hermes (Entwurf, Masterprompt v4 Phase 3; Chat-Claude bestätigt am Bericht) ; quelle=/root/biotop/verfassungen/logmuehle.md + /root/biotop/verfassungen/logmuehle.regeln.json
+      1 × von=Hermes (Entwurf, Chat-Claude bestaetigt am Bericht) ; quelle=/root/biotop/verfassungen/logmuehle.md + /root/biotop/verfassungen/logmuehle.regeln.json
+-- freigabe.frei: 48 Zeilen, Läufe -–-
+     17 × von=Hermes unter Vollmacht Abschnitt 4 F2 (Übungswerk lagerhaus, regeln.uebungswerk=true) ; vollmacht=Vollmacht Abschnitt 4 F2 (Übungswerk ohne Betriebszweck, Verfassung regeln.uebungswerk=true)
+     12 × von=Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungswerk, regeln.uebungswerk=true) ; vollmacht=Vollmacht Abschnitt 4 F2 (Übungswerk ohne Betriebszweck, Verfassung regeln.uebungswerk=true)
+     11 × von=Hermes unter Vollmacht Abschnitt 4 (Masterprompt v3; Übungswerk lagerhaus, regeln.uebungswerk=true) ; vollmacht=Vollmacht Abschnitt 4 F2 (Übungswerk ohne Betriebszweck, Verfassung regeln.uebungswerk=true)
+      4 × von=Hermes (Kassenprobe)
+      2 × von=Hermes (stellvertretend, eigene Entscheidung)
+      1 × von=Hermes (stellvertretend, Übungswerk Phase 1 — eigene Entscheidung, im Bericht gekennzeichnet)
+      1 × von=Hermes (Vollmacht Abschnitt 4, Übungswerk) ; vollmacht=Vollmacht Abschnitt 4 F2 (Übungswerk ohne Betriebszweck, Verfassung regeln.uebungswerk=true)
+===== T3: protokoll-Spalten ['nr', 'zeit', 'art', 'inhalt', 'hash_vor', 'hash']
+-- mass.eingefroren: 28 Zeilen, Läufe -–-
+      5 × bestaetigt_von=Masterprompt v2 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2
+      5 × bestaetigt_von=Philipp
+      4 × bestaetigt_von=Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Norm-Regel 3.7 in der Fassung Philipp 19.09.2026; Grenzmasse gegen 
+      3 × bestaetigt_von=Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2; Grenzmaße gegen Bestwert des Laufs; gr
+      2 × bestaetigt_von=Masterprompt v3 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Anhang A Satz 2; groesste_funktion absolut 60
+      1 × bestaetigt_von=Philipp (Auftrag 18.09.2026: Maß laut Masterprompt 3.5 harte Maße; Kernmaß-Formel Entscheidung Hermes)
+      1 × bestaetigt_von=Vorschlag Hermes 18.09.2026 (Bestätigung Philipp offen; Toleranz groesste_funktion 25 %)
+      1 × bestaetigt_von=Hermes (Kassenprobe)
+      1 × bestaetigt_von=Hermes (Kassenprobe 2)
+      1 × bestaetigt_von=Masterprompt v2 3.5
+      1 × bestaetigt_von=Masterprompt v4 Abschnitt 3.5 (Philipp, 19.09.2026); Tauschregel Verfassung logmuehle Satz 2; Grenzmaße gegen Bestwert d
+      1 × bestaetigt_von=Masterprompt v5 Abschnitt 3.5 (Messlauf Artgedaechtnis-Muster)
+-- mentor.gewaehlt: 11 Zeilen, Läufe -–-
+      3 × von=Hermes (Vollmacht Abschnitt 4, Uebungswerk lagerhaus; Vorgabe Philipp 19.09.2026: Vollmacht deckt die Richtungswahl, pro ; vollmacht=Vollmacht Abschnitt 4 (Übungswerk)
+      2 × von=Hermes (Vollmacht Abschnitt 4, Übungswerk; folgt der Empfehlung des Mentors) ; vollmacht=Vollmacht Abschnitt 4 (Übungswerk)
+      1 × von=Hermes (Vollmacht Abschnitt 4, Übungswerk lagerhaus; Vorgabe Philipp 19.09.2026: Vollmacht deckt die Richtungswahl; folg ; vollmacht=Vollmacht Abschnitt 4 (Übungswerk)
+      1 × von=Hermes (Vollmacht Abschnitt 4, Uebungswerk; Messlauf fuer die Anklaeger-Anweisung) ; vollmacht=Vollmacht Abschnitt 4 (Übungswerk)
+      1 × von=Hermes (Vollmacht Abschnitt 4, Uebungswerk; Messlauf Vorbedingung 1 Phase 4) ; vollmacht=Vollmacht Abschnitt 4 (Übungswerk)
+      1 × von=Hermes (Vollmacht Abschnitt 4, Uebungswerk; Messlauf Bauteil A) ; vollmacht=Vollmacht Abschnitt 4 (Übungswerk)
+      1 × von=Hermes (Vollmacht Abschnitt 4, Uebungswerk; Messlauf Tor 2 Zeile 8, Vorbedingung 1) ; vollmacht=Vollmacht Abschnitt 4 (Übungswerk)
+      1 × von=Hermes (Vollmacht Abschnitt 4, Uebungswerk; Lauf 25 Pfadnachweis C, Freigabe Philipp 20.09.2026) ; vollmacht=Vollmacht Abschnitt 4 (Übungswerk)
+-- verfassung.eingelegt: 31 Zeilen, Läufe -–-
+     13 × von=Philipp ; quelle=/root/biotop-t3/VERFASSUNG-T3-02.md + /root/biotop-t3/VERFASSUNG-T3-02.regeln.json
+      7 × von=Chat-Claude (Anhang A, Masterprompt v4), eingelegt durch Hermes ; quelle=/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json
+      4 × von=Chat-Claude (Anhang A, Masterprompt v2), eingelegt durch Hermes ; quelle=/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json
+      2 × von=Chat-Claude (Anhang A, Masterprompt v3), eingelegt durch Hermes ; quelle=/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json
+      2 × von=Chat-Claude (Anhang A) ; quelle=verfassungen/lagerhaus.md + verfassungen/lagerhaus.regeln.json
+      1 × von=Chat-Claude (Anhang A) ; quelle=/root/biotop/verfassungen/lagerhaus.md + /root/biotop/verfassungen/lagerhaus.regeln.json
+      1 × von=Hermes (Entwurf, Masterprompt v4 Phase 3; Chat-Claude bestätigt am Bericht) ; quelle=/root/biotop/verfassungen/logmuehle.md + /root/biotop/verfassungen/logmuehle.regeln.json
+      1 × von=Hermes (Entwurf, Chat-Claude bestaetigt am Bericht) ; quelle=/root/biotop/verfassungen/logmuehle.md + /root/biotop/verfassungen/logmuehle.regeln.json
+-- freigabe.frei: 66 Zeilen, Läufe -–-
+     18 × von=Hermes ; vollmacht=Vollmacht Abschnitt 4 F2 (Übungswerk ohne Betriebszweck, Verfassung regeln.uebungswerk=true)
+     17 × von=Hermes unter Vollmacht Abschnitt 4 F2 (Übungswerk lagerhaus, regeln.uebungswerk=true) ; vollmacht=Vollmacht Abschnitt 4 F2 (Übungswerk ohne Betriebszweck, Verfassung regeln.uebungswerk=true)
+     12 × von=Hermes unter Vollmacht Abschnitt 4 (Masterprompt v4; Übungswerk, regeln.uebungswerk=true) ; vollmacht=Vollmacht Abschnitt 4 F2 (Übungswerk ohne Betriebszweck, Verfassung regeln.uebungswerk=true)
+     11 × von=Hermes unter Vollmacht Abschnitt 4 (Masterprompt v3; Übungswerk lagerhaus, regeln.uebungswerk=true) ; vollmacht=Vollmacht Abschnitt 4 F2 (Übungswerk ohne Betriebszweck, Verfassung regeln.uebungswerk=true)
+      4 × von=Hermes (Kassenprobe)
+      2 × von=Hermes (stellvertretend, eigene Entscheidung)
+      1 × von=Hermes (stellvertretend, Übungswerk Phase 1 — eigene Entscheidung, im Bericht gekennzeichnet)
+      1 × von=Hermes (Vollmacht Abschnitt 4, Übungswerk) ; vollmacht=Vollmacht Abschnitt 4 F2 (Übungswerk ohne Betriebszweck, Verfassung regeln.uebungswerk=true)
+=== Ende R91 ===
+
+
+R92 · Alle Cron-Ausführungen ab 18.09. (executions.db), je Job, Zustellziel (Chatkennung geschwärzt)
+Beginn: 2026-09-25 16:43:59 CEST (UTC+0200)
+Ende:   2026-09-25 16:44:00 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/f21_cron.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/f21_cron.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Alle Cron-Ausführungen ab 18.09.2026 aus /root/.hermes/cron/executions.db — je Job:
+Anzahl, erste/letzte Ausführung, Zustellziel laut jobs.json (Chatkennung geschwärzt). Zweck: Gibt es Meldungen an
+Philipp über Einmaljobs, die nicht mehr in jobs.json oder cron/output stehen?"""
+import json
+import re
+import sqlite3
+
+c = sqlite3.connect('file:/root/.hermes/cron/executions.db?mode=ro', uri=True)
+tabs = [r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table'")]
+print('Tabellen:', tabs)
+for t in tabs:
+    sp = [r[1] for r in c.execute(f'PRAGMA table_info({t})')]
+    n = c.execute(f'SELECT count(*) FROM {t}').fetchone()[0]
+    print(f'  {t}: {n} Zeilen · Spalten {sp}')
+jobs = {j['id']: j for j in json.load(open('/root/.hermes/cron/jobs.json'))['jobs']}
+print('jobs.json:', {k: (v.get('name'), re.sub(r'\d{9,11}', '[GESCHWÄRZT]', str(v.get('deliver')))) for k, v in jobs.items()})
+t = 'executions' if 'executions' in tabs else tabs[0]
+sp = [r[1] for r in c.execute(f'PRAGMA table_info({t})')]
+jid = next((x for x in ('job_id', 'job', 'jobid') if x in sp), None)
+zeit = next((x for x in ('started_at', 'created_at', 'run_at', 'scheduled_for', 'finished_at') if x in sp), None)
+print(f'Gruppiert nach {jid}, Zeit {zeit}')
+if jid and zeit:
+    for r in c.execute(f"SELECT {jid}, count(*), min({zeit}), max({zeit}) FROM {t} WHERE {zeit} >= '2026-09-18' "
+                       f"GROUP BY {jid} ORDER BY 3"):
+        j = jobs.get(r[0], {})
+        print(f"  {r[0]} | {j.get('name', 'NICHT MEHR IN jobs.json')} | {r[1]} Ausführungen | {r[2]} … {r[3]}")
+--- Ende /root/sicherung/biotop-lage-01/arbeit/f21_cron.py ---
+Ausgabe (vollständig, stdout und stderr):
+Tabellen: ['executions']
+  executions: 1000 Zeilen · Spalten ['id', 'job_id', 'source', 'process_id', 'pid', 'process_started_at', 'status', 'handoff_pending', 'handoff_started_at', 'claimed_at', 'started_at', 'finished_at', 'error', 'delivery_outcome', 'scheduled_instant']
+jobs.json: {'26fbb1513a1a': ('zwischenbericht-waechter', 'local'), '5825fd644daa': ('Endmeldung Runde 5 (vor T4)', 'origin'), 'b11464763130': ('BIOTOP-LAGE-01 Meldung 1', 'origin')}
+Gruppiert nach job_id, Zeit started_at
+  26fbb1513a1a | zwischenbericht-waechter | 998 Ausführungen | 2026-09-24T07:17:40.549879+02:00 … 2026-09-25T16:42:07.137534+02:00
+  5825fd644daa | Endmeldung Runde 5 (vor T4) | 1 Ausführungen | 2026-09-24T23:53:23.660702+02:00 … 2026-09-24T23:53:23.660702+02:00
+  b11464763130 | BIOTOP-LAGE-01 Meldung 1 | 1 Ausführungen | 2026-09-25T15:12:04.920168+02:00 … 2026-09-25T15:12:04.920168+02:00
+=== Ende R92 ===

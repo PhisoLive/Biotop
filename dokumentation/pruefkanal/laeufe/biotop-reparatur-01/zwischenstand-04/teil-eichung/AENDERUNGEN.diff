@@ -1,0 +1,1046 @@
+diff --git a/biotop/organe/aegis.py b/biotop/organe/aegis.py
+index efdf753105234ab3e5dbc870c8e1d149f6ad8bb0..c70ba35c774f453aaf1566572b30caed7906c386 100644
+--- a/biotop/organe/aegis.py
++++ b/biotop/organe/aegis.py
+@@ -465,11 +465,17 @@ def aufnahmesperre(con, werk_id: int, lauf_id: int, bereich: str, code: str, tes
+ 
+ def pruefen(con: sqlite3.Connection, lauf_id: int, werk_id: int, kandidat_id: int, werk: Path, paket: str,
+             bereiche: list[str], bstrassen: list[tuple[str, str]], basis: dict, ausgang: dict,
+-            referenzlast: str | None, tausch: dict | None, extra_code: dict[str, str] | None = None) -> dict:
++            referenzlast: str | None, tausch: dict | None, extra_code: dict[str, str] | None = None,
++            *, probe_ohne_modell: bool = False, probe_angriff: str | None = None) -> dict:
+     """extra_code: zusätzliche Dateien (z. B. Anpassung des Nachbarn bei Verhandlung), die zusammen mit dem
+     Kandidaten gemessen werden."""
+     """Vollständige Anklage (F2). Rückgabe: Urteil mit Belegen; Status in der DB gesetzt."""
+     k = con.execute("SELECT * FROM kandidaten WHERE id=?", (kandidat_id,)).fetchone()
++    # Ausschließlich explizit markierte Eichkandidaten dürfen feste Angriffe ohne
++    # Modell verwenden. Klassifikation, Aufnahme und Maß bleiben der normale Pfad.
++    if (probe_ohne_modell or probe_angriff is not None) and not (
++            probe_ohne_modell and "ist_probe" in k.keys() and k["ist_probe"] == 1):
++        raise ValueError("Reine Probeoption verlangt probe_ohne_modell=True und ist_probe=1")
+     bereich = k["bereich"]
+     urteil = {"kandidat": kandidat_id, "bereich": bereich, "status": "abgelehnt", "grund": "", "wirkungskreis": [],
+               "immun": [], "tests_neu": [], "tests_verworfen": [], "immun_bestanden": [], "befundklassen": [],
+@@ -570,7 +576,10 @@ def pruefen(con: sqlite3.Connection, lauf_id: int, werk_id: int, kandidat_id: in
+                 urteil["tests_neu"] += [f"{p}::{n}" for n in sorted(gueltig)]
+ 
+     # Schritt 4: Angriff (schweres Modell bei Befundklasse)
+-    angriff, angriff_modell, ansage_behauptung = _angriff(con, lauf_id, werk_id, paket, bereich, k["diff"], dateien, werk, urteil["befundklassen"])
++    if probe_ohne_modell:
++        angriff, angriff_modell, ansage_behauptung = probe_angriff, "mechanische Eichprobe", None
++    else:
++        angriff, angriff_modell, ansage_behauptung = _angriff(con, lauf_id, werk_id, paket, bereich, k["diff"], dateien, werk, urteil["befundklassen"])
+     urteil["ansage"] = [ansage_behauptung] if ansage_behauptung else []
+     if angriff:
+         ad = f"tests/test_{bereich}_immun_aegis_k{kandidat_id}_{bereich}.py"
+diff --git a/biotop/organe/eichproben.py b/biotop/organe/eichproben.py
+index 8db38f504a5b52536fe4d75e13b747e451d7f509..aab8d87e65b9ea11b6198e31f9c92b3077622bab 100644
+--- a/biotop/organe/eichproben.py
++++ b/biotop/organe/eichproben.py
+@@ -20,13 +20,16 @@ Alle Probenkandidaten tragen `ist_probe=1` und kommen damit in kein Gedächtnis.
+ from __future__ import annotations
+ 
+ import ast
++import hashlib
+ import sqlite3
++import tempfile
+ import time
++from contextlib import contextmanager
+ from pathlib import Path
+ 
+ from ..kern import protokoll
+-from ..kern.datenbank import transaktion
+-from . import aegis, eichgegenstand, eichung
++from ..kern.datenbank import lj, transaktion
++from . import aegis, eichgegenstand, eichung, kammer, verfassung
+ 
+ PROBEN = ("nebenwirkung", "regression", "norm", "vertrag")
+ 
+@@ -48,10 +51,10 @@ def _funktionen(pfad: Path, paket: str, bereich: str) -> list[tuple[Path, ast.Fu
+ 
+ 
+ def _diff(rel: str, alt: str, neu: str) -> str:
+-    """Vollständiger Datei-Diff (kein Kontextabgleich nötig — der Diffwerk-Teil wendet ihn als Ersetzung an)."""
+-    a = alt.splitlines(); n = neu.splitlines()
+-    kopf = f"--- a/{rel}\n+++ b/{rel}\n@@ -1,{len(a)} +1,{len(n)} @@\n"
+-    return kopf + "\n".join(["-" + z for z in a] + ["+" + z for z in n]) + "\n"
++    """Kleine AST-Eingriffe als Kontextdiff; keine künstliche Vollersetzung."""
++    from difflib import unified_diff
++    return "".join(unified_diff(alt.splitlines(keepends=True), neu.splitlines(keepends=True),
++                                fromfile=f"a/{rel}", tofile=f"b/{rel}"))
+ 
+ 
+ def _neue_datei(rel: str, inhalt: str) -> str:
+@@ -59,22 +62,21 @@ def _neue_datei(rel: str, inhalt: str) -> str:
+     return f"--- /dev/null\n+++ b/{rel}\n@@ -0,0 +1,{len(n)} @@\n" + "\n".join("+" + z for z in n) + "\n"
+ 
+ 
+-def _lahmlegen(pfad: Path, paket: str, bereich: str) -> tuple[str, str]:
+-    """Erste öffentliche Funktion des Bereichs wirkungslos machen → bestehende Tests des Bereichs fallen.
+-    Rückgabe: (Diff, Beschreibung). Mechanisch über den Syntaxbaum, kein Textanker."""
+-    for datei, fn in _funktionen(pfad, paket, bereich):
+-        quelle = datei.read_text()
+-        zeilen = quelle.splitlines()
+-        einzug = " " * (fn.col_offset + 4)
+-        # nach der Signatur (und einem etwaigen Docstring) ein `return None` einsetzen
+-        ziel = fn.body[0].lineno - 1
+-        if isinstance(fn.body[0], ast.Expr) and isinstance(getattr(fn.body[0], "value", None), ast.Constant) \
+-                and isinstance(fn.body[0].value.value, str):
+-            ziel = (fn.body[0].end_lineno or fn.body[0].lineno)
+-        neu = zeilen[:ziel] + [f"{einzug}return None  # Eichprobe: Funktion wirkungslos"] + zeilen[ziel:]
+-        rel = str(datei.relative_to(pfad))
+-        return _diff(rel, quelle, "\n".join(neu) + "\n"), f"{rel}::{fn.name} liefert None"
+-    raise RuntimeError(f"Bereich {bereich} hat keine öffentliche Funktion — Probe nicht baubar")
++def _lahmlegen(pfad: Path, paket: str, bereich: str, alle: bool = False) -> tuple[str, str]:
++    """Reale öffentliche Funktionen per AST wirkungslos machen (nur Privatfixture)."""
++    funktionen = _funktionen(pfad, paket, bereich)
++    if not funktionen:
++        raise RuntimeError(f"Bereich {bereich} hat keine öffentliche Funktion — Probe nicht baubar")
++    auswahl = funktionen if alle else funktionen[:1]
++    quellen = {datei: datei.read_text() for datei, _ in auswahl}
++    neu = {datei: text.splitlines() for datei, text in quellen.items()}
++    beschreibung = []
++    for datei, fn in reversed(auswahl):
++        ziel = fn.body[0].end_lineno if ast.get_docstring(fn) is not None else fn.body[0].lineno - 1
++        neu[datei].insert(ziel, " " * (fn.col_offset + 4) + "return None  # Eichprobe: Funktion wirkungslos")
++        beschreibung.append(f"{datei.relative_to(pfad)}::{fn.name} liefert None")
++    return ("".join(_diff(datei.relative_to(pfad).as_posix(), alt, "\n".join(neu[datei]) + "\n")
++                    for datei, alt in quellen.items()), "; ".join(reversed(beschreibung)))
+ 
+ 
+ def _beschleunigen(pfad: Path, paket: str, bereich: str) -> tuple[str, str]:
+@@ -113,15 +115,54 @@ def _gruene_tests(bereich: str, n: int = 3) -> tuple[str, str]:
+ 
+ 
+ def _normtest(pfad: Path, paket: str, bereich: str) -> tuple[str, str, str]:
+-    """Test, der an der Vorgeneration FÄLLT und am Kandidaten BESTEHT — ohne Absturz, ohne Vertragsverweis.
+-    Der Kandidat setzt dafür eine neue Funktion, der Test prüft sie. Reine Meinung über gewünschtes Verhalten."""
+-    rel_code = f"{paket}/{bereich}/_eichprobe_norm.py"
+-    code = "def eichprobe_kennzeichen():\n    return 'norm'\n"
+-    rel_test = f"tests/test_{bereich}_eichprobe_norm.py"
+-    test = (f"from {paket}.{bereich}._eichprobe_norm import eichprobe_kennzeichen\n\n\n"
+-            f"def test_{bereich}_eichprobe_norm():\n"
+-            f"    assert eichprobe_kennzeichen() == 'norm'\n")
+-    return _neue_datei(rel_code, code) + _neue_datei(rel_test, test), rel_test, "neue Funktion + Test darauf"
++    """Meinung über eine VORHANDENE Funktion; niemals ein neuer Import am Ausgang.
++
++    Nur eindeutig skalar aufrufbare freie Funktionen sind geeignet. Fehlt eine,
++    wird die Probe als nicht baubar gemeldet, nicht auf eine andere Mechanik ersetzt.
++    Der tatsächliche Assertion-/Normnachweis erfolgt anschließend in der Kammer.
++    """
++    for datei, fn in _funktionen(pfad, paket, bereich):
++        argumente = fn.args.posonlyargs + fn.args.args
++        importname, aufruf = fn.name, fn.name
++        if fn.col_offset != 0:
++            # Methoden nur an einer AST-belegt ohne Pflichtargumente baubaren
++            # Klasse. Die Instanz entsteht ausschließlich im Kammer-Test.
++            baum = ast.parse(datei.read_text())
++            klasse = next((k for k in baum.body if isinstance(k, ast.ClassDef)
++                           and any(isinstance(f, ast.FunctionDef) and f.lineno == fn.lineno for f in k.body)), None)
++            if klasse is None or klasse.decorator_list or klasse.bases or not argumente or argumente[0].arg != "self":
++                continue
++            init = next((f for f in klasse.body if isinstance(f, ast.FunctionDef) and f.name == "__init__"), None)
++            if init and (len(init.args.posonlyargs + init.args.args) - len(init.args.defaults) > 1
++                         or any(d is None for d in init.args.kw_defaults)):
++                continue
++            argumente = argumente[1:]
++            importname, aufruf = klasse.name, f"{klasse.name}().{fn.name}"
++        if (fn.decorator_list or len(argumente) != 1
++                or fn.args.vararg or fn.args.kwarg or fn.args.kwonlyargs):
++            continue
++        art = ast.unparse(argumente[0].annotation) if argumente[0].annotation else ""
++        wert = {"float": "137.125", "int": "137", "str": "'eichprobe_eingabe'"}.get(art)
++        if wert is None:
++            continue
++        quelle = datei.read_text()
++        zeilen = quelle.splitlines()
++        erstes = fn.body[0]
++        ziel = erstes.end_lineno if ast.get_docstring(fn) is not None else erstes.lineno - 1
++        einzug = " " * (fn.col_offset + 4)
++        neu = zeilen[:ziel] + [f"{einzug}if {argumente[0].arg} == {wert}:",
++                              f"{einzug}    return 'eichprobe_norm_neu'"] + zeilen[ziel:]
++        rel_code = datei.relative_to(pfad).as_posix()
++        modul = ".".join(datei.relative_to(pfad).with_suffix("").parts)
++        if modul.endswith(".__init__"):
++            modul = modul[:-9]
++        rel_test = f"tests/test_{bereich}_eichprobe_norm.py"
++        test = (f"from {modul} import {importname}\n\n"
++                f"def test_{bereich}_eichprobe_norm():\n"
++                f"    assert {aufruf}({wert}) == 'eichprobe_norm_neu'\n")
++        return (_diff(rel_code, quelle, "\n".join(neu) + "\n") + _neue_datei(rel_test, test),
++                rel_test, f"{rel_code}::{aufruf}({wert}): abweichende Rückgabe ohne Verweis")
++    raise RuntimeError(f"Bereich {bereich}: keine skalar aufrufbare Funktion/Methode für Normprobe")
+ 
+ 
+ # ---------------------------------------------------------------- Ablauf
+@@ -143,107 +184,321 @@ def _kassenstand(con, lauf_id: int) -> tuple[int, float]:
+     return z["n"], z["c"]
+ 
+ 
++@contextmanager
++def _privat(con, pfad):
++    """Jede Probe erhält eigene DB und eigenes Werk; keine Rückschreibverbindung."""
++    if con.in_transaction:
++        raise RuntimeError("Eichproben brauchen einen abgeschlossenen DB-Ausgang")
++    with tempfile.TemporaryDirectory(prefix="eichprobe-") as ordner:
++        wurzel = Path(ordner)
++        werk = wurzel / "werk"
++        kammer._kopie(pfad, werk)
++        db = wurzel / "probe.db"
++        kopie = sqlite3.connect(db, isolation_level=None)
++        kopie.row_factory = sqlite3.Row
++        try:
++            con.backup(kopie)
++            db.chmod(0o600)
++            # Auch etwaige DB-interne Werkpfadleser dürfen nur die Kopie finden.
++            kopie.execute("UPDATE werke SET pfad=? WHERE pfad=?", (str(werk), str(pfad)))
++            yield kopie, werk
++        finally:
++            kopie.close()
++
++
++def _bestanden(name: str, belege: dict) -> bool:
++    """Belege der ORIGINALEN Ableitungen verlangen; kein eigenes Ersatz-Pareto."""
++    u = belege.get("urteil", {})
++    m = u.get("mass")
++    messung = belege.get("messung", {})
++    if (not isinstance(m, dict) or not m or not messung.get("gueltig")
++            or not (messung.get("_basis_paar") or {}).get("gueltig")):
++        return False
++    if name == "nebenwirkung":
++        a, b = belege["gewinnbereich"], belege["verlustbereich"]
++        return all((u.get("status") == "abgelehnt", m.get("ok") is False,
++                    any(s.startswith(a + ".tests_fehlgeschlagen:") for s in m.get("pareto_besser", [])),
++                    any(s.startswith(b + ".tests_fehlgeschlagen:") for s in m.get("pareto_schlechter", [])),
++                    b in u.get("grund", "")))
++    if name == "regression":
++        n = belege["regressionstest"]
++        massname = n.split("/")[-1]
++        gruene = belege.get("gruene_tests", [])
++        return all((u.get("status") == "abgelehnt", m.get("ok") is False,
++                    belege["basis_tests"].get(n, {}).get("ok") is True,
++                    belege["kandidat_tests"].get(n, {}).get("ok") is False,
++                    belege["kandidat_tests"].get(n, {}).get("bestaetigt") is True,
++                    any(s.startswith("Regression je Test") and massname in s
++                        for s in m.get("pareto_schlechter", [])),
++                    len(gruene) >= 3,
++                    all(belege["kandidat_tests"][g]["ok"] and belege["basis_tests"][g]["ok"]
++                        for g in gruene)))
++    if name == "vertrag":
++        n = belege["verbrauchertest"]
++        x = belege["kandidat_tests"].get(n, {})
++        return all((u.get("status") == "abgelehnt", m.get("ok") is False,
++                    belege["vertragstest"] in u.get("vertrag_verletzt", []),
++                    u.get("grund", "").startswith("Vertrag verletzt (Schritt 2):"),
++                    belege["vertragstest"] in u.get("grund", ""),
++                    belege["basis_tests"].get(n, {}).get("ok") is True,
++                    x.get("ok") is False, x.get("bestaetigt") is True,
++                    x.get("ort") == belege["verbraucherdatei"],
++                    "eichprobe_zusicherung" in x.get("meldung", "")))
++    if name == "norm":
++        n = belege["testname"]
++        vorher = belege.get("basis_tests", {}).get(f"{belege['testpfad']}::{n}", {})
++        nachher = belege.get("kandidat_tests", {}).get(f"{belege['testpfad']}::{n}", {})
++        norm = u.get("norm", [])
++        return all((
++            vorher.get("ok") is False, vorher.get("bestaetigt") is True,
++            vorher.get("meldung", "").startswith(("AssertionError", "assert")),
++            not vorher.get("ort", "").startswith(belege["paket"] + "/"),
++            nachher.get("ok") is True, belege.get("ohne_verweis") is True,
++            n in norm or f"{belege['testpfad']}::{n}" in norm,
++            any(z["status"] == "offen_norm" and f"def {n}(" in z["code"]
++                for z in belege.get("normeintraege", [])),
++            "zuwachs" in m and m["zuwachs"] == 0,
++            # Geprüft wird die Normklassifikation, nicht die separat geeichte
++            # Laufzeitgrenze. Deren Befund bleibt im unveränderten Originalurteil.
++            u.get("status") == "abgelehnt", not m.get("pareto_schlechter"),
++            not u.get("vertrag_verletzt"), not u.get("verfassung_verstoesse"),
++            "_dateien" in messung and not any(n in code for p, code in messung["_dateien"].items()
++                                              if p.startswith("tests/")),
++            belege.get("werk_test_vorhanden") is False,
++        ))
++    return False
++
++
++def _norm_vorbereiten(db, werk, werk_id, paket, bereich, gegenprobe):
++    diff, testpfad, beschreibung = _normtest(werk, paket, bereich)
++    dateien = aegis.kandidat_dateien(werk, diff)
++    if dateien is None or any(c is None for c in dateien.values()):
++        raise RuntimeError(aegis.diff_grund(werk, diff) or "Normdiff ungültig")
++    testcode = dateien[testpfad]
++    testname = f"test_{bereich}_eichprobe_norm"
++    belege = {"paket": paket, "testpfad": testpfad, "testname": testname,
++              "basis_tests": aegis.junit_lauf(werk, paket, {testpfad: testcode}, [testpfad]),
++              "kandidat_tests": aegis.junit_lauf(werk, paket, dateien, [testpfad]),
++              "ohne_verweis": not aegis._nennt_vertrag(testcode, testname, verfassung.lesen(db, werk_id),
++                                                      db, werk_id, bereich)}
++    # Gleiche Änderung, gleiche Zeugen, aber kein Normtest im Anklagepfad.
++    if gegenprobe:
++        diff = "".join(_diff(p, (werk / p).read_text(), code)
++                       for p, code in dateien.items() if not p.startswith("tests/"))
++    return diff, beschreibung, belege, None if gegenprobe else testcode
++
++
++def _nebenwirkung_vorbereiten(werk, paket, a, b, gegenprobe):
++    """Bekannten Defekt in A NUR im privaten Ausgang setzen; Kandidat behebt ihn.
++
++    B wird erst am Kandidaten geschädigt. Damit messen Originaltests einen echten
++    Gewinn in A und Verlust in B statt einer behaupteten Beschleunigung.
++    """
++    defekt, beschreibung_a = _lahmlegen(werk, paket, a, alle=True)
++    geaendert = aegis.kandidat_dateien(werk, defekt)
++    if not geaendert:
++        raise RuntimeError("Ausgangsdefekt A nicht anwendbar")
++    wiederherstellen = ""
++    for p, code in geaendert.items():
++        original = (werk / p).read_text()
++        wiederherstellen += _diff(p, code, original)
++        (werk / p).write_text(code)
++    schaden_b, beschreibung_b = _lahmlegen(werk, paket, b)
++    return (wiederherstellen + ("" if gegenprobe else schaden_b),
++            f"A={a}: behebt privaten Ausgangsdefekt ({beschreibung_a}); "
++            f"B={b}: {'unverändert (Gegenprobe)' if gegenprobe else beschreibung_b}",
++            {"gewinnbereich": a, "verlustbereich": b, "basis_eingriff": geaendert}, None)
++
++
++def _regression_vorbereiten(werk, paket, a, b, gegenprobe):
++    diff, beschreibung, belege, _ = _nebenwirkung_vorbereiten(werk, paket, a, b, gegenprobe)
++    gruen_diff, gruen_text = _gruene_tests(a)
++    gruen = aegis.kandidat_dateien(werk, gruen_diff)
++    testdateien = sorted(p.relative_to(werk).as_posix() for p in (werk / "tests").glob("test_*.py")
++                        if p.name == f"test_{b}.py" or p.name.startswith(f"test_{b}_"))
++    if not testdateien:
++        raise RuntimeError(f"Keine Bereichstests für {b}: Regression nicht prüfbar")
++    basis_tests = aegis.junit_lauf(werk, paket, gruen, testdateien + list(gruen))
++    schaden, _ = _lahmlegen(werk, paket, b)
++    schaden_tests = aegis.junit_lauf(werk, paket, aegis.kandidat_dateien(werk, schaden), testdateien)
++    faelle = sorted(n for n, x in schaden_tests.items()
++                    if not x["ok"] and x["bestaetigt"] and basis_tests.get(n, {}).get("ok"))
++    if not faelle:
++        raise RuntimeError(f"Kein bestätigter Einzeltest fällt durch den Eingriff in {b}")
++    diff += gruen_diff
++    kandidat_tests = aegis.junit_lauf(werk, paket, aegis.kandidat_dateien(werk, diff), testdateien + list(gruen))
++    belege.update(regressionstest=faelle[0], basis_tests=basis_tests, kandidat_tests=kandidat_tests,
++                  gruene_tests=sorted(n for n in kandidat_tests if n.split("::")[0] in gruen and not n.endswith("::*")))
++    return diff, beschreibung + "; " + gruen_text, belege, None
++
++
++def _vertrag_vorbereiten(werk, paket, a, b, vertrag_pfad, gegenprobe):
++    datei, fn = next((d, f) for d, f in _funktionen(werk, paket, a) if f.col_offset == 0)
++    quelle = datei.read_text()
++    zeilen = quelle.splitlines()
++    ziel = fn.body[0].end_lineno if ast.get_docstring(fn) is not None else fn.body[0].lineno - 1
++    neu = zeilen[:ziel] + [f"    from {paket} import {b} as _eichlieferant",
++                          "    if _eichlieferant.eichprobe_zusicherung() != 'da':",
++                          "        raise ValueError('eichprobe_zusicherung fehlt')"] + zeilen[ziel:]
++    rel = datei.relative_to(werk).as_posix()
++    diff = _diff(rel, quelle, "\n".join(neu) + "\n")
++    # Einen wirklich vorhandenen Verbraucher-Test samt Imports übernehmen.
++    # Kein unaufgerufener Hilfsfunktionsstummel als vermeintlicher Konsument.
++    testpfad = f"tests/test_{a}.py"
++    baum = ast.parse((werk / testpfad).read_text())
++    test = next((k for k in baum.body if isinstance(k, ast.FunctionDef) and k.name.startswith("test_")
++                 and not k.args.args and not k.args.posonlyargs and not k.args.kwonlyargs and not k.decorator_list
++                 and any(isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == fn.name
++                         for n in ast.walk(k))), None)
++    if test is None:
++        raise RuntimeError(f"Kein eigenständig ausführbarer Test für {rel}::{fn.name}")
++    verbrauchertest = f"{testpfad}::{test.name}"
++    test.name = "test_eichprobe_vertrag_neue_zusicherung"
++    test.body += ast.parse(f"from {paket}.{b} import eichprobe_zusicherung\n"
++                          "assert eichprobe_zusicherung() == 'da'\n").body
++    importe = [k for k in baum.body if isinstance(k, (ast.Import, ast.ImportFrom))]
++    zusatz = ast.unparse(ast.Module(body=importe + [test], type_ignores=[])) + "\n"
++    alt_vertrag = (werk / vertrag_pfad).read_text()
++    diff += _diff(vertrag_pfad, alt_vertrag, alt_vertrag.rstrip() + "\n\n" + zusatz)
++    if gegenprobe:
++        lieferant = f"{paket}/{b}/__init__.py"
++        alt = (werk / lieferant).read_text()
++        diff += _diff(lieferant, alt, alt.rstrip() + "\n\n"
++                      "def eichprobe_zusicherung():\n    return 'da'\n")
++    dateien = aegis.kandidat_dateien(werk, diff)
++    belege = {"verbrauchertest": verbrauchertest, "verbraucherdatei": rel,
++              "vertragstest": f"{Path(vertrag_pfad).name}::{test.name}",
++              "basis_tests": aegis.junit_lauf(werk, paket, {}, [testpfad]),
++              "kandidat_tests": aegis.junit_lauf(werk, paket, dateien, [testpfad])}
++    return (diff, f"{vertrag_pfad}: {a}.{fn.name} fordert {b}.eichprobe_zusicherung(); "
++            f"Lieferant {'angepasst (Gegenprobe)' if gegenprobe else 'NICHT angepasst'}", belege, None)
++
++
++def _einzelprobe(con, lauf_id, werk_id, pfad, paket, bereiche, bstrassen, basis, ausgang, ref, tausch,
++                 generation, gegenstand, name, gegenprobe=False):
++    """Eine vollständig ausgeführte Positiv- oder Gegenprobe an isoliertem Bestand."""
++    t0 = time.monotonic()
++    with _privat(con, pfad) as (db, werk), kammer.zaehlung() as aufrufe:
++        n0, c0 = _kassenstand(db, lauf_id)
++        a, b = gegenstand["von_bereich"], gegenstand["nach_bereich"]
++        if name == "norm":
++            bereich = b
++            diff, beschreibung, belege, angriff = _norm_vorbereiten(db, werk, werk_id, paket, b, gegenprobe)
++        elif name == "nebenwirkung":
++            bereich = a
++            diff, beschreibung, belege, angriff = _nebenwirkung_vorbereiten(werk, paket, a, b, gegenprobe)
++        elif name == "regression":
++            bereich = a
++            diff, beschreibung, belege, angriff = _regression_vorbereiten(werk, paket, a, b, gegenprobe)
++        elif name == "vertrag":
++            bereich = a
++            diff, beschreibung, belege, angriff = _vertrag_vorbereiten(
++                werk, paket, a, b, gegenstand["vertrag_pfad"], gegenprobe)
++        else:
++            raise ValueError(f"Noch keine Probe gebaut: {name}")
++        dateien = aegis.kandidat_dateien(werk, diff)
++        if not dateien:
++            raise RuntimeError(aegis.diff_grund(werk, diff) or "kein anwendbarer Probediff")
++        kid = _einschleusen(db, lauf_id, generation, bereich, diff, beschreibung,
++                           gegenstand["vertrag_pfad"] if name == "vertrag" else "keine", name)
++        belege["zielpruefsummen"] = {p: hashlib.sha256((werk / p).read_bytes()).hexdigest()
++                                     for p in dateien if (werk / p).exists()}
++        u = aegis.pruefen(db, lauf_id, werk_id, kid, werk, paket, bereiche, bstrassen, basis, ausgang, ref, tausch,
++                          probe_ohne_modell=True, probe_angriff=angriff)
++        messung = lj(db.execute("SELECT masse FROM kandidaten WHERE id=?", (kid,)).fetchone()[0]) or {}
++        belege.update(urteil=u, messung=messung)
++        if name == "norm":
++            belege.update(werk_test_vorhanden=(werk / belege["testpfad"]).exists(),
++                          normeintraege=[dict(z) for z in db.execute(
++                              "SELECT name,status,code,ursprung FROM immunsystem WHERE name=?",
++                              (f"norm_k{kid}_{bereich}",))])
++        n1, c1 = _kassenstand(db, lauf_id)
++        pruefbar = bool(messung.get("gueltig") and (messung.get("_basis_paar") or {}).get("gueltig"))
++        return {"kandidat": kid, "ausgefuehrt": bool(aufrufe), "pruefbar": pruefbar,
++                "bestanden": _bestanden(name, belege), "belege": belege, "status": u["status"],
++                "grund": u["grund"], "befund": beschreibung, "gegenprobe": gegenprobe, "diff": diff,
++                "modellaufrufe": n1 - n0, "kosten_eur": round(c1 - c0, 6),
++                "kammerlaeufe": len(aufrufe), "kammer": list(aufrufe),
++                "dauer_s": round(time.monotonic() - t0, 3)}
++
++
++def _leer(grund):
++    return {"kandidat": None, "ausgefuehrt": False, "pruefbar": False, "bestanden": False,
++            "grund": grund, "befund": grund, "belege": {}, "modellaufrufe": 0,
++            "kosten_eur": 0.0, "kammerlaeufe": 0, "dauer_s": 0.0}
++
++
++def _vollstaendig(positive, gegenproben):
++    return (set(positive) == set(gegenproben) == set(PROBEN)
++            and all(p.get("ausgefuehrt") is True and p.get("pruefbar") is True
++                    and p.get("bestanden") is True for p in positive.values())
++            and all(p.get("ausgefuehrt") is True and p.get("pruefbar") is True
++                    and p.get("bestanden") is False for p in gegenproben.values()))
++
++
+ def proben(con: sqlite3.Connection, lauf_id: int, werk_id: int, pfad: Path, paket: str, bereiche: list[str],
+            bstrassen, basis: dict, ausgang: dict, ref: str | None, tausch: dict, generation: int = 0) -> dict:
+-    """Die vier Proben am versiegelten Gegenstand. Rückgabe mit Ergebnis und Abrechnung je Probe."""
+-    g = eichgegenstand.sichern(con, werk_id, lauf_id, pfad)
+-    if not g.get("gegenstand"):
+-        return {"bestanden": False, "grund": g.get("befund") or "kein Eichgegenstand", "gegenstand": None,
+-                "proben": {}, "lauf_startet": False}
+-    geg = g["gegenstand"]
+-    A, B = geg["von_bereich"], geg["nach_bereich"]      # A = Konsument, B = Lieferant des Vertrags
+-    ergebnisse: dict = {}
+-
+-    def lauf_probe(name: str, bereich: str, diff: str, begruendung: str, vertraege: str, pruefung) -> dict:
+-        t0 = time.time()
+-        n0, c0 = _kassenstand(con, lauf_id)
+-        kid = _einschleusen(con, lauf_id, generation, bereich, diff, begruendung, vertraege, name)
+-        u = aegis.pruefen(con, lauf_id, werk_id, kid, pfad, paket, bereiche, bstrassen, basis, ausgang, ref, tausch)
+-        n1, c1 = _kassenstand(con, lauf_id)
+-        ok, befund = pruefung(u)
+-        e = {"kandidat": kid, "bestanden": ok, "befund": befund, "status": u.get("status"),
+-             "grund": (u.get("grund") or "")[:300], "modellaufrufe": n1 - n0, "kosten_eur": round(c1 - c0, 6),
+-             "kammerlaeufe": 1, "dauer_s": round(time.time() - t0, 1)}
+-        eichung.kosten_buchen(con, lauf_id, werk_id, f"probe.{name}", 1, time.time() - t0,
+-                              modellaufrufe=n1 - n0, kosten_eur=c1 - c0)
+-        protokoll.schreiben(con, "eichprobe.ergebnis", lauf_id=lauf_id, probe=name, **{k: v for k, v in e.items()})
+-        ergebnisse[name] = e
+-        return e
+-
+-    # --- 1. Nebenwirkung: B schneller, A kaputt → muss abgelehnt werden und A nennen
+-    d_a, t_a = _lahmlegen(pfad, paket, A)
+-    lauf_probe("nebenwirkung", A, d_a, f"Eichprobe Nebenwirkung: {t_a} (Bereich {A} fällt)", "keine",
+-               lambda u: ((u.get("status") != "ueberlebt" and A in (u.get("grund") or "")),
+-                          f"abgelehnt und nennt {A}: {(u.get('grund') or '')[:160]}"))
+-
+-    # --- 2. Regression: dieselbe Verschlechterung, aber mit drei grünen Tests → Einzeltest muss benannt sein
+-    d_g, t_g = _gruene_tests(A)
+-    lauf_probe("regression", A, d_a + d_g, f"Eichprobe Regression: {t_a} plus {t_g}", "keine",
+-               lambda u: ("Regression je Test" in (u.get("grund") or "") and "::" in (u.get("grund") or ""),
+-                          f"gefallener Einzeltest benannt: {(u.get('grund') or '')[:160]}"))
+-
+-    # --- 3. Norm: Test ohne Absturz und ohne Vertragsverweis → offen, 0 Punkte, nicht im Werk
+-    d_n, rel_test, t_n = _normtest(pfad, paket, B)
+-    lauf_probe("norm", B, d_n, f"Eichprobe Norm: {t_n}", "keine",
+-               lambda u: (int((u.get("masse") or {}).get("zuwachs") or 0) == 0
+-                          and rel_test.split("/")[-1] not in str((u.get("masse") or {}).get("_testbestand") or []),
+-                          f"0 Punkte und nicht im Werk: zuwachs={(u.get('masse') or {}).get('zuwachs')}, "
+-                          f"norm={u.get('norm')}, Status {u.get('status')}"))
+-
+-    # --- 4. Vertrag: Grenze ändern, Nachbar NICHT anpassen → abgelehnt
+-    # Die Vertragsdatei allein genügt dem Ankläger nicht („Diff ändert nichts"): Eine Grenzänderung besteht aus
+-    # der neuen Zusicherung IM VERTRAG und ihrer Nutzung im Konsumenten. Der Lieferant B wird bewusst nicht
+-    # angepasst — genau das muss auffallen.
+-    vertrag_rel = geg["vertrag_pfad"]
+-    alt_v = (pfad / vertrag_rel).read_text()
+-    neu_v = alt_v + (f"\n\ndef test_eichprobe_vertrag_neue_zusicherung():\n"
+-                     f"    \"\"\"Eichprobe: {A} verlangt von {B} die Funktion eichprobe_zusicherung().\"\"\"\n"
+-                     f"    from {paket}.{B} import eichprobe_zusicherung\n"
+-                     f"    assert eichprobe_zusicherung() == 'da'\n")
+-    # Konsument A nutzt die neue Zusicherung — der Lieferant B hat sie nicht.
+-    datei_a, fn_a = _funktionen(pfad, paket, A)[0]
+-    quelle_a = datei_a.read_text()
+-    neu_a = quelle_a.replace(f"def {fn_a.name}",
+-                             f"def _eichprobe_nutzt_zusicherung():\n"
+-                             f"    from {paket}.{B} import eichprobe_zusicherung\n"
+-                             f"    return eichprobe_zusicherung()\n\n\ndef {fn_a.name}", 1)
+-    d_v = _diff(vertrag_rel, alt_v, neu_v) + _diff(str(datei_a.relative_to(pfad)), quelle_a, neu_a)
+-    lauf_probe("vertrag", A, d_v,
+-               f"Eichprobe Vertrag: {vertrag_rel} fordert {B}.eichprobe_zusicherung(), {A} nutzt sie, "
+-               f"Nachbar {B} NICHT angepasst", f"{vertrag_rel}",
+-               lambda u: (u.get("status") != "ueberlebt",
+-                          f"abgelehnt: {(u.get('grund') or '')[:160]}"))
+-
+-    alle_ok = all(e["bestanden"] for e in ergebnisse.values())
+-    protokoll.schreiben(con, "eichprobe.abschluss", lauf_id=lauf_id, werk_id=werk_id, bestanden=alle_ok,
+-                        gegenstand=f"{A}→{B}", vertrag=vertrag_rel,
+-                        je_probe={k: {"bestanden": v["bestanden"], "modellaufrufe": v["modellaufrufe"],
+-                                      "kosten_eur": v["kosten_eur"]} for k, v in ergebnisse.items()},
+-                        regel="Fassung 5 3.5: Besteht eine Probe nicht, beginnt kein Lauf (Satz 6)")
+-    return {"bestanden": alle_ok, "gegenstand": geg, "proben": ergebnisse, "lauf_startet": alle_ok,
+-            "grund": None if alle_ok else "mindestens eine Eichprobe nicht bestanden"}
++    """Vier Paare, ohne Modelle, ohne vorausgesetzten Freeze und ohne Rückschreiben.
++
++    `basis`/`ausgang` sind explizite Messungen; laeufe.mass darf NULL sein. Die
++    Rückgabe ist der Beleg für den Aufrufer, kein selbst erteiltes Startrecht.
++    Sämtliche Versiegelungs-, Anklage-, Immun- und Kostenwrites bleiben privat.
++    """
++    with _privat(con, pfad) as (db, werk):
++        gegenstand = eichgegenstand.sichern(db, werk_id, lauf_id, werk)
++        g = gegenstand.get("gegenstand")
++        if not g:
++            grund = gegenstand.get("befund") or "kein Eichgegenstand"
++            return {"bestanden": False, "grund": grund, "gegenstand": None, "lauf_startet": False,
++                    "proben": {n: _leer(grund) for n in PROBEN},
++                    "gegenproben": {n: _leer(grund) for n in PROBEN},
++                    "kosten": {"kammerlaeufe": 0, "modellaufrufe": 0, "kosten_eur": 0.0, "dauer_s": 0.0}}
++        positive, negative = {}, {}
++        for name in PROBEN:
++            for ist_gegenprobe, ziel in ((False, positive), (True, negative)):
++                t0 = time.monotonic()
++                with kammer.zaehlung() as aufrufe:
++                    try:
++                        ziel[name] = _einzelprobe(db, lauf_id, werk_id, werk, paket, bereiche, bstrassen,
++                                                 basis, ausgang, ref, tausch, generation, g, name, ist_gegenprobe)
++                    except (RuntimeError, ValueError, StopIteration, OSError, sqlite3.Error) as fehler:
++                        # Kein ausgeführtes Gegenprädikat: ein ausdrücklich
++                        # ungeprüfter Infrastruktur-/Fixturebefund sperrt Gesamtgrün.
++                        ziel[name] = {**_leer(str(fehler) or type(fehler).__name__),
++                                      "fehlerart": type(fehler).__name__, "status": "prueffehler",
++                                      "kammerlaeufe": len(aufrufe), "kammer": list(aufrufe),
++                                      "dauer_s": round(time.monotonic() - t0, 3)}
++        alle = list(positive.values()) + list(negative.values())
++        kosten = {k: sum(p[k] for p in alle) for k in ("kammerlaeufe", "modellaufrufe", "kosten_eur", "dauer_s")}
++        ok = _vollstaendig(positive, negative)
++        return {"bestanden": ok, "gegenstand": g, "proben": positive, "gegenproben": negative,
++                "lauf_startet": ok, "kosten": kosten,
++                "grund": None if ok else "Vier Positivtreffer und vier prüfbare negative Gegenproben erforderlich"}
+ 
+ 
+ def text(e: dict) -> list[str]:
+     if not e.get("gegenstand"):
+         return [f"Eichproben: NICHT GELAUFEN — {e.get('grund')}"]
+     g = e["gegenstand"]
+-    z = [f"Eichproben am versiegelten Gegenstand {g['von_bereich']}→{g['nach_bereich']} "
+-         f"(Vertrag `{g['vertrag_pfad']}`, Prüfsumme {g['vertrag_pruefsumme'][:16]}):"]
++    zeilen = [f"Eichproben {g['von_bereich']}→{g['nach_bereich']} "
++              f"({g['vertrag_pfad']}, SHA256 {g['vertrag_pruefsumme']}):"]
+     for name in PROBEN:
+-        p = e["proben"].get(name)
+-        if not p:
+-            z.append(f"  {name:<13} NICHT GELAUFEN")
+-            continue
+-        z.append(f"  {name:<13} {'bestanden' if p['bestanden'] else 'NICHT BESTANDEN'} | K{p['kandidat']} "
+-                 f"| {p['modellaufrufe']:>2} Modellaufrufe | {p['kosten_eur']:.4f} € | {p['kammerlaeufe']} Kammerlauf "
+-                 f"| {p['dauer_s']:.0f} s")
+-        z.append(f"                {p['befund']}")
+-    n = sum(p["modellaufrufe"] for p in e["proben"].values())
+-    c = sum(p["kosten_eur"] for p in e["proben"].values())
+-    z.append(f"  SUMME Vorspann: {len(e['proben'])} Proben, {n} Modellaufrufe, {c:.4f} €, "
+-             f"{sum(p['kammerlaeufe'] for p in e['proben'].values())} Kammerläufe, "
+-             f"{sum(p['dauer_s'] for p in e['proben'].values()):.0f} s")
++        for gruppe, titel in (("proben", "Positivprobe"), ("gegenproben", "Gegenprobe")):
++            p = e.get(gruppe, {}).get(name, _leer("fehlende Zeile"))
++            zeilen.append(f"  {titel} {name}: ausgeführt={p['ausgefuehrt']}, prüfbar={p['pruefbar']}, "
++                          f"Bestehensprädikat={p['bestanden']} | {p['kammerlaeufe']} Kammerläufe | "
++                          f"{p['modellaufrufe']} Modellaufrufe | {p['kosten_eur']:.6f} €")
++            zeilen.append(f"    Originalurteil: {p['grund']}")
++            b = p.get("belege", {})
++            m = b.get("urteil", {}).get("mass") or {}
++            if name in ("nebenwirkung", "regression"):
++                zeilen.append(f"    Pareto besser: {m.get('pareto_besser')}; schlechter: {m.get('pareto_schlechter')}")
++            elif name == "norm":
++                zeilen.append(f"    Norm: {b.get('urteil', {}).get('norm')}; Zuwachs: {m.get('zuwachs')}; "
++                              f"Normeinträge: {[z['name'] for z in b.get('normeintraege', [])]}")
++    k = e["kosten"]
++    zeilen.append(f"SUMME gesamte Batterie: {k['kammerlaeufe']} Kammerläufe, "
++                  f"{k['modellaufrufe']} Modellaufrufe, {k['kosten_eur']:.6f} €, {k['dauer_s']:.3f} s")
+     if not e["bestanden"]:
+-        z.append("  LAUF STARTET NICHT: mindestens eine Eichprobe nicht bestanden (Satz 6).")
+-    return z
++        zeilen.append("LAUF STARTET NICHT: Batterie unvollständig oder falsches Prädikat.")
++    return zeilen
+diff --git a/biotop/organe/kammer.py b/biotop/organe/kammer.py
+index ed06331f6a0cdf241d42564bfcf9780437ab894c..dfaae587648f154209413ca163257b7e6f4c146a 100644
+--- a/biotop/organe/kammer.py
++++ b/biotop/organe/kammer.py
+@@ -17,7 +17,9 @@ import shutil
+ import subprocess
+ import tempfile
+ import uuid
+-from dataclasses import dataclass
++from contextlib import contextmanager
++from contextvars import ContextVar
++from dataclasses import asdict, dataclass
+ from pathlib import Path
+ 
+ IMAGE = os.environ.get("BIOTOP_KAMMER_IMAGE", "biotop-kammer:1")
+@@ -42,7 +44,7 @@ def _kopie(werk: Path, ziel: Path) -> None:
+     )
+ 
+ 
+-def ausfuehren(werk: Path, befehl: list[str], zeitlimit_s: int | None = None,
++def _ausfuehren(werk: Path, befehl: list[str], zeitlimit_s: int | None = None,
+                dateien: dict[str, str] | None = None) -> Ergebnis:
+     """Kopiert `werk` in ein Wegwerfverzeichnis, legt optional `dateien`
+     (Pfad → Inhalt, relativ zum Werk) hinein und führt `befehl` im Container aus.
+@@ -91,6 +93,28 @@ def ausfuehren(werk: Path, befehl: list[str], zeitlimit_s: int | None = None,
+         shutil.rmtree(tmp, ignore_errors=True)
+ 
+ 
++_ZAEHLUNGEN: ContextVar[tuple] = ContextVar("kammerzaehlungen", default=())
++
++
++@contextmanager
++def zaehlung():
++    """Kontextlokale Rohbelege aller tatsächlichen Kammeraufrufe, auch verschachtelt."""
++    aufrufe = []
++    token = _ZAEHLUNGEN.set((*_ZAEHLUNGEN.get(), aufrufe))
++    try:
++        yield aufrufe
++    finally:
++        _ZAEHLUNGEN.reset(token)
++
++
++def ausfuehren(werk: Path, befehl: list[str], zeitlimit_s: int | None = None,
++               dateien: dict[str, str] | None = None) -> Ergebnis:
++    ergebnis = _ausfuehren(werk, befehl, zeitlimit_s, dateien)
++    for zaehler in _ZAEHLUNGEN.get():
++        zaehler.append({**asdict(ergebnis), "befehl": list(befehl)})
++    return ergebnis
++
++
+ def bereit() -> tuple[bool, str]:
+     p = subprocess.run(["docker", "image", "inspect", IMAGE], capture_output=True, text=True)
+     if p.returncode != 0:
+diff --git a/tests/test_eichproben.py b/tests/test_eichproben.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..9dc3b8610a4a0b8a02fab7dfd4343bf7c3e2d448
+--- /dev/null
++++ b/tests/test_eichproben.py
+@@ -0,0 +1,396 @@
++"""Eichung: echte Kammerläufe, exakte Mechanismen und negative Kontrollen."""
++from pathlib import Path
++import inspect
++import hashlib
++import json
++import os
++import sqlite3
++from copy import deepcopy
++
++import pytest
++
++from biotop.kern import datenbank, messgeraet
++from biotop.organe import aegis, eichproben, kammer, vertraege, verfassung
++
++
++@pytest.fixture
++def werk(tmp_path):
++    pfad = tmp_path / "werk"
++    dateien = {
++        "beispiel/__init__.py": "",
++        "beispiel/lieferant/__init__.py": "from .rechnung import wert\n",
++        "beispiel/lieferant/rechnung.py": (
++            '"""Ein kleiner Lieferant im kopierten Prüfwerk."""\n'
++            "def wert(zahl: float) -> float:\n"
++            '    """Verdoppelt eine Zahl."""\n'
++            "    ergebnis = zahl * 2\n"
++            "    return ergebnis\n"
++        ),
++        "tests/test_lieferant.py": (
++            "from beispiel.lieferant import wert\n\n"
++            "def test_wert():\n"
++            "    assert wert(2) == 4\n"
++        ),
++    }
++    for rel, code in dateien.items():
++        ziel = pfad / rel
++        ziel.parent.mkdir(parents=True, exist_ok=True)
++        ziel.write_text(code)
++    return pfad
++
++
++@pytest.fixture
++def paar(werk, tmp_path):
++    dateien = {
++        "beispiel/abnehmer/__init__.py": "from .ausgabe import bericht\n",
++        "beispiel/abnehmer/ausgabe.py": (
++            "def bericht(zahl: float) -> float:\n"
++            '    """Berichtet einen Zahlenwert."""\n'
++            "    ergebnis = zahl + 1\n"
++            "    return ergebnis\n"
++        ),
++        "tests/test_abnehmer.py": (
++            "from beispiel.abnehmer import bericht\n\n"
++            "def test_bericht():\n"
++            "    assert bericht(2) == 3\n"
++        ),
++    }
++    for rel, code in dateien.items():
++        ziel = werk / rel
++        ziel.parent.mkdir(parents=True, exist_ok=True)
++        ziel.write_text(code)
++    con = datenbank.verbinden(tmp_path / "paar.db")
++    con.executescript(verfassung.SCHEMA)
++    con.execute("INSERT INTO laeufe(id,werk_id,budget_eur,status,mass) VALUES(1,1,0,'angelegt',NULL)")
++    vertragsdatei = vertraege.einlegen(con, 1, werk, {("abnehmer", "lieferant"): (
++        "from beispiel.lieferant import wert\n\n"
++        "def test_grenzwert():\n"
++        "    assert wert(2) == 4\n"
++    )}, "isolierte Testfixture")[0]
++    bereiche = ["abnehmer", "lieferant"]
++    basis = messgeraet.messen(werk, bereiche, "beispiel", None)
++    g = {"von_bereich": "abnehmer", "nach_bereich": "lieferant", "vertrag_pfad": vertragsdatei}
++    yield con, werk, bereiche, basis, g
++    con.close()
++
++
++@pytest.mark.parametrize("gegenprobe", [False, True])
++def test_nebenwirkung_braucht_gewinn_a_und_verlust_b(paar, gegenprobe):
++    con, werk, bereiche, basis, g = paar
++    e = eichproben._einzelprobe(con, 1, 1, werk, "beispiel", bereiche, [], basis, basis, None, {}, 0,
++                               g, "nebenwirkung", gegenprobe)
++    print("NEBENWIRKUNG", gegenprobe, e["bestanden"], e["grund"])
++    assert e["ausgefuehrt"] is True and e["pruefbar"] is True
++    assert e["bestanden"] is (not gegenprobe)
++    m = e["belege"]["urteil"]["mass"]
++    assert any(s.startswith("abnehmer.tests_fehlgeschlagen:") for s in m["pareto_besser"])
++    assert any(s.startswith("lieferant.tests_fehlgeschlagen:") for s in m["pareto_schlechter"]) is (not gegenprobe)
++    falsch = deepcopy(e["belege"])
++    falsch["urteil"]["mass"]["pareto_besser"] = []
++    assert eichproben._bestanden("nebenwirkung", falsch) is False
++
++
++def test_nebenwirkung_gewinnt_auch_bei_rueckwirkung_von_b_auf_a(paar):
++    con, werk, bereiche, _, g = paar
++    rel = "beispiel/abnehmer/ausgabe.py"
++    (werk / rel).write_text(
++        "from beispiel.lieferant import wert\n"
++        "def bericht(zahl: float):\n"
++        "    return wert(zahl)\n"
++        "def zusatz(zahl: float):\n"
++        "    return zahl + 1\n"
++    )
++    (werk / "tests/test_abnehmer.py").write_text(
++        "from beispiel.abnehmer.ausgabe import bericht, zusatz\n"
++        "def test_bericht():\n    assert bericht(2) == 4\n"
++        "def test_zusatz():\n    assert zusatz(2) == 3\n"
++    )
++    basis = messgeraet.messen(werk, bereiche, "beispiel", None)
++    e = eichproben._einzelprobe(con, 1, 1, werk, "beispiel", bereiche, [], basis, basis, None, {}, 0,
++                               g, "nebenwirkung", False)
++    assert e["bestanden"] is True, e["belege"]["urteil"]["mass"]
++
++
++@pytest.mark.parametrize("gegenprobe", [False, True])
++def test_regression_nennt_einzeltest_trotz_ausgefuehrter_gruener_tests(paar, gegenprobe):
++    con, werk, bereiche, basis, g = paar
++    e = eichproben._einzelprobe(con, 1, 1, werk, "beispiel", bereiche, [], basis, basis, None, {}, 0,
++                               g, "regression", gegenprobe)
++    print("REGRESSION", gegenprobe, e["bestanden"], e["grund"])
++    assert e["ausgefuehrt"] is True and e["pruefbar"] is True
++    assert e["bestanden"] is (not gegenprobe)
++    b = e["belege"]
++    assert len(b["gruene_tests"]) >= 3
++    assert all(b["kandidat_tests"][n]["ok"] for n in b["gruene_tests"])
++    assert b["basis_tests"][b["regressionstest"]]["ok"] is True
++    assert b["kandidat_tests"][b["regressionstest"]]["ok"] is gegenprobe
++    falsch = deepcopy(b)
++    falsch["urteil"]["mass"]["pareto_schlechter"] = ["lieferant.tests_fehlgeschlagen: 0 → 1"]
++    assert eichproben._bestanden("regression", falsch) is False
++    falsch = deepcopy(b)
++    falsch["gruene_tests"] = []
++    assert eichproben._bestanden("regression", falsch) is False
++
++
++@pytest.mark.parametrize("gegenprobe", [False, True])
++def test_vertrag_braucht_konkreten_bruch_und_ausgefuehrten_konsumenten(paar, gegenprobe):
++    con, werk, bereiche, basis, g = paar
++    e = eichproben._einzelprobe(con, 1, 1, werk, "beispiel", bereiche, [], basis, basis, None, {}, 0,
++                               g, "vertrag", gegenprobe)
++    print("VERTRAG", gegenprobe, e["bestanden"], e["grund"])
++    assert e["ausgefuehrt"] is True and e["pruefbar"] is True
++    assert e["bestanden"] is (not gegenprobe)
++    b = e["belege"]
++    assert b["basis_tests"][b["verbrauchertest"]]["ok"] is True
++    assert b["kandidat_tests"][b["verbrauchertest"]]["ok"] is gegenprobe
++    assert (b["vertragstest"] in b["urteil"]["vertrag_verletzt"]) is (not gegenprobe)
++    falsch = deepcopy(b)
++    falsch["urteil"]["vertrag_verletzt"] = ["test_vertrag_fremder.py::test_fremd"]
++    assert eichproben._bestanden("vertrag", falsch) is False
++    falsch = deepcopy(b)
++    falsch["urteil"]["grund"] = "Diff nicht anwendbar"
++    assert eichproben._bestanden("vertrag", falsch) is False
++
++
++def test_vier_paare_ohne_freeze_und_ohne_spuren_im_original(paar):
++    con, werk, bereiche, basis, _ = paar
++    vor_db = list(con.iterdump())
++    vor_werk = {p.relative_to(werk).as_posix(): p.read_bytes() for p in werk.rglob("*") if p.is_file()}
++    with kammer.zaehlung() as zaehler:
++        e = eichproben.proben(con, 1, 1, werk, "beispiel", bereiche, [], basis, basis, None, {})
++    assert set(e["proben"]) == set(e["gegenproben"]) == set(eichproben.PROBEN)
++    assert e["bestanden"] is True
++    for name in eichproben.PROBEN:
++        assert e["proben"][name]["ausgefuehrt"] and e["proben"][name]["pruefbar"]
++        assert e["proben"][name]["bestanden"] is True
++        assert e["gegenproben"][name]["ausgefuehrt"] and e["gegenproben"][name]["pruefbar"]
++        assert e["gegenproben"][name]["bestanden"] is False
++    assert e["kosten"]["kammerlaeufe"] == len(zaehler)
++    zeilen = eichproben.text(e)
++    assert sum("Gegenprobe" in z for z in zeilen) == 4
++    assert any(f"{len(zaehler)} Kammerläufe" in z for z in zeilen)
++    print("VIER PAARE", [(n, e["proben"][n]["bestanden"], e["gegenproben"][n]["bestanden"]) for n in eichproben.PROBEN], e["kosten"])
++    falsch = deepcopy(e)
++    falsch["gegenproben"].pop("norm")
++    assert eichproben._vollstaendig(falsch["proben"], falsch["gegenproben"]) is False
++    falsch = deepcopy(e)
++    falsch["gegenproben"]["norm"]["pruefbar"] = False
++    assert eichproben._vollstaendig(falsch["proben"], falsch["gegenproben"]) is False
++    assert list(con.iterdump()) == vor_db
++    assert {p.relative_to(werk).as_posix(): p.read_bytes() for p in werk.rglob("*") if p.is_file()} == vor_werk
++
++
++def test_unbaubare_probe_bleibt_ungeprueft_statt_erwuenscht_falsch(paar):
++    con, werk, bereiche, basis, _ = paar
++    p = werk / "beispiel/lieferant/rechnung.py"
++    p.write_text(p.read_text().replace("zahl: float", "zahl: object"))
++    vor_db = list(con.iterdump())
++    with kammer.zaehlung() as zaehler:
++        e = eichproben.proben(con, 1, 1, werk, "beispiel", bereiche, [], basis, basis, None, {})
++    assert e["bestanden"] is False
++    assert e["gegenproben"]["norm"]["pruefbar"] is False
++    assert e["gegenproben"]["norm"]["ausgefuehrt"] is False
++    assert e["gegenproben"]["norm"]["fehlerart"] == "RuntimeError"
++    assert e["kosten"]["kammerlaeufe"] == len(zaehler)
++    assert list(con.iterdump()) == vor_db
++
++
++def test_fehlender_gegenstand_ist_keine_bestandene_gegenprobe(paar):
++    con, werk, bereiche, basis, g = paar
++    (werk / g["vertrag_pfad"]).unlink()
++    vor_db = list(con.iterdump())
++    e = eichproben.proben(con, 1, 1, werk, "beispiel", bereiche, [], basis, basis, None, {})
++    assert list(con.iterdump()) == vor_db, "Selbst Versiegelungsnebenwirkungen müssen isoliert bleiben"
++    assert e["bestanden"] is False and e["lauf_startet"] is False
++    assert set(e["gegenproben"]) == set(eichproben.PROBEN)
++    assert not any(p["ausgefuehrt"] or p["pruefbar"] for p in e["gegenproben"].values())
++
++
++@pytest.mark.skipif(not os.environ.get("BIOTOP_EICHWERK"), reason="Private Werk-/DB-Kopie nicht angegeben")
++def test_vier_paare_am_kopierten_pruefwerk(tmp_path):
++    quelle = Path(os.environ["BIOTOP_EICHWERK"])
++    dbquelle = Path(os.environ["BIOTOP_EICHDB"])
++    # Dieser Abnahmetest arbeitet ausschließlich mit vorher angelegten Privatkopien.
++    assert str(quelle.resolve()).startswith("/root/reparatur-01/")
++    assert str(dbquelle.resolve()).startswith("/root/reparatur-01/")
++    original_db_hash = hashlib.sha256(dbquelle.read_bytes()).hexdigest()
++    werk = tmp_path / "werk"
++    kammer._kopie(quelle, werk)
++    con = sqlite3.connect(tmp_path / "privat.db", isolation_level=None)
++    con.row_factory = sqlite3.Row
++    with sqlite3.connect(f"file:{dbquelle}?mode=ro", uri=True) as original:
++        original.backup(con)
++    werk_id = int(os.environ.get("BIOTOP_EICHWERK_ID", "22"))
++    con.execute("UPDATE werke SET pfad=? WHERE id=?", (str(werk), werk_id))
++    lauf_id = con.execute("SELECT COALESCE(MAX(id),0)+1 FROM laeufe").fetchone()[0]
++    con.execute("INSERT INTO laeufe(id,werk_id,status,budget_eur,mass) VALUES(?,?,'angelegt',0,NULL)", (lauf_id, werk_id))
++    bereiche = sorted(p.name for p in (werk / "lagerhaus").iterdir() if p.is_dir() and (p / "__init__.py").exists())
++    regeln = verfassung.lesen(con, werk_id)["regeln"]
++    ref = Path("biotop/kern/referenzlast/lagerhaus.py").read_text()
++    basis = messgeraet.messen(werk, bereiche, "lagerhaus", ref)
++    assert basis["gueltig"]
++    vor_db = hashlib.sha256("\n".join(con.iterdump()).encode()).hexdigest()
++    vor_werk = {p.relative_to(werk).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in werk.rglob("*") if p.is_file()}
++    with kammer.zaehlung() as zaehler:
++        e = eichproben.proben(con, lauf_id, werk_id, werk, "lagerhaus", bereiche,
++                             [("bericht", "preise"), ("bericht", "lager"), ("preise", "formeln")],
++                             basis, basis, ref, regeln.get("tausch", {}))
++    e["abnahme"] = {"werkquelle": str(quelle), "quell_db_sha256": original_db_hash,
++                    "privater_lauf": lauf_id, "original_lauf_nicht_fortgesetzt": True,
++                    "basis": basis, "werk_sha256_vor": vor_werk,
++                    "werk_sha256_nach": {p.relative_to(werk).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in werk.rglob("*") if p.is_file()},
++                    "db_sha256_vor": vor_db, "db_sha256_nach": hashlib.sha256("\n".join(con.iterdump()).encode()).hexdigest()}
++    ziel = Path(os.environ["BIOTOP_EICHBELEG"])
++    ziel.parent.mkdir(parents=True, exist_ok=True)
++    ziel.write_text(json.dumps(e, ensure_ascii=False, indent=2))
++    for name in eichproben.PROBEN:
++        for gruppe in ("proben", "gegenproben"):
++            z = e[gruppe][name]
++            print("ECHTES WERK", name, gruppe, z["bestanden"], z["pruefbar"], z["grund"])
++            print("MASS", z["belege"].get("urteil", {}).get("mass"))
++    assert e["kosten"]["kammerlaeufe"] == len(zaehler)
++    assert e["bestanden"] is True, str(ziel)
++    assert e["abnahme"]["werk_sha256_vor"] == e["abnahme"]["werk_sha256_nach"]
++    assert e["abnahme"]["db_sha256_vor"] == e["abnahme"]["db_sha256_nach"]
++    assert hashlib.sha256(dbquelle.read_bytes()).hexdigest() == original_db_hash
++    con.close()
++
++
++def test_norm_aendert_vorhandene_funktion_statt_importfehler(werk):
++    diff, rel_test, _ = eichproben._normtest(werk, "beispiel", "lieferant")
++    dateien = aegis.kandidat_dateien(werk, diff)
++    assert dateien is not None
++    basis = aegis.junit_lauf(werk, "beispiel", {rel_test: dateien[rel_test]}, [rel_test])
++    kandidat = aegis.junit_lauf(werk, "beispiel", dateien, [rel_test])
++    print("NORM BASIS", basis, "NORM KANDIDAT", kandidat)
++    echte_tests = [x for n, x in basis.items() if not n.endswith("::*")]
++    assert len(echte_tests) == 1
++    assert echte_tests[0]["bestaetigt"] is True, "Norm braucht eine Assertion, keinen Importfehler"
++    assert echte_tests[0]["meldung"].startswith(("AssertionError", "assert"))
++    assert not echte_tests[0].get("ort", "").startswith("beispiel/")
++    assert all(x["ok"] for x in kandidat.values())
++    assert all((werk / p).is_file() for p in dateien if not p.startswith("tests/"))
++    assert not (werk / rel_test).exists()
++
++
++@pytest.mark.parametrize("gegenprobe", [False, True])
++def test_normmechanik_bleibt_getrennt_vom_tatsaechlichen_laufzeitbefund(werk, tmp_path, gegenprobe):
++    con = datenbank.verbinden(tmp_path / "normzeit.db")
++    ref = ("import sys, time\nsys.path.insert(0, '/werk')\nfrom beispiel.lieferant import wert\n"
++           "def last_lieferant():\n"
++           "    time.sleep(0.04 if wert(137.125) == 'eichprobe_norm_neu' else 0.01)\n")
++    basis = messgeraet.messen(werk, ["lieferant"], "beispiel", ref)
++    e = eichproben._einzelprobe(con, 1, 1, werk, "beispiel", ["lieferant"], [], basis, basis, ref, {}, 0,
++                               {"von_bereich": "abnehmer", "nach_bereich": "lieferant"}, "norm", gegenprobe)
++    print("NORM MIT ECHTEM ZEITBEFUND", gegenprobe, e["grund"])
++    assert e["belege"]["urteil"]["mass"]["grenzen_gerissen"]
++    assert e["belege"]["urteil"]["mass"]["zuwachs"] == 0
++    assert e["bestanden"] is (not gegenprobe)
++    con.close()
++
++
++def test_norm_erreicht_vorhandene_methode_ohne_paarwechsel(werk):
++    (werk / "beispiel/lieferant/__init__.py").write_text("from .rechnung import Rechner\n")
++    (werk / "beispiel/lieferant/rechnung.py").write_text(
++        "class Rechner:\n"
++        "    def __init__(self, start=0):\n"
++        "        self.start = start\n"
++        "    def wert(self, zahl: float):\n"
++        "        return self.start + zahl\n"
++    )
++    diff, testpfad, _ = eichproben._normtest(werk, "beispiel", "lieferant")
++    dateien = aegis.kandidat_dateien(werk, diff)
++    basis = aegis.junit_lauf(werk, "beispiel", {testpfad: dateien[testpfad]}, [testpfad])
++    kandidat = aegis.junit_lauf(werk, "beispiel", dateien, [testpfad])
++    assert len(basis) == len(kandidat) == 1
++    assert next(iter(basis.values()))["meldung"].startswith(("AssertionError", "assert"))
++    assert all(x["ok"] for x in kandidat.values())
++
++
++def test_kleiner_eingriff_in_grosse_datei_ist_keine_neuschreibung(werk):
++    rel = "beispiel/lieferant/rechnung.py"
++    alt = (werk / rel).read_text() + "\n".join(f"# Eichzeile {n}" for n in range(130)) + "\n"
++    (werk / rel).write_text(alt)
++    neu = alt.replace("zahl * 2", "zahl * 3")
++    diff = eichproben._diff(rel, alt, neu)
++    dateien = aegis.kandidat_dateien(werk, diff)
++    assert dateien is not None, aegis.diff_grund(werk, diff)
++    assert dateien[rel] == neu
++
++
++@pytest.mark.parametrize("ist_probe", [False, True])
++def test_reine_probeoption_ist_markiert_und_erreicht_originale_norm(werk, tmp_path, ist_probe):
++    assert "probe_ohne_modell" in inspect.signature(aegis.pruefen).parameters, "Explizite, geschützte Probeoption fehlt"
++    con = datenbank.verbinden(tmp_path / "probe.db")
++    diff, rel_test, _ = eichproben._normtest(werk, "beispiel", "lieferant")
++    dateien = aegis.kandidat_dateien(werk, diff)
++    kid = eichproben._einschleusen(con, 1, 0, "lieferant", diff, "Norm-Eichung", "keine", "norm")
++    if not ist_probe:
++        con.execute("UPDATE kandidaten SET ist_probe=0 WHERE id=?", (kid,))
++        with pytest.raises(ValueError, match="ist_probe"):
++            aegis.pruefen(con, 1, 1, kid, werk, "beispiel", ["lieferant"], [], {}, {}, None, {},
++                          probe_ohne_modell=True)
++        con.close()
++        return
++    basis = messgeraet.messen(werk, ["lieferant"], "beispiel", None)
++    u = aegis.pruefen(con, 1, 1, kid, werk, "beispiel", ["lieferant"], [], basis, basis, None, {},
++                      probe_ohne_modell=True, probe_angriff=dateien[rel_test])
++    print("REINE NORM", u)
++    assert u["norm"]
++    assert isinstance(u["mass"], dict) and u["mass"]["zuwachs"] == 0
++    immun = con.execute("SELECT status,code FROM immunsystem").fetchall()
++    assert len(immun) == 1 and immun[0]["status"] == "offen_norm"
++    assert "test_lieferant_eichprobe_norm" in immun[0]["code"]
++    m = datenbank.lj(con.execute("SELECT masse FROM kandidaten WHERE id=?", (kid,)).fetchone()[0])
++    assert rel_test not in m["_dateien"]
++    assert con.execute("SELECT COUNT(*) FROM kasse").fetchone()[0] == 0
++    con.close()
++
++
++def test_kammerzaehlung_misst_auch_verschachtelte_aufrufe(werk):
++    assert hasattr(kammer, "zaehlung"), "Kammerzählung fehlt; Konstante 1 ist kein Zähler"
++    with kammer.zaehlung() as aussen:
++        assert aussen == []
++        with kammer.zaehlung() as innen:
++            assert kammer.ausfuehren(werk, ["python", "-c", "print('erster')"]).rc == 0
++        assert kammer.ausfuehren(werk, ["python", "-c", "print('zweiter')"]).rc == 0
++    assert len(innen) == 1 and len(aussen) == 2
++    assert len({z["container"] for z in aussen}) == 2
++    assert [z["stdout"].strip() for z in aussen] == ["erster", "zweiter"]
++    with kammer.zaehlung() as danach:
++        assert danach == []
++
++
++@pytest.mark.parametrize("gegenprobe", [False, True])
++def test_norm_paar_schliesst_falsch_gruen_ohne_normpfad_aus(werk, tmp_path, gegenprobe):
++    assert hasattr(eichproben, "_einzelprobe"), "Isolierte, beweisgebundene Probe fehlt"
++    con = datenbank.verbinden(tmp_path / "original.db")
++    vor_db = list(con.iterdump())
++    vor_werk = {p.relative_to(werk).as_posix(): p.read_bytes() for p in werk.rglob("*") if p.is_file()}
++    basis = messgeraet.messen(werk, ["lieferant"], "beispiel", None)
++    with kammer.zaehlung() as zaehler:
++        e = eichproben._einzelprobe(con, 1, 1, werk, "beispiel", ["lieferant"], [], basis, basis, None, {}, 0,
++                                   {"von_bereich": "abnehmer", "nach_bereich": "lieferant"}, "norm", gegenprobe)
++    print("NORM PAAR", gegenprobe, e["bestanden"], e["grund"], e["kammerlaeufe"])
++    assert e["ausgefuehrt"] is True and e["pruefbar"] is True
++    assert e["bestanden"] is (not gegenprobe)
++    assert e["kammerlaeufe"] == len(zaehler) and len(zaehler) > 1
++    assert e["modellaufrufe"] == 0 and e["kosten_eur"] == 0
++    assert e["belege"]["urteil"]["mass"]["zuwachs"] == 0
++    if gegenprobe:
++        assert e["belege"]["urteil"]["norm"] == []
++        assert e["belege"]["normeintraege"] == []
++    else:
++        for feld, wert in (("mass", None), ("mass", {}), ("norm", [])):
++            falsch = deepcopy(e["belege"])
++            falsch["urteil"][feld] = wert
++            assert eichproben._bestanden("norm", falsch) is False
++        falsch = deepcopy(e["belege"])
++        falsch["normeintraege"] = []
++        assert eichproben._bestanden("norm", falsch) is False
++        falsch = deepcopy(e["belege"])
++        falsch["werk_test_vorhanden"] = True
++        assert eichproben._bestanden("norm", falsch) is False
++    assert list(con.iterdump()) == vor_db
++    assert {p.relative_to(werk).as_posix(): p.read_bytes() for p in werk.rglob("*") if p.is_file()} == vor_werk
++    con.close()

@@ -1,0 +1,16 @@
+#!/bin/bash
+# Nach der Kette (job_kette beendet): R6-1 durch den Laufweg (rot erwartet) und die T4-Diagnose. Am Commit 0c2f058.
+set -u
+A=/root/biotop-vor-t4-05
+PY=/root/biotop-t3/venv/bin/python
+cd $A
+pgrep -f job_kette >/dev/null && { echo "job_kette läuft — Abbruch"; exit 3; }
+echo "=== start $(date -Is) HEAD=$(git -C /root/biotop rev-parse --short HEAD) status=$(git -C /root/biotop status --porcelain | wc -l)"
+echo "commit $(git -C /root/biotop rev-parse --short HEAD) status=$(git -C /root/biotop status --porcelain | wc -l)" > spez/SPEZ-R6-LAUFWEG.txt
+BIOTOP_KAMMER_IMAGE=biotop-kammer:ts1 $PY -m pytest spez/test_spez_r6_laufweg.py -q -s -p no:cacheprovider --tb=line -rfE >> spez/SPEZ-R6-LAUFWEG.txt 2>&1
+echo "r6-laufweg rc=$?"
+K=/tmp/r5-baum-head
+[ -d $K/biotop ] || { mkdir -p $K; git -C /root/biotop archive HEAD | tar -x -C $K; }
+$PY -B proben/t4_diagnose.py $K > proben/T4-DIAGNOSE.txt 2>&1
+echo "t4-diagnose rc=$?"
+echo "=== ende $(date -Is)"

@@ -1,0 +1,549 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 90 (Teile 4–165 dieses Stands) · enthält R119 bis R121
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R119 · Teil B: Wortlaute einsetzen, zweiter Lauf nach Behebung der Block-Erkennung in der Einsetzprüfung (R118 zählte 2 statt 13 Blöcke: gieriges (.*) in der Quelle-Zeile)
+Beginn: 2026-09-25 17:24:45 CEST (UTC+0200)
+Ende:   2026-09-25 17:24:46 CEST (UTC+0200)
+Dauer:  1.5 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/verfassungen/b8_einsetzen.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/verfassungen/b8_einsetzen.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil B: Wortlaute byteweise in die Vorlagen einsetzen, Fundorte je SHA-256 erheben, Teile schreiben.
+
+Liest: die Verfassungsquellen (Dateien, Zeilenbereiche der Masterprompt-Kopie v8, Konstanten aus
+/root/biotop/tests/drahtwerk.py per ast — kein Import, keine Ausführung), die eigenen Vorlagen.
+Schreibt ausschließlich in /root/sicherung/biotop-lage-01/entwurf/verfassungen/: VERFASSUNGEN-TEIL<n>.md.
+Fundorte: frischer Lauf über dieselben Wurzeln wie b1_finden.py (ohne /root/sicherung), dazu /tmp bis Tiefe 6;
+gehasht werden nur Dateien, deren Größe einer Quelle entspricht. Entfällt, solange /tmp/biotop-kammer-exklusiv besteht.
+Prüft nach dem Schreiben jeden Block gegen das Original (mit Gegenprobe: ein Byte verändert → muss ungleich sein).
+"""
+import ast
+import hashlib
+import json
+import os
+import re
+import time
+from pathlib import Path
+
+O = Path('/root/sicherung/biotop-lage-01/entwurf/verfassungen')
+SCHLUESSEL = Path('/etc/pruefkanal/schluessel').read_text().strip()
+LAEUFE = f'/var/pruefkanal/oeffentlich/_akte/{SCHLUESSEL}/laeufe'
+MP8 = '/root/sicherung/biotop-lage-01/arbeit/dokumente/2026-09-23_155353_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v8.md'
+DRAHT = '/root/biotop/tests/drahtwerk.py'
+GRENZE = 34000
+ZAUN = '````'
+
+
+def sha(b: bytes) -> str:
+    return hashlib.sha256(b).hexdigest()
+
+
+def zeige(p: str) -> str:
+    return p.replace(LAEUFE, '{LAEUFE}').replace(SCHLUESSEL, '{SCHLUESSEL}')
+
+
+def zeilen(pfad: str, von: int, bis: int, anfang_von: str, anfang_bis: str) -> bytes:
+    z = Path(pfad).read_text(encoding='utf-8').split('\n')
+    assert z[von - 1].startswith(anfang_von), (pfad, von, z[von - 1][:40])
+    assert z[bis - 1].startswith(anfang_bis), (pfad, bis, z[bis - 1][:40])
+    return ('\n'.join(z[von - 1:bis]) + '\n').encode()
+
+
+def draht_konstanten():
+    baum = ast.parse(Path(DRAHT).read_text(encoding='utf-8'))
+    v = r = None
+    zv = zr = None
+    for n in ast.walk(baum):
+        if isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name):
+            if n.targets[0].id == 'VERFASSUNG':
+                v, zv = ast.literal_eval(n.value), (n.lineno, n.end_lineno)
+            elif n.targets[0].id == 'REGELN':
+                r, zr = ast.literal_eval(n.value), (n.lineno, n.end_lineno)
+    return v, r, zv, zr
+
+
+dv, dr, zv, zr = draht_konstanten()
+# Schlüssel → (Quelle-Text, Bytes, Sprache des Blocks)
+Q = {}
+
+
+def datei(schl, pfad, sprache):
+    Q[schl] = (f'`{zeige(pfad)}`', Path(pfad).read_bytes(), sprache)
+
+
+datei('lagerhaus_md', '/root/biotop/verfassungen/lagerhaus.md', 'text')
+datei('lagerhaus_regeln', '/root/biotop/verfassungen/lagerhaus.regeln.json', 'json')
+datei('vb1_md', '/root/phase-4-vorbedingung-1/privat/verfassung.md', 'text')
+datei('vb1_regeln', '/root/phase-4-vorbedingung-1/privat/verfassung.regeln.json', 'json')
+datei('logmuehle_md', '/root/biotop/verfassungen/logmuehle.md', 'text')
+datei('logmuehle_regeln', '/root/biotop/verfassungen/logmuehle.regeln.json', 'json')
+datei('t3_02', '/root/biotop-t3/VERFASSUNG-T3-02.md', 'text')
+datei('t3_02_regeln', '/root/biotop-t3/VERFASSUNG-T3-02.regeln.json', 'json')
+datei('t3_entwurf', '/root/biotop-t3/VERFASSUNG-T3-ENTWURF.md', 'text')
+datei('draht_probe_md', '/tmp/drahtwerk-probe/VERFASSUNG.md', 'text')
+Q['mp_v8_anhang_a'] = (f'`{MP8}`, Zeilen 520–529', zeilen(MP8, 520, 529, '## Anhang A', '6. '), 'text')
+Q['mp_v8_anhang_b'] = (f'`{MP8}`, Zeilen 536–547', zeilen(MP8, 536, 547, '## Anhang B', 'Satz 2 wurde'), 'text')
+Q['draht_md'] = (f'Konstante `VERFASSUNG` in `{DRAHT}` Z. {zv[0]}–{zv[1]} (per `ast` gelesen), so wie `anlegen()` sie als '
+                 f'`VERFASSUNG.md` schreibt', dv.encode(), 'text')
+Q['draht_regeln'] = (f'Konstante `REGELN` in `{DRAHT}` Z. {zr[0]}–{zr[1]} (per `ast` gelesen), so wie `anlegen()` sie als '
+                     f'`VERFASSUNG.regeln.json` schreibt: `json.dumps(REGELN, ensure_ascii=False, indent=1)`',
+                     json.dumps(dr, ensure_ascii=False, indent=1).encode(), 'json')
+
+
+def block(schl: str) -> str:
+    quelle, b, sprache = Q[schl]
+    t = b.decode('utf-8')
+    assert ZAUN not in t and '\r' not in t, schl
+    innen = t[:-1] if t.endswith('\n') else t
+    kopf = (f'Quelle: {quelle} · {len(b)} Bytes · SHA-256 `{sha(b)}` · Schluss-Zeilenumbruch: '
+            f'{"ja" if t.endswith(chr(10)) else "nein"}')
+    return f'{kopf}\n\n{ZAUN}{sprache}\n{innen}\n{ZAUN}'
+
+
+def fuellen(t: str) -> str:
+    t = re.sub(r'@@WORTLAUT:(\w+)@@', lambda m: block(m.group(1)), t)
+    t = re.sub(r'@@SHA16:(\w+)@@', lambda m: sha(Q[m.group(1)][1])[:16], t)
+    t = re.sub(r'@@SHA:(\w+)@@', lambda m: sha(Q[m.group(1)][1]), t)
+    return t
+
+
+jetzt = time.strftime('%d.%m.%Y %H:%M')
+v1 = (O / 'vorlage-TEIL1.md').read_text(encoding='utf-8')
+v2 = (O / 'vorlage-TEIL2.md').read_text(encoding='utf-8')
+assert v2.count('@@TEIL3@@') == 1
+v2a, v2b = v2.split('@@TEIL3@@')
+teil1 = fuellen(v1).replace('@@JETZT@@', jetzt)
+teil2 = fuellen(v2a).rstrip('\n') + '\n'
+kopf3 = ('# VERFASSUNGEN — Teil 3 von @@N@@ (FK22) · Entwurf\n\n'
+         'Fortsetzung von Teil 2. Stand des Lesens, Verfahren, Belegregel und Lesehilfe stehen in Teil 1; dieselben Regeln '
+         'gelten hier.\n\n---\n')
+teil3 = kopf3 + fuellen(v2b).rstrip('\n') + '\n'
+
+# ---- §11 Fundorte (frischer Lauf) ----
+print('== Fundorte-Lauf')
+WURZELN = [
+    '/root/biotop', '/root/biotop-t3', '/root/biotop-vor-t4', '/root/biotop-vor-t4-02', '/root/biotop-vor-t4-03',
+    '/root/biotop-vor-t4-04', '/root/biotop-vor-t4-05', '/root/biotop-vor-t4-06', '/root/versandwerk-t3',
+    '/root/versandwerk-t3-02', '/root/uebungswerk', '/root/uebungswerk2', '/root/uebungswerk-nachlauf',
+    '/root/uebungswerk-p2', '/root/uebungswerk-p3', '/root/uebungswerk-p3b', '/root/uebungswerk-p3c',
+    '/root/uebungswerk-p3d', '/root/w7', '/root/phase-4-vorbedingung-1', '/root/reparatur-01', '/root/reparatur-02',
+    '/root/gesamtstand-01', '/root/wiedereinstieg-01', '/root/biotop-einstieg-20260921-0122',
+]
+WURZELN += sorted(str(p) for p in Path(LAEUFE).iterdir() if p.name.startswith('biotop-') or p.name == 'gedaechtnis')
+AUSLASSEN = {'.git', 'node_modules', 'venv', '.venv', '__pycache__', 'dist', 'coverage', '.pytest_cache'}
+ziel = {}
+for schl, (_, b, _) in Q.items():
+    if not schl.startswith('mp_v8'):
+        ziel.setdefault(sha(b), []).append(schl)
+groessen = {len(Q[s[0]][1]) for s in ziel.values()}
+funde = {h: [] for h in ziel}
+sperre = os.path.exists('/tmp/biotop-kammer-exklusiv')
+t0 = time.time()
+n_stat = n_hash = 0
+if sperre:
+    print('NICHT AUSGEFÜHRT: /tmp/biotop-kammer-exklusiv besteht')
+else:
+    for w in WURZELN + ['/tmp']:
+        if not os.path.isdir(w):
+            print('FEHLT:', zeige(w))
+            continue
+        for d, dirs, files in os.walk(w):
+            if w == '/tmp' and d.count('/') > 6:
+                dirs[:] = []
+                continue
+            dirs[:] = sorted(x for x in dirs if x not in AUSLASSEN)
+            for f in sorted(files):
+                p = os.path.join(d, f)
+                try:
+                    st = os.lstat(p)
+                except OSError:
+                    continue
+                n_stat += 1
+                if not os.path.isfile(p) or os.path.islink(p) or st.st_size not in groessen:
+                    continue
+                try:
+                    h = sha(open(p, 'rb').read())
+                except OSError:
+                    continue
+                n_hash += 1
+                if h in funde:
+                    funde[h].append((p, st.st_mtime))
+print(f'Wurzeln {len(WURZELN)} + /tmp · Dateien geprüft {n_stat} · gehasht {n_hash} · {time.time() - t0:.1f} s')
+
+zeilen11 = ['## 11. Fundorte je SHA-256', '',
+            f'Frischer Lauf am {time.strftime("%d.%m.%Y %H:%M")} CEST (Skript `b8_einsetzen.py`).',
+            f'- Durchsucht: {len(WURZELN)} Wurzeln (wie `b1_finden.py`: Biotop-Baum, T3-Ordner, Behebungsrunden, Werkordner, '
+            'Reparatur- und Übergabeordner, alle Prüfkanal-Ordner `biotop-*` und `gedaechtnis`) sowie `/tmp` bis Tiefe 6.',
+            '- Ausgelassen: `.git`, `node_modules`, `venv`, `.venv`, `__pycache__`, `dist`, `coverage`, `.pytest_cache`. Außerdem '
+            '`/root/sicherung` (diese Arbeit), `/root/versiegelt` (versiegelte Schwächen) und `/root/.hermes`.',
+            f'- Geprüfte Dateien: {n_stat}; gehasht, weil die Größe einer Quelle entsprach: {n_hash}.',
+            '- Die Kassenzeilen stehen in §9 (R50); die git-Blobs an HEAD sind bytegleich mit der Platte (R93).', '']
+if sperre:
+    zeilen11.append('**NICHT AUSGEFÜHRT:** `/tmp/biotop-kammer-exklusiv` bestand. Ersatz: Rohbelege R41 und R42.')
+namen = {'lagerhaus_md': 'lagerhaus Text', 'vb1_md': 'lagerhaus Text (VB1-Kopie)', 'lagerhaus_regeln': 'lagerhaus Regeln',
+         'vb1_regeln': 'lagerhaus Regeln (VB1-Schreibweise)', 'logmuehle_md': 'logmuehle Text',
+         'logmuehle_regeln': 'logmuehle Regeln', 't3_02': 'T3 Revision 02', 't3_02_regeln': 'T3 Regeln',
+         't3_entwurf': 'T3 Entwurf 01', 'draht_md': 'drahtwerk Text', 'draht_regeln': 'drahtwerk Regeln',
+         'draht_probe_md': 'drahtwerk ältere Variante'}
+for h, schl in ziel.items():
+    liste = sorted(funde[h], key=lambda x: (('/tmp/' in x[0]) + ('/reparatur-01/' in x[0]), x[0]))
+    zeilen11.append(f'**{" = ".join(namen[s] for s in schl)}** · `{h}` · {len(Q[schl[0]][1])} Bytes · Fundorte: {len(liste)}')
+    for p, mt in liste:
+        zeilen11.append(f'- `{zeige(p)}` ({time.strftime("%d.%m. %H:%M", time.localtime(mt))})')
+    zeilen11.append('')
+zeilen11 += ['## 12. Einsetz- und Rückprobe', '',
+             '- Einsetzprüfung beim Schreiben (`b8_einsetzen.py`, Rohbeleg @@RB8@@): @@B8@@',
+             '- Unabhängige Rückprobe (`b9_rueckprobe.py`, Rohbeleg @@RB9@@): @@B9@@', '']
+fund_text = '\n'.join(zeilen11)
+
+# ---- Teile bilden ----
+teile = [teil1, teil2]
+if len((teil3 + '\n---\n\n' + fund_text).encode()) <= GRENZE - 1500:
+    teile.append(teil3 + '\n---\n\n' + fund_text)
+    t_fund = 'Teil 3'
+else:
+    kopf4 = ('# VERFASSUNGEN — Teil 4 von @@N@@ (FK22) · Entwurf\n\n'
+             'Fortsetzung von Teil 3. Stand des Lesens, Verfahren, Belegregel und Lesehilfe stehen in Teil 1.\n\n---\n\n')
+    teile += [teil3, kopf4 + fund_text]
+    t_fund = 'Teil 4'
+n = len(teile)
+teile = [t.replace('@@N@@', str(n)).replace('@@T_FUND@@', t_fund) for t in teile]
+
+# ---- Einsetzprüfung mit Gegenprobe ----
+BLOCK = re.compile(r'^Quelle: ([^\n]*) · (\d+) Bytes · SHA-256 `([0-9a-f]{64})` · Schluss-Zeilenumbruch: (ja|nein)\n\n'
+                   + ZAUN + r'(\w*)\n(.*?)\n' + ZAUN + r'$', re.M | re.S)
+erwartet = {sha(b) for _, b, _ in Q.values()}
+gut = gesamt = 0
+geg_ok = None
+for t in teile:
+    for m in BLOCK.finditer(t):
+        gesamt += 1
+        inhalt = (m.group(6) + ('\n' if m.group(4) == 'ja' else '')).encode()
+        if sha(inhalt) == m.group(3) and m.group(3) in erwartet and len(inhalt) == int(m.group(2)):
+            gut += 1
+        if geg_ok is None:
+            kaputt = bytearray(inhalt)
+            kaputt[len(kaputt) // 2] ^= 1
+            geg_ok = sha(bytes(kaputt)) != m.group(3)
+n_platz = sum(len(re.findall(r'@@WORTLAUT:\w+@@', v)) for v in (v1, v2))
+b8 = (f'{gut} von {gesamt} Wortlautblöcken nach dem Einsetzen SHA-256- und längengleich mit dem Original '
+      f'(Platzhalter in den Vorlagen: {n_platz}); Gegenprobe (ein Byte eines Blocks im Speicher verändert → ungleich): '
+      f'{"angeschlagen" if geg_ok else "NICHT angeschlagen"}.')
+teile = [t.replace('@@B8@@', b8) for t in teile]
+
+rest = [re.findall(r'@@[A-Z_0-9]+(?::\w+)?@@', t) for t in teile]
+for i, t in enumerate(teile, 1):
+    assert SCHLUESSEL not in t, f'Schlüssel in Teil {i}'
+    erlaubt = {'@@RB8@@', '@@RB9@@', '@@B9@@'}
+    assert set(rest[i - 1]) <= erlaubt, (i, rest[i - 1])
+    b = t.encode('utf-8')
+    assert len(b) <= GRENZE, f'Teil {i}: {len(b)} Bytes > {GRENZE}'
+    p = O / f'VERFASSUNGEN-TEIL{i}.md'
+    p.write_bytes(b)
+    print(f'{p} · {len(b)} Bytes · SHA-256 {sha(b)} · Restplatzhalter {rest[i - 1]}')
+print('Einsetzprüfung:', b8)
+print('Fundorte je Quelle:', {namen[s[0]]: len(funde[h]) for h, s in ziel.items()})
+print('\n== Belege für Teil 2')
+print('Verzeichnis {LAEUFE}/biotop-t3-typescript/verfassung-02/:')
+for p in sorted(Path(LAEUFE, 'biotop-t3-typescript', 'verfassung-02').iterdir()):
+    st = p.stat()
+    print(f'   {p.name} | {st.st_size} B | mtime {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(st.st_mtime))}')
+for p in ['/tmp/drahtwerk-probe/VERFASSUNG.md', '/tmp/drahtwerk-probe/VERFASSUNG.regeln.json']:
+    st = os.stat(p)
+    print(f'{p} | {st.st_size} B | mtime {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(st.st_mtime))} | '
+          f'{sha(open(p, "rb").read())}')
+--- Ende /root/sicherung/biotop-lage-01/entwurf/verfassungen/b8_einsetzen.py ---
+Ausgabe (vollständig, stdout und stderr):
+== Fundorte-Lauf
+Wurzeln 45 + /tmp · Dateien geprüft 63636 · gehasht 570 · 1.4 s
+/root/sicherung/biotop-lage-01/entwurf/verfassungen/VERFASSUNGEN-TEIL1.md · 28249 Bytes · SHA-256 6b4bf96bc0e0eaaba6faf598b7866a585a15934fdc7a246a0a0fb821c2d92831 · Restplatzhalter []
+/root/sicherung/biotop-lage-01/entwurf/verfassungen/VERFASSUNGEN-TEIL2.md · 27817 Bytes · SHA-256 48f4e3aefe1f148cb2dd7c9197e7c171221f946995209f2e0f59c4cc62b78fea · Restplatzhalter []
+/root/sicherung/biotop-lage-01/entwurf/verfassungen/VERFASSUNGEN-TEIL3.md · 7650 Bytes · SHA-256 e46ecf9fdc92e8451f149da2ba5d0b1fd30a417d7c59d1707dcd3a1111912992 · Restplatzhalter []
+/root/sicherung/biotop-lage-01/entwurf/verfassungen/VERFASSUNGEN-TEIL4.md · 29195 Bytes · SHA-256 7544a83e9ebb3bd758df189d1e13227450b6dcda3dcd06a240a54ff1afd38044 · Restplatzhalter ['@@RB8@@', '@@RB9@@', '@@B9@@']
+Einsetzprüfung: 13 von 13 Wortlautblöcken nach dem Einsetzen SHA-256- und längengleich mit dem Original (Platzhalter in den Vorlagen: 13); Gegenprobe (ein Byte eines Blocks im Speicher verändert → ungleich): angeschlagen.
+Fundorte je Quelle: {'lagerhaus Text': 73, 'lagerhaus Regeln': 72, 'lagerhaus Regeln (VB1-Schreibweise)': 1, 'logmuehle Text': 72, 'logmuehle Regeln': 72, 'T3 Revision 02': 4, 'T3 Regeln': 3, 'T3 Entwurf 01': 2, 'drahtwerk ältere Variante': 1, 'drahtwerk Text': 8, 'drahtwerk Regeln': 9}
+
+== Belege für Teil 2
+Verzeichnis {LAEUFE}/biotop-t3-typescript/verfassung-02/:
+   BESTAETIGUNG.md | 1878 B | mtime 2026-09-21 03:42:22
+   DATEIEN.txt | 349 B | mtime 2026-09-21 03:42:22
+   MANIFEST.sha256 | 328 B | mtime 2026-09-21 03:42:22
+   PRUEFSUMME-ORDNER.txt | 82 B | mtime 2026-09-21 03:42:22
+   VERFASSUNG-T3.md | 4418 B | mtime 2026-09-21 03:42:22
+   ZWISCHENBERICHT.md | 2243 B | mtime 2026-09-21 03:42:22
+/tmp/drahtwerk-probe/VERFASSUNG.md | 489 B | mtime 2026-09-23 11:18:04 | 4630f6e3d6661d3576d720350989feb4e28909eb9e4f9c87233ca8cb4ef46ba4
+/tmp/drahtwerk-probe/VERFASSUNG.regeln.json | 340 B | mtime 2026-09-23 11:18:04 | 1bb6f77ccf4da46a85ad171b183d03113a25cc237c799638d90de31524bb963d
+=== Ende R119 ===
+
+
+R120 · Teil G: Kleinbelege WS-Abgleich (A bis Z, A3, Phase 2, Tor 1, Rechte, Ansage-Abweichung)
+Beginn: 2026-09-25 17:25:39 CEST (UTC+0200)
+Ende:   2026-09-25 17:25:39 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/lage-werke/g7_kleinbelege.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/lage-werke/g7_kleinbelege.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil G (nur lesend): Kleinbelege für den Abgleich WS01–WS19.
+(a) Zählung „A bis Z“ und „bestmöglich“ in den Fassungen v1–v8 (arbeit/dokumente, nur Dateien > 10 kB).
+(b) ABNAHME-Punkt A3 („ungemessen unterhalb von 20 erzeugten Funden“) im Wortlaut v7/v8: Treffer für
+    „unterhalb von 20“, „20 erzeugten“, „ungemessen“.
+(c) Nachrichten Philipps (Verlauf v2) mit „Phase 2“ und („abgenommen“ oder „gewertet“ oder „abgeschlossen“): id, Zeit.
+(d) Nachrichten Philipps (Verlauf v2) nach dem 19.09. 03:00 mit „Tor 1“: id, Zeit, 160 Zeichen Umgebung.
+(e) Besitzer, Rechte, Größe, Änderungszeit der Dateien in {LAEUFE}/biotop-t3-typescript/ (oberste Ebene) und
+    {LAEUFE}/gedaechtnis/.
+(f) Treffer „Ansage“ + „Abweich“ in *.md und *.txt unter {LAEUFE}/biotop-t3-typescript/ (Anzahl je Datei).
+Dateien werden intern geöffnet (Vorsorge nach SPERRE-01). Prüfkanal-Schlüssel wird maskiert."""
+import json
+import os
+import pwd
+import grp
+import re
+import stat
+import time
+from pathlib import Path
+
+W = Path('/root/sicherung/biotop-lage-01')
+D = W / 'arbeit/dokumente'
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+L = Path(f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe')
+m = lambda s: str(s).replace(str(L), '{LAEUFE}')
+
+print('== (a) „A bis Z“ / „bestmöglich“ je Fassung')
+for p in sorted(D.glob('*Masterprompt-v*.md')):
+    t = p.read_text(errors='replace')
+    if len(t) < 10000:
+        continue
+    print(f'{p.name}: „A bis Z“ {t.count("A bis Z")}, „bestmöglich“ {t.count("bestmöglich")}')
+
+print('\n== (b) A3 im Wortlaut v7/v8')
+for p in sorted(D.glob('*Masterprompt-v[78].md')):
+    t = p.read_text(errors='replace')
+    for w in ('unterhalb von 20', '20 erzeugten', 'ungemessen'):
+        print(f'{p.name}: „{w}“ {t.count(w)}')
+
+V2 = W / 'arbeit/verlauf/v2/wortlaut.jsonl'
+nachr = [json.loads(z) for z in V2.open(encoding='utf-8')]
+ph = [d for d in nachr if d.get('absender') == 'Philipp']
+print(f'\nNachrichten mit Absender Philipp im Verlauf v2: {len(ph)} (alle Zeiträume der Datei)')
+print('\n== (c) Philipp: „Phase 2“ und abgenommen/gewertet/abgeschlossen')
+for d in ph:
+    t = d.get('text') or ''
+    if 'Phase 2' in t and re.search(r'abgenommen|gewertet|abgeschlossen', t):
+        for mm in re.finditer(r'Phase 2[^.\n]{0,120}', t):
+            if re.search(r'abgenommen|gewertet|abgeschlossen', mm.group(0)):
+                print(f"id {d['id']} · {d['zeit']}: …{mm.group(0)}…")
+
+print('\n== (d) Philipp nach 19.09. 03:00: „Tor 1“')
+for d in ph:
+    if (d.get('zeit') or '') < '2026-09-19 03:00:00':
+        continue
+    t = d.get('text') or ''
+    if t.startswith('#') and len(t) > 20000:
+        continue  # Dokumente (Fassungen, Aufträge) übersprungen
+    for mm in re.finditer(r'Tor 1\b', t):
+        a = max(0, mm.start() - 80)
+        print(f"id {d['id']} · {d['zeit']}: …{t[a:mm.end() + 80]}…".replace('\n', ' '))
+
+print('\n== (e) Besitzer/Rechte')
+for o in (L / 'biotop-t3-typescript', L / 'gedaechtnis'):
+    for p in sorted(o.iterdir()):
+        s = p.stat()
+        print(f'{m(p)} | {stat.filemode(s.st_mode)} | {pwd.getpwuid(s.st_uid).pw_name}:{grp.getgrgid(s.st_gid).gr_name}'
+              f' | {s.st_size} B | {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(s.st_mtime))}')
+
+print('\n== (f) „Ansage“ + „Abweich“ unter biotop-t3-typescript (Zeilen mit beiden Wörtern)')
+n = 0
+for p in sorted((L / 'biotop-t3-typescript').rglob('*')):
+    if p.is_file() and p.suffix in ('.md', '.txt'):
+        k = sum(1 for z in p.read_text(errors='replace').splitlines() if 'Ansage' in z and re.search('[Aa]bweich', z))
+        if k:
+            n += k
+            print(f'{m(p)}: {k}')
+print(f'Summe Zeilen: {n}')
+print('=== Ende')
+--- Ende /root/sicherung/biotop-lage-01/entwurf/lage-werke/g7_kleinbelege.py ---
+Ausgabe (vollständig, stdout und stderr):
+== (a) „A bis Z“ / „bestmöglich“ je Fassung
+2026-09-18_205908_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v1.md: „A bis Z“ 0, „bestmöglich“ 0
+2026-09-19_003630_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v2.md: „A bis Z“ 0, „bestmöglich“ 0
+2026-09-19_022342_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v3.md: „A bis Z“ 0, „bestmöglich“ 0
+2026-09-19_123925_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v4.md: „A bis Z“ 0, „bestmöglich“ 0
+2026-09-19_193553_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v5.md: „A bis Z“ 0, „bestmöglich“ 0
+2026-09-20_001844_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v6.md: „A bis Z“ 0, „bestmöglich“ 0
+2026-09-21_021434_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v7.md: „A bis Z“ 0, „bestmöglich“ 0
+2026-09-23_155353_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v8.md: „A bis Z“ 0, „bestmöglich“ 0
+
+== (b) A3 im Wortlaut v7/v8
+2026-09-21_021434_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v7.md: „unterhalb von 20“ 0
+2026-09-21_021434_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v7.md: „20 erzeugten“ 0
+2026-09-21_021434_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v7.md: „ungemessen“ 0
+2026-09-23_155353_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v8.md: „unterhalb von 20“ 0
+2026-09-23_155353_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v8.md: „20 erzeugten“ 0
+2026-09-23_155353_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v8.md: „ungemessen“ 0
+
+Nachrichten mit Absender Philipp im Verlauf v2: 114 (alle Zeiträume der Datei)
+
+== (c) Philipp: „Phase 2“ und abgenommen/gewertet/abgeschlossen
+id 1393 · 2026-09-19 12:39:25: …Phase 2 „Der Schwarm" abgeschlossen…
+id 1393 · 2026-09-19 12:39:25: …Phase 2 ist mit 10 von 11 gewertet — Zeile 7 verlangt „angenommen und im Werk", das Probenpaar K1157/K1158 kam nie ins Werk; li…
+
+== (d) Philipp nach 19.09. 03:00: „Tor 1“
+id 1393 · 2026-09-19 12:39:25: …Biotops. Ein vierter, bereits sauberer Bereich dient als Halluzinationsprobe. **Tor 1 (alle Zeilen mit Ausgabe):** - Landkarte: alle Bereiche erkannt (4 von 4); alle…
+id 1393 · 2026-09-19 12:39:25: …Werk belohnte. Alle übrigen Zeilen bestanden und bleiben gültig.  **Nachlauf zu Tor 1 — erledigt (Lauf 9, Abschlussordner `laeufe/biotop-phase-1-nachlauf/`, 19.09.20…
+id 1393 · 2026-09-19 12:39:25: …Lauf 9, Abschlussordner `laeufe/biotop-phase-1-nachlauf/`, 19.09.2026 02:20):** Tor 1 **9 von 9 bestanden**, geprüft durch Chat-Claude am Bericht (Summen nachgerechn…
+id 2232 · 2026-09-19 19:35:53: …Biotops. Ein vierter, bereits sauberer Bereich dient als Halluzinationsprobe. **Tor 1 (alle Zeilen mit Ausgabe):** - Landkarte: alle Bereiche erkannt (4 von 4); alle…
+id 2232 · 2026-09-19 19:35:53: …Werk belohnte. Alle übrigen Zeilen bestanden und bleiben gültig.  **Nachlauf zu Tor 1 — erledigt (Lauf 9, Abschlussordner `laeufe/biotop-phase-1-nachlauf/`, 19.09.20…
+id 2232 · 2026-09-19 19:35:53: …Lauf 9, Abschlussordner `laeufe/biotop-phase-1-nachlauf/`, 19.09.2026 02:20):** Tor 1 **9 von 9 bestanden**, geprüft durch Chat-Claude am Bericht (Summen nachgerechn…
+id 2718 · 2026-09-20 00:18:44: …Biotops. Ein vierter, bereits sauberer Bereich dient als Halluzinationsprobe. **Tor 1 (alle Zeilen mit Ausgabe):** - Landkarte: alle Bereiche erkannt (4 von 4); alle…
+id 2718 · 2026-09-20 00:18:44: …Werk belohnte. Alle übrigen Zeilen bestanden und bleiben gültig.  **Nachlauf zu Tor 1 — erledigt (Lauf 9, Abschlussordner `laeufe/biotop-phase-1-nachlauf/`, 19.09.20…
+id 2718 · 2026-09-20 00:18:44: …Lauf 9, Abschlussordner `laeufe/biotop-phase-1-nachlauf/`, 19.09.2026 02:20):** Tor 1 **9 von 9 bestanden**, geprüft durch Chat-Claude am Bericht (Summen nachgerechn…
+id 9105 · 2026-09-21 02:14:34: …Biotops. Ein vierter, bereits sauberer Bereich dient als Halluzinationsprobe. **Tor 1 (alle Zeilen mit Ausgabe):** - Landkarte: alle Bereiche erkannt (4 von 4); alle…
+id 9105 · 2026-09-21 02:14:34: …Werk belohnte. Alle übrigen Zeilen bestanden und bleiben gültig.  **Nachlauf zu Tor 1 — erledigt (Lauf 9, Abschlussordner `laeufe/biotop-phase-1-nachlauf/`, 19.09.20…
+id 9105 · 2026-09-21 02:14:34: …Lauf 9, Abschlussordner `laeufe/biotop-phase-1-nachlauf/`, 19.09.2026 02:20):** Tor 1 **9 von 9 bestanden**, geprüft durch Chat-Claude am Bericht (Summen nachgerechn…
+id 13998 · 2026-09-23 15:53:53: …Biotops. Ein vierter, bereits sauberer Bereich dient als Halluzinationsprobe. **Tor 1 (alle Zeilen mit Ausgabe):** - Landkarte: alle Bereiche erkannt (4 von 4); alle…
+id 13998 · 2026-09-23 15:53:53: …Werk belohnte. Alle übrigen Zeilen bestanden und bleiben gültig.  **Nachlauf zu Tor 1 — erledigt (Lauf 9, Abschlussordner `laeufe/biotop-phase-1-nachlauf/`, 19.09.20…
+id 13998 · 2026-09-23 15:53:53: …Lauf 9, Abschlussordner `laeufe/biotop-phase-1-nachlauf/`, 19.09.2026 02:20):** Tor 1 **9 von 9 bestanden**, geprüft durch Chat-Claude am Bericht (Summen nachgerechn…
+id 20987 · 2026-09-25 14:44:20: …ze, kein Punktwert. - **WS04** Phase 1 „Das Skelett" am Übungswerk `lagerhaus`: Tor 1 wurde nach dem Nachlauf (Lauf 9, `laeufe/biotop-phase-1-nachlauf/`) mit 9 von 9…
+
+== (e) Besitzer/Rechte
+{LAEUFE}/biotop-t3-typescript/BERICHT.md | -rw-r----- | root:caddy | 1618 B | 2026-09-21 02:24:28
+{LAEUFE}/biotop-t3-typescript/DATEIEN.txt | -rw-r----- | root:caddy | 145 B | 2026-09-21 02:24:28
+{LAEUFE}/biotop-t3-typescript/KASSE.md | -rw-r----- | root:caddy | 381 B | 2026-09-21 02:24:28
+{LAEUFE}/biotop-t3-typescript/MASTERPROMPT-v7.md | -rw-r----- | root:caddy | 85729 B | 2026-09-21 02:24:28
+{LAEUFE}/biotop-t3-typescript/MESSGERAETFEHLER.md | -rw-r----- | root:caddy | 528 B | 2026-09-21 02:24:28
+{LAEUFE}/biotop-t3-typescript/ZWISCHENBERICHT.md | -rw-r----- | root:root | 4655 B | 2026-09-21 03:30:00
+{LAEUFE}/biotop-t3-typescript/abschluss-01 | drwxr-xr-x | root:caddy | 4096 B | 2026-09-22 06:57:01
+{LAEUFE}/biotop-t3-typescript/abschluss-02 | drwxr-xr-x | root:caddy | 4096 B | 2026-09-22 15:24:47
+{LAEUFE}/biotop-t3-typescript/abschluss-03 | drwxr-x--- | root:caddy | 4096 B | 2026-09-23 15:47:24
+{LAEUFE}/biotop-t3-typescript/ausgaben | drwxr-x--- | root:caddy | 4096 B | 2026-09-21 02:24:28
+{LAEUFE}/biotop-t3-typescript/biotop | drwxr-x--- | root:caddy | 4096 B | 2026-09-21 02:24:28
+{LAEUFE}/biotop-t3-typescript/uebernahme-01 | drwxr-xr-x | root:caddy | 4096 B | 2026-09-21 18:29:34
+{LAEUFE}/biotop-t3-typescript/verfassung-02 | drwxr-x--- | root:caddy | 4096 B | 2026-09-21 03:42:22
+{LAEUFE}/biotop-t3-typescript/verfassung-entwurf-01 | drwxr-x--- | root:caddy | 4096 B | 2026-09-21 02:27:58
+{LAEUFE}/biotop-t3-typescript/werk | drwxr-x--- | root:caddy | 4096 B | 2026-09-21 02:24:28
+{LAEUFE}/biotop-t3-typescript/zwischenbericht-20260923-152432-r9 | drwxr-x--- | root:caddy | 4096 B | 2026-09-23 15:24:32
+{LAEUFE}/gedaechtnis/DATEIEN-01.txt | -rw-r----- | root:caddy | 238 B | 2026-09-20 05:17:33
+{LAEUFE}/gedaechtnis/PRUEFSUMME-ORDNER-01.txt | -rw-r----- | root:caddy | 341 B | 2026-09-20 05:17:33
+{LAEUFE}/gedaechtnis/REGELN-01.md | -rw-r----- | root:caddy | 4504 B | 2026-09-20 05:17:33
+{LAEUFE}/gedaechtnis/STAND-01.md | -rw-r----- | root:caddy | 4386 B | 2026-09-20 05:17:33
+{LAEUFE}/gedaechtnis/UNTERBAU-01.md | -rw-r----- | root:caddy | 4965 B | 2026-09-20 05:17:33
+
+== (f) „Ansage“ + „Abweich“ unter biotop-t3-typescript (Zeilen mit beiden Wörtern)
+Summe Zeilen: 0
+=== Ende
+=== Ende R120 ===
+
+
+R121 · Abgleich der zwei Doppelzeilen-Regeln (41 nur Datenbank, 1 nur v2); /root/versehentlich vor Auftragsbeginn; /opt/hermes/eingang; Wort „versehentlich“ im Biotop-Baum
+Beginn: 2026-09-25 17:25:41 CEST (UTC+0200)
+Ende:   2026-09-25 17:25:42 CEST (UTC+0200)
+Dauer:  0.8 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/n6_abgleich.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/n6_abgleich.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Abgleich der zwei Doppelzeilen-Regeln aus R115 (Datenbank: Schlüssel mit
+Werkzeugaufrufen, 1455 Nachrichten mit Text) und R89 (Verzeichnis v2: Schlüssel ohne Werkzeugaufrufe, 1415) — was sind
+die 41 Nachrichten „nur Datenbank“ und die 1 „nur v2“? Dazu: Nennungen des Pfads „/root/versehentlich“ in der
+Sitzungsdatenbank VOR Auftragsbeginn (25.09.2026 14:44:20 CEST) und der Ordner /opt/hermes/eingang."""
+import datetime as dt
+import hashlib
+import json
+import os
+import sqlite3
+import subprocess
+from collections import Counter
+
+f = lambda ts: dt.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+h = lambda s: hashlib.sha256((s or '').encode('utf-8', 'surrogatepass')).hexdigest()
+V2 = '/root/sicherung/biotop-lage-01/arbeit/verlauf/v2/nachrichten.jsonl'
+v2 = [json.loads(z) for z in open(V2, encoding='utf-8')]
+BIS = max(e['ts'] for e in v2)
+con = sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+rows = con.execute("SELECT id, session_id, role, content, tool_calls, timestamp FROM messages WHERE timestamp >= ? AND "
+                   "timestamp <= ? AND role IN ('user','assistant') ORDER BY timestamp, id",
+                   (dt.datetime(2026, 9, 18).timestamp(), BIS)).fetchall()
+mit, ohne = {}, {}
+for r in rows:
+    if not (r[3] or '').strip():
+        continue
+    mit.setdefault((r[1], r[2], r[5], h(r[3]), h(r[4])), r)
+    ohne.setdefault((r[1], r[2], r[5], h(r[3])), r)
+ids_v2 = {e['id'] for e in v2}
+nur_db = [r for r in mit.values() if r[0] not in ids_v2]
+print(f'Nachrichten mit Text: Regel „mit Werkzeugaufrufen“ {len(mit)}, Regel „ohne Werkzeugaufrufe“ {len(ohne)}, Verzeichnis v2 {len(v2)}')
+print(f'nur in der Datenbankzählung (Regel mit Werkzeugaufrufen), nicht in v2: {len(nur_db)} von {len(mit)}')
+art = Counter()
+for r in nur_db:
+    zwilling = ohne.get((r[1], r[2], r[5], h(r[3])))
+    if zwilling is None:
+        art['kein Zwilling'] += 1
+        continue
+    a, b = r[4] or '', zwilling[4] or ''
+    try:
+        ja, jb = json.loads(a) if a else [], json.loads(b) if b else []
+        na = [(c.get('function') or {}).get('name') for c in ja]
+        nb = [(c.get('function') or {}).get('name') for c in jb]
+        argsa = [(c.get('function') or {}).get('arguments') for c in ja]
+        argsb = [(c.get('function') or {}).get('arguments') for c in jb]
+    except Exception:
+        na = nb = argsa = argsb = None
+    if na == nb and argsa == argsb:
+        art['gleiche Werkzeuge und Argumente, andere Aufruf-Kennung (Kopie)'] += 1
+    elif na == nb:
+        art['gleiche Werkzeuge, andere Argumente'] += 1
+    else:
+        art['andere Werkzeuge'] += 1
+print('Einordnung der', len(nur_db), 'gegen ihren Zwilling (gleiche Sitzung, Rolle, Zeit, Wortlaut):', dict(art))
+for r in nur_db[:5]:
+    print(f'   Beispiel id {r[0]} · {f(r[5])} · {r[2]} · Sitzung {r[1]} · Text {len(r[3])} Zeichen')
+nur_v2 = [e for e in v2 if e['id'] not in {r[0] for r in mit.values()}]
+for e in nur_v2:
+    print(f"nur in v2: id {e['id']} · {e['zeit']} · {e['absender']} · {e['bytes']} Bytes (Text leer? {e['bytes'] == 0})")
+leer_user = [r for r in rows if r[2] == 'user' and not (r[3] or '').strip()]
+print(f'user-Zeilen mit leerem Text im Zeitraum: {len(leer_user)} von {sum(1 for r in rows if r[2] == "user")}')
+grenze = dt.datetime(2026, 9, 25, 14, 44, 20).timestamp()
+for spalte in ('content', 'tool_calls'):
+    r = con.execute(f"SELECT count(*), min(timestamp), max(timestamp) FROM messages WHERE {spalte} LIKE '%/root/versehentlich%' "
+                    "AND timestamp < ?", (grenze,)).fetchone()
+    print(f'„/root/versehentlich“ in {spalte} vor Auftragsbeginn: {r[0]} Zeilen' + (f', {f(r[1])} … {f(r[2])}' if r[0] else ''))
+    for mid, rolle, ts, sid in con.execute(f"SELECT id, role, timestamp, session_id FROM messages WHERE {spalte} LIKE "
+                                           "'%/root/versehentlich%' AND timestamp < ? ORDER BY timestamp LIMIT 8", (grenze,)):
+        print(f'   id {mid} · {rolle} · {f(ts)} · Sitzung {sid}')
+print('== /opt/hermes/eingang')
+print(subprocess.run(['ls', '-la', '--time-style=+%F %T', '/opt/hermes/eingang'], capture_output=True, text=True).stdout
+      or 'nicht vorhanden')
+print('== „versehentlich“ in /root/biotop/README.md und tests/test_t3_testoperationen.py (Zeilen)')
+for p in ('/root/biotop/README.md', '/root/biotop/tests/test_t3_testoperationen.py'):
+    for i, z in enumerate(open(p, encoding='utf-8', errors='replace'), 1):
+        if 'versehentlich' in z:
+            print(f'   {os.path.basename(p)}:{i}: {z.strip()[:160]}')
+--- Ende /root/sicherung/biotop-lage-01/arbeit/n6_abgleich.py ---
+Ausgabe (vollständig, stdout und stderr):
+Nachrichten mit Text: Regel „mit Werkzeugaufrufen“ 1455, Regel „ohne Werkzeugaufrufe“ 1414, Verzeichnis v2 1415
+nur in der Datenbankzählung (Regel mit Werkzeugaufrufen), nicht in v2: 41 von 1455
+Einordnung der 41 gegen ihren Zwilling (gleiche Sitzung, Rolle, Zeit, Wortlaut): {'gleiche Werkzeuge, andere Argumente': 41}
+   Beispiel id 9887 · 2026-09-21 03:39:46 · assistant · Sitzung 20260921_015554_e79a4a0f · Text 498 Zeichen
+   Beispiel id 9899 · 2026-09-21 03:43:00 · assistant · Sitzung 20260921_015554_e79a4a0f · Text 870 Zeichen
+   Beispiel id 11586 · 2026-09-22 15:15:51 · assistant · Sitzung 20260921_015554_e79a4a0f · Text 152 Zeichen
+   Beispiel id 11588 · 2026-09-22 15:15:59 · assistant · Sitzung 20260921_015554_e79a4a0f · Text 175 Zeichen
+   Beispiel id 11590 · 2026-09-22 15:16:21 · assistant · Sitzung 20260921_015554_e79a4a0f · Text 164 Zeichen
+nur in v2: id 7468 · 2026-09-20 18:57:06 · Philipp · 0 Bytes (Text leer? True)
+user-Zeilen mit leerem Text im Zeitraum: 1 von 432
+„/root/versehentlich“ in content vor Auftragsbeginn: 1 Zeilen, 2026-09-16 23:24:03 … 2026-09-16 23:24:03
+   id 604 · tool · 2026-09-16 23:24:03 · Sitzung 20260914_010536_c66573af
+„/root/versehentlich“ in tool_calls vor Auftragsbeginn: 1 Zeilen, 2026-09-16 23:24:00 … 2026-09-16 23:24:00
+   id 603 · assistant · 2026-09-16 23:24:00 · Sitzung 20260914_010536_c66573af
+== /opt/hermes/eingang
+nicht vorhanden
+== „versehentlich“ in /root/biotop/README.md und tests/test_t3_testoperationen.py (Zeilen)
+   README.md:16: Archive und historische Prüfskripte werden nicht versehentlich gesammelt.
+   test_t3_testoperationen.py:28: def test_ts_testaenderung_nicht_versehentlich_als_leere_datei_uebergehen(ts):
+=== Ende R121 ===

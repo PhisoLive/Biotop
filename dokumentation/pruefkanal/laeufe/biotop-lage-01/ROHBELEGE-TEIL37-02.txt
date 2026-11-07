@@ -1,0 +1,442 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 37 (Teile 4–165 dieses Stands) · enthält R40 bis R40
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+[R40 · Fortsetzung, Stück 2 von 6]
+biotop/__main__.py:28 | from .kern import anmeldung, kasse, protokoll
+biotop/__main__.py:29 | from .kern.datenbank import verbinden
+biotop/__main__.py:30 | from .organe import lazarus
+biotop/__main__.py:63 | s = sub.add_parser("gedaechtnis"); s.add_argument("aktion", choices=["import", "art", "projekt", "geschmack"]); s.add_argument("lauf", type=int, nargs="?"); s.add_argumen
+biotop/__main__.py:65 | s = sub.add_parser("dienst"); s.add_argument("--port", type=int, default=8642); s.add_argument("--host", default="127.0.0.1")
+biotop/__main__.py:79 | from . import tor4 as T4
+biotop/__main__.py:111 | from .organe import verfassung as V
+biotop/__main__.py:118 | from .organe import vertraege as VT
+biotop/__main__.py:121 | from .kern import sprachprofil
+biotop/__main__.py:130 | from .organe import mentor as M
+biotop/__main__.py:133 | from .organe import mentor as M
+biotop/__main__.py:136 | from .organe import gedaechtnis as G
+biotop/__main__.py:137 | if a.aktion == "import":
+biotop/__main__.py:139 | _p({"lauf": a.lauf, "projekt_importiert": G.projekt_import(con, a.lauf, Path(werk["pfad"])), "art_importiert": G.art_import(con, a.lauf)})
+biotop/__main__.py:144 | _p(G.gescheiterte_wege(con, werk["id"], a.bereich, 200) if a.bereich else [dict(z) for z in con.execute("SELECT werk, bereich, grundklasse, COUNT(*) n FROM projektgedaech
+biotop/__main__.py:146 | _p([dict(z) for z in con.execute("SELECT werk, quelle, entscheidung, COUNT(*) n FROM geschmack GROUP BY werk, quelle, entscheidung")])
+biotop/__main__.py:148 | from .organe import entropie as E
+biotop/__main__.py:151 | from . import oberflaeche as O
+biotop/__main__.py:154 | from . import dienst as D
+biotop/__main__.py:155 | D.starten(a.host, a.port)
+biotop/anbieter/__init__.py:8 | from __future__ import annotations
+biotop/anbieter/__init__.py:10 | import json
+biotop/anbieter/__init__.py:11 | import os
+biotop/anbieter/__init__.py:12 | import re
+biotop/anbieter/__init__.py:13 | import sqlite3
+biotop/anbieter/__init__.py:14 | import time
+biotop/anbieter/__init__.py:15 | import urllib.error
+biotop/anbieter/__init__.py:16 | import urllib.request
+biotop/anbieter/__init__.py:17 | from collections.abc import Callable
+biotop/anbieter/__init__.py:18 | from dataclasses import dataclass
+biotop/anbieter/__init__.py:19 | from pathlib import Path
+biotop/anbieter/__init__.py:21 | from ..kern import kasse, protokoll
+biotop/anbieter/__init__.py:233 | "SELECT inhalt FROM protokoll WHERE art='modell.wiederholung'")
+biotop/dienst.py:1 | """HTTP-Dienst des Biotops (nur lesend in Phase 1, Bindung an 127.0.0.1).
+biotop/dienst.py:20 | from __future__ import annotations
+biotop/dienst.py:22 | import json
+biotop/dienst.py:23 | import re
+biotop/dienst.py:24 | import sys
+biotop/dienst.py:25 | from http.server import BaseHTTPRequestHandler, HTTPServer
+biotop/dienst.py:27 | from .kern import anmeldung, kasse, protokoll
+biotop/dienst.py:28 | from .kern.datenbank import lj, verbinden
+biotop/dienst.py:29 | from . import lauf as L
+biotop/dienst.py:30 | from . import oberflaeche
+biotop/dienst.py:31 | from .organe import entropie, gedaechtnis, mentor, verfassung
+biotop/dienst.py:117 | g = self.con.execute("SELECT nummer FROM generationen WHERE lauf_id=? AND status='vorgelegt'", (lauf_id,)).fetchone()
+biotop/dienst.py:156 | g = con.execute("SELECT nummer, grund, kandidaten, masse FROM generationen WHERE lauf_id=? AND status='vorgelegt'", (lauf_id,)).fetchone()
+biotop/dienst.py:162 | k = con.execute("SELECT id, bereich, nische, modell, begruendung, diff, masse, wirkungskreis FROM kandidaten WHERE id=?", (kid,)).fetchone()
+biotop/dienst.py:175 | z = con.execute("SELECT * FROM mentor WHERE lauf_id=? ORDER BY id DESC LIMIT 1", (m.group(1),)).fetchone()
+biotop/dienst.py:182 | lz = con.execute("SELECT werk_id FROM laeufe WHERE id=?", (m.group(1),)).fetchone()
+biotop/dienst.py:183 | return self._senden(200, _rows(con, "SELECT bereich, name, status, generation, lauf_id, substr(ursprung,1,200) ursprung FROM immunsystem WHERE werk_id=? ORDER BY id", (lz
+biotop/dienst.py:186 | lz = con.execute("SELECT werk_id FROM laeufe WHERE id=?", (m.group(1),)).fetchone()
+biotop/dienst.py:191 | return self._senden(200, _rows(con, "SELECT id, werk_id, budget_eur, status, begonnen_am, beendet_am, grund FROM laeufe"))
+biotop/dienst.py:194 | z = con.execute("SELECT * FROM laeufe WHERE id=?", (m.group(1),)).fetchone()
+biotop/dienst.py:202 | for z in _rows(con, "SELECT nummer, status, grund, tag, pruefsumme, erstellt_am, freigabe_am, freigabe_grund, masse FROM generationen WHERE lauf_id=? ORDER BY nummer", (m
+biotop/dienst.py:210 | return self._senden(200, _rows(con, "SELECT id, generation, bereich, nische, anbieter, modell, status, grund, begruendung, wirkungskreis, erstellt_am FROM kandidaten WHER
+biotop/dienst.py:213 | return self._senden(200, {"stand": kasse.stand(con, int(m.group(1))), "aufrufe": _rows(con, "SELECT * FROM kasse WHERE lauf_id=? ORDER BY id", (m.group(1),))})
+biotop/dienst.py:216 | return self._senden(200, _rows(con, "SELECT generation, tag, pruefsumme, archiv, erstellt_am FROM lazarus WHERE lauf_id=? ORDER BY generation", (m.group(1),)))
+biotop/dienst.py:218 | return self._senden(200, _rows(con, "SELECT id, name, pfad, quelle, aufgenommen_am, sprache, status FROM werke"))
+biotop/dienst.py:223 | "stufen": [{**z, "inhalt": lj(z["inhalt"])} for z in _rows(con, "SELECT stufe, schluessel, inhalt, pruefsumme, herkunft FROM landkarte WHERE werk_id=? ORDER BY stufe, sch
+biotop/dienst.py:224 | "strassen": _rows(con, "SELECT von, nach, art FROM strassen WHERE werk_id=? ORDER BY von, nach", (wid,)),
+biotop/dienst.py:225 | "vertraege": _rows(con, "SELECT bereich, text, herkunft, quelle FROM vertraege WHERE werk_id=? ORDER BY bereich, id", (wid,)),
+biotop/dienst.py:233 | def starten(host: str = "127.0.0.1", port: int = 8642):
+biotop/dienst.py:235 | srv = HTTPServer((host, port), Handler)
+biotop/dienst.py:236 | print(f"Biotop-Dienst auf {host}:{port} — {len(ROUTEN)} Routen, Anmeldezwang aktiv", flush=True)
+biotop/dienst.py:240 | def main(port: int = 8642):
+biotop/dienst.py:241 | starten("127.0.0.1", port)
+biotop/dienst.py:245 | main(int(sys.argv[1]) if len(sys.argv) > 1 else 8642)
+biotop/kern/anmeldung.py:5 | from __future__ import annotations
+biotop/kern/anmeldung.py:7 | import hashlib
+biotop/kern/anmeldung.py:8 | import hmac
+biotop/kern/anmeldung.py:9 | import os
+biotop/kern/anmeldung.py:10 | import secrets
+biotop/kern/anmeldung.py:11 | import sqlite3
+biotop/kern/anmeldung.py:13 | from . import protokoll
+biotop/kern/anmeldung.py:14 | from .datenbank import transaktion
+biotop/kern/anmeldung.py:33 | z = con.execute("SELECT salz, hash FROM benutzer WHERE name=?", (name,)).fetchone()
+biotop/kern/anmeldung.py:49 | z = con.execute("SELECT benutzer FROM tokens WHERE token_hash=?", (hashlib.sha256(token.encode()).hexdigest(),)).fetchone()
+biotop/kern/befundklassen.py:12 | from __future__ import annotations
+biotop/kern/befundklassen.py:18 | "(().__class__.__base__.__subclasses__() erreicht ~160 Klassen inkl. BuiltinImporter → os, subprocess), "
+biotop/kern/befundklassen.py:29 | ("import_os_ueber_klasse_nebenwirkung",
+biotop/kern/befundklassen.py:30 | "[c for c in ().__class__.__base__.__subclasses__() if c.__name__ == 'BuiltinImporter'][0].load_module('os').environ.setdefault('BIOTOP_UMGEHUNG_B307', 'ausgefuehrt').__l
+biotop/kern/befundklassen.py:54 | "beschreibung": "import subprocess: nur Hinweis (LOW); verschwindet mit B602 nicht zwingend. Zählt 1 Punkt.",
+biotop/kern/befundklassen.py:67 | def immuntest_code(klasse: str, einstieg_import: str, einstieg_aufruf: str, fehlerklasse_import: str, fehlerklasse: str) -> str | None:
+biotop/kern/befundklassen.py:74 | return _immuntest_shell(klasse, k, einstieg_import, einstieg_aufruf)
+biotop/kern/befundklassen.py:79 | "import os", "import pytest", "import signal", einstieg_import, fehlerklasse_import, "",
+biotop/kern/befundklassen.py:100 | def immuntest_typescript(klasse: str, einstieg_import: str, einstieg_aufruf: str) -> str | None:
+biotop/kern/befundklassen.py:102 | import json
+biotop/kern/befundklassen.py:111 | zeilen = ["import {test,expect} from 'vitest';", einstieg_import]
+biotop/kern/befundklassen.py:137 | def _immuntest_shell(klasse: str, k: dict, einstieg_import: str, einstieg_aufruf: str) -> str:
+biotop/kern/befundklassen.py:142 | "import os", "import tempfile", einstieg_import, "",
+biotop/kern/datenbank.py:8 | from __future__ import annotations
+biotop/kern/datenbank.py:10 | import json
+biotop/kern/datenbank.py:11 | import os
+biotop/kern/datenbank.py:12 | import sqlite3
+biotop/kern/datenbank.py:13 | from contextlib import contextmanager
+biotop/kern/datenbank.py:14 | from pathlib import Path
+biotop/kern/diffwerk.py:14 | from __future__ import annotations
+biotop/kern/diffwerk.py:16 | import re
+biotop/kern/diffwerk.py:17 | from dataclasses import dataclass, field
+biotop/kern/gegenzeugen.py:14 | from __future__ import annotations
+biotop/kern/kasse.py:11 | from __future__ import annotations
+biotop/kern/kasse.py:13 | import sqlite3
+biotop/kern/kasse.py:15 | from . import protokoll
+biotop/kern/kasse.py:16 | from .datenbank import transaktion
+biotop/kern/kasse.py:46 | import os as _os
+biotop/kern/kasse.py:54 | return con.execute("SELECT COALESCE(SUM(kosten_eur),0) FROM kasse WHERE lauf_id>=?", (AUFTRAG_LAUF_AB,)).fetchone()[0]
+biotop/kern/kasse.py:100 | "COALESCE(SUM(tokens_aus),0) a, COALESCE(SUM(kontingent),0) q FROM kasse WHERE lauf_id=?",
+biotop/kern/kasse.py:103 | lauf = con.execute("SELECT budget_eur FROM laeufe WHERE id=?", (lauf_id,)).fetchone()
+biotop/kern/kasse.py:126 | import json
+biotop/kern/kasse.py:128 | for z in con.execute("SELECT inhalt FROM protokoll WHERE art='kasse.ausfall_geklaert'")}
+biotop/kern/kasse.py:134 | for z in con.execute("SELECT inhalt FROM protokoll WHERE art='modell.ausfall' ORDER BY nr"):
+biotop/kern/kasse.py:193 | import json
+biotop/kern/kasse.py:195 | for z in con.execute("SELECT nr, inhalt FROM protokoll WHERE art='modell.ausfall' ORDER BY nr"):
+biotop/kern/kasse.py:203 | for z in con.execute("SELECT inhalt FROM protokoll WHERE art='kasse.ausfall_geklaert'")):
+biotop/kern/kasse.py:223 | import json
+biotop/kern/kasse.py:226 | for z in con.execute("SELECT inhalt FROM protokoll WHERE art='kasse.ausfall_geklaert'"):
+biotop/kern/kasse.py:254 | q = "SELECT * FROM kasse"
+biotop/kern/kasse.py:271 | f"{con.execute('SELECT COALESCE(SUM(kontingent),0) FROM kasse').fetchone()[0]})")
+biotop/kern/kasse.py:279 | for z in con.execute("SELECT nr, art, inhalt FROM protokoll WHERE art IN ('generation.begonnen','generation.ergebnis') AND inhalt LIKE ? ORDER BY nr",
+biotop/kern/kasse.py:281 | import json
+biotop/kern/kasse.py:288 | k = con.execute("SELECT COALESCE(SUM(kosten_eur),0) FROM kasse WHERE lauf_id=? AND protokoll_nr BETWEEN ? AND ?",
+biotop/kern/messgeraet.py:10 | Werkebene zusätzlich:  zyklen ↓ (Import-Zyklen zwischen Bereichen), bauzeit_ms ↓
+biotop/kern/messgeraet.py:31 | from __future__ import annotations
+biotop/kern/messgeraet.py:33 | import json
+biotop/kern/messgeraet.py:34 | import re
+biotop/kern/messgeraet.py:35 | from pathlib import Path
+biotop/kern/messgeraet.py:37 | from ..organe import kammer
+biotop/kern/messgeraet.py:48 | import ast, json, os, subprocess, sys, time, importlib, io, contextlib
+biotop/kern/messgeraet.py:59 | # --- Bauzeit (Import aller Bereiche) ---
+biotop/kern/messgeraet.py:61 | rc, out, err = lauf([sys.executable, "-c", "import " + ",".join(paket + "." + b for b in bereiche)])
+biotop/kern/messgeraet.py:84 | import json, pytest, sys
+biotop/kern/messgeraet.py:91 | def pytest_collectreport(self, report):
+biotop/kern/messgeraet.py:92 | if report.failed:
+biotop/kern/messgeraet.py:93 | nachweis["sammlungsfehler"].append(report.nodeid)
+biotop/kern/messgeraet.py:94 | def pytest_runtest_logreport(self, report):
+biotop/kern/messgeraet.py:95 | if report.when == "call":
+biotop/kern/messgeraet.py:96 | nachweis["aufrufe"].append(report.nodeid)
+biotop/kern/messgeraet.py:97 | if report.failed:
+biotop/kern/messgeraet.py:98 | nachweis["fehlgeschlagen"].append(report.nodeid)
+biotop/kern/messgeraet.py:99 | if report.when == "teardown":
+biotop/kern/messgeraet.py:100 | nachweis["beendet"].append(report.nodeid)
+biotop/kern/messgeraet.py:109 | import xml.etree.ElementTree as ET
+biotop/kern/messgeraet.py:159 | import re
+biotop/kern/messgeraet.py:256 | from . import sprachprofil
+biotop/kern/messgeraet.py:258 | from . import typescript
+biotop/kern/messgeraet.py:442 | import math
+biotop/kern/messgeraet.py:511 | las laufzeitrisse() sie aus dem Text und erkannte nur Wortzeichen — „daten-import“ lehnte ohne Nachmessung ab).
+biotop/kern/messgeraet.py:620 | import json, os, sys, time
+biotop/kern/messgeraet.py:647 | from . import sprachprofil
+biotop/kern/messgeraet.py:651 | from . import typescript
+biotop/kern/messgeraet.py:680 | import time as _time
+biotop/kern/messgeraet.py:731 | import re as _re
+biotop/kern/messgeraet.py:800 | import statistics
+biotop/kern/protokoll.py:6 | from __future__ import annotations
+biotop/kern/protokoll.py:8 | import hashlib
+biotop/kern/protokoll.py:9 | import sqlite3
+biotop/kern/protokoll.py:10 | from datetime import datetime, timezone
+biotop/kern/protokoll.py:12 | from .datenbank import j, transaktion
+biotop/kern/protokoll.py:22 | letzte = con.execute("SELECT hash FROM protokoll ORDER BY nr DESC LIMIT 1").fetchone()
+biotop/kern/protokoll.py:38 | for z in con.execute("SELECT * FROM protokoll ORDER BY nr"):
+biotop/kern/protokoll.py:50 | q = "SELECT * FROM protokoll WHERE nr > ?"
+biotop/kern/py/verhalten.py:33 | import os
+biotop/kern/py/verhalten.py:34 | import sys
+biotop/kern/py/verhalten.py:40 | import ast  # noqa: E402
+biotop/kern/py/verhalten.py:41 | import asyncio  # noqa: E402
+biotop/kern/py/verhalten.py:42 | import copy  # noqa: E402
+biotop/kern/py/verhalten.py:43 | import dataclasses  # noqa: E402
+biotop/kern/py/verhalten.py:44 | import enum  # noqa: E402
+biotop/kern/py/verhalten.py:45 | import functools  # noqa: E402
+biotop/kern/py/verhalten.py:46 | import glob  # noqa: E402
+biotop/kern/py/verhalten.py:47 | import hashlib  # noqa: E402
+biotop/kern/py/verhalten.py:48 | import importlib  # noqa: E402
+biotop/kern/py/verhalten.py:49 | import inspect  # noqa: E402
+biotop/kern/py/verhalten.py:50 | import itertools  # noqa: E402
+biotop/kern/py/verhalten.py:51 | import json  # noqa: E402
+biotop/kern/py/verhalten.py:52 | import math  # noqa: E402
+biotop/kern/py/verhalten.py:53 | import re  # noqa: E402
+biotop/kern/py/verhalten.py:54 | import traceback  # noqa: E402
+biotop/kern/py/verhalten.py:55 | import types  # noqa: E402
+biotop/kern/py/verhalten.py:986 | obj = importlib.import_module(modul)
+biotop/kern/py/verhalten.py:1078 | import pytest
+biotop/kern/py/verhalten.py:1473 | def _zusicherung_faellt(report, datei):
+biotop/kern/py/verhalten.py:1478 | crash = getattr(getattr(report, 'longrepr', None), 'reprcrash', None)
+biotop/kern/py/verhalten.py:1656 | importlib.import_module(m)
+biotop/kern/py/verhalten.py:1667 | import pytest
+biotop/kern/py/verhalten.py:1674 | def pytest_runtest_logreport(self, report):
+biotop/kern/py/verhalten.py:1675 | datei, _, rest = report.nodeid.partition('::')
+biotop/kern/py/verhalten.py:1680 | if report.when == 'call' and ZUSTAND.get(tid) != 'fehler':
+biotop/kern/py/verhalten.py:1681 | if report.outcome == 'passed':
+biotop/kern/py/verhalten.py:1683 | elif report.outcome == 'failed' and _zusicherung_faellt(report, datei):
+biotop/kern/py/verhalten.py:1687 | elif report.when != 'call' and report.outcome != 'passed':
+biotop/kern/referenzlast/lagerhaus.py:5 | import sys
+biotop/kern/referenzlast/lagerhaus.py:10 | from lagerhaus.formeln import auswerten
+biotop/kern/referenzlast/lagerhaus.py:16 | from lagerhaus.preise import Artikel, Katalog, Rabattregel, Staffel, rabatt_anwenden
+biotop/kern/referenzlast/lagerhaus.py:27 | from lagerhaus.lager import Lager
+biotop/kern/referenzlast/lagerhaus.py:38 | from lagerhaus.bericht import textbericht, bewegungsbericht
+biotop/kern/referenzlast/lagerhaus.py:39 | from lagerhaus.lager import Lager
+biotop/kern/referenzlast/lagerhaus.py:40 | from lagerhaus.preise import Artikel, Katalog
+biotop/kern/referenzlast/lagerhaus.py:53 | from lagerhaus.formeln import auswerten, pruefen, FormelFehler
+biotop/kern/referenzlast/lagerhaus.py:54 | from lagerhaus.formeln.auswertung import formel_beschreibung
+biotop/kern/referenzlast/lagerhaus.py:55 | from lagerhaus.preise import Artikel, Katalog, Rabattregel, Staffel, rabatt_anwenden, rabatt_betrag, runde_cent, umrechnen
+biotop/kern/referenzlast/lagerhaus.py:56 | from lagerhaus.lager import Lager, NichtGenugBestand
+biotop/kern/referenzlast/lagerhaus.py:57 | from lagerhaus.bericht import textbericht, bewegungsbericht, lagerwert
+biotop/kern/referenzlast/logmuehle.py:5 | import sys
+biotop/kern/referenzlast/logmuehle.py:25 | from logmuehle.lesen import zeilen_lesen
+biotop/kern/referenzlast/logmuehle.py:31 | from datetime import datetime, timezone
+biotop/kern/referenzlast/logmuehle.py:32 | from logmuehle.filtern import nach_pfad, nach_status, nach_zeit
+biotop/kern/referenzlast/logmuehle.py:33 | from logmuehle.lesen import zeilen_lesen
+biotop/kern/referenzlast/logmuehle.py:40 | from logmuehle.lesen import zeilen_lesen
+biotop/kern/referenzlast/logmuehle.py:41 | from logmuehle.zaehlen import zusammenfassen
+biotop/kern/referenzlast/logmuehle.py:48 | from logmuehle.ausgabe import als_csv, als_json, als_text
+biotop/kern/referenzlast/logmuehle.py:49 | from logmuehle.lesen import zeilen_lesen
+biotop/kern/referenzlast/logmuehle.py:50 | from logmuehle.zaehlen import zusammenfassen
+biotop/kern/referenzlast/logmuehle.py:58 | import io, json
+biotop/kern/referenzlast/logmuehle.py:59 | from datetime import datetime, timezone
+biotop/kern/referenzlast/logmuehle.py:60 | from logmuehle.lesen import LeseFehler, zeile_lesen, zeilen_lesen
+biotop/kern/referenzlast/logmuehle.py:61 | from logmuehle.lesen.eintrag import zeit_lesen
+biotop/kern/referenzlast/logmuehle.py:62 | from logmuehle.filtern import FilterFehler, nach_pfad, nach_status, nach_zeit, status_passt
+biotop/kern/referenzlast/logmuehle.py:63 | from logmuehle.zaehlen import je_pfad, je_status, perzentil, top, bytes_gesamt, zusammenfassen
+biotop/kern/referenzlast/logmuehle.py:64 | from logmuehle.ausgabe import als_csv, als_json, als_text, hauptprogramm
+biotop/kern/referenzlast/logmuehle.py:129 | import tempfile, os
+biotop/kern/referenzlast/versandwerk-t3-02.mjs:9 | import { pruefen } from './dist/eingang/pruefer.js';
+biotop/kern/referenzlast/versandwerk-t3-02.mjs:10 | import { statistik } from './dist/eingang/stapel.js';
+biotop/kern/referenzlast/versandwerk-t3-02.mjs:11 | import { skalar, mengenpreis } from './dist/tarife/preise.js';
+biotop/kern/referenzlast/versandwerk-t3-02.mjs:12 | import { ausdruck } from './dist/tarife/ausdruck.js';
+biotop/kern/referenzlast/versandwerk-t3-02.mjs:13 | import { planen } from './dist/planung/plan.js';
+biotop/kern/referenzlast/versandwerk-t3-02.mjs:14 | import { zusammenfassen } from './dist/bericht/zusammenfassung.js';
+biotop/kern/referenzlast/versandwerk-t3-02.mjs:15 | import { textbericht } from './dist/bericht/formate.js';
+biotop/kern/referenzlast/versandwerk-t3-02.mjs:16 | import { verteilen, prozent } from './dist/zahlen/geld.js';
+biotop/kern/referenzlast/versandwerk-t3-02.mjs:17 | import { quantil, mittelwert } from './dist/zahlen/statistik.js';
+biotop/kern/referenzlast/versandwerk-t3-02.mjs:33 | export function last_eingang() {
+biotop/kern/referenzlast/versandwerk-t3-02.mjs:45 | export function last_tarife() {
+biotop/kern/referenzlast/versandwerk-t3-02.mjs:58 | export function last_planung() {
+biotop/kern/referenzlast/versandwerk-t3-02.mjs:65 | export function last_bericht() {
+biotop/kern/referenzlast/versandwerk-t3-02.mjs:77 | export function last_zahlen() {
+biotop/kern/referenzlast/versandwerk-t3-02.mjs:87 | export function beobachten() {
+biotop/kern/referenzlast/versandwerk-t3-02.stufe2.mjs:8 | import { pruefen } from './dist/eingang/pruefer.js';
+biotop/kern/referenzlast/versandwerk-t3-02.stufe2.mjs:9 | import { statistik } from './dist/eingang/stapel.js';
+biotop/kern/referenzlast/versandwerk-t3-02.stufe2.mjs:10 | import { skalar, mengenpreis } from './dist/tarife/preise.js';
+biotop/kern/referenzlast/versandwerk-t3-02.stufe2.mjs:11 | import { ausdruck } from './dist/tarife/ausdruck.js';
+biotop/kern/referenzlast/versandwerk-t3-02.stufe2.mjs:12 | import { planen } from './dist/planung/plan.js';
+biotop/kern/referenzlast/versandwerk-t3-02.stufe2.mjs:13 | import { zusammenfassen } from './dist/bericht/zusammenfassung.js';
+biotop/kern/referenzlast/versandwerk-t3-02.stufe2.mjs:14 | import { textbericht } from './dist/bericht/formate.js';
+biotop/kern/referenzlast/versandwerk-t3-02.stufe2.mjs:15 | import { verteilen, prozent } from './dist/zahlen/geld.js';
+biotop/kern/referenzlast/versandwerk-t3-02.stufe2.mjs:16 | import { quantil, mittelwert } from './dist/zahlen/statistik.js';
+biotop/kern/referenzlast/versandwerk-t3-02.stufe2.mjs:37 | export function last_eingang() {
+biotop/kern/referenzlast/versandwerk-t3-02.stufe2.mjs:49 | export function last_tarife() {
+biotop/kern/referenzlast/versandwerk-t3-02.stufe2.mjs:63 | export function last_planung() {
+biotop/kern/referenzlast/versandwerk-t3-02.stufe2.mjs:70 | export function last_bericht() {
+biotop/kern/referenzlast/versandwerk-t3-02.stufe2.mjs:82 | export function last_zahlen() {
+biotop/kern/register.py:16 | from __future__ import annotations
+biotop/kern/sprachprofil.py:6 | from pathlib import Path
+biotop/kern/sprachprofil.py:32 | import re
+biotop/kern/ts/ast.mjs:1 | import ts from '/opt/biotop-ts/node_modules/typescript/lib/typescript.js';
+biotop/kern/ts/ast.mjs:2 | import fs from 'node:fs';
+biotop/kern/ts/ast.mjs:3 | import path from 'node:path';
+biotop/kern/ts/ast.mjs:4 | export { ts };
+biotop/kern/ts/ast.mjs:5 | export function dateien(dir) {
+biotop/kern/ts/ast.mjs:9 | export function parse(code, name='eingabe.ts') {
+biotop/kern/ts/ast.mjs:14 | export function funktionen(sf) {
+biotop/kern/ts/ast.mjs:35 | exportiert:!!docnode.modifiers?.some(m=>m.kind===ts.SyntaxKind.ExportKeyword)});
+biotop/kern/ts/ast.mjs:41 | export function struktur() {
+biotop/kern/ts/ast.mjs:46 | const sf=parse(fs.readFileSync(p,'utf8'),p), imports=[];
+biotop/kern/ts/ast.mjs:48 | let spec=(ts.isImportDeclaration(n)||ts.isExportDeclaration(n))?n.moduleSpecifier:null;
+biotop/kern/ts/ast.mjs:49 | if(ts.isCallExpression(n)&&n.expression.kind===ts.SyntaxKind.ImportKeyword) spec=n.arguments[0];
+biotop/kern/ts/ast.mjs:54 | if(!target) throw Error('Nicht auflösbarer relativer Import '+p+': '+spec.text);
+biotop/kern/ts/ast.mjs:55 | imports.push(target);
+biotop/kern/ts/ast.mjs:60 | return {pfad:p,funktionen:funktionen(sf),imports:[...new Set(imports)].sort()};
+biotop/kern/ts/bau.mjs:1 | import fs from 'node:fs';
+biotop/kern/ts/bau.mjs:2 | import {dateien} from './ast.mjs';
+biotop/kern/ts/bau.mjs:3 | import {lauf} from './testlauf.mjs';
+biotop/kern/ts/bau.mjs:4 | export function quellenbau() {
+biotop/kern/ts/bau.mjs:11 | export function baulauf() {
+biotop/kern/ts/bau.mjs:13 | fs.writeFileSync('/tmp/ts-bau.json',JSON.stringify({compilerOptions:{target:'ES2022',module:'ESNext',moduleResolution:'Bundler',strict:true,noEmit:true,skipLibCheck:true,
+biotop/kern/ts/deck-setup.mjs:1 | import {beforeEach, afterAll} from 'vitest';
+biotop/kern/ts/deck-setup.mjs:2 | import fs from 'node:fs';
+biotop/kern/ts/deck-setup.mjs:3 | import path from 'node:path';
+biotop/kern/ts/deck-setup.mjs:4 | import {klassenVon, VERFAELSCHT} from './kanon.mjs';
+biotop/kern/ts/deck-setup.mjs:5 | const req = JSON.parse(fs.readFileSync(new URL('./anfrage.json', import.meta.url), 'utf8'));
+biotop/kern/ts/deckung.mjs:2 | // Aufzeichner ausführen. Das Vite-Plugin in vitest.deck.config.mjs wickelt die exportierten Funktionen der geänderten
+biotop/kern/ts/deckung.mjs:5 | import fs from 'node:fs';
+biotop/kern/ts/deckung.mjs:6 | import path from 'node:path';
+biotop/kern/ts/deckung.mjs:7 | import {lauf} from './testlauf.mjs';
+biotop/kern/ts/deckung.mjs:21 | export function deckung(req) {
+biotop/kern/ts/deckung.mjs:26 | // Zustand je Test aus demselben Lauf (Nachweis-Reporter): der Wirt verlangt, dass jeder deckende Test auch hier besteht.
+biotop/kern/ts/einwickeln.mjs:1 | // Exportierte Funktionen eines Moduls einwickeln — gemeinsam für die Verhaltenssonde (verhalten.mjs, gebautes dist-JS)
+biotop/kern/ts/einwickeln.mjs:3 | // (Behebungsrunde 3 vor T4, Review 02 Nr. 9b): `export (async) function f` (auch generisch, überladen, Generator) UND
+biotop/kern/ts/einwickeln.mjs:4 | // `export const f = (…) => …` bzw. `= function …`. Bisher wurden Pfeilfunktions-Exporte nicht eingewickelt; ein Test,
+biotop/kern/ts/einwickeln.mjs:6 | // Jede Funktion wird umbenannt (__vv_orig_f) und durch einen gleichnamigen Export ersetzt, der über
+biotop/kern/ts/einwickeln.mjs:8 | // Pfeil-Exporte: Hülle unmittelbar nach der Anweisung (keine neue Zeitzone vor der Initialisierung).
+biotop/kern/ts/einwickeln.mjs:9 | // Nicht eingewickelt (gezählt, mit Name): Klassen, export default, export-Listen, let/var, Nicht-Funktionskonstanten
+biotop/kern/ts/einwickeln.mjs:12 | export function einwickeln(ts, code, modul, hook, {typen = false} = {}) {
+biotop/kern/ts/einwickeln.mjs:17 | const exportTok = n => mods(n).find(m => m.kind === ts.SyntaxKind.ExportKeyword);
+biotop/kern/ts/einwickeln.mjs:26 | if (!hat(st, ts.SyntaxKind.ExportKeyword)) continue;
+biotop/kern/ts/einwickeln.mjs:27 | const ex = exportTok(st);
+biotop/kern/ts/einwickeln.mjs:28 | if (hat(st, ts.SyntaxKind.DefaultKeyword)) { nicht.push('default (export default)'); continue; }
+biotop/kern/ts/einwickeln.mjs:36 | ende.push(`export function ${n}(...a${A})${R} { return ${aufruf(n)}; }`);
+biotop/kern/ts/einwickeln.mjs:56 | huelle.push(`export const ${n} = (...a${A})${R} => ${aufruf(n)};`);
+biotop/kern/ts/einwickeln.mjs:62 | else if (ts.isExportDeclaration(st) && !st.moduleSpecifier && st.exportClause && ts.isNamedExports(st.exportClause)) {
+biotop/kern/ts/einwickeln.mjs:63 | for (const e of st.exportClause.elements) nicht.push(`${e.name.text} (export-Liste)`);
+biotop/kern/ts/eslint.config.mjs:1 | import tseslint from '/opt/biotop-ts/node_modules/typescript-eslint/dist/index.js';
+biotop/kern/ts/eslint.config.mjs:2 | import security from '/opt/biotop-ts/node_modules/eslint-plugin-security/index.js';
+biotop/kern/ts/eslint.config.mjs:3 | export default [
+biotop/kern/ts/kanon.mjs:3 | import {createHash} from 'node:crypto';
+biotop/kern/ts/kanon.mjs:5 | export const VERFAELSCHT = Symbol.for('biotop.verfaelscht');
+biotop/kern/ts/kanon.mjs:30 | export function kan(x, anc, fehlend) {
+biotop/kern/ts/kanon.mjs:61 | export function knapp(t) {
+biotop/kern/ts/kanon.mjs:67 | export function ergebnisText(v) {
+biotop/kern/ts/kanon.mjs:71 | export function fehlerText(e) { return 'Fehler:' + (e?.constructor?.name ?? 'unbekannt'); }
+biotop/kern/ts/kanon.mjs:72 | export function eingabeText(args) {
+biotop/kern/ts/kanon.mjs:82 | export function textMerkmale(x) {
+biotop/kern/ts/kanon.mjs:102 | export function klassenVon(werte) {
+biotop/kern/ts/main.mjs:1 | import fs from 'node:fs';
+biotop/kern/ts/main.mjs:2 | import {deflateSync} from 'node:zlib';
+biotop/kern/ts/main.mjs:3 | import {createHash} from 'node:crypto';
+biotop/kern/ts/main.mjs:4 | import {struktur,parse,funktionen} from './ast.mjs';
+biotop/kern/ts/main.mjs:5 | import {testlauf} from './testlauf.mjs';
+biotop/kern/ts/main.mjs:6 | import {baulauf} from './bau.mjs';
+biotop/kern/ts/main.mjs:7 | import {testsAst} from './tests-ast.mjs';
+biotop/kern/ts/main.mjs:8 | import {mutanten} from './mutanten.mjs';
+biotop/kern/ts/main.mjs:9 | import {referenz} from './referenz.mjs';
+biotop/kern/ts/main.mjs:10 | import {messen} from './messen.mjs';
+biotop/kern/ts/main.mjs:11 | import {verhalten} from './verhalten.mjs';
+biotop/kern/ts/main.mjs:12 | import {deckung} from './deckung.mjs';
+biotop/kern/ts/main.mjs:17 | const req=JSON.parse(fs.readFileSync(new URL('./anfrage.json',import.meta.url),'utf8'));
+biotop/kern/ts/main.mjs:35 | if(out.length>1900000) {console.error('TS-Transport überschreitet 1900000 Zeichen; keine verkürzte Messung');process.exitCode=70;}
+biotop/kern/ts/messen.mjs:1 | import path from 'node:path';
+biotop/kern/ts/messen.mjs:2 | import {struktur} from './ast.mjs';
+biotop/kern/ts/messen.mjs:3 | import {baulauf} from './bau.mjs';
+biotop/kern/ts/messen.mjs:4 | import {testlauf} from './testlauf.mjs';
+biotop/kern/ts/messen.mjs:5 | import {statik} from './statik.mjs';
+biotop/kern/ts/messen.mjs:6 | import {referenz} from './referenz.mjs';
+biotop/kern/ts/messen.mjs:7 | export function messen(req) {
+biotop/kern/ts/messen.mjs:39 | const kanten=[...new Set(st.dateien.flatMap(f=>f.imports.filter(i=>i.split('/')[1]!==f.pfad.split('/')[1]).map(i=>f.pfad.split('/')[1]+'|'+i.split('/')[1])))].sort().map(
+biotop/kern/ts/mutanten.mjs:1 | import fs from 'node:fs';
+biotop/kern/ts/mutanten.mjs:2 | import {ts,parse,dateien} from './ast.mjs';
+biotop/kern/ts/mutanten.mjs:3 | export function mutanten(maximum=6) {
+biotop/kern/ts/mutanten.mjs:16 | if(ts.isTypeNode(n)||ts.isImportDeclaration(n)||ts.isExportDeclaration(n))return;
+biotop/kern/ts/referenz-runner.mjs:1 | import fs from 'node:fs';
+biotop/kern/ts/referenz-runner.mjs:2 | import {createHash} from 'node:crypto';
+biotop/kern/ts/referenz-runner.mjs:14 | const ref=await import('file:///werk/_biotop_referenz.ts');
+biotop/kern/ts/referenz-runner.mjs:16 | if(typeof ref.beobachten!=='function')throw Error('Referenzlast muss beobachten() exportieren');
+biotop/kern/ts/referenz-runner.mjs:28 | if(typeof fn!=='function')throw Error('Referenzlast muss last_'+b+'() exportieren');
+biotop/kern/ts/referenz.mjs:1 | import fs from 'node:fs';
+biotop/kern/ts/referenz.mjs:2 | import {lauf} from './testlauf.mjs';
+biotop/kern/ts/referenz.mjs:3 | import {quellenbau} from './bau.mjs';
+biotop/kern/ts/referenz.mjs:4 | export function referenz(code,modus='beobachten',bereiche=[]) {
+biotop/kern/ts/referenz.mjs:9 | const p=lauf('node',['--import','/opt/biotop-ts/node_modules/tsx/dist/loader.mjs','_messgeraet/ts/referenz-runner.mjs']);
+biotop/kern/ts/reporter.mjs:1 | import fs from 'node:fs';
+biotop/kern/ts/reporter.mjs:2 | import path from 'node:path';
+biotop/kern/ts/reporter.mjs:12 | export default class Nachweis {
+biotop/kern/ts/statik.mjs:1 | import fs from 'node:fs';
+biotop/kern/ts/statik.mjs:2 | import {lauf} from './testlauf.mjs';
+biotop/kern/ts/statik.mjs:4 | export const SICHERHEIT={
+biotop/kern/ts/statik.mjs:15 | export function statik(struktur) {
+biotop/kern/ts/statik.mjs:21 | const reports=JSON.parse(eslint.stdout);
+biotop/kern/ts/statik.mjs:22 | if(!Array.isArray(reports)||JSON.stringify(reports.map(r=>r.filePath.replace('/werk/','')).sort())!==JSON.stringify([...files].sort())||reports.some(r=>r.fatalErrorCount)
+biotop/kern/ts/statik.mjs:23 | for(const r of reports)for(const m of r.messages)if(m.ruleId?.startsWith('security/') || m.ruleId in SICHERHEIT) {
+biotop/kern/ts/statik.mjs:31 | const config={...plugins,entry:['tests/**/*.test.ts'],project:['src/**/*.ts','tests/**/*.test.ts'],ignoreExportsUsedInFile:true,includeEntryExports:false};
+biotop/kern/ts/statik.mjs:33 | const knip=lauf('node',['/opt/biotop-ts/node_modules/knip/bin/knip.js','--no-gitignore','--tsConfig','/tmp/ts-bau.json','--config','_messgeraet/ts/knip.json','--reporter'
+biotop/kern/ts/statik.mjs:37 | if(!Array.isArray(k.files)||!Array.isArray(k.issues)||k.issues.some(i=>i.unresolved?.length))throw Error('knip-Nachweis fehlt/Import unaufgelöst');
+biotop/kern/ts/statik.mjs:40 | const issue=k.issues.find(i=>i.file===f.pfad), names=new Set([...(issue?.exports||[]),...(issue?.nsExports||[])].map(x=>x.name));
+biotop/kern/ts/statik.mjs:41 | const unused=reports.find(r=>r.filePath.replace('/werk/','')===f.pfad).messages
+biotop/kern/ts/statik.mjs:48 | if(!dead.has(id)){dead.add(id);result.tote.push({datei:f.pfad,name:fn.name,zeile:fn.zeile,quelle:k.files.includes(f.pfad)?'knip/files':names.has(fn.name)?'knip/exports':'
+biotop/kern/ts/testlauf.mjs:1 | import fs from 'node:fs';
+biotop/kern/ts/testlauf.mjs:2 | import {spawnSync} from 'node:child_process';
+biotop/kern/ts/testlauf.mjs:3 | import {dateien} from './ast.mjs';
+biotop/kern/ts/testlauf.mjs:4 | export function lauf(cmd,args,timeout=100000) {
+biotop/kern/ts/testlauf.mjs:9 | export function testlauf(req) {
+biotop/kern/ts/testlauf.mjs:23 | const jp=lauf('python',['-c',`import json,xml.etree.ElementTree as E
+biotop/kern/ts/tests-ast.mjs:1 | import {ts,parse} from './ast.mjs';
+biotop/kern/ts/tests-ast.mjs:2 | import path from 'node:path';
+biotop/kern/ts/tests-ast.mjs:3 | export function testsAst(code,behalten=null,zeuge=null) {
+biotop/kern/ts/tests-ast.mjs:4 | const sf=parse(code), imports=new Map(), quellen=new Map(), tests=new Set(), suites=new Set(), expects=new Set();
+biotop/kern/ts/tests-ast.mjs:5 | for(const s of sf.statements) if(ts.isImportDeclaration(s)&&ts.isStringLiteral(s.moduleSpecifier)) {
+biotop/kern/ts/tests-ast.mjs:6 | for(const b of s.importClause?.namedBindings?.elements||[]) {
+biotop/kern/ts/tests-ast.mjs:12 | } else if(s.moduleSpecifier.text.startsWith('.')) {imports.set(local,orig);quellen.set(local,s.moduleSpecifier.text);}
+biotop/kern/ts/tests-ast.mjs:34 | const edits=blocks.map(b=>({start:b.statement.getFullStart(),end:b.statement.end,text:b===gew?'\nexport const eichprobe_verbraucher = '+b.fn.getText(sf)+';\n':''}));
+biotop/kern/ts/tests-ast.mjs:35 | for(const s of sf.statements)if(ts.isImportDeclaration(s)&&ts.isStringLiteral(s.moduleSpecifier)&&s.moduleSpecifier.text.startsWith('.')) {
+biotop/kern/ts/tests-ast.mjs:46 | if(ts.isCallExpression(n)&&ts.isIdentifier(n.expression)&&imports.has(n.expression.text))out.push({name:imports.get(n.expression.text),quelle:quellen.get(n.expression.tex
+biotop/kern/ts/tests-ast.mjs:58 | if(imports.has(n.text))return imports.get(n.text);
+biotop/kern/ts/tests-ast.mjs:61 | if(ts.isCallExpression(n)&&ts.isIdentifier(n.expression)&&imports.has(n.expression.text))return imports.get(n.expression.text);
+biotop/kern/ts/tests-ast.mjs:62 | if(ts.isCallExpression(n)&&ts.isPropertyAccessExpression(n.expression)&&ts.isIdentifier(n.expression.expression)&&imports.has(n.expression.expression.text))return imports
+biotop/kern/ts/verhalten-runner.mjs:12 | import fs from 'node:fs';
+biotop/kern/ts/verhalten-runner.mjs:13 | import {kan, knapp, eingabeText, klassenVon} from './kanon.mjs';
+biotop/kern/ts/verhalten-runner.mjs:390 | const ref = await import('file:///werk/_biotop_referenz.ts');
+biotop/kern/ts/verhalten-runner.mjs:401 | // Randfall-Korpus: jede exportierte Funktion der geänderten Module, Signaturen und Beispiele der Vorgeneration.
+biotop/kern/ts/verhalten-runner.mjs:405 | try { mod = await import('/werk/dist/' + m + '.js'); } catch { continue; }
+biotop/kern/ts/verhalten-runner.mjs:431 | // Die Referenzlast lädt die eingewickelten Module; scheitert der Import, ist das ein Befund
+biotop/kern/ts/verhalten.mjs:3 | // Wickelt jede exportierte Funktion der geänderten Module in einen Aufzeichner und lässt
+biotop/kern/ts/verhalten.mjs:13 | // Fassung 8 (Grundsatz 11): Zusätzlich bekommt jede exportierte Funktion einen Randfall-Korpus aus ihrer
+biotop/kern/ts/verhalten.mjs:16 | import fs from 'node:fs';
+biotop/kern/ts/verhalten.mjs:17 | import {lauf} from './testlauf.mjs';
+biotop/kern/ts/verhalten.mjs:18 | import {quellenbau} from './bau.mjs';
+biotop/kern/ts/verhalten.mjs:19 | import {parse, funktionen, ts} from './ast.mjs';
+biotop/kern/ts/verhalten.mjs:20 | import {einwickeln as einwickelnAst} from './einwickeln.mjs';
+biotop/kern/ts/verhalten.mjs:22 | // Einwickeln am Syntaxbaum (einwickeln.mjs): auch `export const f = (…) =>` (Behebungsrunde 3, Review 02 Nr. 9b).
+biotop/kern/ts/verhalten.mjs:23 | export function einwickeln(code, modul) {
+biotop/kern/ts/verhalten.mjs:27 | // Deklarierte Parametertypen je exportierter Funktion, aus dem TypeScript-Syntaxbaum des Quellmoduls.
+biotop/kern/ts/verhalten.mjs:28 | export function signaturen_lesen(module) {
+biotop/kern/ts/verhalten.mjs:36 | if (f.exportiert && /^[A-Za-z_$][\w$]*$/.test(f.name)) out[m][f.name] = f.params.map(x => x.type);
+biotop/kern/ts/verhalten.mjs:43 | export function verhalten(req) {
+biotop/kern/ts/verhalten.mjs:64 | const p = lauf('node', ['--import', '/opt/biotop-ts/node_modules/tsx/dist/loader.mjs', '_messgeraet/ts/verhalten-runner.mjs']);
+biotop/kern/ts/vitest.config.mjs:1 | import Nachweis from './reporter.mjs';
+biotop/kern/ts/vitest.config.mjs:2 | import fs from 'node:fs';
+biotop/kern/ts/vitest.config.mjs:3 | const req=JSON.parse(fs.readFileSync(new URL('./anfrage.json',import.meta.url),'utf8'));
+biotop/kern/ts/vitest.config.mjs:4 | export default {
+biotop/kern/ts/vitest.config.mjs:9 | reporters:[new Nachweis(),['junit',{outputFile:'/tmp/ts-junit.xml',includeConsoleOutput:false,addFileAttribute:true}]],
+biotop/kern/ts/vitest.deck.config.mjs:1 | import fs from 'node:fs';
+biotop/kern/ts/vitest.deck.config.mjs:2 | import Nachweis from './reporter.mjs';
+biotop/kern/ts/vitest.deck.config.mjs:3 | import {createRequire} from 'node:module';
+biotop/kern/ts/vitest.deck.config.mjs:4 | // TypeScript per require laden: Vite bündelt die Konfiguration, ein statischer Import der CommonJS-Datei scheitert dort
+biotop/kern/ts/vitest.deck.config.mjs:5 | // („Dynamic require of fs is not supported“).
+biotop/kern/ts/vitest.deck.config.mjs:6 | const ts = createRequire(import.meta.url)('/opt/biotop-ts/node_modules/typescript/lib/typescript.js');
+biotop/kern/ts/vitest.deck.config.mjs:7 | import {einwickeln} from './einwickeln.mjs';
+biotop/kern/ts/vitest.deck.config.mjs:8 | const req = JSON.parse(fs.readFileSync(new URL('./anfrage.json', import.meta.url), 'utf8'));
+biotop/kern/ts/vitest.deck.config.mjs:11 | // `export const f = (…) =>` (Review 02 Nr. 9b). Jede exportierte Funktion läuft über globalThis.__vvDeck.
+biotop/kern/ts/vitest.deck.config.mjs:14 | export default {
+biotop/kern/ts/vitest.deck.config.mjs:23 | hookTimeout: 8000, setupFiles: ['/werk/_messgeraet/ts/deck-setup.mjs'], reporters: [new Nachweis()], watch: false,
+biotop/kern/typescript.py:3 | BIOTOP_KAMMER_IMAGE=biotop-kammer:ts1 vor Prozessstart setzen. Kein globaler
+biotop/kern/typescript.py:6 | from __future__ import annotations
+biotop/kern/typescript.py:8 | import base64
+biotop/kern/typescript.py:9 | import hashlib
+biotop/kern/typescript.py:10 | import json
+biotop/kern/typescript.py:11 | import re
+biotop/kern/typescript.py:12 | import tempfile
+biotop/kern/typescript.py:13 | import zlib
+biotop/kern/typescript.py:14 | from dataclasses import asdict
+biotop/kern/typescript.py:15 | from pathlib import Path
+biotop/kern/typescript.py:17 | from ..organe import kammer
+biotop/kern/typescript.py:46 | raise TypeScriptFehler("TS-Transport fehlt/beschädigt/zu groß: " + json.dumps(roh, ensure_ascii=False))
+biotop/kern/typescript.py:53 | raise TypeScriptFehler("Beschädigter TS-Transport") from exc
+biotop/kern/typescript.py:104 | Quellen werden frisch nach dist gebaut. Imports ab Werkroot sind möglich.
+biotop/lauf.py:8 | from __future__ import annotations
+biotop/lauf.py:10 | import sqlite3
+biotop/lauf.py:11 | from pathlib import Path

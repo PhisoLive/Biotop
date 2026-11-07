@@ -1,0 +1,12 @@
+# Verfassung T3 — versandwerk (Entwurf Hermes)
+
+Status: zur Bestätigung durch Philipp oder den von ihm beauftragten Chat-Claude; keine vorweggenommene Freigabe.
+
+1. **Zweck:** `versandwerk` ist ein TypeScript-Übungswerk ohne Betriebszweck. Es prüft fiktive Sendungsdaten, berechnet Tarife, bündelt Sendungen und erstellt Berichte; es beauftragt keinen Versand, verarbeitet keine personenbezogenen Daten und verändert keine Dateien oder externen Systeme.
+2. **Sicherheit:** Eingaben sind Daten, niemals Programme. Weder `eval` noch `Function` dürfen Eingabetext ausführen; auch indirekte Zugriffe auf globale Objekte und Prototype-Manipulation durch Eingaben sind unzulässig. Ungültige Eingaben werden ausdrücklich abgewiesen.
+3. **Korrektheit:** Mengen und Gewichte sind endlich und nicht negativ, Geldbeträge werden in ganzen Cent geführt, Obergrenzen sind einschließlich. Sendungen werden genau einmal berücksichtigt; negative Rabatte, negative Endpreise und still verworfene Sendungen sind unzulässig.
+4. **Grenzen:** Die fünf Bereiche `eingang`, `tarife`, `planung`, `bericht` und `zahlen` verändern Eingabeobjekte nicht. `bericht` formatiert Ergebnisse, er berechnet keine Tarife nach. Grenzverträge dürfen nur zusammen mit der geprüften Anpassung beider Seiten geändert werden.
+5. **Tragender Pfad:** `bericht` verwendet `planung`, `planung` verwendet `tarife` und `eingang`, `tarife` verwendet `zahlen`; für den Eichgegenstand ist das Paar `planung` → `tarife` vorrangig. `zahlen` ist der saubere Vergleichsbereich.
+6. **Maß und Tausch:** Es gilt das Kernmaß aus Abschnitt 3.5 Fassung 7, Pareto je Test und Bestwertbezug; Standardtausch: Laufzeit höchstens ×2 bei Kernmaßgewinn, sonstige Grenzmaße höchstens +25 Prozent, größte Funktion nach der 60-Zeilen-Regel. Ohne Kernmaßgewinn gilt die gemessene Rauschtoleranz. Sicherheitsgewinn erhält keine zusätzliche Ausnahme.
+7. **Unzulässig:** vorhandene Tests löschen, überspringen oder abschwächen; Prüfwerkzeuge, deren Konfiguration oder Referenzlast manipulieren; Befunde durch Unterdrückungs-Kommentare statt durch Codebehebung beseitigen. Neue Tests dürfen nur nach dem paarweisen Ausführungsnachweis aufgenommen werden.
+8. **Betrieb:** Jeder Werk-/Testlauf bleibt in der netzlosen Kammer. Die Übungswerk-Vollmacht gilt für dokumentierte Generationenfreigaben und Mentorwahl; sie ersetzt keine Bestätigung dieser Verfassung. Der Auftrag endet an T3, nicht mit einem selbsttätigen T4-Start.

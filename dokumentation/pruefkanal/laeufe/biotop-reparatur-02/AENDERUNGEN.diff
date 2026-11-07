@@ -1,0 +1,231 @@
+--- a/biotop/kern/messgeraet.py
++++ b/biotop/kern/messgeraet.py
+@@ -82,7 +82,7 @@
+ # ein abgebrochener Teillauf sein; JUnit allein nennt nur die berichteten Fälle.
+ pytest_start = r"""
+ import json, pytest, sys
+-nachweis = {"gesammelt": [], "aufrufe": [], "beendet": [], "sammlungsfehler": [], "abgewaehlt": []}
++nachweis = {"gesammelt": [], "aufrufe": [], "beendet": [], "sammlungsfehler": [], "abgewaehlt": [], "fehlgeschlagen": []}
+ class Nachweis:
+     def pytest_deselected(self, items):
+         nachweis["abgewaehlt"].extend(item.nodeid for item in items)
+@@ -94,6 +94,8 @@
+     def pytest_runtest_logreport(self, report):
+         if report.when == "call":
+             nachweis["aufrufe"].append(report.nodeid)
++            if report.failed:
++                nachweis["fehlgeschlagen"].append(report.nodeid)
+         if report.when == "teardown":
+             nachweis["beendet"].append(report.nodeid)
+ rc = pytest.main(sys.argv[1:], plugins=[Nachweis()])
+@@ -129,9 +131,15 @@
+     b = zuordnung(datei)
+     je_datei.setdefault(b, [0, 0])
+     je_datei[b][0 if ok else 1] += 1
+-    if not ok:
+-        fehler_liste.append(f"{datei}::{tc.get('name')}")
++# Identität aus demselben ausgeführten pytest-Call, nicht aus basename/name.
++# Der volle Pfad samt Klassen und Parametern entscheidet Pareto. Der kurze
++# Dateiname bleibt zusätzlich für vorhandene Vertrags-/Aufnahmeleser erhalten.
++fehler_ids = sorted(nachweis["fehlgeschlagen"])
++if len(fehler_ids) != sum(t.find("failure") is not None for t in testfaelle):
++    raise ValueError("JUnit-/Call-Fehlschläge widersprechen sich")
++fehler_liste = [os.path.basename(n.split("::")[0]) + "::" + n.split("::", 1)[1] for n in fehler_ids]
+ ergebnis["werk"]["tests_fehlgeschlagen_liste"] = fehler_liste
++ergebnis["werk"]["tests_fehlgeschlagen_ids"] = fehler_ids
+ 
+ # --- bandit / vulture / groesste Funktion je Bereich ---
+ def bandit(pfad):
+@@ -265,10 +273,11 @@
+         if not bereiche or set(d["bereiche"]) != set(bereiche):
+             raise ValueError("angeforderte Bereiche fehlen in der Messausgabe")
+         w = d["werk"]
+-        for k in ("baut", "pytest_rc", "tests_fehlgeschlagen_liste", "zyklen", "bauzeit_ms"):
++        for k in ("baut", "pytest_rc", "tests_fehlgeschlagen_liste", "tests_fehlgeschlagen_ids", "zyklen", "bauzeit_ms"):
+             if k not in w or w[k] is None:
+                 raise ValueError("Werk-Pflichtnachweis fehlt: " + k)
+-        if w["pytest_rc"] not in (0, 1) or not isinstance(w["tests_fehlgeschlagen_liste"], list):
++        if (w["pytest_rc"] not in (0, 1) or not isinstance(w["tests_fehlgeschlagen_liste"], list)
++                or not isinstance(w["tests_fehlgeschlagen_ids"], list)):
+             raise ValueError("pytest-/Einzeltestnachweis unbrauchbar")
+         if referenzlast:
+             for b in bereiche:
+@@ -360,8 +369,14 @@
+         if not isinstance(messung["werk"].get("tests_fehlgeschlagen_liste"), list):
+             schlechter.append(f"{name}: Nachweis je Test fehlt/unbrauchbar (tests_fehlgeschlagen_liste)")
+             return schlechter, besser
+-    fehl_basis = set(basis["werk"]["tests_fehlgeschlagen_liste"])
+-    fehl_kand = set(kandidat["werk"]["tests_fehlgeschlagen_liste"])
++    schluessel = "tests_fehlgeschlagen_liste"
++    if any("tests_fehlgeschlagen_ids" in m["werk"] for m in (basis, kandidat)):
++        schluessel = "tests_fehlgeschlagen_ids"
++        if any(not isinstance(m["werk"].get(schluessel), list) for m in (basis, kandidat)):
++            schlechter.append("Nachweis je Test: vollständige pytest-Identität fehlt auf einer Paarseite")
++            return schlechter, besser
++    fehl_basis = set(basis["werk"][schluessel])
++    fehl_kand = set(kandidat["werk"][schluessel])
+     regress = sorted(fehl_kand - fehl_basis)
+     if regress:
+         schlechter.append("Regression je Test (bestand an der Vorgeneration, fällt am Kandidaten): " + ", ".join(regress[:6]) + (" …" if len(regress) > 6 else ""))
+--- a/biotop/organe/eichproben.py
++++ b/biotop/organe/eichproben.py
+@@ -72,9 +72,20 @@
+     neu = {datei: text.splitlines() for datei, text in quellen.items()}
+     beschreibung = []
+     for datei, fn in reversed(auswahl):
+-        ziel = fn.body[0].end_lineno if ast.get_docstring(fn) is not None else fn.body[0].lineno - 1
+-        neu[datei].insert(ziel, " " * (fn.col_offset + 4) + "return None  # Eichprobe: Funktion wirkungslos")
+-        beschreibung.append(f"{datei.relative_to(pfad)}::{fn.name} liefert None")
++        if alle:
++            ziel = fn.body[0].end_lineno if ast.get_docstring(fn) is not None else fn.body[0].lineno - 1
++            neu[datei].insert(ziel, " " * (fn.col_offset + 4) + "return None  # Eichprobe: Funktion wirkungslos")
++            beschreibung.append(f"{datei.relative_to(pfad)}::{fn.name} liefert None")
++        else:
++            # Der gezielte Nachbarschaden darf nicht bereits gemeinsame Fixtures
++            # oder die Referenzlast durch einen fremden Rückgabetyp abbrechen.
++            rueckgaben = [k for k in ast.walk(fn) if isinstance(k, ast.Return) and k.value is not None]
++            if not rueckgaben or (fn.returns is not None and ast.unparse(fn.returns) not in ("int", "float")):
++                raise RuntimeError(f"{fn.name}: keine numerische Rückgabe für ausführbaren Einzelschaden")
++            for r in sorted(rueckgaben, key=lambda k: k.lineno, reverse=True):
++                neu[datei][r.lineno - 1:r.end_lineno] = [
++                    " " * r.col_offset + f"return ({ast.unparse(r.value)}) + 1  # Eichprobe: Zahlenfehler"]
++            beschreibung.append(f"{datei.relative_to(pfad)}::{fn.name} liefert Zahlenwert + 1")
+     return ("".join(_diff(datei.relative_to(pfad).as_posix(), alt, "\n".join(neu[datei]) + "\n")
+                     for datei, alt in quellen.items()), "; ".join(reversed(beschreibung)))
+ 
+@@ -378,9 +389,28 @@
+     quelle = datei.read_text()
+     zeilen = quelle.splitlines()
+     ziel = fn.body[0].end_lineno if ast.get_docstring(fn) is not None else fn.body[0].lineno - 1
+-    neu = zeilen[:ziel] + [f"    from {paket} import {b} as _eichlieferant",
+-                          "    if _eichlieferant.eichprobe_zusicherung() != 'da':",
+-                          "        raise ValueError('eichprobe_zusicherung fehlt')"] + zeilen[ziel:]
++    zusicherung = [f"    from {paket} import {b} as _eichlieferant",
++                  "    if _eichlieferant.eichprobe_zusicherung() != 'da':",
++                  "        raise ValueError('eichprobe_zusicherung fehlt')"]
++    # Bei einer Sammlungsverarbeitung gilt die neue Zusicherung für den
++    # Leereingang. Der vorhandene Leertest bleibt der Verbraucherzeuge; die
++    # bestellte Referenzlast mit Bestand wird nicht zur kaputten Messhülle.
++    # Den ursprünglichen Iterator genau einmal auswerten, nicht vorab doppelt.
++    sammlung = next((k for k in fn.body if isinstance(k, ast.For)
++                    and isinstance(k.iter, ast.Call) and not k.iter.args and not k.iter.keywords
++                    and isinstance(k.iter.func, ast.Attribute) and isinstance(k.iter.func.value, ast.Name)
++                    and k.iter.func.value.id in {a.arg for a in fn.args.args}), None)
++    if sammlung is not None:
++        ziel = sammlung.lineno - 1
++        kopf = zeilen[ziel]
++        iterator = ast.get_source_segment(quelle, sammlung.iter)
++        if sammlung.iter.lineno != sammlung.iter.end_lineno or iterator not in kopf:
++            raise RuntimeError("Vertragsprobe: mehrzeilige Sammlung nicht unterstützt")
++        neu = (zeilen[:ziel] + [f"    _eichprobe_elemente = {iterator}", "    if not _eichprobe_elemente:"]
++               + ["    " + z for z in zusicherung]
++               + [kopf.replace(iterator, "_eichprobe_elemente", 1)] + zeilen[ziel + 1:])
++    else:
++        neu = zeilen[:ziel] + zusicherung + zeilen[ziel:]
+     rel = datei.relative_to(werk).as_posix()
+     diff = _diff(rel, quelle, "\n".join(neu) + "\n")
+     # Den vorhandenen Test im eigenen Modulkontext aufrufen: Konstanten,
+--- a/biotop/organe/fundpruefung.py
++++ b/biotop/organe/fundpruefung.py
+@@ -71,10 +71,24 @@
+     if tests is None:
+         raise RuntimeError("Fund-Neubewertung: ausgeführter Nachweis fehlt: " + aus[-400:])
+     besteht = e.rc == 0
+-    # Nur eine ausgeführte Test-Failure kann einen Produktabsturz belegen.
+-    fehler = [t.find("failure") for t in tests if t.find("failure") is not None]
+-    absturz = any(("Error" in (f.text or "") or "Exception" in (f.text or ""))
+-                  and "AssertionError" not in (f.text or "") for f in fehler)
++    # Eine Failure belegt ihren Ort, nicht allein das Wort Error/Exception.
++    # Maßgeblich ist der innerste Traceback-Frame in einem echten Werkpaket;
++    # Testdateien, Hilfsskripte und externe Bibliotheken sind kein Werkabsturz.
++    absturz = False
++    for tc in tests:
++        f = tc.find("failure")
++        if f is None or not f.get("message") or f.get("message").startswith(("AssertionError", "assert ", "Failed:")):
++            continue
++        orte = re.findall(r"^([\w./-]+\.py):\d+: in ", f.text or "", re.M)
++        if not orte:
++            continue
++        ort = Path(orte[-1].removeprefix("/werk/"))
++        if ort.is_absolute() or ".." in ort.parts or len(ort.parts) < 2 or ort.parts[0] in ("tests", "_messgeraet"):
++            continue
++        quelle = (pfad / ort).resolve()
++        if (quelle.is_relative_to(pfad.resolve()) and quelle.is_file()
++                and (pfad / ort.parts[0] / "__init__.py").is_file()):
++            absturz = True
+     return besteht, absturz, aus[-400:]
+ 
+ 
+--- a/tests/test_messnachweise.py
++++ b/tests/test_messnachweise.py
+@@ -215,7 +215,7 @@
+     """Deklarierter Unit-Double des Übertragungsformats, kein Ausführungsbeleg."""
+     return {"bereiche": {"alpha": {"tests_bestanden": 1, "tests_fehlgeschlagen": 0,
+         "tests_gesamt": 1, "sicherheit_punkte": 0, "tote_funktionen": 0, "groesste_funktion": 2}},
+-        "werk": {"baut": True, "pytest_rc": 0, "tests_fehlgeschlagen_liste": [], "bauzeit_ms": 20, "zyklen": 0}}
++        "werk": {"baut": True, "pytest_rc": 0, "tests_fehlgeschlagen_liste": [], "tests_fehlgeschlagen_ids": [], "bauzeit_ms": 20, "zyklen": 0}}
+ 
+ 
+ def uebertragung(monkeypatch, tmp_path, d, rc=0, zeitlimit=False, ref=None):
+@@ -311,6 +311,18 @@
+     r = M.urteil_f2(basis, kandidat, basis, ["alpha", "beta"], ["alpha", "beta"])
+     assert r["ok"] is False, r
+     assert "Nachweis" in r["grund"]
++    # Auch ein fehlender kanonischer Beleg darf nicht auf der anderen Seite
++    # durch einen vorhandenen Kurzschlüssel verdeckt werden.
++    basis, kandidat = messung(tote_funktionen=1), messung()
++    for m in (basis, kandidat):
++        m["werk"]["tests_fehlgeschlagen_ids"] = []
++    ziel = basis if seite == "basis" else kandidat
++    if inhalt == "fehlt":
++        del ziel["werk"]["tests_fehlgeschlagen_ids"]
++    else:
++        ziel["werk"]["tests_fehlgeschlagen_ids"] = inhalt
++    r = M.urteil_f2(basis, kandidat, basis, ["alpha", "beta"], ["alpha", "beta"])
++    assert r["ok"] is False and "Nachweis" in r["grund"], r
+ 
+ 
+ def test_pareto_ausgefuehrte_leere_fehlliste_ist_erlaubt(messung):
+@@ -329,7 +341,25 @@
+     assert m["bereiche"]["alpha"]["tests_fehlgeschlagen"] == (0 if erwartet == 1 else 1)
+     assert m["bereiche"]["alpha"]["tests_gesamt"] == 1
+     if erwartet == 2:
+-        assert m["werk"]["tests_fehlgeschlagen_liste"] == ["test_alpha.py::test_wert"]
++        assert m["werk"]["tests_fehlgeschlagen_liste"] == ["test_alpha.py::TestWert::test_wert"]
++        assert m["werk"].get("tests_fehlgeschlagen_ids") == ["tests/test_alpha.py::TestWert::test_wert"]
++        # Gleicher Methodenname, andere Klasse: zwei alte Fehler behoben,
++        # ein neuer Fehler erzeugt. Die kleinere Summe darf ihn nicht verdecken.
++        vor = ("class TestAlt:\n    def test_wert(self):\n        assert False\n"
++               "class TestNeu:\n    def test_wert(self):\n        assert True\n"
++               "def test_zusaetzlich():\n    assert False\n")
++        nach = ("class TestAlt:\n    def test_wert(self):\n        assert True\n"
++                "class TestNeu:\n    def test_wert(self):\n        assert False\n"
++                "def test_zusaetzlich():\n    assert True\n")
++        basis, _ = messen_werk(vor)
++        kandidat, _ = messen_werk(nach)
++        assert basis["gueltig"] and kandidat["gueltig"]
++        assert basis["bereiche"]["alpha"]["tests_fehlgeschlagen"] == 2
++        assert kandidat["bereiche"]["alpha"]["tests_fehlgeschlagen"] == 1
++        urteil = M.urteil_f2(basis, kandidat, basis, ["alpha"], ["alpha"])
++        assert urteil["ok"] is False, urteil
++        assert any("tests/test_alpha.py::TestNeu::test_wert" in z for z in urteil["pareto_schlechter"]), urteil
++        print("KERN-02 DIREKTER PARETO", json.dumps({"basis": basis, "kandidat": kandidat, "urteil": urteil}))
+ 
+ 
+ @pytest.mark.integration
+--- a/tests/test_nachweis_verbraucher.py
++++ b/tests/test_nachweis_verbraucher.py
+@@ -91,6 +91,13 @@
+     if absturz:
+         (eigenwerk / "paket/alpha/quelle.py").write_text("def wert():\n    raise ValueError('Produktfehler')\n")
+     assert F._ausfuehren(eigenwerk, "probe", code)[:2] == (besteht, absturz)
++    if not besteht and not absturz:
++        # Gleiche bestehende Test-ID, zusätzliche echte KERN-03-Regression:
++        # testinterner NameError ist kein Werkabsturz und darf keine Norm aufwerten.
++        intern = "def test_eins():\n    nicht_definierter_name()\n"
++        r = F._ausfuehren(eigenwerk, "probe", intern)
++        print("KERN-03 TESTINTERN", r)
++        assert r[:2] == (False, False), r
+ 
+ 
+ @pytest.mark.integration

@@ -1,0 +1,79 @@
+EB6 · Schritt 1: wartende Gedächtnis-Änderungen und Kaltstart-Skript (nur lesend)
+Beginn: 2026-09-25 23:38:04 CEST (UTC+0200)
+Ende:   2026-09-25 23:38:04 CEST (UTC+0200)
+Dauer:  0.0 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/biotop-einlagerung/arbeit/s1_warteschlangen.py
+--- Inhalt von /root/biotop-einlagerung/arbeit/s1_warteschlangen.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-EINLAGERUNG-01 Schritt 1 (nur lesend): Wartende Gedächtnis-Änderungen (/root/.hermes/pending/memory/*.json)
+mit Feldern id, subsystem, action, summary, origin, created_at; payload nur als Länge und erste 300 Zeichen, Kennungen
+ab 8 Ziffern geschwärzt. Dazu: gibt es /opt/hermes/kaltstart.py und /opt/hermes/melden.py, und nennen sie „biotop“?"""
+import glob
+import json
+import os
+import re
+import time
+
+def schwarz(s: str) -> str:
+    return re.sub(r'\d{8,}', '[KENNUNG GESCHWÄRZT]', s)
+
+for p in sorted(glob.glob('/root/.hermes/pending/memory/*.json')):
+    d = json.load(open(p))
+    pl = json.dumps(d.get('payload'), ensure_ascii=False)
+    print(f"--- {p}")
+    for k in ('id', 'subsystem', 'action', 'origin'):
+        print(f"  {k}: {schwarz(str(d.get(k)))[:200]}")
+    ca = d.get('created_at')
+    try:
+        ca = time.strftime('%Y-%m-%d %H:%M:%S %Z', time.localtime(float(ca)))
+    except (TypeError, ValueError):
+        pass
+    print(f"  created_at: {ca}")
+    print(f"  summary: {schwarz(str(d.get('summary')))[:600]}")
+    print(f"  payload: {len(pl)} Zeichen · Anfang: {schwarz(pl)[:300]}")
+for f in ('/opt/hermes/kaltstart.py', '/opt/hermes/melden.py'):
+    if os.path.isfile(f):
+        t = open(f, errors='replace').read()
+        print(f"{f}: vorhanden, {len(t)} Zeichen, Zeilen mit 'biotop': {sum('biotop' in z.lower() for z in t.splitlines())}; "
+              f"Docstring-Anfang: {t[:400]!r}")
+    else:
+        print(f"{f}: NICHT GEFUNDEN (os.path.isfile falsch; ls: {os.path.exists(f)})")
+--- Ende /root/biotop-einlagerung/arbeit/s1_warteschlangen.py ---
+Ausgabe (vollständig, stdout und stderr):
+--- /root/.hermes/pending/memory/2cff9583.json
+  id: 2cff9583
+  subsystem: memory
+  action: batch
+  origin: background_review
+  created_at: 2026-09-24 14:16:55 CEST
+  summary: background review consolidation (batch on user): - replace: User is Philipp Zöllisch (Telegram -> User is Philipp Zöllisch (Telegram "Modul"), Auftraggeber of the INFINITE EVOLUTION „Biotop" project.
+  payload: 972 Zeichen · Anfang: {"action": "batch", "target": "user", "operations": [{"action": "replace", "content": "User is Philipp Zöllisch (Telegram \"Modul\"), Auftraggeber of the INFINITE EVOLUTION „Biotop\" project. Reviewer \"Chat-Claude\" audits delivered folders (not chat) and decides the report's numbered open question
+--- /root/.hermes/pending/memory/5a509904.json
+  id: 5a509904
+  subsystem: memory
+  action: replace
+  origin: background_review
+  created_at: 2026-09-25 10:23:51 CEST
+  summary: background review consolidation (replace on user): - replace: User's standing procedure for every task -> User's standing procedure for every task: one review (own folder; verify none is running first
+  payload: 556 Zeichen · Anfang: {"action": "replace", "target": "user", "content": "User's standing procedure for every task: one review (own folder; verify none is running first), no fix-agent cascade, audit-of-audits or duplicate parent repros; gate-bearing evidence only. Deliverables: Prüfkanal folder + checksum; ZWISCHENBERICH
+--- /root/.hermes/pending/memory/a10fa902.json
+  id: a10fa902
+  subsystem: memory
+  action: batch
+  origin: background_review
+  created_at: 2026-09-25 10:24:49 CEST
+  summary: background review consolidation (batch on memory): - replace: Skill 'biotop-phase-bauen' (software-development) is user-owned -> Skill 'biotop-phase-bauen' ist nicht curator-verwaltet: Patches in der
+  payload: 1754 Zeichen · Anfang: {"action": "batch", "target": "memory", "operations": [{"action": "replace", "content": "Skill 'biotop-phase-bauen' ist nicht curator-verwaltet: Patches in der laufenden Sitzung gehen, Hintergrund-Reviews werden abgelehnt; Freigabe dafür: `hermes curator adopt biotop-phase-bauen`.", "old_text": "Ski
+--- /root/.hermes/pending/memory/e17f5b20.json
+  id: e17f5b20
+  subsystem: memory
+  action: batch
+  origin: background_review
+  created_at: 2026-09-25 10:23:51 CEST
+  summary: background review consolidation (batch on memory): - remove: Skill 'biotop-phase-bauen' (software-development) is user-owned; - replace: Wiederkehrende harmlose Freigabeabfragen als dauerhafte Freigab
+  payload: 1790 Zeichen · Anfang: {"action": "batch", "target": "memory", "operations": [{"action": "remove", "old_text": "Skill 'biotop-phase-bauen' (software-development) is user-owned"}, {"action": "replace", "old_text": "Wiederkehrende harmlose Freigabeabfragen als dauerhafte Freigabe vorschlagen.", "content": "Arbeitsregel Phil
+/opt/hermes/kaltstart.py: NICHT GEFUNDEN (os.path.isfile falsch; ls: False)
+/opt/hermes/melden.py: NICHT GEFUNDEN (os.path.isfile falsch; ls: False)
+=== Ende EB6 ===

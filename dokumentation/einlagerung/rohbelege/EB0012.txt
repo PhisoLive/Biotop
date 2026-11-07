@@ -1,0 +1,51 @@
+EB12 · Meldung 1 schreiben
+Beginn: 2026-09-25 23:48:20 CEST (UTC+0200)
+Ende:   2026-09-25 23:48:20 CEST (UTC+0200)
+Dauer:  0.0 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/biotop-einlagerung/arbeit/meldung1.py
+--- Inhalt von /root/biotop-einlagerung/arbeit/meldung1.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-EINLAGERUNG-01 · Meldung 1 (Abschnitt 7) als Datei schreiben: Adressen aus /etc/pruefkanal/schluessel gebaut,
+SHA-256 der Einstiegsdatei aus dem Prüfkanal gelesen. Schreibt exklusiv /root/biotop-einlagerung/meldungen/meldung1.txt."""
+import hashlib
+import os
+from pathlib import Path
+
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+URL = f'https://milieulux-reinigung-muenchen.de/_akte/{K}/laeufe/biotop-einlagerung-01'
+start = Path(f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe/biotop-einlagerung-01/START-01.md').read_bytes()
+text = '\n'.join([
+    'BIOTOP-EINLAGERUNG-01 BEGONNEN · 25.09.2026 23:08:25 CEST (Eingang des Auftrags)',
+    '',
+    'Ordner:',
+    f'{URL}/',
+    'Einstieg:',
+    f'{URL}/START-01.md',
+    f'SHA-256 {hashlib.sha256(start).hexdigest()} · {len(start)} B',
+    '',
+    'Stillstand: ja (EB2, 23:24:14 CEST: 0 Prozesse, 0 Container, 0 Subagenten, 0 Hintergrundprozesse; einziger aktiver '
+    'Zeitgeber mit Biotop-Bezug war der Zwischenbericht-Wächter, jetzt auf diesen Auftrag umgestellt, EB10).',
+]) + '\n'
+M = Path('/root/biotop-einlagerung/meldungen')
+M.mkdir(exist_ok=True)
+fd = os.open(M / 'meldung1.txt', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+with os.fdopen(fd, 'w') as f:
+    f.write(text)
+print(f'meldung1.txt · {len(text)} Zeichen')
+print(text.replace(K, '[AKTE]'))
+--- Ende /root/biotop-einlagerung/arbeit/meldung1.py ---
+Ausgabe (vollständig, stdout und stderr):
+meldung1.txt · 631 Zeichen
+BIOTOP-EINLAGERUNG-01 BEGONNEN · 25.09.2026 23:08:25 CEST (Eingang des Auftrags)
+
+Ordner:
+https://milieulux-reinigung-muenchen.de/_akte/[AKTE]/laeufe/biotop-einlagerung-01/
+Einstieg:
+https://milieulux-reinigung-muenchen.de/_akte/[AKTE]/laeufe/biotop-einlagerung-01/START-01.md
+SHA-256 7aebba418f2cbfc29846a0ecce4cd36acb65d87ae04f0903325b390ba1c88a65 · 2036 B
+
+Stillstand: ja (EB2, 23:24:14 CEST: 0 Prozesse, 0 Container, 0 Subagenten, 0 Hintergrundprozesse; einziger aktiver Zeitgeber mit Biotop-Bezug war der Zwischenbericht-Wächter, jetzt auf diesen Auftrag umgestellt, EB10).
+
+=== Ende EB12 ===

@@ -1,0 +1,608 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 03 · Teil 187 (Teile 166–239 dieses Stands) · enthält R196 bis R196
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+[R196 · Fortsetzung, Stück 5 von 22]
+            return fertig("abgelehnt", "Verfassung verletzt: " + "; ".join(urteil["verfassung_verstoesse"]))
+    
+        # Testbestand des Kandidaten aufbauen
+        testbestand: dict[str, str] = {}
+        # a) Befundklassen-Immuntests (Bereich trägt in der Vorgeneration einen statischen Befund). Entscheidung
+        #    Chat-Claude (Fassung 8, Grundsatz 10): Schwarm und Ankläger lesen das GEEICHTE Maß — eine stillgelegte Regel
+        #    löst weder Befundklassen-Tests noch das schwere Angriffsmodell aus.
+        basis_g = masseichung.anwenden(basis, (tausch or {}).get("_masseichung"))
+        # Befundklassen-Immuntests für JEDEN Bereich, dessen Quelltext der Kandidat ändert — auch über `extra_code`
+        # (Anpassung des Nachbarn in der Verhandlung). Befund vor T4: Die S1-Behebung K2867+K2868 kam über den Nachbarn
+        # `tarife` ins Werk, geprüft wurden nur die Befundklassen von `zahlen`; die Randfälle des Verhaltensvergleichs
+        # zeigten die beabsichtigte Verhaltensänderung von `ausdruck`, und kein Test deckte sie.
+        bk = {}
+        for b_ in sorted({bereich} | {p.split("/")[1] for p in code if p.startswith(paket + "/") and p.count("/") >= 2}):
+>           if b_ in basis_g["bereiche"]:
+                     ^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'bereiche'
+
+biotop/organe/aegis.py:887: KeyError
+________ test_norm_paar_schliesst_falsch_gruen_ohne_normpfad_aus[True] _________
+
+werk = PosixPath('/tmp/pytest-of-root/pytest-0/test_norm_paar_schliesst_falsc1/werk')
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_norm_paar_schliesst_falsc1')
+gegenprobe = True
+
+    @pytest.mark.parametrize("gegenprobe", [False, True])
+    def test_norm_paar_schliesst_falsch_gruen_ohne_normpfad_aus(werk, tmp_path, gegenprobe):
+        assert hasattr(eichproben, "_einzelprobe"), "Isolierte, beweisgebundene Probe fehlt"
+        con = datenbank.verbinden(tmp_path / "original.db")
+        vor_db = list(con.iterdump())
+        vor_werk = {p.relative_to(werk).as_posix(): p.read_bytes() for p in werk.rglob("*") if p.is_file()}
+        basis = messgeraet.messen(werk, ["lieferant"], "beispiel", None)
+        with kammer.zaehlung() as zaehler:
+>           e = eichproben._einzelprobe(con, 1, 1, werk, "beispiel", ["lieferant"], [], basis, basis, None, {}, 0,
+                                       {"von_bereich": "abnehmer", "nach_bereich": "lieferant"}, "norm", gegenprobe)
+
+tests/test_eichproben.py:449: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/eichproben.py:526: in _einzelprobe
+    u = aegis.pruefen(db, lauf_id, werk_id, kid, werk, paket, bereiche, bstrassen, basis, ausgang, ref, tausch,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+con = <sqlite3.Connection object at 0x7240c0b9ce50>, lauf_id = 1, werk_id = 1
+kandidat_id = 1, werk = PosixPath('/tmp/eichprobe-xbp07vci/werk')
+paket = 'beispiel', bereiche = ['lieferant'], bstrassen = []
+basis = {'gueltig': False, 'rc': 1, 'stdout': '', 'stderr': 'failed to connect to the docker API at unix:///var/run/docker.soc...th is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n', ...}
+ausgang = {'gueltig': False, 'rc': 1, 'stdout': '', 'stderr': 'failed to connect to the docker API at unix:///var/run/docker.soc...th is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n', ...}
+referenzlast = None, tausch = {}, extra_code = None, probe_ohne_modell = True
+probe_angriff = None, vv_optionen = None, referenzlast_laufzeit = None
+
+    def pruefen(con: sqlite3.Connection, lauf_id: int, werk_id: int, kandidat_id: int, werk: Path, paket: str,
+                bereiche: list[str], bstrassen: list[tuple[str, str]], basis: dict, ausgang: dict,
+                referenzlast: str | None, tausch: dict | None, extra_code: dict[str, str] | None = None,
+                *, probe_ohne_modell: bool = False, probe_angriff: str | None = None,
+                vv_optionen: dict | None = None, referenzlast_laufzeit: str | None = None) -> dict:
+        """extra_code: zusätzliche Dateien (z. B. Anpassung des Nachbarn bei Verhandlung), die zusammen mit dem
+        Kandidaten gemessen werden. `vv_optionen`: nur für Nachspiele (getrennte Messung K2868, Behebungsrunde 3) —
+        korpus_erweitert / deckungsregel des Verhaltensvergleichs; der Lauf übergibt nichts (Vorgabe)."""
+        """Vollständige Anklage (F2). Rückgabe: Urteil mit Belegen; Status in der DB gesetzt."""
+        k = con.execute("SELECT * FROM kandidaten WHERE id=?", (kandidat_id,)).fetchone()
+        # Nur markierte Eichkandidaten dürfen mechanische Angriffe ohne Modell nutzen.
+        if (probe_ohne_modell or probe_angriff is not None) and not (
+                probe_ohne_modell and "ist_probe" in k.keys() and k["ist_probe"] == 1):
+            raise ValueError("Reine Probeoption verlangt probe_ohne_modell=True und ist_probe=1")
+        bereich = k["bereich"]
+        urteil = {"kandidat": kandidat_id, "bereich": bereich, "status": "abgelehnt", "grund": "", "wirkungskreis": [],
+                  "immun": [], "tests_neu": [], "tests_verworfen": [], "immun_bestanden": [], "befundklassen": [],
+                  "verfassung_verstoesse": [], "angriff": None, "mass": None, "tests_offen": [], "norm": [], "doppelungen": [],
+                  "vertrag_verletzt": [], "vertraege_benannt": (k["vertraege"] if "vertraege" in k.keys() else "") or ""}
+    
+        def fertig(status, grund, masse=None, dateien_final=None, basis_paar=None):
+            urteil["status"], urteil["grund"] = status, grund
+            if masse is not None:
+                masse = {**masse, "_dateien": dateien_final or {}, "_basis_paar": basis_paar, "_urteil_f2": urteil["mass"],
+                         "laufzeit_stufe": urteil.get("laufzeit_stufe")}
+            with transaktion(con):
+                con.execute("UPDATE kandidaten SET status=?, grund=?, masse=?, wirkungskreis=? WHERE id=?",
+                            (status, grund, j(masse) if masse else None, j(urteil["wirkungskreis"]), kandidat_id))
+            protokoll.schreiben(con, "aegis.urteil", lauf_id=lauf_id, kandidat=kandidat_id, bereich=bereich, status=status,
+                                grund=grund[:500], wirkungskreis=urteil["wirkungskreis"], immun=urteil["immun"],
+                                tests_neu=urteil["tests_neu"], tests_verworfen=urteil["tests_verworfen"],
+                                immun_bestanden=urteil["immun_bestanden"], befundklassen=urteil["befundklassen"],
+                                verfassung=urteil["verfassung_verstoesse"], angriff=urteil["angriff"], mass=urteil["mass"], tests_offen=urteil["tests_offen"],
+                                norm=urteil["norm"], doppelungen=urteil["doppelungen"], vertrag_verletzt=urteil["vertrag_verletzt"], nische=k["nische"],
+                                # Tor 2 Zeile 8 braucht die GESCHRIEBENEN Behauptungen je erzeugtem
+                                # Angriffstest. Ohne sie ist der Doppelungsanteil nachtraeglich nicht
+                                # rekonstruierbar — gemessen in Lauf 37: 0 von 210 Urteilen trugen sie,
+                                # obwohl 42 Angriffe liefen.
+                                behauptungen=urteil.get("behauptungen") or {},
+                                behauptungen_treffer=urteil.get("behauptungen_treffer") or [],
+                                aufnahmesperre=urteil.get("aufnahmesperre") or {},
+                                # Verhaltensvergleich und Maßeichung stehen im Protokoll, damit jede Annahme
+                                # zeigt, ob das Verhalten verglichen und welche Regeln nicht gezählt wurden.
+                                verhalten=urteil.get("verhalten"),
+                                laufzeit_nachmessung=urteil.get("laufzeit_nachmessung"),
+                                laufzeit_stufe=urteil.get("laufzeit_stufe"),
+                                gewinn_nachmessung=urteil.get("gewinn_nachmessung"),
+                                masseichung_stillgelegt=((tausch or {}).get("_masseichung") or {}).get("stillgelegt") or [])
+            return urteil
+    
+        if k["status"] != "erzeugt":
+            return fertig(k["status"], k["grund"] or "nicht geprüft")
+    
+        # Schritt 1: Wirkungskreis
+        urteil["wirkungskreis"] = landkarte.wirkungskreis(bereich, bstrassen)
+    
+        dateien = kandidat_dateien(werk, k["diff"])
+        if dateien is None:
+            return fertig("abgelehnt", "Diff nicht anwendbar: " + (diff_grund(werk, k["diff"]) or "kein Inhalt"))
+        code = {p: (i if i is not None else "") for p, i in dateien.items() if not p.startswith("tests/")}
+        code.update(extra_code or {})
+        urteil["wirkungskreis"] = wirkungskreis_dateien(bereich, {**dateien, **(extra_code or {})}, paket, bstrassen)
+        tests_kandidat = {p: i for p, i in dateien.items() if p.startswith("tests/") and i is not None and not p.startswith("tests/vertraege/")}
+        vertrag_dateien_kandidat = {p: i for p, i in dateien.items() if p.startswith("tests/vertraege/") and i is not None}
+        if not code and not tests_kandidat:
+            return fertig("abgelehnt", "Diff ändert nichts")
+    
+        # Schritt 2: explizite Verträge — Vertragsdateien des Kandidaten nur, wenn er den Vertrag unter VERTRÄGE benannt hat
+        if vertrag_dateien_kandidat and urteil["vertraege_benannt"].strip().lower() in ("", "keine"):
+            return fertig("abgelehnt", f"ändert Vertragsdatei {sorted(vertrag_dateien_kandidat)} ohne den Vertrag unter VERTRÄGE zu benennen (3.8 Schritt 2)")
+        urteil["vertrag_dateien"] = sorted(vertrag_dateien_kandidat)  # Anhang A Satz 4: geänderte Vertragsdatei ⇒ Verhandlung (lauf.py)
+    
+        # Schritt 3: Verfassung (mechanisch prüfbare Sätze)
+        verf = verfassung.lesen(con, werk_id)
+        urteil["verfassung_verstoesse"] = verfassung.mechanisch_pruefen(verf, k["diff"], dateien, paket, bereich)
+        if urteil["verfassung_verstoesse"]:
+            return fertig("abgelehnt", "Verfassung verletzt: " + "; ".join(urteil["verfassung_verstoesse"]))
+    
+        # Testbestand des Kandidaten aufbauen
+        testbestand: dict[str, str] = {}
+        # a) Befundklassen-Immuntests (Bereich trägt in der Vorgeneration einen statischen Befund). Entscheidung
+        #    Chat-Claude (Fassung 8, Grundsatz 10): Schwarm und Ankläger lesen das GEEICHTE Maß — eine stillgelegte Regel
+        #    löst weder Befundklassen-Tests noch das schwere Angriffsmodell aus.
+        basis_g = masseichung.anwenden(basis, (tausch or {}).get("_masseichung"))
+        # Befundklassen-Immuntests für JEDEN Bereich, dessen Quelltext der Kandidat ändert — auch über `extra_code`
+        # (Anpassung des Nachbarn in der Verhandlung). Befund vor T4: Die S1-Behebung K2867+K2868 kam über den Nachbarn
+        # `tarife` ins Werk, geprüft wurden nur die Befundklassen von `zahlen`; die Randfälle des Verhaltensvergleichs
+        # zeigten die beabsichtigte Verhaltensänderung von `ausdruck`, und kein Test deckte sie.
+        bk = {}
+        for b_ in sorted({bereich} | {p.split("/")[1] for p in code if p.startswith(paket + "/") and p.count("/") >= 2}):
+>           if b_ in basis_g["bereiche"]:
+                     ^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'bereiche'
+
+biotop/organe/aegis.py:887: KeyError
+___ test_rest_junit_nur_aus_abgeschlossener_kammer_ist_erfolgszeuge[sauber] ____
+
+zeugenwerk = PosixPath('/tmp/pytest-of-root/pytest-0/test_rest_junit_nur_aus_abgesc0/werk')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c05ab740>
+ende = 'sauber'
+
+    @pytest.mark.parametrize('ende', ['sauber', 'abbruch', 'zeitlimit', 'pytest_abbruch'])
+    def test_rest_junit_nur_aus_abgeschlossener_kammer_ist_erfolgszeuge(zeugenwerk, monkeypatch, ende):
+        """Reales JUnit zuerst, danach echter Exitfehler bzw. echter Docker-Timeout.
+    
+        Nur der Test-Treiber erhält einen Nachspann; Ergebnis/rc/XML werden nicht gestellt.
+        """
+        original = kammer._ausfuehren
+    
+        def ausfuehren(werk, befehl, zeitlimit_s=None, dateien=None):
+            dateien = dict(dateien)
+            if ende == 'abbruch':
+                dateien['_messgeraet/lauf.py'] = (
+                    'import atexit,os,sys;atexit.register(lambda:(sys.stdout.flush(),os._exit(7)));'
+                    + dateien['_messgeraet/lauf.py'])
+            elif ende == 'zeitlimit':
+                dateien['_messgeraet/lauf.py'] = (
+                    'import atexit,time,sys;atexit.register(lambda:(sys.stdout.flush(),time.sleep(30)));'
+                    + dateien['_messgeraet/lauf.py'])
+                zeitlimit_s = 1
+            elif ende == 'pytest_abbruch':
+                dateien['tests/conftest.py'] = (
+                    'import os, pytest\n'
+                    '@pytest.hookimpl(trylast=True)\n'
+                    'def pytest_sessionfinish(session, exitstatus):\n'
+                    "    os.write(1, b'@@PYTEST_ABBRUCH_7@@')\n"
+                    '    os._exit(7)\n')
+            return original(werk, befehl, zeitlimit_s, dateien)
+    
+        monkeypatch.setattr(kammer, '_ausfuehren', ausfuehren)
+        with kammer.zaehlung() as aufrufe:
+            zeugen = aegis.junit_lauf(zeugenwerk, 'beispiel', {}, [TESTDATEI])
+        assert len(aufrufe) == 1
+        lauf = aufrufe[0]
+>       xml = ET.fromstring(re.search(r'@@J@@(.*)@@E@@', lauf['stdout'], re.S).group(1))
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'NoneType' object has no attribute 'group'
+
+tests/test_junit_zeugen.py:54: AttributeError
+___ test_rest_junit_nur_aus_abgeschlossener_kammer_ist_erfolgszeuge[abbruch] ___
+
+zeugenwerk = PosixPath('/tmp/pytest-of-root/pytest-0/test_rest_junit_nur_aus_abgesc1/werk')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0629760>
+ende = 'abbruch'
+
+    @pytest.mark.parametrize('ende', ['sauber', 'abbruch', 'zeitlimit', 'pytest_abbruch'])
+    def test_rest_junit_nur_aus_abgeschlossener_kammer_ist_erfolgszeuge(zeugenwerk, monkeypatch, ende):
+        """Reales JUnit zuerst, danach echter Exitfehler bzw. echter Docker-Timeout.
+    
+        Nur der Test-Treiber erhält einen Nachspann; Ergebnis/rc/XML werden nicht gestellt.
+        """
+        original = kammer._ausfuehren
+    
+        def ausfuehren(werk, befehl, zeitlimit_s=None, dateien=None):
+            dateien = dict(dateien)
+            if ende == 'abbruch':
+                dateien['_messgeraet/lauf.py'] = (
+                    'import atexit,os,sys;atexit.register(lambda:(sys.stdout.flush(),os._exit(7)));'
+                    + dateien['_messgeraet/lauf.py'])
+            elif ende == 'zeitlimit':
+                dateien['_messgeraet/lauf.py'] = (
+                    'import atexit,time,sys;atexit.register(lambda:(sys.stdout.flush(),time.sleep(30)));'
+                    + dateien['_messgeraet/lauf.py'])
+                zeitlimit_s = 1
+            elif ende == 'pytest_abbruch':
+                dateien['tests/conftest.py'] = (
+                    'import os, pytest\n'
+                    '@pytest.hookimpl(trylast=True)\n'
+                    'def pytest_sessionfinish(session, exitstatus):\n'
+                    "    os.write(1, b'@@PYTEST_ABBRUCH_7@@')\n"
+                    '    os._exit(7)\n')
+            return original(werk, befehl, zeitlimit_s, dateien)
+    
+        monkeypatch.setattr(kammer, '_ausfuehren', ausfuehren)
+        with kammer.zaehlung() as aufrufe:
+            zeugen = aegis.junit_lauf(zeugenwerk, 'beispiel', {}, [TESTDATEI])
+        assert len(aufrufe) == 1
+        lauf = aufrufe[0]
+>       xml = ET.fromstring(re.search(r'@@J@@(.*)@@E@@', lauf['stdout'], re.S).group(1))
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'NoneType' object has no attribute 'group'
+
+tests/test_junit_zeugen.py:54: AttributeError
+__ test_rest_junit_nur_aus_abgeschlossener_kammer_ist_erfolgszeuge[zeitlimit] __
+
+zeugenwerk = PosixPath('/tmp/pytest-of-root/pytest-0/test_rest_junit_nur_aus_abgesc2/werk')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0628a70>
+ende = 'zeitlimit'
+
+    @pytest.mark.parametrize('ende', ['sauber', 'abbruch', 'zeitlimit', 'pytest_abbruch'])
+    def test_rest_junit_nur_aus_abgeschlossener_kammer_ist_erfolgszeuge(zeugenwerk, monkeypatch, ende):
+        """Reales JUnit zuerst, danach echter Exitfehler bzw. echter Docker-Timeout.
+    
+        Nur der Test-Treiber erhält einen Nachspann; Ergebnis/rc/XML werden nicht gestellt.
+        """
+        original = kammer._ausfuehren
+    
+        def ausfuehren(werk, befehl, zeitlimit_s=None, dateien=None):
+            dateien = dict(dateien)
+            if ende == 'abbruch':
+                dateien['_messgeraet/lauf.py'] = (
+                    'import atexit,os,sys;atexit.register(lambda:(sys.stdout.flush(),os._exit(7)));'
+                    + dateien['_messgeraet/lauf.py'])
+            elif ende == 'zeitlimit':
+                dateien['_messgeraet/lauf.py'] = (
+                    'import atexit,time,sys;atexit.register(lambda:(sys.stdout.flush(),time.sleep(30)));'
+                    + dateien['_messgeraet/lauf.py'])
+                zeitlimit_s = 1
+            elif ende == 'pytest_abbruch':
+                dateien['tests/conftest.py'] = (
+                    'import os, pytest\n'
+                    '@pytest.hookimpl(trylast=True)\n'
+                    'def pytest_sessionfinish(session, exitstatus):\n'
+                    "    os.write(1, b'@@PYTEST_ABBRUCH_7@@')\n"
+                    '    os._exit(7)\n')
+            return original(werk, befehl, zeitlimit_s, dateien)
+    
+        monkeypatch.setattr(kammer, '_ausfuehren', ausfuehren)
+        with kammer.zaehlung() as aufrufe:
+            zeugen = aegis.junit_lauf(zeugenwerk, 'beispiel', {}, [TESTDATEI])
+        assert len(aufrufe) == 1
+        lauf = aufrufe[0]
+>       xml = ET.fromstring(re.search(r'@@J@@(.*)@@E@@', lauf['stdout'], re.S).group(1))
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'NoneType' object has no attribute 'group'
+
+tests/test_junit_zeugen.py:54: AttributeError
+_ test_rest_junit_nur_aus_abgeschlossener_kammer_ist_erfolgszeuge[pytest_abbruch] _
+
+zeugenwerk = PosixPath('/tmp/pytest-of-root/pytest-0/test_rest_junit_nur_aus_abgesc3/werk')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240c0628770>
+ende = 'pytest_abbruch'
+
+    @pytest.mark.parametrize('ende', ['sauber', 'abbruch', 'zeitlimit', 'pytest_abbruch'])
+    def test_rest_junit_nur_aus_abgeschlossener_kammer_ist_erfolgszeuge(zeugenwerk, monkeypatch, ende):
+        """Reales JUnit zuerst, danach echter Exitfehler bzw. echter Docker-Timeout.
+    
+        Nur der Test-Treiber erhält einen Nachspann; Ergebnis/rc/XML werden nicht gestellt.
+        """
+        original = kammer._ausfuehren
+    
+        def ausfuehren(werk, befehl, zeitlimit_s=None, dateien=None):
+            dateien = dict(dateien)
+            if ende == 'abbruch':
+                dateien['_messgeraet/lauf.py'] = (
+                    'import atexit,os,sys;atexit.register(lambda:(sys.stdout.flush(),os._exit(7)));'
+                    + dateien['_messgeraet/lauf.py'])
+            elif ende == 'zeitlimit':
+                dateien['_messgeraet/lauf.py'] = (
+                    'import atexit,time,sys;atexit.register(lambda:(sys.stdout.flush(),time.sleep(30)));'
+                    + dateien['_messgeraet/lauf.py'])
+                zeitlimit_s = 1
+            elif ende == 'pytest_abbruch':
+                dateien['tests/conftest.py'] = (
+                    'import os, pytest\n'
+                    '@pytest.hookimpl(trylast=True)\n'
+                    'def pytest_sessionfinish(session, exitstatus):\n'
+                    "    os.write(1, b'@@PYTEST_ABBRUCH_7@@')\n"
+                    '    os._exit(7)\n')
+            return original(werk, befehl, zeitlimit_s, dateien)
+    
+        monkeypatch.setattr(kammer, '_ausfuehren', ausfuehren)
+        with kammer.zaehlung() as aufrufe:
+            zeugen = aegis.junit_lauf(zeugenwerk, 'beispiel', {}, [TESTDATEI])
+        assert len(aufrufe) == 1
+        lauf = aufrufe[0]
+>       xml = ET.fromstring(re.search(r'@@J@@(.*)@@E@@', lauf['stdout'], re.S).group(1))
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'NoneType' object has no attribute 'group'
+
+tests/test_junit_zeugen.py:54: AttributeError
+_____ test_contract_countercase_is_not_allowed_to_fail_inside_cloned_test ______
+
+vertragswerk = PosixPath('/tmp/pytest-of-root/pytest-0/test_contract_countercase_is_n0/werk')
+
+    def test_contract_countercase_is_not_allowed_to_fail_inside_cloned_test(vertragswerk):
+        """Review-Repro: EINGABE darf nicht verschwinden; konkreter Vertrag entscheidet."""
+        rows = []
+        for gegenprobe in (False, True):
+            diff, _, belege, _ = eichproben._vertrag_vorbereiten(
+                vertragswerk, 'beispiel', 'abnehmer', 'lieferant', VERTRAG, gegenprobe)
+            dateien = aegis.kandidat_dateien(vertragswerk, diff)
+            zeugen = aegis.junit_lauf(vertragswerk, 'beispiel', dateien, [VERTRAG])
+>           rows.append(zeugen[VERTRAGSTEST])
+                        ^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'tests/vertraege/test_vertrag_abnehmer_lieferant.py::test_eichprobe_vertrag_neue_zusicherung'
+
+tests/test_review_vertrag.py:50: KeyError
+_______________ test_ts_mit_anwendbarem_diff_nennt_die_funktion ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_ts_mit_anwendbarem_diff_n0')
+
+    def test_ts_mit_anwendbarem_diff_nennt_die_funktion(tmp_path):
+        """Gegenprobe: liegt der neue Inhalt vor, wird die berührte Funktion benannt."""
+        (tmp_path / 'src').mkdir()
+        (tmp_path / 'src/a.ts').write_text('export function f(x: number) { return x + 1; }\n')
+        neu = {'src/a.ts': 'export function f(x: number) { return x + 2; }\n'}
+        diff = '--- a/src/a.ts\n+++ b/src/a.ts\n@@ -1 +1 @@\n-  return x + 1;\n+  return x + 2;\n'
+>       dateien, funktionen, _ = gedaechtnis.aenderungsziel(tmp_path, diff, neu)
+                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_t3_aenderungsziel.py:34: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/gedaechtnis.py:108: in aenderungsziel
+    alt_f = _funktionen(alt.read_text(), d) if alt.exists() else {}
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/organe/gedaechtnis.py:59: in _funktionen
+    return {f["name"]:code[f["start"]:f["end"]] for f in typescript.quellfunktionen(code)}
+                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/kern/typescript.py:132: in quellfunktionen
+    d, _ = _aufruf(Path(tmp), "quellfunktionen", code=code)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/ts-quellparser-d9rr61qb'), aktion = 'quellfunktionen'
+dateien = None, zeitlimit_s = 150
+daten = {'code': 'export function f(x: number) { return x + 1; }\n'}
+
+    def _aufruf(werk, aktion, dateien=None, zeitlimit_s=150, **daten):
+        extra = dict(dateien or {})
+        for rel in extra:
+            p = Path(rel)
+            if p.is_absolute() or ".." in p.parts or p.parts[0] in ("_messgeraet", "node_modules"):
+                raise TypeScriptFehler("Unzulässiger Ersatzpfad: " + rel)
+        extra.update({"_messgeraet/ts/" + p.name: p.read_text() for p in SKRIPTE.iterdir() if p.is_file()})
+        extra["_messgeraet/ts/anfrage.json"] = json.dumps({"aktion": aktion, **daten})
+        e = kammer.ausfuehren(Path(werk), ["node", "_messgeraet/ts/main.mjs"],
+                              zeitlimit_s=zeitlimit_s, dateien=extra)
+        roh = asdict(e)
+        if e.zeitlimit or e.rc != 0:
+>           raise TypeScriptFehler("Kammerabbruch: " + json.dumps(roh, ensure_ascii=False))
+E           biotop.kern.typescript.TypeScriptFehler: Kammerabbruch: {"rc": 1, "stdout": "", "stderr": "failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n", "dauer_s": 0.019472899148240685, "zeitlimit": false, "container": "biotop-ee7b3ad31353"}
+
+biotop/kern/typescript.py:43: TypeScriptFehler
+_ test_ts_instrumentaenderung_invalidiert_versiegelten_nachweis[biotop/kern/ts/messen.mjs] _
+
+unit_vorspann = (<sqlite3.Connection object at 0x7240c09764d0>, {'rauschen': {'toleranz': {'alpha': 1.2, 'beta': 1.3}, 'gesperrt': [],...fuehrt': True, 'pruefbar': True, 'bestanden': False, 'grund': 'Unit-Negativkontrolle', ...}}}, 'reihenfolge': [], ...})
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_ts_instrumentaenderung_in0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240bff4e030>
+geaendert = 'biotop/kern/ts/messen.mjs'
+
+    @pytest.mark.parametrize('geaendert', ['biotop/kern/ts/messen.mjs', 'kammer/typescript/package-lock.json'])
+    def test_ts_instrumentaenderung_invalidiert_versiegelten_nachweis(unit_vorspann,tmp_path,monkeypatch,geaendert):
+        # Charakterisierung der neuen Bindung: kontrollierter Kernbestand,
+        # echte Hashänderung, ursprünglicher Vorspann-Verbraucher.
+        con,_=unit_vorspann
+        wurzel=tmp_path/'instrument'; (wurzel/'biotop/kern/ts').mkdir(parents=True)
+        (wurzel/'kammer/typescript/node_modules').mkdir(parents=True)
+        for p in ('biotop/kern/ts/messen.mjs','kammer/typescript/package-lock.json','kammer/Dockerfile'):
+            (wurzel/p).write_text('ursprünglicher Instrumentinhalt')
+        ignoriert=wurzel/'kammer/typescript/node_modules/fremd.json'
+        ignoriert.write_text('{}')
+        monkeypatch.setattr(vorspann,'WURZEL',wurzel)
+>       r=vorspann.ausfuehren(con,1)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_t3_bindung.py:34: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/vorspann.py:195: in ausfuehren
+    _stufe2_kern_vorpruefung(con, lauf_id)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+con = <sqlite3.Connection object at 0x7240c09764d0>, lauf_id = 1
+
+    def _stufe2_kern_vorpruefung(con, lauf_id):
+        """Behebungsrunde 6 (Bau S4, Entscheidung Hermes): weicht der Kernstand beim Vorspann vom Kernstand der Eichphase
+        der Stufe 2 ab, verweigert der Vorspann — Satz 2, eine Messgerätänderung zwischen Eichung und Messung. Vor jeder
+        Messung und OHNE den Eichversuch zu verbrauchen (wie die Verweigerung ohne Siegel): der Lauf bleibt frisch; mit
+        dem Kernstand der Eichphase läuft derselbe Vorspann. Hat der Lauf schon einen Eichversuch, ist er nicht frisch
+        oder ohne lesbares Siegel, entscheidet der gewohnte Weg (_ausfuehren)."""
+        from .. import lauf as L
+        if con.execute('SELECT 1 FROM vorspann_nachweise WHERE lauf_id=?', (lauf_id,)).fetchone():
+            return
+        try:
+            if _frisch_grund(con, lauf_id, L._lauf(con, lauf_id)):
+                return
+            kern = _stufe2_kern(con, lauf_id)
+        except (L.LaufFehler, stufe2.Stufe2Fehler):
+            return
+        if kern is None or kern[0] == kern[1]:
+            return
+        grund = (f'Kernstand seit der Eichphase der Stufe 2 verändert (Eichphase {str(kern[0])[:16]}…, jetzt '
+                 f'{kern[1][:16]}…) — Satz 2: Messgerätänderung zwischen Eichung und Messung; kein Eichversuch '
+                 f'verbraucht (Kernstand der Eichphase wiederherstellen oder neuer Lauf)')
+        protokoll.schreiben(con, 'vorspann.verweigert', lauf_id=lauf_id, phase='vorspann', grund=grund,
+                            eichphase=kern[0], vorspann=kern[1])
+>       raise VorspannFehler(f'Vorspann Lauf {lauf_id}: {grund}')
+E       biotop.organe.vorspann.VorspannFehler: Vorspann Lauf 1: Kernstand seit der Eichphase der Stufe 2 verändert (Eichphase 53e95afdaa588722…, jetzt a91cbef507ecc259…) — Satz 2: Messgerätänderung zwischen Eichung und Messung; kein Eichversuch verbraucht (Kernstand der Eichphase wiederherstellen oder neuer Lauf)
+
+biotop/organe/vorspann.py:188: VorspannFehler
+_ test_ts_instrumentaenderung_invalidiert_versiegelten_nachweis[kammer/typescript/package-lock.json] _
+
+unit_vorspann = (<sqlite3.Connection object at 0x7240c0976020>, {'rauschen': {'toleranz': {'alpha': 1.2, 'beta': 1.3}, 'gesperrt': [],...fuehrt': True, 'pruefbar': True, 'bestanden': False, 'grund': 'Unit-Negativkontrolle', ...}}}, 'reihenfolge': [], ...})
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_ts_instrumentaenderung_in1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7240bff4e1e0>
+geaendert = 'kammer/typescript/package-lock.json'
+
+    @pytest.mark.parametrize('geaendert', ['biotop/kern/ts/messen.mjs', 'kammer/typescript/package-lock.json'])
+    def test_ts_instrumentaenderung_invalidiert_versiegelten_nachweis(unit_vorspann,tmp_path,monkeypatch,geaendert):
+        # Charakterisierung der neuen Bindung: kontrollierter Kernbestand,
+        # echte Hashänderung, ursprünglicher Vorspann-Verbraucher.
+        con,_=unit_vorspann
+        wurzel=tmp_path/'instrument'; (wurzel/'biotop/kern/ts').mkdir(parents=True)
+        (wurzel/'kammer/typescript/node_modules').mkdir(parents=True)
+        for p in ('biotop/kern/ts/messen.mjs','kammer/typescript/package-lock.json','kammer/Dockerfile'):
+            (wurzel/p).write_text('ursprünglicher Instrumentinhalt')
+        ignoriert=wurzel/'kammer/typescript/node_modules/fremd.json'
+        ignoriert.write_text('{}')
+        monkeypatch.setattr(vorspann,'WURZEL',wurzel)
+>       r=vorspann.ausfuehren(con,1)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_t3_bindung.py:34: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/vorspann.py:195: in ausfuehren
+    _stufe2_kern_vorpruefung(con, lauf_id)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+con = <sqlite3.Connection object at 0x7240c0976020>, lauf_id = 1
+
+    def _stufe2_kern_vorpruefung(con, lauf_id):
+        """Behebungsrunde 6 (Bau S4, Entscheidung Hermes): weicht der Kernstand beim Vorspann vom Kernstand der Eichphase
+        der Stufe 2 ab, verweigert der Vorspann — Satz 2, eine Messgerätänderung zwischen Eichung und Messung. Vor jeder
+        Messung und OHNE den Eichversuch zu verbrauchen (wie die Verweigerung ohne Siegel): der Lauf bleibt frisch; mit
+        dem Kernstand der Eichphase läuft derselbe Vorspann. Hat der Lauf schon einen Eichversuch, ist er nicht frisch
+        oder ohne lesbares Siegel, entscheidet der gewohnte Weg (_ausfuehren)."""
+        from .. import lauf as L
+        if con.execute('SELECT 1 FROM vorspann_nachweise WHERE lauf_id=?', (lauf_id,)).fetchone():
+            return
+        try:
+            if _frisch_grund(con, lauf_id, L._lauf(con, lauf_id)):
+                return
+            kern = _stufe2_kern(con, lauf_id)
+        except (L.LaufFehler, stufe2.Stufe2Fehler):
+            return
+        if kern is None or kern[0] == kern[1]:
+            return
+        grund = (f'Kernstand seit der Eichphase der Stufe 2 verändert (Eichphase {str(kern[0])[:16]}…, jetzt '
+                 f'{kern[1][:16]}…) — Satz 2: Messgerätänderung zwischen Eichung und Messung; kein Eichversuch '
+                 f'verbraucht (Kernstand der Eichphase wiederherstellen oder neuer Lauf)')
+        protokoll.schreiben(con, 'vorspann.verweigert', lauf_id=lauf_id, phase='vorspann', grund=grund,
+                            eichphase=kern[0], vorspann=kern[1])
+>       raise VorspannFehler(f'Vorspann Lauf {lauf_id}: {grund}')
+E       biotop.organe.vorspann.VorspannFehler: Vorspann Lauf 1: Kernstand seit der Eichphase der Stufe 2 verändert (Eichphase 53e95afdaa588722…, jetzt a91cbef507ecc259…) — Satz 2: Messgerätänderung zwischen Eichung und Messung; kein Eichversuch verbraucht (Kernstand der Eichphase wiederherstellen oder neuer Lauf)
+
+biotop/organe/vorspann.py:188: VorspannFehler
+___________ test_gedaechtnis_funktionen_bei_kaputtem_ts_liefert_leer ___________
+
+    def test_gedaechtnis_funktionen_bei_kaputtem_ts_liefert_leer():
+        """Wie der Python-Zweig bei SyntaxError: leeres Ergebnis, kein Wurf."""
+>       assert gedaechtnis._funktionen(KAPUTT, 'src/a.ts') == {}
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_t3_kaputter_modellcode.py:40: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/gedaechtnis.py:59: in _funktionen
+    return {f["name"]:code[f["start"]:f["end"]] for f in typescript.quellfunktionen(code)}
+                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/kern/typescript.py:132: in quellfunktionen
+    d, _ = _aufruf(Path(tmp), "quellfunktionen", code=code)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/ts-quellparser-kl6k6fb0'), aktion = 'quellfunktionen'
+dateien = None, zeitlimit_s = 150
+daten = {'code': 'export function a(x: number): number { return x + 1;'}
+
+    def _aufruf(werk, aktion, dateien=None, zeitlimit_s=150, **daten):
+        extra = dict(dateien or {})
+        for rel in extra:
+            p = Path(rel)
+            if p.is_absolute() or ".." in p.parts or p.parts[0] in ("_messgeraet", "node_modules"):
+                raise TypeScriptFehler("Unzulässiger Ersatzpfad: " + rel)
+        extra.update({"_messgeraet/ts/" + p.name: p.read_text() for p in SKRIPTE.iterdir() if p.is_file()})
+        extra["_messgeraet/ts/anfrage.json"] = json.dumps({"aktion": aktion, **daten})
+        e = kammer.ausfuehren(Path(werk), ["node", "_messgeraet/ts/main.mjs"],
+                              zeitlimit_s=zeitlimit_s, dateien=extra)
+        roh = asdict(e)
+        if e.zeitlimit or e.rc != 0:
+>           raise TypeScriptFehler("Kammerabbruch: " + json.dumps(roh, ensure_ascii=False))
+E           biotop.kern.typescript.TypeScriptFehler: Kammerabbruch: {"rc": 1, "stdout": "", "stderr": "failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n", "dauer_s": 0.01944866799749434, "zeitlimit": false, "container": "biotop-d1780e7dbf33"}
+
+biotop/kern/typescript.py:43: TypeScriptFehler
+____________ test_aegis_nur_funktionen_bei_kaputtem_ts_liefert_none ____________
+
+    def test_aegis_nur_funktionen_bei_kaputtem_ts_liefert_none():
+>       assert aegis.nur_funktionen(KAPUTTER_TEST, {'x'}) is None
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_t3_kaputter_modellcode.py:49: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/aegis.py:148: in nur_funktionen
+    return typescript.nur_tests(code, behalten)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/kern/typescript.py:156: in nur_tests
+    d, _ = _aufruf(Path(tmp), "nur_tests", code=code, behalten=sorted(behalten))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/ts-parser-_f6xaz5v'), aktion = 'nur_tests'
+dateien = None, zeitlimit_s = 150
+daten = {'code': "import {test} from 'vitest';\ntest('x', () => { expect(1)", 'behalten': ['x']}
+
+    def _aufruf(werk, aktion, dateien=None, zeitlimit_s=150, **daten):
+        extra = dict(dateien or {})
+        for rel in extra:
+            p = Path(rel)
+            if p.is_absolute() or ".." in p.parts or p.parts[0] in ("_messgeraet", "node_modules"):
+                raise TypeScriptFehler("Unzulässiger Ersatzpfad: " + rel)
+        extra.update({"_messgeraet/ts/" + p.name: p.read_text() for p in SKRIPTE.iterdir() if p.is_file()})
+        extra["_messgeraet/ts/anfrage.json"] = json.dumps({"aktion": aktion, **daten})
+        e = kammer.ausfuehren(Path(werk), ["node", "_messgeraet/ts/main.mjs"],
+                              zeitlimit_s=zeitlimit_s, dateien=extra)
+        roh = asdict(e)
+        if e.zeitlimit or e.rc != 0:
+>           raise TypeScriptFehler("Kammerabbruch: " + json.dumps(roh, ensure_ascii=False))
+E           biotop.kern.typescript.TypeScriptFehler: Kammerabbruch: {"rc": 1, "stdout": "", "stderr": "failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n", "dauer_s": 0.021470462903380394, "zeitlimit": false, "container": "biotop-a2047943cc05"}
+
+biotop/kern/typescript.py:43: TypeScriptFehler
+__________ test_aegis_fehlende_oder_geaenderte_tests_bei_kaputtem_ts ___________
+
+    def test_aegis_fehlende_oder_geaenderte_tests_bei_kaputtem_ts():
+>       r = aegis._fehlende_oder_geaenderte_tests(KAPUTTER_TEST, KAPUTTER_TEST)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_t3_kaputter_modellcode.py:53: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+biotop/organe/aegis.py:163: in _fehlende_oder_geaenderte_tests
+    a = {t["name"]: t["code"] for t in typescript.testfunktionen(alt)}
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+biotop/kern/typescript.py:144: in testfunktionen
+    d, _ = _aufruf(Path(tmp), "testfunktionen", code=code)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+werk = PosixPath('/tmp/ts-parser-rqinv01a'), aktion = 'testfunktionen'
+dateien = None, zeitlimit_s = 150
+daten = {'code': "import {test} from 'vitest';\ntest('x', () => { expect(1)"}
+
+    def _aufruf(werk, aktion, dateien=None, zeitlimit_s=150, **daten):
+        extra = dict(dateien or {})
+        for rel in extra:
+            p = Path(rel)
+            if p.is_absolute() or ".." in p.parts or p.parts[0] in ("_messgeraet", "node_modules"):
+                raise TypeScriptFehler("Unzulässiger Ersatzpfad: " + rel)
+        extra.update({"_messgeraet/ts/" + p.name: p.read_text() for p in SKRIPTE.iterdir() if p.is_file()})
+        extra["_messgeraet/ts/anfrage.json"] = json.dumps({"aktion": aktion, **daten})
+        e = kammer.ausfuehren(Path(werk), ["node", "_messgeraet/ts/main.mjs"],
+                              zeitlimit_s=zeitlimit_s, dateien=extra)
+        roh = asdict(e)
+        if e.zeitlimit or e.rc != 0:
+>           raise TypeScriptFehler("Kammerabbruch: " + json.dumps(roh, ensure_ascii=False))

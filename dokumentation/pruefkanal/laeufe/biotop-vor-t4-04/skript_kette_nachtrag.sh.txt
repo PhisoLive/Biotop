@@ -1,0 +1,9 @@
+#!/bin/bash
+# Wartet auf das Ende des Commit-Jobs der Runde 4 und startet dann job_nachtrag.sh (kein paralleler Kammerlauf).
+set -u
+A=/root/biotop-vor-t4-04
+while pgrep -f "job_commit_regression.sh" > /dev/null; do sleep 20; done
+echo "Commit-Job beendet $(date -Is) — Nachtrag startet"
+bash $A/job_nachtrag.sh > $A/JOB-NACHTRAG.txt 2>&1
+echo "Nachtrag rc=$? $(date -Is)"
+grep -E "rc=|commit-rc|passed|failed|Abbruch|rot" $A/JOB-NACHTRAG.txt | tail -10

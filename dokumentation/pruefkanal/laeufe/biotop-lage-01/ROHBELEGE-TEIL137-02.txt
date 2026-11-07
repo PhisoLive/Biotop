@@ -1,0 +1,568 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 137 (Teile 4–165 dieses Stands) · enthält R148 bis R153
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R148 · Rückstellung Teil A: Vorher-Stand, Kopien nach rueckstellung/, auftrag.json aus der gesicherten Fassung zurück, Einmaljob b11464763130 vorher (Regel 2.1, FK41)
+Beginn: 2026-09-25 17:47:31 CEST (UTC+0200)
+Ende:   2026-09-25 17:47:32 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/sicherung/biotop-lage-01/arbeit/n9a_rueckstellung.sh
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/n9a_rueckstellung.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-LAGE-01 · Rückstellung der Abweichungen von Regel 2.1 (Nachsteuerung Chat-Claude über Philipp, 25.09.2026), Teil A.
+# Abweichungen (etwas angelegt oder geändert außerhalb der drei zulässigen Orte):
+#   A1 Skript /root/.hermes/scripts/biotop_lage01_meldung1.py                     angelegt 25.09. 15:10:32
+#   A2 Cron-Job b11464763130 „BIOTOP-LAGE-01 Meldung 1“ (jobs.json, cron/output) angelegt 25.09. 15:10–15:13
+#   A3 /root/.hermes/zwischenbericht/auftrag.json umgestellt, Sicherung auftrag.json.vor-biotop-lage-01 angelegt, 15:41:33
+# Teil A: Belege exklusiv nach /root/sicherung/biotop-lage-01/rueckstellung/ kopieren; A3 zurückstellen (Inhalt und
+# Änderungszeit der Sicherung, atomar über eine Zwischendatei im selben Ordner); die Sicherungsdatei aus /root/.hermes
+# herausnehmen (verschieben, nicht löschen). Teil B folgt nach dem Entfernen des Cron-Jobs mit cronjob_manage.
+set -u
+R=/root/sicherung/biotop-lage-01/rueckstellung
+Z=/root/.hermes/zwischenbericht
+S=/root/.hermes/scripts/biotop_lage01_meldung1.py
+O=/root/.hermes/cron/output/b11464763130
+ERWARTET=e6b91328fed4470f531fbe8a1c27ca3dbead9de9cc90a43d958b6ebc3737cb9f   # auftrag.json vor dem Auftrag (R24)
+date '+== Zeitpunkt %Y-%m-%d %H:%M:%S %Z (UTC%z)'
+mkdir "$R" || { echo "ABBRUCH: $R besteht schon — nichts geändert"; exit 2; }
+echo '== Vorher'
+ls -la --time-style='+%F %T' "$Z" /root/.hermes/scripts "$O"
+sha256sum "$Z/auftrag.json" "$Z/auftrag.json.vor-biotop-lage-01" "$S" "$O"/*
+echo '== Belege sichern (Kopien mit Zeiten und Rechten; exklusiv)'
+cp -p --update=none "$Z/auftrag.json" "$R/auftrag.json.stand-biotop-lage-01"
+cp -a "$O" "$R/cron-output-b11464763130"
+cp -p --update=none "$S" "$R/biotop_lage01_meldung1.py.kopie-vor-rueckstellung"
+python3 - "$R/cron-job-b11464763130.json" <<'EOF'
+import json, os, sys
+jobs = json.load(open('/root/.hermes/cron/jobs.json'))['jobs']
+treffer = [j for j in jobs if j.get('id') == 'b11464763130']
+fd = os.open(sys.argv[1], os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+with os.fdopen(fd, 'w') as f:
+    json.dump(treffer, f, ensure_ascii=False, indent=1)
+print(f'Eintrag des Cron-Jobs gesichert: {len(treffer)} Eintrag (Schlüssel: {", ".join(sorted(treffer[0])) if treffer else "-"})')
+EOF
+( cd "$R" && find . -type f -printf '%P\n' | sort | xargs -d '\n' sha256sum )
+echo '== A3 zurückstellen: auftrag.json := auftrag.json.vor-biotop-lage-01'
+cp -p "$Z/auftrag.json.vor-biotop-lage-01" "$Z/.auftrag.json.rueckstellung"
+mv -f "$Z/.auftrag.json.rueckstellung" "$Z/auftrag.json"
+mv "$Z/auftrag.json.vor-biotop-lage-01" "$R/auftrag.json.vor-biotop-lage-01"
+IST=$(sha256sum < "$Z/auftrag.json" | cut -c1-64)
+if [ "$IST" = "$ERWARTET" ]; then echo "auftrag.json nachher $IST = Stand vor dem Auftrag (R24): ja"; else echo "auftrag.json nachher $IST ≠ $ERWARTET: NEIN"; fi
+python3 -c "import json; a=json.load(open('$Z/auftrag.json')); print('auftrag.json zeigt auf:', a.get('auftrag'), '· Übergabe:', a.get('uebergabe'))"
+echo '== Nachher (Ordner /root/.hermes/zwischenbericht)'
+ls -la --time-style='+%F %T' "$Z"
+echo "Sicherungsdatei noch in $Z: $([ -e "$Z/auftrag.json.vor-biotop-lage-01" ] && echo JA || echo nein) · in $R: $([ -e "$R/auftrag.json.vor-biotop-lage-01" ] && echo ja || echo NEIN)"
+--- Ende /root/sicherung/biotop-lage-01/arbeit/n9a_rueckstellung.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== Zeitpunkt 2026-09-25 17:47:32 CEST (UTC+0200)
+== Vorher
+/root/.hermes/cron/output/b11464763130:
+total 12
+drwx------ 2 root root 4096 2026-09-25 15:12:05 .
+drwx------ 5 root root 4096 2026-09-25 15:12:05 ..
+-rw------- 1 root root  748 2026-09-25 15:12:05 2026-09-25_15-12-05.md
+
+/root/.hermes/scripts:
+total 60
+drwxr-xr-x  3 root root  4096 2026-09-25 15:10:32 .
+drwx------ 28 root root  4096 2026-09-25 17:47:31 ..
+drwxr-xr-x  2 root root  4096 2026-09-23 21:32:22 __pycache__
+-rw-r--r--  1 root root  2250 2026-09-24 23:52:16 biotop_endmeldung_r5.py
+-rw-r--r--  1 root root   911 2026-09-25 15:10:32 biotop_lage01_meldung1.py
+-rw-r--r--  1 root root 23213 2026-09-23 21:32:16 zwischenbericht_waechter.py
+-rw-r--r--  1 root root 15479 2026-09-23 15:36:36 zwischenbericht_waechter.py.vor-kontext-20260923-212241
+
+/root/.hermes/zwischenbericht:
+total 68
+drwxr-xr-x  3 root root  4096 2026-09-25 17:46:10 .
+drwx------ 28 root root  4096 2026-09-25 17:47:31 ..
+drwxr-xr-x  2 root root  4096 2026-09-23 21:26:25 __pycache__
+-rw-r--r--  1 root root   417 2026-09-25 15:41:33 auftrag.json
+-rw-r--r--  1 root root   274 2026-09-24 23:52:05 auftrag.json.vor-biotop-lage-01
+-rw-r--r--  1 root root   228 2026-09-24 02:20:49 auftrag.json.vor-t4-02
+-rw-r--r--  1 root root 15671 2026-09-25 17:46:10 ausgeloest.json
+-rw-r--r--  1 root root   769 2026-09-25 17:46:10 herzschlag.json
+-rw-r--r--  1 root root 14244 2026-09-23 21:26:04 test_waechter.py
+-rw-r--r--  1 root root  7756 2026-09-23 15:36:36 test_waechter.py.vor-kontext-20260923-212241
+d6bac8e62eb490e72eaccffc08dcc7b9d245e16fce527a4fea9304f31494f9ed  /root/.hermes/zwischenbericht/auftrag.json
+e6b91328fed4470f531fbe8a1c27ca3dbead9de9cc90a43d958b6ebc3737cb9f  /root/.hermes/zwischenbericht/auftrag.json.vor-biotop-lage-01
+c7d769efbbc3b0e9c8a55232e9a2b7c671e42c3da5f076983617acef474fd4e4  /root/.hermes/scripts/biotop_lage01_meldung1.py
+844858be53139a2baf5251bef4b3b520e3e4e07bc6f36a481ef3d1c9685a794d  /root/.hermes/cron/output/b11464763130/2026-09-25_15-12-05.md
+== Belege sichern (Kopien mit Zeiten und Rechten; exklusiv)
+Eintrag des Cron-Jobs gesichert: 1 Eintrag (Schlüssel: base_url, context_from, created_at, deliver, enabled, enabled_toolsets, failure_streak, fire_claim, id, last_delivery_error, last_delivery_unverified, last_error, last_run_at, last_status, model, model_snapshot, monitor_script, monitor_state, monitor_url, name, next_run_at, no_agent, origin, paused_at, paused_reason, prompt, provider, provider_snapshot, repeat, run_claim, schedule, schedule_display, script, skill, skills, state, workdir)
+d6bac8e62eb490e72eaccffc08dcc7b9d245e16fce527a4fea9304f31494f9ed  auftrag.json.stand-biotop-lage-01
+c7d769efbbc3b0e9c8a55232e9a2b7c671e42c3da5f076983617acef474fd4e4  biotop_lage01_meldung1.py.kopie-vor-rueckstellung
+45621afaef5ec6e9b4bd6286af6528d8141603ed6556b66c8a63abea1f9e713b  cron-job-b11464763130.json
+844858be53139a2baf5251bef4b3b520e3e4e07bc6f36a481ef3d1c9685a794d  cron-output-b11464763130/2026-09-25_15-12-05.md
+== A3 zurückstellen: auftrag.json := auftrag.json.vor-biotop-lage-01
+auftrag.json nachher e6b91328fed4470f531fbe8a1c27ca3dbead9de9cc90a43d958b6ebc3737cb9f = Stand vor dem Auftrag (R24): ja
+auftrag.json zeigt auf: biotop-vor-t4-06 · Übergabe: ['/root/biotop-vor-t4-06/UEBERGABE.md']
+== Nachher (Ordner /root/.hermes/zwischenbericht)
+total 64
+drwxr-xr-x  3 root root  4096 2026-09-25 17:47:32 .
+drwx------ 28 root root  4096 2026-09-25 17:47:31 ..
+drwxr-xr-x  2 root root  4096 2026-09-23 21:26:25 __pycache__
+-rw-r--r--  1 root root   274 2026-09-24 23:52:05 auftrag.json
+-rw-r--r--  1 root root   228 2026-09-24 02:20:49 auftrag.json.vor-t4-02
+-rw-r--r--  1 root root 15671 2026-09-25 17:46:10 ausgeloest.json
+-rw-r--r--  1 root root   769 2026-09-25 17:46:10 herzschlag.json
+-rw-r--r--  1 root root 14244 2026-09-23 21:26:04 test_waechter.py
+-rw-r--r--  1 root root  7756 2026-09-23 15:36:36 test_waechter.py.vor-kontext-20260923-212241
+Sicherungsdatei noch in /root/.hermes/zwischenbericht: nein · in /root/sicherung/biotop-lage-01/rueckstellung: ja
+=== Ende R148 ===
+
+
+R149 · /root/versehentlich: Nennungen des genauen Pfads (Biotop-Baum, Prüfkanal, Arbeitsordner), /opt/hermes, Umgebung Zeilen 1022-1040 der Shell-Chronik (Befehlsnamen)
+Beginn: 2026-09-25 17:47:32 CEST (UTC+0200)
+Ende:   2026-09-25 17:47:34 CEST (UTC+0200)
+Dauer:  2.6 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/sicherung/biotop-lage-01/arbeit/n10_versehentlich_pfad.sh
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/n10_versehentlich_pfad.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-LAGE-01 (nur lesend): /root/versehentlich — Nennungen des genauen Pfads im Biotop-Baum, im Prüfkanal, in den
+# Arbeitsordnern; /opt/hermes (Namen, Zeiten); Umgebung der Zeilen 102–103 in /root/.bash_history (nur erstes Wort je
+# Zeile, geschwärzt), um den Zusammenhang der Anlage einzuordnen.
+K=$(cat /etc/pruefkanal/schluessel); L=/var/pruefkanal/oeffentlich/_akte/$K/laeufe
+date '+== Zeitpunkt %Y-%m-%d %H:%M:%S %Z (UTC%z)'
+echo '== Genauer Pfad „/root/versehentlich“ (Dateien mit Treffer)'
+a=$(grep -r -l -F --exclude-dir=.git '/root/versehentlich' /root/biotop 2>/dev/null)
+echo "  /root/biotop (ohne .git): $(printf '%s' "$a" | grep -c .)"; printf '%s\n' "$a" | grep . | sed 's/^/    /'
+b=$(grep -r -l -F '/root/versehentlich' "$L"/biotop-* "$L"/gedaechtnis 2>/dev/null)
+echo "  Prüfkanal laeufe/biotop-* und gedaechtnis: $(printf '%s' "$b" | grep -c .)"; printf '%s\n' "$b" | grep . | sed "s|$L/|    laeufe/|"
+c=$(grep -r -l -F '/root/versehentlich' /root/biotop-t3 /root/biotop-vor-t4 /root/biotop-vor-t4-0[2-6] /root/phase-4-vorbedingung-1 \
+      --exclude-dir=node_modules --exclude-dir=venv --exclude-dir=.git 2>/dev/null)
+echo "  Arbeitsordner biotop-t3, biotop-vor-t4*, phase-4-vorbedingung-1: $(printf '%s' "$c" | grep -c .)"; printf '%s\n' "$c" | grep . | sed 's/^/    /'
+echo '== /opt/hermes'
+if [ -d /opt/hermes ]; then
+  stat -c '  Geburt %w | Änderung %y | %n' /opt/hermes
+  ls -la --time-style='+%F %T' /opt/hermes | sed 's/^/  /'
+else
+  echo '  /opt/hermes fehlt'
+fi
+echo '== /root/.bash_history, Zeilen 92–112: Zeilennummer und erstes Wort (geschwärzt)'
+python3 - <<'EOF'
+import re, sys
+sys.path.insert(0, '/root/sicherung/biotop-lage-01/arbeit')
+import geheimnis
+W = geheimnis.werte()
+z = open('/root/.bash_history', encoding='utf-8', errors='replace').read().splitlines()
+for i in range(91, min(112, len(z))):
+    t = z[i]
+    for m in geheimnis.MUSTER.values():
+        t = re.sub(m, '[GESCHWÄRZT]', t)
+    for v in W:
+        t = t.replace(v, '[GESCHWÄRZT]')
+    w = t.split()
+    print(f'  {i + 1}: {w[0] if w else "(leer)"}' + (f'  {t[:140]}' if i + 1 in (102, 103) else ''))
+EOF
+--- Ende /root/sicherung/biotop-lage-01/arbeit/n10_versehentlich_pfad.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== Zeitpunkt 2026-09-25 17:47:32 CEST (UTC+0200)
+== Genauer Pfad „/root/versehentlich“ (Dateien mit Treffer)
+  /root/biotop (ohne .git): 0
+  Prüfkanal laeufe/biotop-* und gedaechtnis: 0
+  Arbeitsordner biotop-t3, biotop-vor-t4*, phase-4-vorbedingung-1: 0
+== /opt/hermes
+  /opt/hermes fehlt
+== /root/.bash_history, Zeilen 92–112: Zeilennummer und erstes Wort (geschwärzt)
+  92: ps
+  93: systemctl
+  94: systemctl
+  95: systemctl
+  96: systemctl
+  97: cd
+  98: rm
+  99: exit
+  100: ls
+  101: find
+  102: mkdir  mkdir -p /root/versehentlich
+  103: mv  mv /opt/hermes/eingang/DATEINAME /root/versehentlich/
+  104: ls
+  105: journalctl
+  106: dig
+  107: dig
+  108: grep
+  109: grep
+  110: systemctl
+  111: grep
+  112: grep
+=== Ende R149 ===
+
+
+R150 · Teil E: Gleichheit Arbeitskopien Masterprompt v7/v8 mit Prüfkanal, Kontingent-Wert in kasse.py
+Beginn: 2026-09-25 17:48:59 CEST (UTC+0200)
+Ende:   2026-09-25 17:49:00 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/soll-ist/e11_gleichheit.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/soll-ist/e11_gleichheit.py (wörtlich) ---
+#!/usr/bin/env python3
+"""Teil E (SOLL-IST), nur lesend:
+(1) Gleichheit der Arbeitskopien (Zeilenangaben in SOLL-IST beziehen sich auf sie) mit den veröffentlichten Dateien im
+    Prüfkanal: Bytes und SHA-256 je Paar. Prüfkanal-Pfade werden relativ zu laeufe/ ausgegeben (Schlüssel nie).
+(2) Kern-Stand zum Lesezeitpunkt: `git log -1` in /root/biotop (nur lesend; kein git status, kein diff).
+Schreibt nichts."""
+import hashlib
+import subprocess
+import time
+from pathlib import Path
+
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+L = Path(f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe')
+PAARE = [
+    ('/root/biotop-vor-t4/BERICHT.md', 'biotop-vor-t4/BERICHT.md'),
+    ('/root/biotop-vor-t4/REVIEW.md', 'biotop-vor-t4/REVIEW.md'),
+    ('/root/biotop-vor-t4-02/BERICHT.md', 'biotop-vor-t4-02/BERICHT.md'),
+    ('/root/biotop-vor-t4-03/BERICHT.md', 'biotop-vor-t4-03/BERICHT.md'),
+    ('/root/biotop-vor-t4-04/BERICHT.md', 'biotop-vor-t4-04/BERICHT.md'),
+    ('/root/biotop-vor-t4-05/BERICHT.md', 'biotop-vor-t4-05/BERICHT.md'),
+    ('/root/biotop-vor-t4-05/SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md',
+     'biotop-vor-t4-05/SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md'),
+    ('/root/biotop-vor-t4-05/ZWEI-REVIEWS.md', 'biotop-vor-t4-05/ZWEI-REVIEWS.md'),
+    ('/root/biotop-t3/abschluss3/ABSCHLUSS-03.md', 'biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md'),
+    ('/root/biotop-t3/ABSCHLUSSBERICHT.md', 'biotop-t3-typescript/abschluss-01/ABSCHLUSSBERICHT.md'),
+    ('/root/biotop-vor-t4-06/UEBERGABE.md', 'biotop-vor-t4-06/UEBERGABE.md'),
+]
+
+
+def info(p: Path):
+    if not p.is_file():
+        return None
+    b = p.read_bytes()
+    return len(b), hashlib.sha256(b).hexdigest()
+
+
+print(f'Zeit: {time.strftime("%Y-%m-%d %H:%M:%S %Z")}')
+print('## (1) Arbeitskopie gegen Prüfkanal')
+for lokal, rel in PAARE:
+    a, b = info(Path(lokal)), info(L / rel)
+    if a is None or b is None:
+        print(f'   {"FEHLT lokal" if a is None else "FEHLT im Prüfkanal"}: {lokal} ↔ laeufe/{rel}')
+        continue
+    print(f'   {"gleich" if a == b else "VERSCHIEDEN"}: {lokal} ({a[0]} B, {a[1][:12]}…) ↔ laeufe/{rel} '
+          f'({b[0]} B, {b[1][:12]}…)')
+for name in ('NACHTRAG-345.txt', 'NACHTRAG-6-TOR2ZEILE8.txt'):
+    treffer = sorted((L / 'biotop-t3-typescript').rglob(name))
+    lokal = info(Path('/root/biotop-t3') / name)
+    for t in treffer:
+        print(f'   {"gleich" if info(t) == lokal else "VERSCHIEDEN"}: /root/biotop-t3/{name} ↔ '
+              f'laeufe/{t.relative_to(L).as_posix()}')
+    if not treffer:
+        print(f'   NICHT IM PRÜFKANAL: {name}')
+
+print('\n## (2) git log -1 in /root/biotop (nur lesend)')
+r = subprocess.run(['git', '-C', '/root/biotop', 'log', '-1', '--format=%H | %ci | %an | %s'],
+                   capture_output=True, text=True, timeout=60)
+print('   ' + (r.stdout.strip() or r.stderr.strip()))
+--- Ende /root/sicherung/biotop-lage-01/entwurf/soll-ist/e11_gleichheit.py ---
+Ausgabe (vollständig, stdout und stderr):
+Zeit: 2026-09-25 17:49:00 CEST
+## (1) Arbeitskopie gegen Prüfkanal
+   gleich: /root/biotop-vor-t4/BERICHT.md (35702 B, c017cc407003…) ↔ laeufe/biotop-vor-t4/BERICHT.md (35702 B, c017cc407003…)
+   gleich: /root/biotop-vor-t4/REVIEW.md (21150 B, caf4744dc419…) ↔ laeufe/biotop-vor-t4/REVIEW.md (21150 B, caf4744dc419…)
+   gleich: /root/biotop-vor-t4-02/BERICHT.md (37024 B, 08eecd11f5f8…) ↔ laeufe/biotop-vor-t4-02/BERICHT.md (37024 B, 08eecd11f5f8…)
+   gleich: /root/biotop-vor-t4-03/BERICHT.md (41349 B, 020ad77c0cdc…) ↔ laeufe/biotop-vor-t4-03/BERICHT.md (41349 B, 020ad77c0cdc…)
+   gleich: /root/biotop-vor-t4-04/BERICHT.md (33528 B, b10c60fc6892…) ↔ laeufe/biotop-vor-t4-04/BERICHT.md (33528 B, b10c60fc6892…)
+   gleich: /root/biotop-vor-t4-05/BERICHT.md (45281 B, 128977fa432e…) ↔ laeufe/biotop-vor-t4-05/BERICHT.md (45281 B, 128977fa432e…)
+   gleich: /root/biotop-vor-t4-05/SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md (6682 B, e8906c54ccc8…) ↔ laeufe/biotop-vor-t4-05/SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md (6682 B, e8906c54ccc8…)
+   gleich: /root/biotop-vor-t4-05/ZWEI-REVIEWS.md (5704 B, 524b68fd5750…) ↔ laeufe/biotop-vor-t4-05/ZWEI-REVIEWS.md (5704 B, 524b68fd5750…)
+   gleich: /root/biotop-t3/abschluss3/ABSCHLUSS-03.md (34214 B, 55afceaf677e…) ↔ laeufe/biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md (34214 B, 55afceaf677e…)
+   gleich: /root/biotop-t3/ABSCHLUSSBERICHT.md (12642 B, e02943f7759b…) ↔ laeufe/biotop-t3-typescript/abschluss-01/ABSCHLUSSBERICHT.md (12642 B, e02943f7759b…)
+   FEHLT im Prüfkanal: /root/biotop-vor-t4-06/UEBERGABE.md ↔ laeufe/biotop-vor-t4-06/UEBERGABE.md
+   gleich: /root/biotop-t3/NACHTRAG-345.txt ↔ laeufe/biotop-t3-typescript/abschluss-02/NACHTRAG-345.txt
+   gleich: /root/biotop-t3/NACHTRAG-6-TOR2ZEILE8.txt ↔ laeufe/biotop-t3-typescript/abschluss-03/NACHTRAG-6-TOR2ZEILE8.txt
+
+## (2) git log -1 in /root/biotop (nur lesend)
+   0c2f058d57f68b8891b535d6e00214172c82fefa | 2026-09-24 20:24:54 +0200 | Hermes (Biotop) | Vor T4, Runde 5: Vollständigkeitsprüfung, fallende Zusicherung, Ausfall je Funktion, Register und Tor-4-Skript, Stufe 2 überall
+=== Ende R150 ===
+
+
+R151 · Rückstellung Teil B: Cron-Job b11464763130 nachher (nach cronjob_manage remove), Skript nach rueckstellung/ verschieben, Abruf der Datei mit Chatkennung sperren (Inhalt bleibt), Geheimnissuche über die abrufbaren Dateien
+Beginn: 2026-09-25 18:03:20 CEST (UTC+0200)
+Ende:   2026-09-25 18:03:21 CEST (UTC+0200)
+Dauer:  0.6 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/sicherung/biotop-lage-01/arbeit/n9b_rueckstellung.sh
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/n9b_rueckstellung.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-LAGE-01 · Rückstellung, Teil B (nach „cronjob_manage remove b11464763130“):
+#   A2 Nachher prüfen: Eintrag in jobs.json und Ausgabeordner weg, Kopien in rueckstellung/ vorhanden; die Protokollzeilen
+#      in executions.db und deliveries.db bleiben (Protokoll des Geschehenen, bewusst nicht zurückgestellt).
+#   A1 Skript aus /root/.hermes/scripts nach rueckstellung/ verschieben (nicht löschen), SHA-256 vorher = nachher.
+#   A4 ZWISCHENBERICHT.md des Wächters im Abschlussordner (enthält Philipps Telegram-Chatkennung aus .env, R122/R125):
+#      nicht löschen, nicht überschreiben — nur den Abruf sperren (Rechte 640 → 600; Caddy liest über die Gruppe caddy).
+#      Rücknahme mit „chmod 640“ auf dieselbe Datei; Löschen oder Freigeben entscheidet Philipp.
+set -u
+R=/root/sicherung/biotop-lage-01/rueckstellung
+S=/root/.hermes/scripts/biotop_lage01_meldung1.py
+O=/root/.hermes/cron/output/b11464763130
+K=$(cat /etc/pruefkanal/schluessel)
+REL=laeufe/biotop-lage-01/zwischenbericht-20260925-163807-r114/ZWISCHENBERICHT.md
+F=/var/pruefkanal/oeffentlich/_akte/$K/$REL
+U=https://milieulux-reinigung-muenchen.de/_akte/$K/$REL
+date '+== Zeitpunkt %Y-%m-%d %H:%M:%S %Z (UTC%z)'
+echo '== A2 nachher: Cron-Job b11464763130'
+python3 - <<'EOF'
+import json, sqlite3
+jobs = json.load(open('/root/.hermes/cron/jobs.json'))['jobs']
+print('Jobs in jobs.json:', [(j['id'], j.get('name')) for j in jobs])
+print('b11464763130 in jobs.json:', 'JA' if any(j['id'] == 'b11464763130' for j in jobs) else 'nein')
+e = sqlite3.connect('file:/root/.hermes/cron/executions.db?mode=ro', uri=True)
+print('executions.db, Zeilen des Jobs (bleiben als Protokoll):', e.execute("SELECT count(*) FROM executions WHERE job_id='b11464763130'").fetchone()[0])
+d = sqlite3.connect('file:/root/.hermes/cron/deliveries.db?mode=ro', uri=True)
+print('deliveries.db, Zeilen gesamt (bleiben als Protokoll):', d.execute('SELECT count(*) FROM deliveries').fetchone()[0])
+EOF
+echo "Ausgabeordner $O: $([ -e "$O" ] && echo 'NOCH VORHANDEN' || echo entfernt)"
+echo "Kopie: $(ls "$R/cron-output-b11464763130") · $(sha256sum "$R"/cron-output-b11464763130/* | cut -c1-64)"
+echo '== A1: Skript verschieben'
+if [ -e "$S" ]; then
+  V=$(sha256sum < "$S" | cut -c1-64)
+  mv --no-clobber "$S" "$R/biotop_lage01_meldung1.py"
+  N=$(sha256sum < "$R/biotop_lage01_meldung1.py" | cut -c1-64)
+  echo "SHA-256 vorher $V · nachher $N · gleich: $([ "$V" = "$N" ] && echo ja || echo NEIN)"
+else
+  echo "Skript $S nicht vorhanden"
+fi
+echo "Skript noch in /root/.hermes/scripts: $([ -e "$S" ] && echo JA || echo nein)"
+ls -la --time-style='+%F %T' /root/.hermes/scripts
+echo "Dateien in /root/.hermes/scripts: $(find /root/.hermes/scripts -type f | wc -l) · davon seit Auftragsbeginn (14:44:20) neu oder geändert: $(find /root/.hermes/scripts -type f -newermt '2026-09-25 14:44:20' | wc -l)"
+echo '== A4: Abruf der Datei mit der Chatkennung sperren (Inhalt bleibt)'
+stat -c 'vorher: %A %U:%G · %s Bytes · geändert %y' "$F"
+sha256sum "$F" | cut -c1-64
+curl -s -o /dev/null -w 'HTTP vorher: %{http_code}\n' "$U"
+chmod 600 "$F"
+stat -c 'nachher: %A %U:%G · %s Bytes · geändert %y' "$F"
+sha256sum "$F" | cut -c1-64
+curl -s -o /dev/null -w 'HTTP nachher: %{http_code}\n' "$U"
+echo '-- übrige Dateien des Wächter-Ordners (weiter abrufbar):'
+for f in DATEIEN.txt MANIFEST.sha256 PRUEFSUMME-ORDNER.txt UEBERGABE-1-UEBERGABE.md; do
+  curl -s -o /dev/null -w "  $f: HTTP %{http_code}\n" "${U%/*}/$f"
+done
+echo '== Geheimnissuche über den Abschlussordner, nur abrufbare Dateien (Rechte mit Lesezugriff für die Gruppe)'
+find "/var/pruefkanal/oeffentlich/_akte/$K/laeufe/biotop-lage-01" -type f -perm -g=r -print0 | xargs -0 python3 /root/sicherung/biotop-lage-01/arbeit/geheimnis.py | sed "s|/var/pruefkanal/oeffentlich/_akte/$K/||"
+--- Ende /root/sicherung/biotop-lage-01/arbeit/n9b_rueckstellung.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== Zeitpunkt 2026-09-25 18:03:20 CEST (UTC+0200)
+== A2 nachher: Cron-Job b11464763130
+Jobs in jobs.json: [('26fbb1513a1a', 'zwischenbericht-waechter'), ('5825fd644daa', 'Endmeldung Runde 5 (vor T4)')]
+b11464763130 in jobs.json: nein
+executions.db, Zeilen des Jobs (bleiben als Protokoll): 1
+deliveries.db, Zeilen gesamt (bleiben als Protokoll): 2
+Ausgabeordner /root/.hermes/cron/output/b11464763130: entfernt
+Kopie: 2026-09-25_15-12-05.md · 844858be53139a2baf5251bef4b3b520e3e4e07bc6f36a481ef3d1c9685a794d
+== A1: Skript verschieben
+SHA-256 vorher c7d769efbbc3b0e9c8a55232e9a2b7c671e42c3da5f076983617acef474fd4e4 · nachher c7d769efbbc3b0e9c8a55232e9a2b7c671e42c3da5f076983617acef474fd4e4 · gleich: ja
+Skript noch in /root/.hermes/scripts: nein
+total 56
+drwxr-xr-x  3 root root  4096 2026-09-25 18:03:20 .
+drwx------ 28 root root  4096 2026-09-25 18:03:20 ..
+drwxr-xr-x  2 root root  4096 2026-09-23 21:32:22 __pycache__
+-rw-r--r--  1 root root  2250 2026-09-24 23:52:16 biotop_endmeldung_r5.py
+-rw-r--r--  1 root root 23213 2026-09-23 21:32:16 zwischenbericht_waechter.py
+-rw-r--r--  1 root root 15479 2026-09-23 15:36:36 zwischenbericht_waechter.py.vor-kontext-20260923-212241
+Dateien in /root/.hermes/scripts: 4 · davon seit Auftragsbeginn (14:44:20) neu oder geändert: 0
+== A4: Abruf der Datei mit der Chatkennung sperren (Inhalt bleibt)
+vorher: -rw-r----- root:caddy · 11021 Bytes · geändert 2026-09-25 16:38:07.882874006 +0200
+c96667d256604f8ec0c72a16141f048e66f4b915aa64db49fa7470d015f23df0
+HTTP vorher: 200
+nachher: -rw------- root:caddy · 11021 Bytes · geändert 2026-09-25 16:38:07.882874006 +0200
+c96667d256604f8ec0c72a16141f048e66f4b915aa64db49fa7470d015f23df0
+HTTP nachher: 403
+-- übrige Dateien des Wächter-Ordners (weiter abrufbar):
+  DATEIEN.txt: HTTP 200
+  MANIFEST.sha256: HTTP 200
+  PRUEFSUMME-ORDNER.txt: HTTP 200
+  UEBERGABE-1-UEBERGABE.md: HTTP 200
+== Geheimnissuche über den Abschlussordner, nur abrufbare Dateien (Rechte mit Lesezugriff für die Gruppe)
+Werte aus .env/auth.json geladen: 14 (nicht ausgegeben)
+Ausgelassen als Variablenname (nur Großbuchstaben/Ziffern/_): 2 — Fundorte: /root/.hermes/auth.json:auth.credential_pool.anthropic[1].label, /root/.hermes/auth.json:auth.credential_pool.openrouter[0].label
+Durchsucht: 8 Dateien · Treffer: 0
+=== Ende R151 ===
+
+
+R152 · OpenRouter-Nutzungsanzeige zum Stichzeitpunkt (Ende S1c 17:29:59), kein Modellaufruf; Vergleich mit R5 (Beginn 14:54)
+Beginn: 2026-09-25 18:04:50 CEST (UTC+0200)
+Ende:   2026-09-25 18:04:51 CEST (UTC+0200)
+Dauer:  0.3 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/or_stand.py stich-nach-s1c
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/or_stand.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01: Stand der OpenRouter-Nutzungsanzeige (kein Modellaufruf; Regel 2.3 erlaubt die Abfrage).
+Der Schlüssel wird aus /root/.hermes/.env gelesen und nie ausgegeben. Ausgegeben werden nur die Zahlen der Anzeige:
+/api/v1/key (usage gesamt, heute, Woche, Monat; Limit) und /api/v1/credits (gekauft, verbraucht).
+Aufruf: python3 or_stand.py <marke>   — hängt eine JSON-Zeile an /root/sicherung/biotop-lage-01/arbeit/OR-STAND.jsonl."""
+import json
+import sys
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+schluessel = None
+for z in Path('/root/.hermes/.env').read_text().splitlines():
+    if z.startswith('OPENROUTER_API_KEY='):
+        schluessel = z.split('=', 1)[1].strip().strip('"').strip("'")
+if not schluessel:
+    sys.exit('OPENROUTER_API_KEY fehlt in /root/.hermes/.env')
+
+
+def hole(url):
+    q = urllib.request.Request(url, headers={'Authorization': f'Bearer {schluessel}'})
+    try:
+        with urllib.request.urlopen(q, timeout=60) as r:
+            return r.status, json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        return e.code, {'fehler': e.read().decode('utf-8', 'replace')[:300]}
+
+
+marke = sys.argv[1] if len(sys.argv) > 1 else 'stand'
+zeile = {'zeit': time.strftime('%Y-%m-%dT%H:%M:%S%z'), 'marke': marke}
+st, k = hole('https://openrouter.ai/api/v1/key')
+d = k.get('data') or {}
+zeile['key_http'] = st
+for f in ('usage', 'usage_daily', 'usage_weekly', 'usage_monthly', 'byok_usage', 'limit', 'limit_remaining',
+          'limit_reset', 'is_free_tier', 'label'):
+    if f in d:
+        zeile['key_' + f] = d[f] if f != 'label' else '[GESCHWÄRZT: Schlüsselbezeichnung]'
+st, c = hole('https://openrouter.ai/api/v1/credits')
+zeile['credits_http'] = st
+cd = c.get('data') or {}
+zeile['credits_total_credits'] = cd.get('total_credits')
+zeile['credits_total_usage'] = cd.get('total_usage')
+with open('/root/sicherung/biotop-lage-01/arbeit/OR-STAND.jsonl', 'a') as f:
+    f.write(json.dumps(zeile, ensure_ascii=False) + '\n')
+print(json.dumps(zeile, ensure_ascii=False, indent=1))
+--- Ende /root/sicherung/biotop-lage-01/arbeit/or_stand.py ---
+Ausgabe (vollständig, stdout und stderr):
+{
+ "zeit": "2026-09-25T18:04:50+0200",
+ "marke": "stich-nach-s1c",
+ "key_http": 200,
+ "key_usage": 20.929947777,
+ "key_usage_daily": 0.70151475,
+ "key_usage_weekly": 11.165178459,
+ "key_usage_monthly": 20.929947777,
+ "key_byok_usage": 0,
+ "key_limit": null,
+ "key_limit_remaining": null,
+ "key_limit_reset": null,
+ "key_is_free_tier": false,
+ "key_label": "[GESCHWÄRZT: Schlüsselbezeichnung]",
+ "credits_http": 200,
+ "credits_total_credits": 240,
+ "credits_total_usage": 195.775679737
+}
+=== Ende R152 ===
+
+
+R153 · Teil G: Läufe → Werk im STAMM (mode=ro&immutable=1, nur bei leerer -wal)
+Beginn: 2026-09-25 18:05:49 CEST (UTC+0200)
+Ende:   2026-09-25 18:05:49 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/lage-werke/g9_stamm_laeufe.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/lage-werke/g9_stamm_laeufe.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil G (nur lesend): Läufe → Werk im STAMM (/root/biotop/daten/biotop.db) für FK25.
+Regeln: öffnet den Stamm NUR mit ?mode=ro&immutable=1 und NUR, wenn /root/biotop/daten/biotop.db-wal 0 Bytes hat
+(oder fehlt); bricht ab, wenn /tmp/biotop-kammer-exklusiv besteht. Kein Biotop-Code wird importiert.
+Ausgabe: je Lauf id | werk_id | Werkname | Status | Beginn | Ende (UTC wie gespeichert) | Grund (110 Zeichen);
+Generationen je Lauf und Status."""
+import os
+import sqlite3
+import sys
+
+if os.path.exists('/tmp/biotop-kammer-exklusiv'):
+    print('ABBRUCH: /tmp/biotop-kammer-exklusiv besteht — nichts gelesen')
+    sys.exit(3)
+WAL = '/root/biotop/daten/biotop.db-wal'
+if os.path.exists(WAL):
+    g = os.path.getsize(WAL)
+    print(f'{WAL}: {g} Bytes')
+    if g != 0:
+        print('ABBRUCH: -wal-Datei nicht leer — Stamm NICHT geöffnet')
+        sys.exit(4)
+else:
+    print(f'{WAL}: fehlt')
+c = sqlite3.connect('file:/root/biotop/daten/biotop.db?mode=ro&immutable=1', uri=True)
+print('-- laeufe: id | werk_id | werk | status | begonnen_am | beendet_am | grund[:110]')
+for r in c.execute('SELECT l.id, l.werk_id, w.name, l.status, l.begonnen_am, l.beendet_am, l.grund '
+                   'FROM laeufe l LEFT JOIN werke w ON w.id = l.werk_id ORDER BY l.id'):
+    grund = (r[6] or '').replace('\n', ' ')[:110]
+    print('  ', ' | '.join(str(x) for x in r[:6]), '|', grund)
+print('-- generationen je Lauf: Lauf: {status: Anzahl}')
+d = {}
+for lid, st, n in c.execute('SELECT lauf_id, status, count(*) FROM generationen GROUP BY lauf_id, status ORDER BY lauf_id'):
+    d.setdefault(lid, {})[st] = n
+for lid in sorted(d):
+    print(f'   {lid}: {d[lid]}')
+print('-- Anzahl laeufe:', c.execute('SELECT count(*) FROM laeufe').fetchone()[0],
+      '· Anzahl werke:', c.execute('SELECT count(*) FROM werke').fetchone()[0])
+c.close()
+print('=== Ende')
+--- Ende /root/sicherung/biotop-lage-01/entwurf/lage-werke/g9_stamm_laeufe.py ---
+Ausgabe (vollständig, stdout und stderr):
+/root/biotop/daten/biotop.db-wal: 0 Bytes
+-- laeufe: id | werk_id | werk | status | begonnen_am | beendet_am | grund[:110]
+   1 | 1 | lagerhaus | abgebrochen | 2026-09-18T21:40:42.527+00:00 | 2026-09-18T21:44:34.016+00:00 | Abbruch durch Hermes nach Generation 1 (0 angenommen): zwei Mängel im Biotop (Diff-Anwendung verwarf 6 von 8 K
+   2 | 1 | lagerhaus | bereit | 2026-09-18T21:44:49.662+00:00 | None | 
+   3 | None | None | gestoppt | 2026-09-18T22:04:12.617+00:00 | 2026-09-18T22:04:14.097+00:00 | Messgerät fehlt: keine Tests gefunden (0 Testdateien mit ausführbaren Tests). Vorschlag: mit Generation 0 (Tes
+   4 | 3 | lagerhaus-kasse | abgebrochen | 2026-09-18T22:04:51.292+00:00 | None | Budget erschöpft vor Aufruf (Protokoll #652)
+   5 | 4 | lagerhaus-kasse2 | abgebrochen | 2026-09-18T22:11:45.180+00:00 | 2026-09-18T22:16:27.838+00:00 | Budget erschöpft vor Generation 3 (Protokoll #800)
+   6 | 5 | lagerhaus-nachlauf | abgebrochen | 2026-09-18T22:48:35.309+00:00 | 2026-09-18T23:19:56.898+00:00 | Abbruch durch Hermes nach Generation 12: Immunisierungsregel des Biotops fehlerhaft (Angriffstests, die der an
+   7 | 6 | lagerhaus-nachlauf2 | abgebrochen | 2026-09-18T23:20:20.471+00:00 | 2026-09-18T23:32:26.180+00:00 | Abbruch durch Hermes nach Generation 4: Generation 4 (K231) machte den S3-Fix aus Generation 1 rückgängig und 
+   8 | 7 | lagerhaus-nachlauf8 | abgebrochen | 2026-09-18T23:33:13.465+00:00 | 2026-09-18T23:53:28.582+00:00 | Abbruch durch Hermes nach Generation 8 (3 angenommen): S1, S4, S5 behoben; S3 in 13 von 16 lager-Kandidaten ko
+   9 | 8 | lagerhaus-nachlauf9 | beendet | 2026-09-18T23:53:36.247+00:00 | 2026-09-19T00:08:53.715+00:00 | Nachlauf abgeschlossen: 6 Generationen, 4 angenommen; Tor-Zeilen 1–4 gemessen (97-tor-zeilen-1-bis-4-lauf9.txt
+   10 | 9 | lagerhaus-kasse3 | abgebrochen | 2026-09-19T00:09:20.245+00:00 | 2026-09-19T00:12:40.637+00:00 | Budget erschöpft vor Generation 2 (Protokoll #2623)
+   11 | None | None | angelegt | 2026-09-19T00:28:44.861+00:00 | None | 
+   12 | 10 | lagerhaus-p2 | abgebrochen | 2026-09-19T00:41:55.543+00:00 | 2026-09-19T01:46:20.911+00:00 | Abbruch durch Hermes nach Generation 10 und Proben: Norm-Probe zeigte, dass die Norm-Regel 3.7 F3 nur auf Ankl
+   13 | 11 | lagerhaus-p2-13 | beendet | 2026-09-19T01:47:07.157+00:00 | 2026-09-19T03:25:10.019+00:00 | Phase-2-Hauptlauf beendet nach 14 Generationen (7 angenommen: 1,3,5,6,10,11,13); Tor-2-Proben gegen Gen 13 aus
+   14 | 12 | lagerhaus-p3-14 | verworfen | 2026-09-19T11:03:07.607+00:00 | None | 
+   15 | 13 | lagerhaus-p3-15 | verworfen | 2026-09-19T11:09:10.980+00:00 | None | 
+   16 | 14 | lagerhaus-p3-16 | verworfen | 2026-09-19T11:26:06.639+00:00 | 2026-09-19T14:40:29.999+00:00 | In dieser Richtung gesättigt: Generationen 4–9, Verbesserung 0.00 % (Schwelle 0.5 % über 5 Generationen), Kern
+   17 | 15 | logmuehle-17 | gesaettigt | 2026-09-19T11:55:34.233+00:00 | 2026-09-19T13:54:24.657+00:00 | In dieser Richtung gesättigt: Generationen 4–8, Verbesserung 0.00 % (Schwelle 0.5 % über 5 Generationen), Kern
+   18 | 16 | lagerhaus-p3-18 | verworfen | 2026-09-19T14:41:03.431+00:00 | 2026-09-19T15:05:45.335+00:00 | 
+   19 | 17 | lagerhaus-p3-19 | verworfen | 2026-09-19T15:06:18.994+00:00 | 2026-09-19T15:39:39.704+00:00 | In dieser Richtung gesättigt: Generationen 1–5, Verbesserung 0.00 % (Schwelle 0.5 % über 5 Generationen), Kern
+   20 | 18 | lagerhaus-p3-20 | gesaettigt | 2026-09-19T15:40:05.302+00:00 | 2026-09-19T16:23:54.112+00:00 | In dieser Richtung gesättigt: Generationen 1–5, Verbesserung 0.00 % (Schwelle 0.5 % über 5 Generationen), Kern
+   21 | 18 | lagerhaus-p3-20 | verworfen | 2026-09-19T20:34:21.838+00:00 | 2026-09-19T20:34:21.840+00:00 | Hermes (satz2): Ankläger-Ablauf während des Laufs geändert (Prüfung)
+   22 | 19 | lagerhaus-p3-22 | gesaettigt | 2026-09-19T20:57:41.378+00:00 | 2026-09-19T22:50:08.166+00:00 | In dieser Richtung gesättigt: Generationen 1–5, Verbesserung 0.00 % (Schwelle 0.5 % über 5 Generationen), Kern
+   23 | 20 | logmuehle-23 | gesaettigt | 2026-09-19T21:32:55.853+00:00 | 2026-09-19T22:39:48.061+00:00 | In dieser Richtung gesättigt: Generationen 1–5, Verbesserung 0.00 % (Schwelle 0.5 % über 5 Generationen), Kern
+   24 | 21 | lagerhaus-zeile8-24 | bereit | 2026-09-19T22:57:49.320+00:00 | None | 
+   25 | 22 | lagerhaus-c-25 | bereit | 2026-09-20T01:13:30.138+00:00 | None | 
+-- generationen je Lauf: Lauf: {status: Anzahl}
+   1: {'abgelehnt': 1, 'angenommen': 1}
+   2: {'abgelehnt': 4, 'angenommen': 4}
+   4: {'abgelehnt': 1, 'angenommen': 3, 'laeuft': 1}
+   5: {'angenommen': 3}
+   6: {'abgelehnt': 6, 'angenommen': 7}
+   7: {'abgebrochen': 1, 'abgelehnt': 1, 'angenommen': 4}
+   8: {'abgelehnt': 5, 'angenommen': 4}
+   9: {'abgelehnt': 2, 'angenommen': 5}
+   10: {'angenommen': 2}
+   12: {'abgelehnt': 6, 'angenommen': 5}
+   13: {'abgelehnt': 7, 'angenommen': 8}
+   14: {'angenommen': 1}
+   15: {'abgelehnt': 2, 'angenommen': 1}
+   16: {'abgebrochen': 1, 'abgelehnt': 6, 'angenommen': 3}
+   17: {'abgebrochen': 1, 'abgelehnt': 3, 'angenommen': 5}
+   18: {'abgebrochen': 1, 'abgelehnt': 2, 'angenommen': 2}
+   19: {'abgelehnt': 4, 'angenommen': 2}
+   20: {'abgelehnt': 4, 'angenommen': 2}
+   21: {'abgebrochen': 1}
+   22: {'abgelehnt': 5, 'angenommen': 1}
+   23: {'abgelehnt': 3, 'angenommen': 3}
+   24: {'abgelehnt': 3, 'angenommen': 2}
+   25: {'abgelehnt': 3, 'angenommen': 2}
+-- Anzahl laeufe: 25 · Anzahl werke: 22
+=== Ende
+=== Ende R153 ===

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="15" time="0.140" timestamp="2026-09-20T15:48:41.578202+02:00" hostname="ubuntu"><testcase classname="tests.test_rauschmessung" name="test_rauschmessung_braucht_genau_fuenf_werte[0]" time="0.003" /><testcase classname="tests.test_rauschmessung" name="test_rauschmessung_braucht_genau_fuenf_werte[1]" time="0.001" /><testcase classname="tests.test_rauschmessung" name="test_rauschmessung_braucht_genau_fuenf_werte[2]" time="0.001" /><testcase classname="tests.test_rauschmessung" name="test_rauschmessung_braucht_genau_fuenf_werte[3]" time="0.001" /><testcase classname="tests.test_rauschmessung" name="test_rauschmessung_braucht_genau_fuenf_werte[4]" time="0.001" /><testcase classname="tests.test_rauschmessung" name="test_rauschmessung_braucht_genau_fuenf_werte[6]" time="0.001" /><testcase classname="tests.test_rauschmessung" name="test_ungueltige_rauschwerte_sind_keine_toleranz[0]" time="0.001" /><testcase classname="tests.test_rauschmessung" name="test_ungueltige_rauschwerte_sind_keine_toleranz[-1]" time="0.001" /><testcase classname="tests.test_rauschmessung" name="test_ungueltige_rauschwerte_sind_keine_toleranz[nan]" time="0.001" /><testcase classname="tests.test_rauschmessung" name="test_ungueltige_rauschwerte_sind_keine_toleranz[inf]" time="0.001" /><testcase classname="tests.test_rauschmessung" name="test_ungueltige_rauschwerte_sind_keine_toleranz[-inf]" time="0.001" /><testcase classname="tests.test_rauschmessung" name="test_ungueltige_rauschwerte_sind_keine_toleranz[True]" time="0.001" /><testcase classname="tests.test_rauschmessung" name="test_aussetzer_wird_ungekuerzt_entfernt_und_einmal_ersetzt" time="0.020" /><testcase classname="tests.test_rauschmessung" name="test_gescheitertes_nachmessen_sperrt_den_bereich[9.8765]" time="0.019"><failure message="assert True is False">db_lauf = &lt;sqlite3.Connection object at 0x7822280f1b70&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x78222810f230&gt;
+ersatz = 9.8765
+
+    @pytest.mark.parametrize("ersatz", [9.8765, None])
+    def test_gescheitertes_nachmessen_sperrt_den_bereich(db_lauf, monkeypatch, ersatz):
+        werte = iter([1., 1., 1., 1., 9.8765, ersatz])
+        aufrufe = []
+        def messen(*args):
+            aufrufe.append(True)
+            return {"alpha": next(werte)}
+        monkeypatch.setattr(eichung, "_messen_einmal", messen)
+        r = eichung.rauschmessung(db_lauf, 1, 1, Path("."), ["alpha"], "paket", "# Last")
+&gt;       assert r["lauf_startet"] is False
+E       assert True is False
+
+tests/test_rauschmessung.py:44: AssertionError</failure></testcase><testcase classname="tests.test_rauschmessung" name="test_gescheitertes_nachmessen_sperrt_den_bereich[None]" time="0.021" /></testsuite></testsuites>

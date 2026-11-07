@@ -1,0 +1,207 @@
+{
+ "mentor_id": 3,
+ "richtungen": [
+  {
+   "name": "Hermes-Fund K1165 beheben: Katalog.wert nutzt Grundpreis",
+   "ziel": "Behebe den offenen Sicherheits-/Korrektheitsfund in preise, wo Katalog.wert fälschlich den Staffelpreis statt den Grundpreis verwendet.",
+   "ertrag": "Kernmaß preise steigt um 1 (offener Fund verschwindet), Vertrag test_vertrag_bericht_preise::test_katalog_wert wird erfüllt statt gebrochen",
+   "risiko": "Berührt Vertrag bericht_preise; bericht darf nichts selbst nachrechnen, also muss preise die Quelle der Korrektur sein",
+   "aufwand_generationen": 2,
+   "bereiche": [
+    "preise"
+   ],
+   "vertraege": [
+    "test_vertrag_bericht_preise.py"
+   ],
+   "artgedaechtnis": [],
+   "projektgedaechtnis": [],
+   "nische": "sicher",
+   "_verweise_werkuebergreifend": [],
+   "_verweise_eigenes_werk": []
+  },
+  {
+   "name": "reservierung_einloesen: Bestandsprüfung von entnehmen() entkoppeln",
+   "ziel": "Löse den seit Gen 12–14 wiederholt gescheiterten Vertragsbruch, bei dem Einlösen genau der reservierten Menge fälschlich gegen freien Bestand statt reservierten Bestand prüft.",
+   "ertrag": "Kernmaß lager steigt um 3–4 (laut A179/A191/A195 wiederholt vorhergesagter Zuwachs), behebt echten Korrektheitsfehler in Bestand/Reservierung",
+   "risiko": "Kernlogik von lager.entnehmen wird verändert; alle bisherigen Versuche scheiterten an Testregressionen, hohe Sorgfalt bei Edge-Fällen nötig",
+   "aufwand_generationen": 3,
+   "bereiche": [
+    "lager"
+   ],
+   "vertraege": [
+    "test_vertrag_bericht_lager.py"
+   ],
+   "artgedaechtnis": [],
+   "projektgedaechtnis": [
+    "A179",
+    "A191",
+    "A195"
+   ],
+   "nische": "wild",
+   "_verweise_werkuebergreifend": [],
+   "_verweise_eigenes_werk": [
+    "A179",
+    "A191",
+    "A195"
+   ]
+  },
+  {
+   "name": "Bewegungsbericht-Cache mit korrektem Schlüssel reparieren oder entfernen",
+   "ziel": "Der globale `_bewegungsbericht_cache` in bericht/auswertung.py ist seit vielen Generationen als Korrektheitsfehler markiert (falscher Cache-Key); er muss durch einen korrekten Schlüssel ersetzt oder ganz entfernt werden.",
+   "ertrag": "Kernmaß bericht bleibt bei 0, aber entfernt einen latenten Korrektheitsfehler bevor er zum Testfehlschlag wird; verhindert künftige tote-Code-Funde",
+   "risiko": "Mehrfach abgelehnt als reiner toter-Code-Fund (A183–A188); nur sinnvoll, wenn tatsächlich als Bugfix mit Testabdeckung für den Cache-Fehler formuliert, nicht als Löschung ohne Maßgewinn",
+   "aufwand_generationen": 2,
+   "bereiche": [
+    "bericht"
+   ],
+   "vertraege": [],
+   "artgedaechtnis": [],
+   "projektgedaechtnis": [
+    "A183",
+    "A184",
+    "A185",
+    "A186",
+    "A187",
+    "A188"
+   ],
+   "nische": "elegant",
+   "_verweise_werkuebergreifend": [],
+   "_verweise_eigenes_werk": [
+    "A183",
+    "A184",
+    "A185",
+    "A186",
+    "A187",
+    "A188"
+   ]
+  },
+  {
+   "name": "formeln: Laufzeit der Referenzlast weiter senken",
+   "ziel": "Formeln hat mit 162.72ms die höchste Laufzeit aller Bereiche; nach erfolgreichem Cache-Ausbau (A175) weitere Reduktion durch Vermeidung redundanter pruefen()-Durchläufe bei identischen Formeln.",
+   "ertrag": "Grenzmaß Laufzeit formeln sinkt, Kernmaß bleibt bei 0 (Höchstwert)",
+   "risiko": "Frühere Versuche in dieselbe Richtung scheiterten (A174, Zuwachs -2); Cache-Kohärenz mit AST-Validierung muss gewahrt bleiben",
+   "aufwand_generationen": 2,
+   "bereiche": [
+    "formeln"
+   ],
+   "vertraege": [
+    "test_vertrag_preise_formeln.py"
+   ],
+   "artgedaechtnis": [],
+   "projektgedaechtnis": [
+    "A174",
+    "A175"
+   ],
+   "nische": "schnell",
+   "_verweise_werkuebergreifend": [],
+   "_verweise_eigenes_werk": [
+    "A174",
+    "A175"
+   ]
+  },
+  {
+   "name": "Sättigung anerkennen für lager/formeln/bericht Kernmaß",
+   "ziel": "Kernmaß steht in lager, formeln und bericht bei 0 (Höchstwert); zahlreiche Versuche in Gen 13–14 scheiterten ohne Zuwachs, echte Verbesserung nur noch in preise (Hermes-Fund) offen.",
+   "ertrag": "Kein weiterer Kernmaß-Zuwachs zu erwarten in diesen drei Bereichen ohne neue Fundlage; Fokus sollte auf preise-Fund und Grenzmaßen liegen",
+   "risiko": "Keins bei Anerkennung selbst; Risiko liegt im Ignorieren dieser Erkenntnis und weiterem Ressourcenverbrauch für aussichtslose Umformungen",
+   "aufwand_generationen": 1,
+   "bereiche": [
+    "lager",
+    "formeln",
+    "bericht"
+   ],
+   "vertraege": [],
+   "artgedaechtnis": [],
+   "projektgedaechtnis": [
+    "A176",
+    "A177",
+    "A178",
+    "A182",
+    "A183",
+    "A184",
+    "A185",
+    "A186",
+    "A187",
+    "A188",
+    "A189",
+    "A190",
+    "A192",
+    "A193",
+    "A194",
+    "A196",
+    "A197",
+    "A198"
+   ],
+   "nische": "sicher",
+   "_verweise_werkuebergreifend": [],
+   "_verweise_eigenes_werk": [
+    "A176",
+    "A177",
+    "A178",
+    "A182",
+    "A183",
+    "A184",
+    "A185",
+    "A186",
+    "A187",
+    "A188",
+    "A189",
+    "A190",
+    "A192",
+    "A193",
+    "A194",
+    "A196",
+    "A197",
+    "A198"
+   ]
+  }
+ ],
+ "empfehlung": "Hermes-Fund K1165 beheben: Katalog.wert nutzt Grundpreis",
+ "begruendung": "Dies ist der einzige offene, bestätigte Fund mit direktem Vertragsbezug und klarem Kernmaß-Zuwachs in preise; die lager-Reservierung ist verlockend, aber seit Gen 12–14 durchgehend gescheitert und sollte erst nach gründlicherer Analyse erneut versucht werden.",
+ "pruefung": {
+  "anzahl": 5,
+  "anzahl_ok": true,
+  "pflichtfelder_ok": [
+   true,
+   true,
+   true,
+   true,
+   true
+  ],
+  "artgedaechtnis_werkuebergreifend": [],
+  "eigenes_werk_projektgedaechtnis": [
+   "A179",
+   "A191",
+   "A195",
+   "A183",
+   "A184",
+   "A185",
+   "A186",
+   "A187",
+   "A188",
+   "A174",
+   "A175",
+   "A176",
+   "A177",
+   "A178",
+   "A182",
+   "A183",
+   "A184",
+   "A185",
+   "A186",
+   "A187",
+   "A188",
+   "A189",
+   "A190",
+   "A192",
+   "A193",
+   "A194",
+   "A196",
+   "A197",
+   "A198"
+  ],
+  "erfundene_verweise": [],
+  "richtungen_mit_werkuebergreifendem_verweis": 0
+ },
+ "modell": "anthropic/claude-sonnet-5"
+}

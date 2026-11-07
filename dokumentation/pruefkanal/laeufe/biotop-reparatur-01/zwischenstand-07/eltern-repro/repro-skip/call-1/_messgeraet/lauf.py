@@ -1,0 +1,1 @@
+import subprocess,sys;subprocess.run([sys.executable,'-m','pytest','-q','-p','no:cacheprovider','--tb=short','--junitxml=/tmp/j.xml',*sys.argv[1:]]);print('@@J@@'+open('/tmp/j.xml').read()+'@@E@@')

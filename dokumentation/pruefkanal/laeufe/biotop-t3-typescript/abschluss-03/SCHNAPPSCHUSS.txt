@@ -1,0 +1,60 @@
+{
+ "original_vorher": {
+  "t3.db": {
+   "sha256": "99a4c7863278ecf374a8d86410ef4e64659089cd54f8505b6647541eb5395e7a",
+   "bytes": 276733952,
+   "mtime_ns": 1790104594269800565
+  },
+  "t3.db-wal": {
+   "sha256": "429866997c07eaaa8e967ffb95445b67ac8dd1eab898524196b2952629048f5d",
+   "bytes": 13221112,
+   "mtime_ns": 1790105171522718437
+  }
+ },
+ "original_nachher": {
+  "t3.db": {
+   "sha256": "99a4c7863278ecf374a8d86410ef4e64659089cd54f8505b6647541eb5395e7a",
+   "bytes": 276733952,
+   "mtime_ns": 1790104594269800565
+  },
+  "t3.db-wal": {
+   "sha256": "429866997c07eaaa8e967ffb95445b67ac8dd1eab898524196b2952629048f5d",
+   "bytes": 13221112,
+   "mtime_ns": 1790105171522718437
+  }
+ },
+ "original_unveraendert": true,
+ "schnappschuss": "/root/biotop-t3/schnappschuss-abschluss3/t3.db",
+ "schnappschuss_sha256": "7a31b8a31196f47228fde25e1ee51f718cb5e470631373beff2f68d10ce42b37",
+ "schnappschuss_bytes": 278564864
+}
+
+Gegenüberstellung immutable-Lesung (ohne WAL) gegen Schnappschuss (mit WAL):
+  SELECT COUNT(*), MAX(nr), MAX(zeit) FROM protokoll
+     immutable   : [(26258, 26258, '2026-09-22T19:16:34.260+00:00')]
+     schnappschuss: [(26448, 26448, '2026-09-22T19:26:11.523+00:00')]
+     gleich: False
+  SELECT COUNT(*), MAX(id) FROM kandidaten
+     immutable   : [(3326, 3326)]
+     schnappschuss: [(3342, 3342)]
+     gleich: False
+  SELECT COUNT(*) FROM kasse
+     immutable   : [(6624,)]
+     schnappschuss: [(6673,)]
+     gleich: False
+  SELECT COUNT(*) FROM immunsystem
+     immutable   : [(411,)]
+     schnappschuss: [(411,)]
+     gleich: True
+  SELECT COUNT(*) FROM generationen WHERE lauf_id=38
+     immutable   : [(17,)]
+     schnappschuss: [(18,)]
+     gleich: False
+  SELECT nummer, status, freigabe_am FROM generationen WHERE lauf_id=38 AND nummer>=16 ORDER BY nummer
+     immutable   : [(16, 'vorgelegt', None)]
+     schnappschuss: [(16, 'angenommen', '2026-09-22T19:16:34.506+00:00'), (17, 'abgelehnt', None)]
+     gleich: False
+  SELECT nummer FROM generationen WHERE lauf_id=38 AND status='angenommen' ORDER BY nummer
+     immutable   : [(0,), (1,), (4,), (5,), (9,), (10,), (12,), (13,)]
+     schnappschuss: [(0,), (1,), (4,), (5,), (9,), (10,), (12,), (13,), (16,)]
+     gleich: False

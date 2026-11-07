@@ -1,0 +1,686 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 03 · Teil 180 (Teile 166–239 dieses Stands) · enthält R190 bis R191
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R190 · Sicherung 10/11: Wiederherstellungsprobe (entpacken in leeres Verzeichnis, Manifest, Vergleich)
+Beginn: 2026-09-25 19:44:28 CEST (UTC+0200)
+Ende:   2026-09-25 19:45:15 CEST (UTC+0200)
+Dauer:  47.7 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/sich.py probe
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/sich.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 · Sicherung nach Abschnitt 4 (Entscheidungen Hermes stehen in SICHERUNG-NN.md).
+
+Unterbefehle (jeder läuft über rb.py als Rohbeleg):
+  liste <name>                Prüfsummenliste /root/biotop ohne die oberste .git/ → pruefsummen/<name>.txt (exklusiv)
+  vergleich <a> <b>           Vergleich zweier Prüfsummenlisten (Dateianzahl beider Seiten, jede Abweichung einzeln)
+  dbliste                     SQLite-Dateien im Umfang (nach Magie „SQLite format 3“) → sicherung/dbliste.json
+  stufe <teil>                Zwischenstand sicherung/stufe/ für einen Umfangsteil: Dateien kopieren (mit Rechten und
+                              Besitzer), Datenbanken per Connection.backup, Geheimnisdateien und Abhängigkeitsordner
+                              ausgelassen (jede Auslassung im Protokoll)
+  integritaet                 PRAGMA integrity_check über jede Datenbankkopie in stufe/
+  manifest <baum> <ziel>      Manifest eines Baums (D Verzeichnis, F sha256 Größe, L Verweisziel)
+  packen                      Manifest von stufe/, dann tar | pigz → biotop-sicherung-2026-09-25-01.tar.gz
+  probe                       Archiv in sicherung/probe/ entpacken, Manifest, Vergleich mit dem Packmanifest
+  gegenprobe                  Kopie von probe/ (harte Verweise), genau ein Byte in einer Datei geändert, Vergleich
+Nichts wird überschrieben: jede Zieldatei und jedes Zielverzeichnis wird exklusiv angelegt.
+"""
+import hashlib
+import json
+import os
+import shutil
+import sqlite3
+import stat
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+W = Path('/root/sicherung/biotop-lage-01')
+S = W / 'sicherung'
+STUFE = S / 'stufe'
+PROBE = S / 'probe'
+GEGEN = S / 'gegenprobe'
+ARCHIV = W / 'biotop-sicherung-2026-09-25-01.tar.gz'
+TMP = W / 'tmp'
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+LAEUFE = Path(f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe')
+
+AUSGELASSENE_ORDNER = {'node_modules', 'venv', '.venv', '__pycache__', '.pytest_cache', '.mypy_cache', '.ruff_cache'}
+GEHEIM_NAMEN = {'.env', 'auth.json'}
+GEHEIM_ENDUNGEN = ('.pem', '.key')
+GEHEIM_ANFAENGE = ('id_rsa', 'id_ed25519', 'id_ecdsa', 'id_dsa')
+# Einzelne Dateien, die Werte aus auth.json enthalten (R178: 4 Treffer, Kontodaten des Codex-Anbieters). Entscheidung
+# Hermes 25.09.: wie eine Geheimnisdatei behandeln, nur mit Pfad im Bericht.
+GEHEIM_PFADE = {'/root/w7/07-codex-token.txt'}
+ARBEITSORDNER = ['biotop-t3', 'biotop-vor-t4', 'biotop-vor-t4-02', 'biotop-vor-t4-03', 'biotop-vor-t4-04',
+                 'biotop-vor-t4-05', 'biotop-vor-t4-06', 'phase-4-vorbedingung-1', 'reparatur-01', 'reparatur-02',
+                 'gesamtstand-01', 'wiedereinstieg-01', 'biotop-einstieg-20260921-0122',
+                 'traeger-umstellung-2026-09-20_22-32-03Z', 'uebungswerk', 'uebungswerk2', 'uebungswerk-nachlauf',
+                 'uebungswerk-p2', 'uebungswerk-p3', 'uebungswerk-p3b', 'uebungswerk-p3c', 'uebungswerk-p3d',
+                 'versandwerk-t3', 'versandwerk-t3-02', 'versiegelt', 'w7']
+
+
+TMP_AUSSER_PREFIX = ('systemd-private-', 'hermes_kernel_', 'hermes_rpc_', 'hermes-codex-schema-', 'claude-',
+                     'node-compile-cache', 'data-gym-cache', 'tirith')
+
+
+def tmp_teile() -> list:
+    """/tmp wird beim Neustart geleert (tmpfiles.d: „D /tmp 1777 root root 30d“, R-Beleg) — die Arbeits- und
+    Reviewordner der Behebungsrunden liegen dort. Gesichert wird alles außer Werkzeug- und Systemordnern (Auslassung
+    nach Namensanfang, jede im Protokoll)."""
+    return [Path('/tmp') / x for x in sorted(os.listdir('/tmp')) if not x.startswith(TMP_AUSSER_PREFIX)]
+
+
+def teile() -> dict:
+    return {
+        '1-biotop': [Path('/root/biotop')],
+        '2-auftraege-arbeitsordner': [W / 'auftrag', W / 'arbeit' / 'dokumente'] + [Path('/root') / a for a in ARBEITSORDNER],
+        '2b-tmp': tmp_teile(),
+        '3-pruefkanal': sorted(p for p in LAEUFE.iterdir() if p.name.startswith('biotop-')) + [LAEUFE / 'gedaechtnis'],
+        '4-sitzungsdatenbank': [Path('/root/.hermes/state.db')],
+        '5-hermes-rest': [Path('/root/.hermes')],
+    }
+
+
+HERMES_AUSSER = {'/root/.hermes/state.db', '/root/.hermes/state.db-wal', '/root/.hermes/state.db-shm'}
+
+
+def jetzt() -> str:
+    return time.strftime('%Y-%m-%d %H:%M:%S %Z (UTC%z)')
+
+
+def sha_datei(p) -> str:
+    h = hashlib.sha256()
+    with open(p, 'rb') as f:
+        for block in iter(lambda: f.read(1 << 20), b''):
+            h.update(block)
+    return h.hexdigest()
+
+
+def exklusiv_schreiben(p: Path, text: str) -> None:
+    p.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(p, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, 'w', encoding='utf-8', errors='surrogateescape') as f:
+        f.write(text)
+
+
+# ---------------------------------------------------------------- Prüfsummenliste /root/biotop (VORHER / NACHHER)
+def liste(name: str) -> None:
+    wurzel = '/root/biotop'
+    zeilen, n_dat, n_ver, n_son, byt = [], 0, 0, 0, 0
+    for d, ds, fs in os.walk(wurzel):
+        if d == wurzel:
+            ds[:] = [x for x in ds if x != '.git']
+        ds.sort()
+        for x in list(ds):
+            p = os.path.join(d, x)
+            if os.path.islink(p):
+                fs.append(x)
+                ds.remove(x)
+        for f in sorted(fs):
+            p = os.path.join(d, f)
+            rel = os.path.relpath(p, wurzel)
+            st = os.lstat(p)
+            if stat.S_ISLNK(st.st_mode):
+                zeilen.append(f'VERWEIS -> {os.readlink(p)}  {rel}')
+                n_ver += 1
+            elif stat.S_ISREG(st.st_mode):
+                zeilen.append(f'{sha_datei(p)}  {rel}')
+                n_dat += 1
+                byt += st.st_size
+            else:
+                zeilen.append(f'SONDERDATEI  {rel}')
+                n_son += 1
+    zeilen.sort(key=lambda z: z.split('  ', 1)[1])
+    text = '\n'.join(zeilen) + '\n'
+    ziel = W / 'pruefsummen' / f'{name}.txt'
+    exklusiv_schreiben(ziel, text)
+    print(f'Prüfsummenliste {name}: /root/biotop ohne /root/biotop/.git/ (verschachtelte .git-Ordner der Werke zählen mit)')
+    print(f'Zeitpunkt: {jetzt()}')
+    print(f'Dateien: {n_dat} · Verweise: {n_ver} · Sonderdateien: {n_son} · Einträge gesamt: {len(zeilen)} · Bytes der Dateien: {byt}')
+    print(f'Liste: {ziel} · {len(text.encode())} Bytes · SHA-256 der Liste {hashlib.sha256(text.encode()).hexdigest()}')
+    print('--- Liste (vollständig; Format: SHA-256, zwei Leerzeichen, Pfad relativ zu /root/biotop) ---')
+    sys.stdout.write(text)
+
+
+def vergleich(a: str, b: str) -> None:
+    def lade(n):
+        t = (W / 'pruefsummen' / f'{n}.txt').read_text(errors='surrogateescape')
+        return {z.split('  ', 1)[1]: z.split('  ', 1)[0] for z in t.splitlines() if z}, hashlib.sha256(t.encode(errors='surrogateescape')).hexdigest()
+    ma, ha = lade(a)
+    mb, hb = lade(b)
+    nur_a = sorted(set(ma) - set(mb))
+    nur_b = sorted(set(mb) - set(ma))
+    anders = sorted(k for k in set(ma) & set(mb) if ma[k] != mb[k])
+    print(f'{a}: {len(ma)} Einträge, SHA-256 der Liste {ha}')
+    print(f'{b}: {len(mb)} Einträge, SHA-256 der Liste {hb}')
+    print(f'nur in {a}: {len(nur_a)} · nur in {b}: {len(nur_b)} · Inhalt verschieden: {len(anders)}')
+    for k in nur_a:
+        print(f'  NUR {a}: {k}')
+    for k in nur_b:
+        print(f'  NUR {b}: {k}')
+    for k in anders:
+        print(f'  VERSCHIEDEN: {k}  {ma[k][:16]}… → {mb[k][:16]}…')
+    print('ERGEBNIS: Unterschied leer' if not (nur_a or nur_b or anders) else 'ERGEBNIS: Unterschied NICHT leer')
+
+
+# ---------------------------------------------------------------- Umfang, Auslassungen, Datenbanken
+def geheim(name: str) -> bool:
+    # Auch Sicherungskopien von Geheimnisdateien (Befund 25.09.: /root/.hermes/.env.sicherung-2026-09-18).
+    return (name in GEHEIM_NAMEN or name.startswith(('.env', 'auth.json')) or name.endswith(GEHEIM_ENDUNGEN)
+            or name.startswith(GEHEIM_ANFAENGE))
+
+
+def laufe(wurzel: Path, teil: str):
+    """Liefert (art, pfad) für alles im Umfang: 'ordner', 'datei', 'verweis', 'sonder', 'aus-ordner', 'aus-geheim', 'aus-hermes'."""
+    w = str(wurzel)
+    if wurzel.is_file() or wurzel.is_symlink():
+        yield ('verweis' if wurzel.is_symlink() else 'datei'), w
+        return
+    for d, ds, fs in os.walk(w):
+        yield 'ordner', d
+        behalten = []
+        for x in sorted(ds):
+            p = os.path.join(d, x)
+            if os.path.islink(p):
+                yield 'verweis', p
+            elif x in AUSGELASSENE_ORDNER:
+                yield 'aus-ordner', p
+            else:
+                behalten.append(x)
+        ds[:] = behalten
+        for f in sorted(fs):
+            p = os.path.join(d, f)
+            if teil == '5-hermes-rest' and p in HERMES_AUSSER:
+                yield 'aus-hermes', p
+                continue
+            if geheim(f) or p in GEHEIM_PFADE:
+                yield 'aus-geheim', p
+                continue
+            try:
+                st = os.lstat(p)
+            except FileNotFoundError:
+                yield 'verschwunden', p
+                continue
+            if stat.S_ISLNK(st.st_mode):
+                yield 'verweis', p
+            elif stat.S_ISREG(st.st_mode):
+                yield 'datei', p
+            else:
+                yield 'sonder', p
+
+
+def ist_sqlite(p: str) -> bool:
+    try:
+        if os.path.getsize(p) < 100:
+            return False
+        with open(p, 'rb') as h:
+            return h.read(16) == b'SQLite format 3\x00'
+    except OSError:
+        return False
+
+
+def dbliste() -> None:
+    erg = {}
+    for teil, wurzeln in teile().items():
+        for wz in wurzeln:
+            for art, p in laufe(wz, teil):
+                if art == 'datei' and ist_sqlite(p):
+                    begleit = {e: os.path.getsize(p + e) for e in ('-wal', '-shm', '-journal') if os.path.exists(p + e)}
+                    erg[p] = {'teil': teil, 'bytes': os.path.getsize(p), 'begleit': begleit}
+    ziel = S / 'dbliste.json'
+    exklusiv_schreiben(ziel, json.dumps(erg, indent=1, ensure_ascii=False))
+    je = {}
+    for v in erg.values():
+        je[v['teil']] = je.get(v['teil'], 0) + 1
+    print(f'Zeitpunkt: {jetzt()} · SQLite-Dateien im Umfang: {len(erg)} · je Teil: {je}')
+    mit_wal = {p: v['begleit'] for p, v in erg.items() if v['begleit'].get('-wal', 0) > 0}
+    print(f'davon mit nicht leerer -wal-Datei: {len(mit_wal)}')
+    for p, b in sorted(mit_wal.items()):
+        print(f'  {p} {b}')
+    jr = [p for p, v in erg.items() if '-journal' in v['begleit']]
+    print(f'davon mit -journal-Datei: {len(jr)} {jr}')
+    print(f'Liste: {ziel}')
+
+
+def sichere_db(src: str, dst: str) -> str:
+    """Kopie per Connection.backup. Rückgabe: benutzter Weg."""
+    wal = src + '-wal'
+    if src.startswith('/root/.hermes/'):
+        weg = 'mode=ro am Original (Hermes schreibt laufend; backup liest einen Schnappschuss)'
+        s = sqlite3.connect(f'file:{src}?mode=ro', uri=True)
+    elif os.path.exists(wal) and os.path.getsize(wal) > 0:
+        # Kein Schreiber; -wal nicht leer: Datei und -wal in ein eigenes Verzeichnis kopieren und die Kopie lesen,
+        # damit am Original (auch an -shm) nichts geschieht.
+        td = tempfile.mkdtemp(dir=TMP, prefix='db-')
+        k = os.path.join(td, 'k.db')
+        shutil.copy2(src, k)
+        shutil.copy2(wal, k + '-wal')
+        weg = 'Kopie von Datei und -wal, Backup aus der Kopie (Original unberührt)'
+        s = sqlite3.connect(k)
+    else:
+        weg = 'mode=ro&immutable=1 (keine -wal-Daten; Original und -shm unberührt)'
+        s = sqlite3.connect(f'file:{src}?mode=ro&immutable=1', uri=True)
+    d = sqlite3.connect(dst)
+    with d:
+        s.backup(d)
+    d.close()
+    s.close()
+    return weg
+
+
+def stufe(teil: str) -> None:
+    dbs = json.loads((S / 'dbliste.json').read_text())
+    begleiter = {p + e for p in dbs for e in ('-wal', '-shm', '-journal')}
+    wurzeln = teile()[teil]
+    z = {'ordner': 0, 'datei': 0, 'datenbank': 0, 'verweis': 0, 'sonder': 0, 'aus-ordner': 0, 'aus-geheim': 0,
+         'aus-hermes': 0, 'aus-begleit': 0, 'verschwunden': 0, 'db-roh': 0}
+    byt = 0
+    protokoll = []
+    t0 = time.time()
+    for wz in wurzeln:
+        if not wz.exists():
+            protokoll.append(f'FEHLT {wz}')
+            continue
+        for art, p in laufe(wz, teil):
+            ziel = STUFE / p.lstrip('/')
+            if art == 'ordner':
+                ziel.mkdir(parents=True, exist_ok=True)
+                st = os.lstat(p)
+                os.chown(ziel, st.st_uid, st.st_gid)
+                os.chmod(ziel, stat.S_IMODE(st.st_mode))
+                z['ordner'] += 1
+            elif art == 'verweis':
+                ziel.parent.mkdir(parents=True, exist_ok=True)
+                os.symlink(os.readlink(p), ziel)
+                st = os.lstat(p)
+                os.chown(ziel, st.st_uid, st.st_gid, follow_symlinks=False)
+                z['verweis'] += 1
+            elif art == 'datei':
+                if p in begleiter:
+                    z['aus-begleit'] += 1
+                    protokoll.append(f'AUSGELASSEN (Begleitdatei einer Datenbank, Inhalt steckt in der Backup-Kopie): {p}')
+                    continue
+                ziel.parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    st = os.lstat(p)
+                    if p in dbs:
+                        try:
+                            weg = sichere_db(p, str(ziel))
+                            z['datenbank'] += 1
+                            protokoll.append(f'DATENBANK {p} → Backup ({weg})')
+                        except sqlite3.Error as e:
+                            if ziel.exists():
+                                ziel.rename(ziel.with_name(ziel.name + '.backup-fehlgeschlagen'))
+                            fd = os.open(ziel, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                            os.close(fd)
+                            shutil.copyfile(p, ziel, follow_symlinks=False)
+                            shutil.copystat(p, ziel, follow_symlinks=False)
+                            z['db-roh'] += 1
+                            protokoll.append(f'DATENBANK-BACKUP FEHLGESCHLAGEN ({type(e).__name__}: {e}), Datei roh kopiert: {p}')
+                    else:
+                        fd = os.open(ziel, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                        os.close(fd)
+                        shutil.copyfile(p, ziel, follow_symlinks=False)
+                        shutil.copystat(p, ziel, follow_symlinks=False)
+                        z['datei'] += 1
+                except FileNotFoundError:
+                    z['verschwunden'] += 1
+                    protokoll.append(f'VERSCHWUNDEN während des Kopierens (nicht gesichert): {p}')
+                    if ziel.exists() and ziel.stat().st_size == 0:
+                        ziel.unlink()
+                    continue
+                os.chown(ziel, st.st_uid, st.st_gid)
+                os.chmod(ziel, stat.S_IMODE(st.st_mode))
+                byt += os.path.getsize(ziel)
+            elif art == 'sonder':
+                z['sonder'] += 1
+                protokoll.append(f'AUSGELASSEN (Sonderdatei: Socket, FIFO oder Gerät): {p}')
+            else:
+                z[art] += 1
+                grund = {'aus-ordner': 'Abhängigkeits- oder Zwischenspeicherordner', 'aus-geheim': 'Geheimnisdatei, nur Pfad',
+                         'aus-hermes': 'Sitzungsdatenbank, gesichert als eigener Teil 4',
+                         'verschwunden': 'verschwunden vor dem Kopieren'}[art]
+                protokoll.append(f'AUSGELASSEN ({grund}): {p}')
+    text = '\n'.join(protokoll) + '\n'
+    exklusiv_schreiben(S / f'protokoll-stufe-{teil}.txt', text)
+    print(f'Teil {teil} · {jetzt()} · Dauer {time.time() - t0:.1f} s')
+    print(f'Wurzeln: {[str(w) for w in wurzeln]}')
+    print(f'Zählung: {z} · Bytes in der Stufe: {byt}')
+    print(f'Protokoll: {S / f"protokoll-stufe-{teil}.txt"} ({len(protokoll)} Zeilen)')
+    geheim_z = [x for x in protokoll if 'Geheimnisdatei' in x]
+    print(f'Ausgelassene Geheimnisdateien ({len(geheim_z)}):')
+    for x in geheim_z:
+        print('  ' + x)
+    print('Ausgelassene Ordner nach Name: ' + json.dumps(
+        {n: sum(1 for x in protokoll if x.startswith('AUSGELASSEN (Abhängigkeits') and x.endswith('/' + n)) for n in sorted(AUSGELASSENE_ORDNER)}))
+    rest = [x for x in protokoll if not x.startswith(('AUSGELASSEN (Abhängigkeits', 'DATENBANK', 'AUSGELASSEN (Geheim'))]
+    print(f'Weitere Protokollzeilen ({len(rest)}), höchstens 40:')
+    for x in rest[:40]:
+        print('  ' + x)
+
+
+def integritaet() -> None:
+    dbs = json.loads((S / 'dbliste.json').read_text())
+    ok, schlecht, fehlt = 0, [], []
+    wichtig = []
+    for p in sorted(dbs):
+        k = STUFE / p.lstrip('/')
+        if not k.exists():
+            fehlt.append(p)
+            continue
+        c = sqlite3.connect(f'file:{k}?mode=ro&immutable=1', uri=True)
+        r = [x[0] for x in c.execute('PRAGMA integrity_check').fetchall()]
+        tab = c.execute("SELECT count(*) FROM sqlite_master WHERE type='table'").fetchone()[0]
+        c.close()
+        if r == ['ok']:
+            ok += 1
+        else:
+            schlecht.append((p, r[:5]))
+        if ('/pytest' not in p and '/tmp/' not in p and '/eltern-temp/' not in p) or dbs[p]['bytes'] > 20_000_000:
+            wichtig.append(f'  {r[0] if len(r) == 1 else r[:3]} · {tab} Tabellen · Kopie {k.stat().st_size} Bytes · sha256 {sha_datei(k)[:16]}… · {p}')
+    print(f'{jetzt()} · PRAGMA integrity_check über {len(dbs)} Datenbankkopien in {STUFE}')
+    print(f'Ergebnis „ok“: {ok} von {len(dbs)} · nicht ok: {len(schlecht)} · Kopie fehlt: {len(fehlt)}')
+    for p, r in schlecht:
+        print(f'  NICHT OK: {p} {r}')
+    for p in fehlt:
+        print(f'  FEHLT: {p}')
+    print(f'Einzeln (alle Datenbanken außer Testzwischenständen unter pytest/tmp, und alle > 20 MB): {len(wichtig)}')
+    print('\n'.join(wichtig))
+
+
+# ---------------------------------------------------------------- Manifest, Packen, Probe, Gegenprobe
+def manifest_zeilen(root: Path) -> list:
+    r = str(root)
+    zeilen = []
+    for d, ds, fs in os.walk(r):
+        rel_d = os.path.relpath(d, r)
+        zeilen.append(f'D\t\t\t{rel_d}')
+        for x in list(ds):
+            if os.path.islink(os.path.join(d, x)):
+                fs.append(x)
+                ds.remove(x)
+        ds.sort()
+        for f in fs:
+            p = os.path.join(d, f)
+            rel = os.path.relpath(p, r)
+            st = os.lstat(p)
+            if stat.S_ISLNK(st.st_mode):
+                zeilen.append(f'L\t{os.readlink(p)}\t\t{rel}')
+            elif stat.S_ISREG(st.st_mode):
+                zeilen.append(f'F\t{sha_datei(p)}\t{st.st_size}\t{rel}')
+            else:
+                zeilen.append(f'S\t\t\t{rel}')
+    zeilen.sort(key=lambda z: z.split('\t')[3])
+    return zeilen
+
+
+def manifest(baum: str, ziel: str) -> dict:
+    t0 = time.time()
+    z = manifest_zeilen(Path(baum))
+    text = '\n'.join(z) + '\n'
+    exklusiv_schreiben(Path(ziel), text)
+    arten = {a: sum(1 for x in z if x.startswith(a + '\t')) for a in 'DFLS'}
+    byt = sum(int(x.split('\t')[2]) for x in z if x.startswith('F\t'))
+    info = {'baum': baum, 'ziel': ziel, 'eintraege': len(z), 'verzeichnisse': arten['D'], 'dateien': arten['F'],
+            'verweise': arten['L'], 'sonder': arten['S'], 'bytes': byt,
+            'sha256_manifest': hashlib.sha256(text.encode(errors='surrogateescape')).hexdigest(), 'dauer_s': round(time.time() - t0, 1)}
+    print(json.dumps(info, ensure_ascii=False))
+    return info
+
+
+def lade_manifest(p: Path) -> dict:
+    m = {}
+    for z in p.read_text(errors='surrogateescape').splitlines():
+        a, x, y, rel = z.split('\t')
+        m[rel] = (a, x, y)
+    return m
+
+
+def vergleiche_manifeste(a: Path, b: Path, name_a: str, name_b: str) -> list:
+    ma, mb = lade_manifest(a), lade_manifest(b)
+    nur_a = sorted(set(ma) - set(mb))
+    nur_b = sorted(set(mb) - set(ma))
+    anders = sorted(k for k in set(ma) & set(mb) if ma[k] != mb[k])
+    zf = lambda m: sum(1 for v in m.values() if v[0] == 'F')
+    print(f'{name_a}: {len(ma)} Einträge, davon {zf(ma)} Dateien · {name_b}: {len(mb)} Einträge, davon {zf(mb)} Dateien')
+    print(f'nur {name_a}: {len(nur_a)} · nur {name_b}: {len(nur_b)} · verschieden: {len(anders)}')
+    for k in nur_a[:50]:
+        print(f'  NUR {name_a}: {k}')
+    for k in nur_b[:50]:
+        print(f'  NUR {name_b}: {k}')
+    for k in anders[:50]:
+        print(f'  VERSCHIEDEN: {k} · {ma[k][1][:16]}… → {mb[k][1][:16]}…')
+    leer = not (nur_a or nur_b or anders)
+    print('ERGEBNIS: Unterschied leer' if leer else f'ERGEBNIS: Unterschied NICHT leer ({len(nur_a) + len(nur_b) + len(anders)} Einträge)')
+    return nur_a + nur_b + anders
+
+
+def packen() -> None:
+    print(f'Beginn {jetzt()}')
+    info = manifest(str(STUFE), str(S / 'MANIFEST-PACKEN.tsv'))
+    if ARCHIV.exists():
+        raise SystemExit(f'{ARCHIV} besteht schon — nichts überschrieben')
+    t0 = time.time()
+    fd = os.open(ARCHIV, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, 'wb') as aus:
+        tar = subprocess.Popen(['tar', '--numeric-owner', '--sort=name', '-C', str(STUFE), '-cf', '-', '.'], stdout=subprocess.PIPE)
+        gz = subprocess.Popen(['pigz', '-6', '-p', '4'], stdin=tar.stdout, stdout=aus)
+        tar.stdout.close()
+        rc_gz = gz.wait()
+        rc_tar = tar.wait()
+    print(f'tar rc={rc_tar} · pigz rc={rc_gz} · Dauer {time.time() - t0:.1f} s')
+    print(f'Archiv {ARCHIV}: {ARCHIV.stat().st_size} Bytes · SHA-256 {sha_datei(ARCHIV)}')
+    t = subprocess.run(f'pigz -dc {ARCHIV} | tar -tf - | wc -l', shell=True, capture_output=True, text=True)
+    print(f'Einträge laut tar -t: {t.stdout.strip()} (Manifest: {info["eintraege"]} Einträge = {info["verzeichnisse"]} Verzeichnisse + '
+          f'{info["dateien"]} Dateien + {info["verweise"]} Verweise + {info["sonder"]} Sonder)')
+    print(f'Ende {jetzt()}')
+
+
+def probe() -> None:
+    print(f'Beginn {jetzt()}')
+    PROBE.mkdir(parents=False, exist_ok=False)
+    t0 = time.time()
+    r = subprocess.run(f'pigz -dc {ARCHIV} | tar --numeric-owner -C {PROBE} -xpf -', shell=True, capture_output=True, text=True)
+    print(f'Entpacken rc={r.returncode} · Dauer {time.time() - t0:.1f} s · stderr: {r.stderr.strip()[:500] or "(leer)"}')
+    manifest(str(PROBE), str(S / 'MANIFEST-PROBE.tsv'))
+    vergleiche_manifeste(S / 'MANIFEST-PACKEN.tsv', S / 'MANIFEST-PROBE.tsv', 'gepackt', 'entpackt')
+    print(f'Ende {jetzt()}')
+
+
+def gegenprobe(rel: str) -> None:
+    print(f'Beginn {jetzt()}')
+    r = subprocess.run(['cp', '-al', str(PROBE), str(GEGEN)], capture_output=True, text=True)
+    print(f'cp -al probe gegenprobe rc={r.returncode} {r.stderr.strip()[:300]}')
+    p = GEGEN / rel
+    vorher_probe = sha_datei(PROBE / rel)
+    b = bytearray(p.read_bytes())
+    alt = b[0]
+    b[0] ^= 0x01
+    tmp = p.with_name(p.name + '.gegenprobe-neu')
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, 'wb') as f:
+        f.write(b)
+    shutil.copystat(PROBE / rel, tmp)
+    os.replace(tmp, p)
+    print(f'Geändert: {rel} · Byte 0: {alt:#04x} → {b[0]:#04x} · probe/ dieselbe Datei danach unverändert: {sha_datei(PROBE / rel) == vorher_probe}')
+    manifest(str(GEGEN), str(S / 'MANIFEST-GEGENPROBE.tsv'))
+    abw = vergleiche_manifeste(S / 'MANIFEST-PACKEN.tsv', S / 'MANIFEST-GEGENPROBE.tsv', 'gepackt', 'gegenprobe')
+    print('GEGENPROBE ANGESCHLAGEN: genau die geänderte Datei gemeldet' if abw == [rel] else f'GEGENPROBE NICHT wie erwartet: {abw[:5]}')
+    print(f'Ende {jetzt()}')
+
+
+if __name__ == '__main__':
+    TMP.mkdir(exist_ok=True)
+    S.mkdir(exist_ok=True)
+    cmd, args = sys.argv[1], sys.argv[2:]
+    {'liste': liste, 'vergleich': vergleich, 'dbliste': dbliste, 'stufe': stufe, 'integritaet': integritaet,
+     'manifest': manifest, 'packen': packen, 'probe': probe, 'gegenprobe': gegenprobe}[cmd](*args)
+--- Ende /root/sicherung/biotop-lage-01/arbeit/sich.py ---
+Ausgabe (vollständig, stdout und stderr):
+Beginn 2026-09-25 19:44:28 CEST (UTC+0200)
+Entpacken rc=0 · Dauer 16.1 s · stderr: (leer)
+{"baum": "/root/sicherung/biotop-lage-01/sicherung/probe", "ziel": "/root/sicherung/biotop-lage-01/sicherung/MANIFEST-PROBE.tsv", "eintraege": 111440, "verzeichnisse": 33800, "dateien": 75214, "verweise": 2426, "sonder": 0, "bytes": 3385003245, "sha256_manifest": "bbdc340730bec285315fd4c84ac5ae54a28cc819b03a86b3109cfa519d5d620f", "dauer_s": 30.6}
+gepackt: 111440 Einträge, davon 75214 Dateien · entpackt: 111440 Einträge, davon 75214 Dateien
+nur gepackt: 0 · nur entpackt: 0 · verschieden: 0
+ERGEBNIS: Unterschied leer
+Ende 2026-09-25 19:45:15 CEST (UTC+0200)
+=== Ende R190 ===
+
+
+R191 · Inventar zum Stichzeitpunkt 17:29:59 (Verzeichnis v3, git-Status, Auftragsbeginn 14:44:20) mit Gegenprobe; Datenbanken mit nicht leerer -wal nur als Kopie geöffnet (Änderung Hermes an inventar.py, A6); -shm vorher/nachher
+Beginn: 2026-09-25 19:45:05 CEST (UTC+0200)
+Ende:   2026-09-25 19:45:33 CEST (UTC+0200)
+Dauer:  27.6 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/sicherung/biotop-lage-01/arbeit/s7_inventar.sh
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/s7_inventar.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-LAGE-01 · Inventar zum Stichzeitpunkt (Abschnitt 5), ausgeführt von Hermes (Stand 03).
+# 1. Nicht Eingechecktes (git --no-optional-locks status --short) in eine Datei für --git-status.
+# 2. Vorher: Zeiten der -shm neben den Kassen-Zweigen (die Kopie-Regel muss sie unberührt lassen).
+# 3. Lieferlauf: --stich = Stichzeitpunkt 17:29:59, --verlauf v3 (bis zum Stichzeitpunkt, R155), --auftrag-beginn 14:44:20.
+# 4. Gegenprobe in eigenen Ordner.
+# 5. Nachher: dieselben Zeiten; müssen gleich sein.
+set -eu
+W=/root/sicherung/biotop-lage-01
+I=$W/entwurf/inventar
+G=$W/tmp/git-status-stich.txt
+date '+== Zeitpunkt %Y-%m-%d %H:%M:%S %Z (UTC%z)'
+echo "inventar.py: $(sha256sum < $I/inventar.py | cut -c1-64) · $(stat -c %s $I/inventar.py) B"
+git -C /root/biotop --no-optional-locks status --short > "$G"
+echo "git-Status (nicht Eingechecktes) → $G: $(wc -l < "$G") Zeilen · HEAD $(git -C /root/biotop log -1 --format=%h)"
+shm() { for d in /root/biotop/daten/biotop.db /root/phase-4-vorbedingung-1/privat/biotop.db /root/reparatur-02/privat-cli/privat.db /root/biotop-t3/t3.db; do stat -c '%n-shm %y' "$d-shm" 2>/dev/null || echo "$d-shm fehlt"; done; }
+echo '== -shm vorher'; shm > $W/tmp/shm-vorher-inventar.txt; cat $W/tmp/shm-vorher-inventar.txt
+echo '== Lieferlauf'
+python3 $I/inventar.py --stich '2026-09-25T17:29:59+02:00' --aus $I/lauf-stich-v3 --verlauf v3 --git-status "$G" \
+  --auftrag-beginn '2026-09-25T14:44:20+02:00'
+echo '== Gegenprobe'
+python3 $I/inventar.py --gegenprobe --stich '2026-09-25T17:29:59+02:00' --aus $I/lauf-stich-v3-gegenprobe --verlauf v3 \
+  --git-status "$G" --auftrag-beginn '2026-09-25T14:44:20+02:00'
+echo '== -shm nachher (muss gleich vorher sein)'
+shm > $W/tmp/shm-nachher-inventar.txt; cat $W/tmp/shm-nachher-inventar.txt
+cmp -s $W/tmp/shm-vorher-inventar.txt $W/tmp/shm-nachher-inventar.txt && echo 'GLEICH: keine -shm berührt' || echo 'UNGLEICH: -shm berührt'
+echo '== Ausgabedateien'
+for d in $I/lauf-stich-v3 $I/lauf-stich-v3-gegenprobe; do find "$d" -type f -printf '%f %s B\n' | sort -V; done
+--- Ende /root/sicherung/biotop-lage-01/arbeit/s7_inventar.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== Zeitpunkt 2026-09-25 19:45:05 CEST (UTC+0200)
+inventar.py: 9f893d92e15ada5c959feb273020ce29b626cb5ccab586112b44c5d7325df02b · 100276 B
+git-Status (nicht Eingechecktes) → /root/sicherung/biotop-lage-01/tmp/git-status-stich.txt: 25 Zeilen · HEAD 0c2f058
+== -shm vorher
+/root/biotop/daten/biotop.db-shm-shm 2026-09-25 15:55:06.795824186 +0200
+/root/phase-4-vorbedingung-1/privat/biotop.db-shm-shm 2026-09-25 17:43:13.721886054 +0200
+/root/reparatur-02/privat-cli/privat.db-shm-shm 2026-09-25 16:58:22.378895297 +0200
+/root/biotop-t3/t3.db-shm-shm 2026-09-25 18:14:31.959782621 +0200
+== Lieferlauf
+Stichzeitpunkt 2026-09-25 17:29:59 CEST; Lesebeginn 2026-09-25 19:45:06 CEST
+I1 40 Läufe · Kasse 6919 Buchungen · I2 1455 Nachrichten (Biotop 1440) · I3 20 Ordner · I4 147 Fundorte · I5 24 Werke · I6 75 Commits, 202 Dateien · I7 5 Dateien
+Abgleich 1: offen keine
+- Kopie der Inventare im Speicher: I1 40 → 41 Läufe (+ `ERFUNDEN/999`, Beginn 2026-09-22 12:00:00 CEST), I3 20 → 21 Ordner (+ `laeufe/biotop-erfunden-99/`, 3 Dateien). *gerechnet*
+- Abgleich 1 am Original: unzugeordnet 0 Läufe, 0 Ordner: keine.
+- Abgleich 1 an der Kopie: unzugeordnet 1 Läufe, 1 Ordner: ['ERFUNDEN/999', 'biotop-erfunden-99'].
+- Neu unzugeordnet (Kopie − Original): ['ERFUNDEN/999', 'biotop-erfunden-99']; weggefallen (Original − Kopie): keine.
+- **Gegenprobe angeschlagen: ja** — Bedingung: neu unzugeordnet sind genau ['ERFUNDEN/999', 'biotop-erfunden-99'] und nichts fällt weg. Genau diese beiden und sonst nichts unzugeordnet: ja.
+- Regel: Zuordnung nur mit Beleg (Nennung im Ordnertext, Zweig-Arbeitsordner, Chronikzeile, Nennung des Ordnernamens in einer Biotop-Nachricht bis 2026-09-25 14:44:20 CEST oder in einer Auftragsdatei); der eigene Ordner `biotop-lage-01` zählt nicht als Beleg.
+Lückenvorschläge 5 · Widersprüche 1
+INVENTAR-TEIL1.md 22164 Bytes sha256 4588edd92f4aabab3343320208a00c789cfbc78f4db49df7d5db5f734e7dcff4
+INVENTAR-TEIL2.md 33290 Bytes sha256 ce235064884c677292856afa386d6ec3612cb7e200fad8eca7b798d08cdbb65f
+INVENTAR-TEIL3.md 2050 Bytes sha256 71b6aa7e6e3de8e843dc248f64925563f5282f60d983653a25cdbf730ab73b15
+KASSE-TEIL1.csv 6650 Bytes sha256 eb7b1ff4071eff9ba9f19a62b41a20e4b4e678c3cb6758d0f14218841a161a5c
+KASSE-TEIL2.csv 37902 Bytes sha256 1d25fe4b5fb5de6aa0a30cf0ec49775121ec7af471a4596c85fbb123315bd411
+KASSE-TEIL3.csv 37960 Bytes sha256 dddd7b248a9ef0c0e0e734b1e1eb68ece9e5ce57ebe4f7ab617dae19592dd3ff
+KASSE-TEIL4.csv 37862 Bytes sha256 a3f437725b892843a5c43d268788ac65e96a43c61ca4fb0377746e32f7c2cfcc
+KASSE-TEIL5.csv 37885 Bytes sha256 92bf6c66c15b2d345a93952add516080f4fa5f79eaf432a89e1aa54228566248
+KASSE-TEIL6.csv 37997 Bytes sha256 d0a98e95d38ac3b7703c33bdf729146bb3072c94244efd95e38c972cb7a61c0e
+KASSE-TEIL7.csv 37971 Bytes sha256 41a9a996cb9e01aaf18596c876a8710274f5b5082c2a52b658aaab5f917b9e8e
+KASSE-TEIL8.csv 37885 Bytes sha256 2024c1e0d40bc80c5bacd093dc56dd6d4fa8e66d1f4e7536f24c6fc17edb16e7
+KASSE-TEIL9.csv 37881 Bytes sha256 285fe035150f607137c162a7121519a4e6e9b89094f0cbc0f285a6c3db7f8643
+KASSE-TEIL10.csv 37878 Bytes sha256 e9a248b58cec15cabef88a6e5dcfb749348313e84c09ac75917c0faccf157958
+KASSE-TEIL11.csv 37849 Bytes sha256 9fa526375ecaa89bce061e85e4163528ba083266e9ede75088ebe89cb7732cad
+KASSE-TEIL12.csv 37882 Bytes sha256 0ed268295ef524e10215f6e8723b604870ba727e7b2ab488521eab52f97f9972
+KASSE-TEIL13.csv 37936 Bytes sha256 797967b0d52868e51df2ce882a1c95bb07fe5bd1045780fe1cb45c3e92d2db4e
+KASSE-TEIL14.csv 37932 Bytes sha256 e8117b99321939fcd918d9eb20a6e4159316ad6e6411b5650c2c7737982605a9
+KASSE-TEIL15.csv 37869 Bytes sha256 bead2e6fa678cd85496ac5acf1364f4c17f377dc06b3b80cb532ea30d5cbff82
+KASSE-TEIL16.csv 37864 Bytes sha256 854649fd5433ce523c87a69fb4be8bc9ee3db4d837abc8fc5807a3a8ed238008
+KASSE-TEIL17.csv 37876 Bytes sha256 f45fae82749ad90d0be6bffe63d636aba8aec2530f4a9bf9088dbebb53e6aa35
+KASSE-TEIL18.csv 37923 Bytes sha256 c4ca4fed7b7f236bd8b5a1d4c8eae02b18cb8d18e736af96f2d9d723d6e70800
+KASSE-TEIL19.csv 37993 Bytes sha256 d7a7b53001f87e9704bd33a899f72252d581aa23acd7cbce97625413e658fd73
+KASSE-TEIL20.csv 37999 Bytes sha256 752b42a52f1ff55ee184d6397532165bbf5b08f3be8d3f7d93d8c9d5a5bc9967
+KASSE-TEIL21.csv 37872 Bytes sha256 331e14012a582e0cff30b692246f43d18ca8b90e2b32a0b48c37d8206f5cc548
+KASSE-TEIL22.csv 37880 Bytes sha256 22bdbf69b4b07f365195344ddc841f4f9ad24c13ee786099ba7ae1ca1d900f76
+KASSE-TEIL23.csv 37999 Bytes sha256 b51f4b3cd8c4e0e2fbde8edd28a01b2a48d726c83081fa2822a2555a3809f2c6
+KASSE-TEIL24.csv 37975 Bytes sha256 d2ee7c12b53b2b538104c5af18c4d897606cf428dbf0902b6f856878a0b7cd8f
+KASSE-TEIL25.csv 37882 Bytes sha256 47da48c32bacc437140e0e5d3ee6f46fddf327a3d5c9a959b98e5910f74537c5
+KASSE-TEIL26.csv 37933 Bytes sha256 e2ff772034d151b8b7c3320cdb7c444e3402a2017070b1395a4e41c35e44629b
+KASSE-TEIL27.csv 36373 Bytes sha256 4b1a653ccb4138e426a9ddc4e6b1f72f484eb983b9a1db0967935c3f6bc88f74
+KASSE-TEIL28.csv 10514 Bytes sha256 51b95d28f7b031df948005fb6c98c6dacb2fc73e91558cf74316f69d007fa815
+LISTEN-TEIL1.txt 37980 Bytes sha256 04ff788f860ed61a8d1521c57de0c5b29489edd5eb8f2db23844255d54e3054d
+LISTEN-TEIL2.txt 37896 Bytes sha256 83bd6c65303a2c16c1131c26e9ead4516999a341020fef267e254ea554fd6f29
+LISTEN-TEIL3.txt 37916 Bytes sha256 df446cb336a2c69fb717486771d130d6ef93476505532925a178225af945d3b7
+LISTEN-TEIL4.txt 37922 Bytes sha256 90c0daab4a1fb72afe66d486788103632cfc000b191a6c7deedcace8f22ea80c
+LISTEN-TEIL5.txt 37970 Bytes sha256 5e6cfffad7a3b8ae3c223a2002504c37a7ad0326bf2116acc132f7288dac0fde
+LISTEN-TEIL6.txt 37997 Bytes sha256 314a71eb52cffab85c6246114e61559d1205844df899971c7e8cff7d16abf4c0
+LISTEN-TEIL7.txt 589 Bytes sha256 ccd2b3e6cc642b2ce4cde91a646c4f61ccb9e9cf5564bc5c3643e14ebd496cc6
+Laufzeit 17.7 s
+== Gegenprobe
+- Kopie der Inventare im Speicher: I1 40 → 41 Läufe (+ `ERFUNDEN/999`, Beginn 2026-09-22 12:00:00 CEST), I3 20 → 21 Ordner (+ `laeufe/biotop-erfunden-99/`, 3 Dateien). *gerechnet*
+- Abgleich 1 am Original: unzugeordnet 0 Läufe, 0 Ordner: keine.
+- Abgleich 1 an der Kopie: unzugeordnet 1 Läufe, 1 Ordner: ['ERFUNDEN/999', 'biotop-erfunden-99'].
+- Neu unzugeordnet (Kopie − Original): ['ERFUNDEN/999', 'biotop-erfunden-99']; weggefallen (Original − Kopie): keine.
+- **Gegenprobe angeschlagen: ja** — Bedingung: neu unzugeordnet sind genau ['ERFUNDEN/999', 'biotop-erfunden-99'] und nichts fällt weg. Genau diese beiden und sonst nichts unzugeordnet: ja.
+- Regel: Zuordnung nur mit Beleg (Nennung im Ordnertext, Zweig-Arbeitsordner, Chronikzeile, Nennung des Ordnernamens in einer Biotop-Nachricht bis 2026-09-25 14:44:20 CEST oder in einer Auftragsdatei); der eigene Ordner `biotop-lage-01` zählt nicht als Beleg.
+Laufzeit 9.5 s
+== -shm nachher (muss gleich vorher sein)
+/root/biotop/daten/biotop.db-shm-shm 2026-09-25 15:55:06.795824186 +0200
+/root/phase-4-vorbedingung-1/privat/biotop.db-shm-shm 2026-09-25 17:43:13.721886054 +0200
+/root/reparatur-02/privat-cli/privat.db-shm-shm 2026-09-25 16:58:22.378895297 +0200
+/root/biotop-t3/t3.db-shm-shm 2026-09-25 18:14:31.959782621 +0200
+GLEICH: keine -shm berührt
+== Ausgabedateien
+INVENTAR-TEIL1.md 22164 B
+INVENTAR-TEIL2.md 33290 B
+INVENTAR-TEIL3.md 2050 B
+KASSE-TEIL1.csv 6650 B
+KASSE-TEIL2.csv 37902 B
+KASSE-TEIL3.csv 37960 B
+KASSE-TEIL4.csv 37862 B
+KASSE-TEIL5.csv 37885 B
+KASSE-TEIL6.csv 37997 B
+KASSE-TEIL7.csv 37971 B
+KASSE-TEIL8.csv 37885 B
+KASSE-TEIL9.csv 37881 B
+KASSE-TEIL10.csv 37878 B
+KASSE-TEIL11.csv 37849 B
+KASSE-TEIL12.csv 37882 B
+KASSE-TEIL13.csv 37936 B
+KASSE-TEIL14.csv 37932 B
+KASSE-TEIL15.csv 37869 B
+KASSE-TEIL16.csv 37864 B
+KASSE-TEIL17.csv 37876 B
+KASSE-TEIL18.csv 37923 B
+KASSE-TEIL19.csv 37993 B
+KASSE-TEIL20.csv 37999 B
+KASSE-TEIL21.csv 37872 B
+KASSE-TEIL22.csv 37880 B
+KASSE-TEIL23.csv 37999 B
+KASSE-TEIL24.csv 37975 B
+KASSE-TEIL25.csv 37882 B
+KASSE-TEIL26.csv 37933 B
+KASSE-TEIL27.csv 36373 B
+KASSE-TEIL28.csv 10514 B
+LISTEN-TEIL1.txt 37980 B
+LISTEN-TEIL2.txt 37896 B
+LISTEN-TEIL3.txt 37916 B
+LISTEN-TEIL4.txt 37922 B
+LISTEN-TEIL5.txt 37970 B
+LISTEN-TEIL6.txt 37997 B
+LISTEN-TEIL7.txt 589 B
+GEGENPROBE.md 1429 B
+=== Ende R191 ===

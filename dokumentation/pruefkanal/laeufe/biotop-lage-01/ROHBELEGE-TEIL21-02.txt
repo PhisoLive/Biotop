@@ -1,0 +1,277 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 21 (Teile 4–165 dieses Stands) · enthält R29 bis R30
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+[R29 · Fortsetzung, Stück 2 von 2]
+2026-09-09 00:40:12 | 22117 | 29720f8f09085dfe | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/system-schliessen-20260905/BELEGE/versandpruefung.mjs.vor-nachsatz-20260905.txt
+2026-09-09 00:40:12 | 11518 | 0f09b77d4124fd5c | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/system-schliessen-20260905/UEBERGABE.md
+2026-08-16 01:47:46 | 3670 | 0a4a1777063b90ce | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/ursachen-und-rest/BELEGE/PAKETE-ANTWORT.md
+2026-08-16 01:47:46 | 210382 | da1196570e7051e0 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/ursachen-und-rest/belege-paketrettung/milieulux-3b-14-ueberarbeitung/UEBERGABE.md
+2026-08-16 01:47:46 | 228227 | 0471e14f0e86ddab | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/ursachen-und-rest/belege-paketrettung/milieulux-3b-17/UEBERGABE.md
+2026-08-16 01:47:46 | 241335 | 0fa77787145d18e8 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/ursachen-und-rest/belege-paketrettung/milieulux-3b-21/UEBERGABE.md
+2026-08-16 01:47:46 | 243344 | f5ea99fe2e03e5e0 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/ursachen-und-rest/belege-paketrettung/milieulux-etappe-3b-21-endfassung/UEBERGABE.md
+2026-08-16 01:47:46 | 252676 | 63b5df70c3b3a095 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/ursachen-und-rest/belege-paketrettung/milieulux-etappe-3b-24-klein/UEBERGABE.md
+2026-08-16 01:47:46 | 49369 | 61399ad7994f101e | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/ursachen-und-rest/belege-paketrettung/milieulux-livegang-endfassung/SCHLUSSPRUEFUNG-2.md
+2026-08-11 15:17:18 | 15487 | affcc892cb9080e2 | /var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/visitenkarte/PRUEFUNG.md
+=== Ende R29 ===
+
+
+R30 · Fakten: Fassungen (Stand, Änderungsverzeichnis, Tor-Punkte), Köpfe der Berichte, Läufe→Ordner, Docker-Abbilder
+Beginn: 2026-09-25 15:52:14 CEST (UTC+0200)
+Ende:   2026-09-25 15:52:16 CEST (UTC+0200)
+Dauer:  2.0 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/f15_fakten.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/f15_fakten.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Fakten für Chronik, Entscheidungen, Tore.
+1. Je Masterprompt-Fassung v1..v8 (aus arbeit/dokumente/): „Stand:"-Zeile, eigenes Änderungsverzeichnis (erster Block
+   „Änderungen gegenüber Fassung n-1" bis zum nächsten Block) → arbeit/fassungen/aenderungen-vN.md; Aufzählungspunkte
+   je Tor-Abschnitt.
+2. Kopf (erste 6 Zeilen) jeder Einstiegsdatei der Biotop-Ordner im Prüfkanal (BERICHT.md, ABSCHLUSS-03.md …).
+3. Je Lauf-Kennung 1..38: in welchen Ordnern (oberste Ebene, *.md) „Lauf <n>" vorkommt.
+4. Docker-Abbilder; Inhalt von /root/w7 (Namen)."""
+import re
+import subprocess
+from pathlib import Path
+
+D = Path('/root/sicherung/biotop-lage-01/arbeit/dokumente')
+F = Path('/root/sicherung/biotop-lage-01/arbeit/fassungen')
+F.mkdir(exist_ok=True)
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+L = Path(f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe')
+print('== 1. Fassungen')
+for p in sorted(D.glob('*INFINITE-EVOLUTION-BIOTOP-Masterprompt-v*.md')):
+    t = p.read_text()
+    if len(t) < 10000:
+        continue  # Teilstücke aus Verdichtungen, keine Fassung
+    v = re.search(r'Masterprompt-(v\d)', p.name).group(1)
+    stand = next((z for z in t.splitlines()[:12] if z.startswith('Stand')), '(keine Stand-Zeile)')
+    kopf = t.split('\n## 0.')[0]
+    bloecke = [m.start() for m in re.finditer(r'\*\*Änderungen gegenüber Fassung', kopf)]
+    eigen = kopf[bloecke[0]:bloecke[1]] if len(bloecke) > 1 else (kopf[bloecke[0]:] if bloecke else '')
+    (F / f'aenderungen-{v}.md').write_text(eigen.rstrip() + '\n')
+    tore = {}
+    for m in re.finditer(r'\*\*Tor (\d)[^\n]*\n((?:- .*\n)+)', t):
+        tore.setdefault(m.group(1), len(re.findall(r'^- ', m.group(2), re.M)))
+    print(f'{v}: {p.name} | {stand} | Kopf {len(kopf)} Zeichen, Blöcke {len(bloecke)}, eigenes Verzeichnis '
+          f'{len(eigen)} Zeichen | Tor-Aufzählungspunkte {tore}')
+print('\n== 2. Köpfe der Einstiegsdateien')
+for o in sorted(L.iterdir()):
+    if not o.name.startswith('biotop') or o.name == 'biotop-lage-01':
+        continue
+    for name in ('BERICHT.md', 'ZWISCHENBERICHT.md', 'abschluss-03/ABSCHLUSS-03.md', 'NACHGANG-06.md',
+                 'nach-reparatur-02/ZWISCHENBERICHT.md'):
+        p = o / name
+        if p.exists():
+            z = [x for x in p.read_text(errors='replace').splitlines() if x.strip()][:5]
+            print(f'-- {o.name}/{name}')
+            for x in z:
+                print('   ', x[:260])
+print('\n== 3. Läufe → Ordner (Nennung „Lauf <n>" in *.md der obersten und zweiten Ebene)')
+texte = {}
+for o in sorted(L.iterdir()):
+    if o.is_dir() and o.name.startswith('biotop') and o.name != 'biotop-lage-01':
+        texte[o.name] = ' '.join(p.read_text(errors='replace') for p in list(o.glob('*.md')) + list(o.glob('*/*.md')))
+for n in range(1, 39):
+    treffer = [k for k, t in texte.items() if re.search(rf'\bL(?:auf|äufe)\s+(?:\d+[–-])?{n}\b', t)]
+    print(f'Lauf {n}: {treffer}')
+print('\n== 4. Docker-Abbilder; /root/w7')
+print(subprocess.run(['docker', 'images', '--format', '{{.Repository}}:{{.Tag}} {{.ID}} {{.Size}} {{.CreatedAt}}'],
+                     capture_output=True, text=True).stdout)
+print(sorted(p.name for p in Path('/root/w7').iterdir()))
+--- Ende /root/sicherung/biotop-lage-01/arbeit/f15_fakten.py ---
+Ausgabe (vollständig, stdout und stderr):
+== 1. Fassungen
+v1: 2026-09-18_205908_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v1.md | Stand: 18.09.2026 · Fassung 1 · Auftraggeber: Philipp Zöllisch · Prüfer: Chat-Claude | Kopf 174 Zeichen, Blöcke 0, eigenes Verzeichnis 0 Zeichen | Tor-Aufzählungspunkte {'1': 9, '2': 6, '3': 6, '4': 5}
+v2: 2026-09-19_003630_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v2.md | Stand: 19.09.2026 · Fassung 2 · Auftraggeber: Philipp Zöllisch · Prüfer: Chat-Claude | Kopf 1314 Zeichen, Blöcke 1, eigenes Verzeichnis 1144 Zeichen | Tor-Aufzählungspunkte {'1': 9, '2': 6, '3': 6, '4': 5}
+v3: 2026-09-19_022342_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v3.md | Stand: 19.09.2026 (nach dem Nachlauf) · Fassung 3 · Auftraggeber: Philipp Zöllisch · Prüfer: Chat-Claude | Kopf 3148 Zeichen, Blöcke 2, eigenes Verzeichnis 1814 Zeichen | Tor-Aufzählungspunkte {'1': 9, '2': 10, '3': 6, '4': 5}
+v4: 2026-09-19_123925_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v4.md | Stand: 19.09.2026 (nach Phase 2) · Fassung 4 · Auftraggeber: Philipp Zöllisch · Prüfer: Chat-Claude | Kopf 5998 Zeichen, Blöcke 3, eigenes Verzeichnis 2855 Zeichen | Tor-Aufzählungspunkte {'1': 9, '2': 10, '3': 10, '4': 6}
+v5: 2026-09-19_193553_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v5.md | Stand: 19.09.2026 (nach Phase 3) · Fassung 5 · Auftraggeber: Philipp Zöllisch · Prüfer: Chat-Claude | Kopf 9444 Zeichen, Blöcke 4, eigenes Verzeichnis 3446 Zeichen | Tor-Aufzählungspunkte {'1': 9, '2': 10, '3': 10, '4': 6}
+v6: 2026-09-20_001844_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v6.md | Stand: 19.09.2026 (nach dem Nachlauf zu Phase 3) · Fassung 6 · Auftraggeber: Philipp Zöllisch · Prüfer: Chat-Claude | Kopf 12025 Zeichen, Blöcke 5, eigenes Verzeichnis 2565 Zeichen | Tor-Aufzählungspunkte {'1': 9, '2': 10, '3': 10, '4': 11}
+v7: 2026-09-21_021434_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v7.md | Stand: 21.09.2026 · Fassung 7 · Auftraggeber: Philipp Zöllisch · Prüfer: Chat-Claude | Kopf 13524 Zeichen, Blöcke 6, eigenes Verzeichnis 1530 Zeichen | Tor-Aufzählungspunkte {'1': 9, '2': 10, '3': 10, '4': 10}
+v8: 2026-09-23_155353_INFINITE-EVOLUTION-BIOTOP-Masterprompt-v8.md | Stand: 23.09.2026 · Fassung 8 · Auftraggeber: Philipp Zöllisch · Prüfer: Chat-Claude | Kopf 15123 Zeichen, Blöcke 7, eigenes Verzeichnis 1560 Zeichen | Tor-Aufzählungspunkte {'4': 3, '1': 9, '2': 10, '3': 10}
+
+== 2. Köpfe der Einstiegsdateien
+-- biotop-gesamtstand/BERICHT.md
+    # Biotop-Gesamtstand — unabhängig gemessene Bestandsaufnahme
+    **Kein Lauf, keine Code-/Datenreparatur.** Quellstand `b42dc941e7fcb66632ba6a0e13b8df106a270a31`. Bestandsstichtag 2026-09-20T04:43:06.119737+00:00; Schlussprüfung 2026-09-20T05:52:01.964233+00:00. Auftrag: vor Vorbedingung 1 den tatsächlichen Bauzustand offen
+    ## Ergebnis zu den fünf verlangten Teilen
+    1. **Umfang:** **111 eigene versionierte Dateien / 11119 physische Zeilen**; davon **35 produktive Python-Dateien / 6370 Zeilen**, **18 physische Organmodule** für die **15 Sollorganabschnitte**. Hauptdatenbank **29659136 Bytes**, **27 Tabellen**. Eigene pytes
+    2. **Betrieb:** Zum ausgewiesenen Prozessstichtag **0 Biotop-Treffer bei 148 von 148 gelesenen PID-Verzeichnissen**, kein vorhandener Biotop-System-/Benutzerdienst, keine laufenden Container. Viele Organe wurden historisch tatsächlich benutzt; das ist kein heu
+-- biotop-gesamtstand/ZWISCHENBERICHT.md
+    # Schlussstand der Bestandsaufnahme
+    Stand 2026-09-20T05:52:01.964233+00:00. Die fünf Auftragsteile liegen in `BERICHT.md` und seinen Fachdateien vor. Kein Biotop-Lauf, keine Reparatur. Datenbank: 4070 von 4070 vorherigen Buchungen unverändert, 0 neue Buchungen, keine neuen Biotop-Modellkosten vo
+    Offen: keine erfolgreiche neue Gegenfall-Reproduktion (eigener Gerüstfehler; Wiederholungsfreigabe blockiert); keine Behebung der Codeabweichungen, kein neuer Vorbedingungs-Lauf. `OFFENE-PUNKTE-01.md` trennt notwendige Reparaturentscheidung und nächste Messung
+    Für die Abnahme sind `DATEIEN.txt`, Manifest und vollständiges externes Abrufprotokoll maßgeblich. Kein historischer Abschlussbericht wird als frischer Lauf ausgegeben.
+-- biotop-phase-1/BERICHT.md
+    # Biotop — Phase 1 „Das Skelett" — BERICHT
+    **Auftrag:** INFINITE-EVOLUTION-BIOTOP-Masterprompt v1, Abschnitt 8, Phase 1
+    **Auftraggeber:** Philipp Zöllisch · **Ausführung:** Hermes · **Prüfer:** Chat-Claude
+    **Zeitraum:** 2026-09-18 23:17 – 2026-09-19 00:25 CEST · **Status:** abgeschlossen, Tor 1 mit **8 von 9 Zeilen bestanden**, 1 Zeile (Nr. 2) teilweise: 4 von 5 Schwächen behoben — das ist die geforderte Mindestzahl, aber S2 (Leistungsbremse) bleibt offen und st
+    Belegregeln: Jede Zahl mit Bezugsgröße. „Bestätigt durch Ausführung" nur mit Datei in `ausgaben/`. Eigene Entscheidungen von Hermes sind mit **[Entscheidung Hermes]** gekennzeichnet.
+-- biotop-phase-1-nachlauf/BERICHT.md
+    # Biotop — Phase 1 Nachlauf (Lauf 3 laut Masterprompt v2, Abschnitt 8) — BERICHT
+    **Auftrag:** Masterprompt v2 (19.09.2026), Abschnitt 8 „Nachlauf zu Tor 1 — Lauf 3 (Bedingung für Phase 2)"
+    **Auftraggeber:** Philipp Zöllisch · **Ausführung:** Hermes · **Prüfer:** Chat-Claude · **Budget:** 5 € hart
+    **Zeitraum:** 2026-09-19 00:38 – 02:20 CEST · **Status:** abgeschlossen. **Tor 1: 9 von 9 Zeilen bestanden** (Zeilen 1–4 neu gemessen in Lauf 9; Zeile 6 neu gemessen in Lauf 10, weil `kasse.py` geändert wurde; Zeilen 5, 7, 8, 9 gelten weiter — Organ-Prüfsummen
+    „Lauf 3" des Masterprompts ist in der Datenbank **Lauf 9** — davor liegen drei abgebrochene Versuche (Läufe 6, 7, 8), die jeweils einen Mangel im Messgerät aufdeckten. Alle fünf Läufe (6–10) starten vom Lauf-2-Ausgangszustand (Werk-Prüfsumme `d74391bfa4db4d1c…
+-- biotop-phase-2/BERICHT.md
+    # Biotop — Phase 2 „Der Schwarm" — BERICHT
+    **Auftrag:** Masterprompt v3 (19.09.2026), Abschnitt 8 Phase 2 · **Auftraggeber:** Philipp Zöllisch · **Ausführung:** Hermes · **Prüfer:** Chat-Claude
+    **Ausgang:** Übungswerk `lagerhaus` im Zustand Lauf 9 Generation 6 (Lazarus-Archiv `lauf9-gen6.tar.gz`, `ausgaben/03-ausgang.txt`), Verfassung Anhang A
+    **Budget:** 10 € hart (Auftragsbudget über alle Phase-2-Läufe, `kasse.AUFTRAG_BUDGET_EUR`) · **Zeitraum:** 19.09.2026 03:30 – 05:35 CEST
+    **Status:** abgeschlossen. **Tor 2: 11 von 11 Zeilen bestanden**, alle mit Ausgabe und Bezugsgröße. Hauptlauf = **Lauf 13** (14 Generationen, 7 angenommen). Davor: Lauf 11 (Rauchtest Modellwahl) und Lauf 12 (Vorlauf, 10 Generationen, aufgedeckt: Norm-Regel gal
+-- biotop-phase-3/BERICHT.md
+    # Phase 3 — Gedächtnis, Mentor, Oberfläche
+    **Auftraggeber:** Philipp Zöllisch · **Prüfer:** Chat-Claude · **Ausführung:** Hermes
+    **Grundlage:** INFINITE-EVOLUTION-BIOTOP-Masterprompt **Fassung 4** (19.09.2026), Abschnitt 8 Phase 3
+    **Budget:** 15 € hart · **verbraucht: 2,83 € (1.225 Modellaufrufe)** — Bezugsgröße: alle Läufe ab 14, gezählt in `kasse`
+    **Stand:** 19.09.2026
+-- biotop-phase-3-nachlauf/BERICHT.md
+    # Nachlauf zu Phase 3
+    **Auftraggeber:** Philipp Zöllisch · **Prüfer:** Chat-Claude · **Ausführung:** Hermes
+    **Grundlage:** INFINITE-EVOLUTION-BIOTOP-Masterprompt **Fassung 5** (19.09.2026), Abschnitt 8 „Nachlauf zu Phase 3"
+    **Budget:** 10 € hart · **verbraucht: 0,44 € (207 Modellaufrufe)** — Bezugsgröße: alle Läufe ab 21
+    **Stand:** 19.09.2026
+-- biotop-phase-4-einstieg-20260921-01/ZWISCHENBERICHT.md
+    # Phase 4 — lesender Einstieg, kein fachlicher Start
+    Messstand: 2026-09-21T01:37:48.244902+02:00. Dieser Auftrag bestätigt Quellen und Bestand; er startet keine Phase, keinen Lauf, keinen Review, keine Modellprobe und keinen Verfassungsentwurf. Freigaben am echten Werk ausschließlich durch Philipp.
+    ## Vollständig gelesen und gebunden
+    Die ausdrücklich genannte Abnahmeübergabe, die ausführliche Übergabe a–f aus abschluss-01, die Ergänzung aus abschluss-02 und der Masterprompt Fassung 6 wurden vollständig gelesen. Die überholten roten Abnahmesätze der alten Übergaben bleiben historische Wertu
+    Der alte lokale Cachepfad zum Masterprompt war nicht vorhanden. Verwendet wurde die in der vollständigen Übergabe selbst angegebene Prüfkanalkopie, vollständig bis Zeile 470. Fassung 6 ist maßgeblich; abweichende ältere Skillangaben sind nicht maßgeblich.
+-- biotop-phase-4-vorbedingung-1/BERICHT.md
+    > **BERICHTIGT am 20.09.2026 nach der Prüfung durch Chat-Claude.**
+    > Dieser Bericht enthält Fehler, die im Nachgang belegt und korrigiert wurden. Maßgeblich ist `NACHGANG.md`.
+    > Kurz: (1) Größte Gruppe 8→1 und unbemerkte Doppelungen 31→0 gehören dem Behauptungs-Schlüssel und der
+    > Anweisung, NICHT der Ansage — sie standen schon in Lauf 22. (2) Zeile 8 ist mit 2 erzeugten Tests **nicht
+    > gemessen**, nicht „formal erfüllt". (3) Die Zahl 63,6 % für Lauf 20 ist berichtigt auf 75,0 % (7 der 11
+-- biotop-phase-4-vorbedingung-1/NACHGANG-06.md
+    # Nachgang N12 bis N14 — Kasse, Aufnahmestellen, zweiter Sperrfall
+    **Prüfung:** `PRUEFUNG6_Lauf-25_2026-09-20.md` · **Ausführung:** Hermes · **Stand:** 20.09.2026
+    **Kosten: 0 Modellaufrufe.** Kassenstand Lauf 25 vor und nach diesem Nachgang: **183 Aufrufe, 0,3899 €**.
+    ---
+    ## Adressen (V12)
+-- biotop-phase-4-vorbedingung-1/nach-reparatur-02/ZWISCHENBERICHT.md
+    # Vorbedingung 1 — zeitpunktbezogener Arbeitsstand, keine Schlussabnahme
+    DB-Abfrage: 2026-09-20T19:56:26.323048+00:00 (UTC). Privat-DB: Lauf 26, Status `laeuft`. beendet_am: None; Grund: None.
+    - Generation 0: angenommen.
+    - Generation 1: angenommen.
+    - Generation 2: abgelehnt.
+-- biotop-reparatur-01/ZWISCHENBERICHT.md
+    # Reparatur 01 — Zwischenstand 2026-09-20T13:55:53.926356+00:00
+    **Nicht abgeschlossen, keine neue Messfreigabe.**
+    - 49 von 49 bisher integrierten Eigen-Tests bestanden (28-eigentests-zwischenstand.txt/.xml); dies ist NICHT die Vollständigkeit des Reparaturauftrags.
+    - Drei von drei ausdrücklich gestellten Gegenmutanten in privaten Codekopien machen die zugehörigen Tests rot (27-gegenmutanten.json). Keine normale Generation, keine echte-Bestandsprüfung damit behauptet.
+    - Die ersten Sperren vor generation/gen0/mass sind rot reproduziert und anschließend grün geprüft. Der noch unfertige Vorspann sperrt im aktuellen Arbeitsstand alles; eine funktionierende Freigaberoute wird separat implementiert und darf nicht als fertig gelte
+-- biotop-reparatur-02/ZWISCHENBERICHT.md
+    # Biotop-Reparatur 02 — ABGESCHLOSSEN IM ENGEN UMFANG
+    ## Torzeilen und tragende Belege
+    - **305 von 305 Tests bestanden**, 0 von 305 Fehler, Skips oder Abbrüche; pytest Exit 0. SUITE.txt und SUITE.xml, vollständige Call-/Teardown-Auswertung und Test-IDs in ABNAHME.json.
+    - **4 von 4 positive Eichproben gültig**, **4 von 4 Gegenfälle gültig mit falschem Bestehensprädikat**. EICHPAARE.json; dieselben Werte nochmals in der echten CLI (CLI.json).
+    - **Pflichtvorspann-CLI Exit 0**, Nachweisstatus `bestanden`, stderr leer. CLI.txt/CLI.json.
+-- biotop-t3-typescript/BERICHT.md
+    # T3 — TypeScript-Breitentest (in Arbeit)
+    Auftrag Philipp, 21.09.2026, Masterprompt Fassung 7. Ausschließlich T3; kein Handelssystem und kein automatischer T4-Start. Budget 10 EUR über sämtliche T3-Läufe, einschließlich Eichkosten und gescheiterter Versuche. Der abgenommene Bestand bleibt Grundlage; k
+    Eigene Arbeitsentscheidung: eigene Datenbankkopie, keine Änderung historischer Werk-/Laufdaten in der produktiven DB. Vorhandene uncommittete Quellen sind gesichert und werden nicht verworfen.
+    ## Tor 4
+    1. Aufnahme/Bau/Tests/Versiegelung: offen.
+-- biotop-t3-typescript/ZWISCHENBERICHT.md
+    # T3 — TypeScript-Breitentest (in Arbeit)
+    Auftrag Philipp, 21.09.2026, Masterprompt Fassung 7. Ausschließlich T3; kein Handelssystem und kein automatischer T4-Start. Budget 10 EUR über sämtliche T3-Läufe, einschließlich Eichkosten und gescheiterter Versuche. Der abgenommene Bestand bleibt Grundlage; k
+    Eigene Arbeitsentscheidung: eigene Datenbankkopie, keine Änderung historischer Werk-/Laufdaten in der produktiven DB. Vorhandene uncommittete Quellen sind gesichert und werden nicht verworfen.
+    ## Tor 4
+    1. Aufnahme/Bau/Tests/Versiegelung: offen.
+-- biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md
+    # T3 TypeScript — abschluss-03: **nicht abgenommen**
+    Stand 2026-09-23. Auftrag „Budget 10 € hart“: verbraucht **9,728638 € von 10,00 €** (2603 Buchungen, Läufe 26–38; §6).
+    Dieser Abschluss kostete 0,00 €: kein Modellaufruf, kein weiterer Lauf an T3. Kammerläufe (Docker, netzlos) kosten nichts.
+    Kern-Commit: **`f821707`**, Vorgänger `1cf2eb1` (Kern von Lauf 38), 13 Dateien, +1294/−63 (`KERN-COMMIT.patch.txt`).
+    Die Lauf-DB ist über einen Schnappschuss mit WAL gelesen (`SCHNAPPSCHUSS.txt`); das Original war vorher und nachher
+-- biotop-vor-t4/BERICHT.md
+    # Behebungsrunde vor T4: nicht abnahmereif — TS-Pfad gebaut; S1 an K2868 nicht sauber behoben, Verhaltensvergleich für Python fehlt, K2904/K3091 in 1 von 3 Durchgängen verschieden entschieden
+    Stand 2026-09-23, 22:30. **Biotop-Modellgeld 0,00 €** (`KASSE.md`). Kern-Commits **`58bd9f9`** (Vorbedingungen 1–11, Vorgänger
+    `f821707`) und **`330b4ec`** (Review-Befunde, 8 Dateien, +560/−47, `COMMIT2-STAT.txt`, `KERN-COMMIT2.patch.txt`). Ein
+    Reviewdurchgang (`REVIEW.md`) zu `58bd9f9`. Die Befunde sind in `330b4ec` eingearbeitet. Ein zweites Review gab es nicht,
+    nach der Regel „ein Review“. Diese Fassung ersetzt den Entwurf vom 18:18-Stand. Zurückgezogene Aussagen stehen in §8.
+-- biotop-vor-t4-02/BERICHT.md
+    # Behebungsrunde 2 vor T4: nicht abgenommen — Gegenprobe K2904/K3091 nur 2 von 3; das Review fand an der neuen Python-Sonde 5 gemessene Lücken, die T4 treffen
+    Stand 2026-09-24. **Biotop-Modellgeld 0,00 €** (`KASSE.md`). Kern-Commit **`6243377`** (Vorgänger `330b4ec`, davor `58bd9f9`)
+    (19 files changed, 1656 insertions(+), 156 deletions(-); `COMMIT-STAT.txt`, `KERN-COMMIT.patch.txt`). Ein Reviewdurchgang (`REVIEW.md`), Befunde am Ende.
+    Auftrag (Philipp, 23.09.) mit den Entscheidungen von Chat-Claude zu den fünf Fragen der Vorrunde:
+    1. Weißraum gehört zur Tarifsprache, soweit die versiegelte Normalversion ihn rechnet.
+-- biotop-vor-t4-03/BERICHT.md
+    # Behebungsrunde 3 vor T4: nicht abgenommen — K2904/K3091 wieder nur 2 von 3 (Vergleichslast); die fünf Lücken der Python-Sonde sind für ihre Probenfälle geschlossen, aber das Review hat vier neue gemessen (Deckung: grobes Weißraum-Merkmal, Verfälschung je Fun
+    Stand 2026-09-24. **Biotop-Modellgeld 0,00 €** (`KASSE.md`). Kern-Commits **`d54bf2f`** (Runde 3, auf `6243377`) und
+    **`0aac612`** (Nachtrag: nur `tests/test_t3_python_annahmen.py`, §8). Stat `d54bf2f`: 21 files changed, 2329 insertions(+),
+    437 deletions(-) (`COMMIT-STAT.txt`, `KERN-COMMIT.patch.txt`; Nachtrag `COMMIT-2-STAT.txt`). Ein Reviewdurchgang (`REVIEW.md`, §10).
+    Auftrag (Philipp, 24.09., Entscheidungen Chat-Claude): (1) Deckung je Muster; (2) Gewinnschwelle der Nische „schnell“ in
+-- biotop-vor-t4-04/BERICHT.md
+    # Behebungsrunde 4 vor T4: Gegenproben der Entscheidungen 1, 3 und 4 erfüllt; die vier hohen Befunde sind für ihre Probenfälle geschlossen, die Fehlerklassen nicht (Review: 2 neue hohe Befunde, an Runde 5)
+    Stand 2026-09-24. **Biotop-Modellgeld 0,00 €** (`KASSE.md`). Kern-Commit **`1d9a5aa`** (Runde 4; 18 files changed, 1112 insertions(+), 134 deletions(-)) und Nachtrag **`43b8fad`** (3 files changed, 83 insertions(+), 3 deletions(-); `COMMIT-2-STAT.txt`, `KERN-C
+    `KERN-COMMIT.patch.txt`). Ein Reviewdurchgang (`REVIEW.md`, §10).
+    Auftrag (Philipp, 24.09., Entscheidungen Chat-Claude zu den sechs offenen Punkten aus `laeufe/biotop-vor-t4-03` §14):
+    (1) Vergleichslast Stufe 2 mit zehnfacher Eingabegröße, Kammerlauf unter einer Minute, an ihr Gewinn und Laufzeitgrenze
+-- biotop-vor-t4-05/BERICHT.md
+    # Behebungsrunde 5 vor T4: nicht abgenommen — die Gegenproben der Runde halten, aber an 0c2f058 sind zwei Messfehler derselben Klasse gemessen, die vor T4 behoben sein müssen (R6-1, R6-4)
+    Stand 2026-09-24. **Biotop-Modellgeld 0,00 €** (`KASSE.md`). Kern-Commit **`0c2f058`** auf `43b8fad` (`COMMIT-STAT.txt`,
+    `KERN-COMMIT.patch.txt`). Ein Reviewdurchgang (`REVIEW.md`, §11).
+    **Auftrag** (Philipp, 24.09., Entscheidungen Chat-Claude zum Review 04): „Runde 5 schließt Klassen, nicht Fälle.“
+    1. Vollständigkeitsprüfung nach jedem Erfassen eines Objekts; ein fehlendes Datenattribut ist eine gezählte Enthaltung;
+-- biotop-wiedereinstieg-2026-09-20-01/ZWISCHENBERICHT.md
+    # Zwischenbericht / Abschluss W1–W2–W4 — Fassung 01
+    Stand: 2026-09-20T03:17:33.347176+00:00 · Ausführung: Hermes, Schreibrolle HERMES-1 laut Auftrag.
+    ## Wichtigster Befund und Abbruch
+    **Trägernachweis fehlgeschlagen, W4 nicht vollständig erfüllt.** Die CLI-Voreinstellung nennt `claude-fable-5.1`, Anbieter `anthropic`; die reale HTTP-Anfrage zielte auf `claude-fable-5-1`. Die API lieferte HTTP 429 statt einer Modellantwort. Ein weiterer POST
+    **Unterschied der Betriebswege:** Datenbankzeile `20260920_045023_5299d50d` führt die Telegram-Sitzung als `gpt-6-astra`; der CLI-Test ist die getrennte Sitzung `20260920_050847_fa0691`. Ein neuer CLI-Aufruf belegt nicht rückwirkend das Modell einer bereits la
+
+== 3. Läufe → Ordner (Nennung „Lauf <n>" in *.md der obersten und zweiten Ebene)
+Lauf 1: ['biotop-gesamtstand', 'biotop-phase-1', 'biotop-phase-1-nachlauf', 'biotop-phase-2', 'biotop-t3-typescript', 'biotop-vor-t4']
+Lauf 2: ['biotop-gesamtstand', 'biotop-phase-1', 'biotop-phase-1-nachlauf', 'biotop-t3-typescript', 'biotop-vor-t4', 'biotop-wiedereinstieg-2026-09-20-01']
+Lauf 3: ['biotop-gesamtstand', 'biotop-phase-1-nachlauf', 'biotop-t3-typescript', 'biotop-wiedereinstieg-2026-09-20-01']
+Lauf 4: ['biotop-gesamtstand']
+Lauf 5: ['biotop-phase-1']
+Lauf 6: ['biotop-gesamtstand', 'biotop-phase-1-nachlauf', 'biotop-t3-typescript', 'biotop-wiedereinstieg-2026-09-20-01']
+Lauf 7: ['biotop-gesamtstand', 'biotop-phase-1-nachlauf', 'biotop-t3-typescript', 'biotop-wiedereinstieg-2026-09-20-01']
+Lauf 8: ['biotop-phase-1-nachlauf']
+Lauf 9: ['biotop-gesamtstand', 'biotop-phase-1-nachlauf', 'biotop-phase-2', 'biotop-t3-typescript', 'biotop-wiedereinstieg-2026-09-20-01']
+Lauf 10: ['biotop-gesamtstand', 'biotop-phase-1-nachlauf', 'biotop-t3-typescript', 'biotop-wiedereinstieg-2026-09-20-01']
+Lauf 11: ['biotop-gesamtstand', 'biotop-phase-2', 'biotop-t3-typescript', 'biotop-wiedereinstieg-2026-09-20-01']
+Lauf 12: ['biotop-gesamtstand', 'biotop-phase-2', 'biotop-t3-typescript', 'biotop-wiedereinstieg-2026-09-20-01']
+Lauf 13: ['biotop-gesamtstand', 'biotop-phase-2', 'biotop-phase-3', 'biotop-phase-3-nachlauf', 'biotop-t3-typescript', 'biotop-wiedereinstieg-2026-09-20-01']
+Lauf 14: ['biotop-gesamtstand', 'biotop-phase-3', 'biotop-t3-typescript', 'biotop-wiedereinstieg-2026-09-20-01']
+Lauf 15: ['biotop-phase-3']
+Lauf 16: ['biotop-gesamtstand', 'biotop-phase-3', 'biotop-phase-3-nachlauf', 'biotop-phase-4-vorbedingung-1', 'biotop-t3-typescript', 'biotop-wiedereinstieg-2026-09-20-01']
+Lauf 17: ['biotop-gesamtstand', 'biotop-phase-3']
+Lauf 18: ['biotop-gesamtstand', 'biotop-phase-3', 'biotop-t3-typescript', 'biotop-wiedereinstieg-2026-09-20-01']
+Lauf 19: ['biotop-phase-3']
+Lauf 20: ['biotop-gesamtstand', 'biotop-phase-3', 'biotop-phase-3-nachlauf', 'biotop-phase-4-vorbedingung-1', 'biotop-t3-typescript', 'biotop-wiedereinstieg-2026-09-20-01']
+Lauf 21: ['biotop-gesamtstand', 'biotop-phase-3-nachlauf', 'biotop-t3-typescript', 'biotop-wiedereinstieg-2026-09-20-01']
+Lauf 22: ['biotop-gesamtstand', 'biotop-phase-3-nachlauf', 'biotop-phase-4-vorbedingung-1', 'biotop-reparatur-01', 'biotop-wiedereinstieg-2026-09-20-01']
+Lauf 23: ['biotop-gesamtstand', 'biotop-phase-3-nachlauf', 'biotop-phase-4-vorbedingung-1', 'biotop-t3-typescript', 'biotop-wiedereinstieg-2026-09-20-01']
+Lauf 24: ['biotop-gesamtstand', 'biotop-phase-4-einstieg-20260921-01', 'biotop-phase-4-vorbedingung-1', 'biotop-reparatur-01', 'biotop-wiedereinstieg-2026-09-20-01']
+Lauf 25: ['biotop-gesamtstand', 'biotop-phase-4-vorbedingung-1', 'biotop-wiedereinstieg-2026-09-20-01']
+Lauf 26: ['biotop-phase-4-einstieg-20260921-01', 'biotop-phase-4-vorbedingung-1', 'biotop-t3-typescript']
+Lauf 27: []
+Lauf 28: ['biotop-t3-typescript']
+Lauf 29: ['biotop-t3-typescript']
+Lauf 30: ['biotop-t3-typescript']
+Lauf 31: ['biotop-t3-typescript']
+Lauf 32: ['biotop-t3-typescript']
+Lauf 33: ['biotop-t3-typescript']
+Lauf 34: []
+Lauf 35: ['biotop-t3-typescript']
+Lauf 36: ['biotop-t3-typescript']
+Lauf 37: ['biotop-t3-typescript', 'biotop-vor-t4', 'biotop-vor-t4-02', 'biotop-vor-t4-03', 'biotop-vor-t4-04', 'biotop-vor-t4-05']
+Lauf 38: ['biotop-t3-typescript', 'biotop-vor-t4-02', 'biotop-vor-t4-03', 'biotop-vor-t4-04', 'biotop-vor-t4-05']
+
+== 4. Docker-Abbilder; /root/w7
+biotop-kammer:ts1 212e6212cd16 535MB 2026-09-21 02:47:15 +0200 CEST
+node:22-bookworm-slim 48e4b67d85f8 329MB 2026-09-19 02:48:56 +0200 CEST
+biotop-kammer:1 ce7bbe944118 231MB 2026-09-18 23:26:54 +0200 CEST
+python:3.12-slim 78387bc3881b 190MB 2026-09-01 02:12:40 +0200 CEST
+
+['01-auth-list.err', '01-auth-list.txt', '02-config-get-model.err', '02-config-get-model.txt', '03-config-get-fallback.err', '03-config-get-fallback.txt', '04-fallback-list.err', '04-fallback-list.txt', '05-config-get-auxiliary.err', '05-config-get-auxiliary.txt', '06-doctor.err', '06-doctor.txt', '07-codex-token.txt', '08-db-modelle.txt', '09-config-yaml.txt', '10-routing.txt', '10b-routing-voll.txt', '11-config-fallback_model.err', '11-config-fallback_model.txt', '12-config-moa.err', '12-config-moa.txt', '13-moa-status.err', '13-moa-status.txt', '14-moa-list.txt', '15-status.txt', '16-modellwechsel.txt', '17-stufe-aufloesung.txt', '18-aufloesung-nach-umstellung.txt', '18b.err', '18b.txt', '19-cli-wire.err', '19-cli-wire.txt', '20-cli-wire-felder.txt', '21-cli-sitzung.txt', 'skripte']
+=== Ende R30 ===

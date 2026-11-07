@@ -1,0 +1,19 @@
+#!/bin/bash
+# 2×2-Gegenprobe „Schwarm liest geeicht“ (die Einzelgegenprobe schwarm blieb grün, siehe verdrahtung_gegenprobe.py).
+# Wartet auf die volle Regression (keine parallelen Kammerläufe). Kein Modellaufruf.
+set -u
+A=/root/biotop-vor-t4
+while pgrep -f "job_commit_regression.sh" > /dev/null; do sleep 20; done
+echo "start $(date -Is) HEAD=$(git -C /root/biotop rev-parse --short HEAD) fremde_container=$(docker ps -q | wc -l)"
+export BIOTOP_KAMMER_IMAGE=biotop-kammer:ts1
+for art in mass_roh beide; do
+  Z=/tmp/verdrahtung-gegenprobe-$art
+  rm -rf "$Z"; mkdir -p "$Z"
+  git -C /root/biotop ls-files -z -co --exclude-standard | (cd /root/biotop && tar --null -T - -cf -) | tar -x -C "$Z"
+  /root/biotop-t3/venv/bin/python $A/verdrahtung_gegenprobe.py "$Z" "$art" || { echo "$art: nicht herstellbar"; continue; }
+  (cd "$Z" && T3_VERDRAHTUNG_BELEG=$A/VERDRAHTUNG-ROT-$art.json /root/biotop-t3/venv/bin/python -m pytest \
+     tests/test_verdrahtung.py::test_jedes_organ_wird_im_lauf_aufgerufen -q -p no:cacheprovider -rA --tb=short \
+     > $A/VERDRAHTUNG-ROT-$art.txt 2>&1)
+  echo "$art pytest-rc=$? $(grep -m1 'AssertionError: ' $A/VERDRAHTUNG-ROT-$art.txt | cut -c1-200)"
+done
+echo "ende $(date -Is)"

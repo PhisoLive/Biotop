@@ -1,0 +1,286 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 59 (Teile 4–165 dieses Stands) · enthält R52 bis R52
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R52 · Teil H: FK39 Zählung „weitergereicht mit blockiert nicht“ je offenem Punkt über Berichte, Übergaben, Spezifikationen, Nachgänge (mechanisch, Auslegung Hermes)
+Beginn: 2026-09-25 16:16:22 CEST (UTC+0200)
+Ende:   2026-09-25 16:16:22 CEST (UTC+0200)
+Dauer:  0.2 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/lage-offen/h5_weitergereicht.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/lage-offen/h5_weitergereicht.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil H (nur lesend): FK39 — wie oft wurde ein offener Punkt mit „blockiert nicht“ (oder gleichwertig)
+weitergereicht? Mechanische Zählung, Auslegung Hermes:
+- Gegenstand: Berichte, Nachgänge, Übergaben, Einordnungen und SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md.
+  Arbeitsordner /root/biotop-vor-t4*/ (Originale; die Prüfkanal-Kopien biotop-vor-t4* werden NICHT gezählt, sie sind
+  bytegleiche Veröffentlichungen) und im Prüfkanal die Ordner ohne Arbeitsordner-Original: biotop-t3-typescript,
+  biotop-phase-4-vorbedingung-1, biotop-phase-4-einstieg-20260921-01, biotop-gesamtstand, biotop-reparatur-01/-02 (nur
+  oberste und erste Ebene), gedaechtnis. Wächter-Kopien (zwischenbericht-*/) und REVIEW*/BAU*-Dateien zählen nicht.
+- Getrennt davon: Philipps Nachrichten (arbeit/lesen/philipp-ab-2026-09-18.md), je Nachricht.
+- Ein „Weiterreichen“ ist eine Zeile, die die Kennung/das Stichwort des Punkts UND ein Aufschubzeichen enthält
+  (Liste, vor T5, nach T3, nicht vor T4, gefährdet … nicht, kein T4-Risiko, nicht in diesen Auftrag, nicht jetzt, bleibt
+  offen/auf der Liste, unbestätigt). Gezählt werden Dateien (je Datei höchstens 1) und Zeilen.
+Gibt keine Inhalte aus, nur Pfad:Zeile und 140 Zeichen der Trefferzeile."""
+import re
+from pathlib import Path
+
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+L = Path(f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe')
+NAMEN = re.compile(r'^(BERICHT|UEBERGABE|SPEZIFIKATIONEN|EINORDNUNG|NACHGANG|ABSCHLUSS|ZWISCHENBERICHT|NACHTRAG|OFFENE|'
+                   r'PHASE4-OFFEN|AUSSEN|STAND|ZWEI-REVIEWS|S1-ABBRUCH|MESSGERAETFEHLER)', re.I)
+dateien = []
+for d in sorted(Path('/root').glob('biotop-vor-t4*')):
+    dateien += [p for p in sorted(d.glob('*.md')) if NAMEN.match(p.name)]
+for o in ['biotop-t3-typescript', 'biotop-phase-4-vorbedingung-1', 'biotop-phase-4-einstieg-20260921-01',
+          'biotop-gesamtstand', 'biotop-reparatur-01', 'biotop-reparatur-02', 'gedaechtnis']:
+    b = L / o
+    kand = sorted(b.glob('*.md')) + sorted(b.glob('*/*.md')) + sorted(b.glob('*/*/*.md'))
+    dateien += [p for p in kand if NAMEN.match(p.name) and 'zwischenbericht-2026' not in str(p)
+                and not re.search(r'/(zwischenstand|auftragseingrenzung|auftragspraezisierung|eskalation)', str(p))]
+
+AUFSCHUB = re.compile(r'Liste|vor T5|nach T3|nicht vor T4|gefährdet (T4|den|das)[^.]{0,30}nicht|gefährdet T4 nicht|'
+                      r'kein T4-Risiko|nicht in diesen Auftrag|nicht jetzt|bleib(t|en) offen|unbestätigt|nicht entschieden',
+                      re.I)
+PUNKTE = {
+    **{f'R6-{i}': re.compile(rf'R6-{i}(?!\d)') for i in range(1, 16)},
+    **{f'U-{i}': re.compile(rf'(?<![\w-])U-{i}(?!\d)') for i in range(1, 5)},
+    'R5-14': re.compile(r'R5-14'), 'R4-7': re.compile(r'R4-7(?!\d)'), 'R4-17': re.compile(r'R4-17'),
+    'R4-19': re.compile(r'R4-19'),
+    'Phase-4-Lücken (4)': re.compile(r'Phase-4-Lücken|vier Phase-4|transitiv|Vorstufenbindung|Vertragsaustausch'),
+    '19 Außenorte': re.compile(r'Außenort|Aussenort|AUSSEN-19|19 Außen'),
+    'Abweichungsquote Ansage↔Ausführung': re.compile(r'Abweichungsquote|Ansage.{0,25}(Ausführung|abweich)'),
+    'Rauschmessung verwirft Einzelwerte': re.compile(r'Einzelwerte'),
+    'Wächter-Ausnahmeliste Verfallsbedingung': re.compile(r'Verfallsbedingung'),
+    '_beschleunigen entfernen': re.compile(r'_beschleunigen'),
+    'Erreichbarkeitsführung Anbieter': re.compile(r'Erreichbarkeit'),
+    'stiller Durchlass „0 von 0“/unbeobachtet': re.compile(r'0 von 0|unbeobachtet'),
+    'Hermes-Fehlerklassierer (a)/(b)': re.compile(r'Fehlerklassierer'),
+    'Sperre 02 / VORHER-NACHHER-S3': re.compile(r'SPERRE-02|VORHER-NACHHER-S3'),
+}
+print(f'Dateien im Gegenstand: {len(dateien)}')
+for p in dateien:
+    print('  ', str(p).replace(str(L), '{LAEUFE}'))
+texte = {p: p.read_text(errors='replace').splitlines() for p in dateien}
+PH = Path('/root/sicherung/biotop-lage-01/arbeit/lesen/philipp-ab-2026-09-18.md').read_text().splitlines()
+print('\n== Je Punkt: Dateien mit Weiterreichen (Zeilen), Fundstellen (höchstens 14); dann Philipps Nachrichten')
+for name, rx in PUNKTE.items():
+    treffer = []
+    for p, zeilen in texte.items():
+        for n, z in enumerate(zeilen, 1):
+            if rx.search(z) and AUFSCHUB.search(z):
+                treffer.append((p, n, z))
+    dat = sorted({str(p) for p, _, _ in treffer})
+    print(f'\n## {name}: {len(dat)} Dateien, {len(treffer)} Zeilen')
+    for p, n, z in treffer[:14]:
+        print(f'   {str(p).replace(str(L), "{LAEUFE}")}:{n}: {z.strip()[:140]}')
+    kopf, ph = None, []
+    for z in PH:
+        if z.startswith('## 20'):
+            kopf = z[3:22]
+        elif rx.search(z) and AUFSCHUB.search(z):
+            ph.append(kopf)
+    ph = sorted(set(ph))
+    print(f'   Philipp/Chat-Claude: {len(ph)} Nachrichten {ph}')
+--- Ende /root/sicherung/biotop-lage-01/entwurf/lage-offen/h5_weitergereicht.py ---
+Ausgabe (vollständig, stdout und stderr):
+Dateien im Gegenstand: 52
+   /root/biotop-vor-t4/BERICHT.md
+   /root/biotop-vor-t4/UEBERGABE.md
+   /root/biotop-vor-t4-02/BERICHT.md
+   /root/biotop-vor-t4-02/SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md
+   /root/biotop-vor-t4-02/UEBERGABE.md
+   /root/biotop-vor-t4-03/BERICHT.md
+   /root/biotop-vor-t4-03/SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md
+   /root/biotop-vor-t4-03/UEBERGABE.md
+   /root/biotop-vor-t4-04/BERICHT.md
+   /root/biotop-vor-t4-04/SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md
+   /root/biotop-vor-t4-04/UEBERGABE.md
+   /root/biotop-vor-t4-05/BERICHT.md
+   /root/biotop-vor-t4-05/SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md
+   /root/biotop-vor-t4-05/UEBERGABE.md
+   /root/biotop-vor-t4-05/ZWEI-REVIEWS.md
+   /root/biotop-vor-t4-06/EINORDNUNG-U1-U4.md
+   /root/biotop-vor-t4-06/S1-ABBRUCH.md
+   /root/biotop-vor-t4-06/UEBERGABE.md
+   {LAEUFE}/biotop-t3-typescript/BERICHT.md
+   {LAEUFE}/biotop-t3-typescript/MESSGERAETFEHLER.md
+   {LAEUFE}/biotop-t3-typescript/ZWISCHENBERICHT.md
+   {LAEUFE}/biotop-t3-typescript/abschluss-01/ABSCHLUSSBERICHT.md
+   {LAEUFE}/biotop-t3-typescript/abschluss-02/NACHTRAG-02.md
+   {LAEUFE}/biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md
+   {LAEUFE}/biotop-t3-typescript/abschluss-03/UEBERGABE.md
+   {LAEUFE}/biotop-t3-typescript/uebernahme-01/ZWISCHENBERICHT.md
+   {LAEUFE}/biotop-t3-typescript/verfassung-02/ZWISCHENBERICHT.md
+   {LAEUFE}/biotop-t3-typescript/verfassung-entwurf-01/ZWISCHENBERICHT.md
+   {LAEUFE}/biotop-phase-4-vorbedingung-1/BERICHT.md
+   {LAEUFE}/biotop-phase-4-vorbedingung-1/NACHGANG-03.md
+   {LAEUFE}/biotop-phase-4-vorbedingung-1/NACHGANG-04.md
+   {LAEUFE}/biotop-phase-4-vorbedingung-1/NACHGANG-05.md
+   {LAEUFE}/biotop-phase-4-vorbedingung-1/NACHGANG-06.md
+   {LAEUFE}/biotop-phase-4-vorbedingung-1/NACHGANG.md
+   {LAEUFE}/biotop-phase-4-vorbedingung-1/nach-reparatur-02/ZWISCHENBERICHT.md
+   {LAEUFE}/biotop-phase-4-vorbedingung-1/nach-reparatur-02/abschluss-01/BERICHT.md
+   {LAEUFE}/biotop-phase-4-vorbedingung-1/nach-reparatur-02/abschluss-01/UEBERGABE-PHASE-4.md
+   {LAEUFE}/biotop-phase-4-vorbedingung-1/nach-reparatur-02/abschluss-01/ZWISCHENBERICHT.md
+   {LAEUFE}/biotop-phase-4-vorbedingung-1/nach-reparatur-02/abschluss-02/UEBERGABE-PHASE-4.md
+   {LAEUFE}/biotop-phase-4-vorbedingung-1/nach-reparatur-02/abschluss-02/ZWISCHENBERICHT.md
+   {LAEUFE}/biotop-phase-4-vorbedingung-1/nach-reparatur-02/uebergabe-abnahme-01/UEBERGABE-PHASE-4.md
+   {LAEUFE}/biotop-phase-4-vorbedingung-1/nach-reparatur-02/uebergabe-abnahme-01/ZWISCHENBERICHT.md
+   {LAEUFE}/biotop-phase-4-einstieg-20260921-01/ZWISCHENBERICHT.md
+   {LAEUFE}/biotop-gesamtstand/BERICHT.md
+   {LAEUFE}/biotop-gesamtstand/OFFENE-PUNKTE-01.md
+   {LAEUFE}/biotop-gesamtstand/ZWISCHENBERICHT.md
+   {LAEUFE}/biotop-reparatur-01/ZWISCHENBERICHT-02.md
+   {LAEUFE}/biotop-reparatur-01/ZWISCHENBERICHT.md
+   {LAEUFE}/biotop-reparatur-02/AUSSEN-19-OFFEN.md
+   {LAEUFE}/biotop-reparatur-02/PHASE4-OFFEN.md
+   {LAEUFE}/biotop-reparatur-02/ZWISCHENBERICHT.md
+   {LAEUFE}/gedaechtnis/STAND-01.md
+
+== Je Punkt: Dateien mit Weiterreichen (Zeilen), Fundstellen (höchstens 14); dann Philipps Nachrichten
+
+## R6-1: 1 Dateien, 1 Zeilen
+   /root/biotop-vor-t4-05/UEBERGABE.md:83: (R6-1…R6-3 + ‹REVIEW_SPEZ›). Offen-Liste beim Füllen: 1 R6-1 (Bau vor T4), 2 R6-2, 3 TS-Proben E2/E3, 4 Normalvergleich
+   Philipp/Chat-Claude: 1 Nachrichten ['2026-09-24 23:15:27']
+
+## R6-2: 2 Dateien, 2 Zeilen
+   /root/biotop-vor-t4-05/SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md:10: | R6-2 | **Das Tor-4-Skript berechnet jede aus der Datenbank berechenbare Zeile**: Generation minus eins, Generation 0, Kein Rückschritt, Ha
+   /root/biotop-vor-t4-05/UEBERGABE.md:83: (R6-1…R6-3 + ‹REVIEW_SPEZ›). Offen-Liste beim Füllen: 1 R6-1 (Bau vor T4), 2 R6-2, 3 TS-Proben E2/E3, 4 Normalvergleich
+   Philipp/Chat-Claude: 1 Nachrichten ['2026-09-24 23:15:27']
+
+## R6-3: 1 Dateien, 1 Zeilen
+   /root/biotop-vor-t4-05/UEBERGABE.md:83: (R6-1…R6-3 + ‹REVIEW_SPEZ›). Offen-Liste beim Füllen: 1 R6-1 (Bau vor T4), 2 R6-2, 3 TS-Proben E2/E3, 4 Normalvergleich
+   Philipp/Chat-Claude: 1 Nachrichten ['2026-09-24 23:15:27']
+
+## R6-4: 2 Dateien, 3 Zeilen
+   /root/biotop-vor-t4-05/BERICHT.md:29: Rot in 3 von 3 Fällen (Zahl, Liste, Wahrheitswert), die Gegenproben 2 von 2 grün (`spez/SPEZ-R6-4.txt`). Folge in
+   /root/biotop-vor-t4-05/BERICHT.md:569: 1. **R6-4 vor T4 bauen?** Ein Test, der eine Zahl, eine Liste oder einen Wahrheitswert zusichert, hält nach
+   /root/biotop-vor-t4-05/SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md:12: | R6-4 | **Festhalten erkennt Zusicherungen ohne Anführungszeichen.** Eine fallende Zusicherung im Test hält fest, auch wenn pytest die Meld
+   Philipp/Chat-Claude: 1 Nachrichten ['2026-09-24 23:15:27']
+
+## R6-5: 0 Dateien, 0 Zeilen
+   Philipp/Chat-Claude: 0 Nachrichten []
+
+## R6-6: 0 Dateien, 0 Zeilen
+   Philipp/Chat-Claude: 0 Nachrichten []
+
+## R6-7: 0 Dateien, 0 Zeilen
+   Philipp/Chat-Claude: 0 Nachrichten []
+
+## R6-8: 0 Dateien, 0 Zeilen
+   Philipp/Chat-Claude: 0 Nachrichten []
+
+## R6-9: 0 Dateien, 0 Zeilen
+   Philipp/Chat-Claude: 0 Nachrichten []
+
+## R6-10: 0 Dateien, 0 Zeilen
+   Philipp/Chat-Claude: 0 Nachrichten []
+
+## R6-11: 0 Dateien, 0 Zeilen
+   Philipp/Chat-Claude: 0 Nachrichten []
+
+## R6-12: 1 Dateien, 1 Zeilen
+   /root/biotop-vor-t4-05/SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md:20: | R6-12 | **Verhaltensändernde Altlast erreichbar** (Entscheidung 5): unabhängiger Test am End- und Ausgangsstand, Kennungen einheitlich, `e
+   Philipp/Chat-Claude: 0 Nachrichten []
+
+## R6-13: 3 Dateien, 3 Zeilen
+   /root/biotop-vor-t4-05/BERICHT.md:488: | 10 | niedrig | TS-Kanon: 6 blinde Arten, 6 Fehlalarm-Arten (lokal) | Entscheidung (8): vor T5, mit TS-Proben (R6-13) |
+   /root/biotop-vor-t4-05/SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md:21: | R6-13 | **TS-Kanon**: blinde Arten und Fehlalarme; typtreue Verfälschung und Ausnahmeinhalt in TS; TS-Proben zu Entscheidungen 2 und 3. **
+   /root/biotop-vor-t4-06/UEBERGABE.md:45: Zeitgrenze je Test (hängt er unter Verfälschung → `fehler`). TS (`deck-setup.mjs`) → R6-13 vor T5.
+   Philipp/Chat-Claude: 0 Nachrichten []
+
+## R6-14: 2 Dateien, 2 Zeilen
+   /root/biotop-vor-t4-06/EINORDNUNG-U1-U4.md:10: | U-1 | `os.fork` in einem Werk mit laufenden Threads kann das Kind der Eingrenzung verklemmen | Das Kind hängt. `_im_kind` und `_vorlage_be
+   /root/biotop-vor-t4-06/UEBERGABE.md:66: - (8) Kappe und R6-14/R6-15: Messskript für die Aufnahme von T4 vorbereiten, nicht messen (kein T4-Werk); TS → vor T5.
+   Philipp/Chat-Claude: 0 Nachrichten []
+
+## R6-15: 2 Dateien, 2 Zeilen
+   /root/biotop-vor-t4-05/BERICHT.md:489: | 11 | niedrig | `ITER_KAPPE` 1000 liest zwanzigmal so weit voraus (gerechnet) | auf der Liste: an der T4-Last messen (R6-15) |
+   /root/biotop-vor-t4-06/UEBERGABE.md:66: - (8) Kappe und R6-14/R6-15: Messskript für die Aufnahme von T4 vorbereiten, nicht messen (kein T4-Werk); TS → vor T5.
+   Philipp/Chat-Claude: 0 Nachrichten []
+
+## U-1: 3 Dateien, 4 Zeilen
+   /root/biotop-vor-t4-05/BERICHT.md:491: **Nur im verworfenen ersten Durchgang, unbestätigt** (auf der Liste als U-1 … U-4, ohne eigene Nachprüfung):
+   /root/biotop-vor-t4-06/EINORDNUNG-U1-U4.md:10: | U-1 | `os.fork` in einem Werk mit laufenden Threads kann das Kind der Eingrenzung verklemmen | Das Kind hängt. `_im_kind` und `_vorlage_be
+   /root/biotop-vor-t4-06/EINORDNUNG-U1-U4.md:15: **Ergebnis: 0 von 4 sind stille Durchlässe.** Alle vier bleiben auf der Liste. Die Folge von U-1 (Hänger bis zum
+   /root/biotop-vor-t4-06/UEBERGABE.md:104: alle bleiben auf der Liste (U-1: Hänger → Kammerlimit → zurückgestellt; die Frist der Eingrenzung ist Teil von
+   Philipp/Chat-Claude: 1 Nachrichten ['2026-09-25 00:27:35']
+
+## U-2: 1 Dateien, 1 Zeilen
+   /root/biotop-vor-t4-06/EINORDNUNG-U1-U4.md:11: | U-2 | Lastaufrufe tragen seit Entscheidung 7 auch `klein`/`gross` (Überstrenge) | Mehr ungedeckte Abweichungen, also Ablehnung richtiger B
+   Philipp/Chat-Claude: 0 Nachrichten []
+
+## U-3: 1 Dateien, 1 Zeilen
+   /root/biotop-vor-t4-06/EINORDNUNG-U1-U4.md:12: | U-3 | Der TS-Weg prüft nicht „ohne Sonde“ | Bricht eine Last an der Vorgeneration ab, enthalten sich alle Funktionen, die sie rief, auch w
+   Philipp/Chat-Claude: 0 Nachrichten []
+
+## U-4: 2 Dateien, 2 Zeilen
+   /root/biotop-vor-t4-05/BERICHT.md:491: **Nur im verworfenen ersten Durchgang, unbestätigt** (auf der Liste als U-1 … U-4, ohne eigene Nachprüfung):
+   /root/biotop-vor-t4-06/EINORDNUNG-U1-U4.md:13: | U-4 | Die Stufen-Zusicherung im Verdrahtungstest filtert `None` | `aegis.pruefen` setzt `laufzeit_stufe` unmittelbar vor der gepaarten Lau
+   Philipp/Chat-Claude: 1 Nachrichten ['2026-09-25 00:27:35']
+
+## R5-14: 2 Dateien, 2 Zeilen
+   /root/biotop-vor-t4-04/BERICHT.md:264: | 17 | niedrig | Koroutinen laufen beim Erzeugen in einer eigenen Schleife (gelesen, nicht gemessen). | Liste (nicht entschieden; SPEZIFIKAT
+   /root/biotop-vor-t4-04/SPEZIFIKATIONEN-NAECHSTER-AUFTRAG.md:24: | R5-14 | Koroutine, die an Objekte einer fremden Ereignisschleife gebunden ist | Nr. 17: gelesen | — | nicht entschieden: Liste |
+   Philipp/Chat-Claude: 0 Nachrichten []
+
+## R4-7: 1 Dateien, 1 Zeilen
+   /root/biotop-vor-t4-04/BERICHT.md:201: | R4-7 | K2868 mit gestelltem deckendem Test je Muster | **teilweise**: Klassen je Test im Beleg; die Entscheidung-3-Gegenprobe am Nachspiel
+   Philipp/Chat-Claude: 0 Nachrichten []
+
+## R4-17: 1 Dateien, 2 Zeilen
+   /root/biotop-vor-t4-04/BERICHT.md:180: - **Methoden von Klassen in TypeScript:** vor T5, nicht vor T4 (Entscheidung 5). Nicht gebaut, auf der Liste (§7, R4-17).
+   /root/biotop-vor-t4-04/BERICHT.md:211: | R4-17 | Methoden in TypeScript | **Liste** | Entscheidung 5: vor T5; T4 ist Python |
+   Philipp/Chat-Claude: 0 Nachrichten []
+
+## R4-19: 1 Dateien, 1 Zeilen
+   /root/biotop-vor-t4-04/BERICHT.md:213: | R4-19 | S-12 und S-3 (Wurzelmodul) durch den Laufweg | **Liste** | beide sind am Organ belegt und liegen im selben Aufruf von `verhaltensv
+   Philipp/Chat-Claude: 0 Nachrichten []
+
+## Phase-4-Lücken (4): 3 Dateien, 3 Zeilen
+   {LAEUFE}/biotop-phase-4-vorbedingung-1/nach-reparatur-02/abschluss-01/UEBERGABE-PHASE-4.md:233: **Vier von vier Phase-4-Lücken bleiben offen**, einschließlich der engeren Pflicht aus Philipps Auftragsliste:[5]
+   {LAEUFE}/biotop-phase-4-vorbedingung-1/nach-reparatur-02/uebergabe-abnahme-01/UEBERGABE-PHASE-4.md:33: **9 von 11 Ansageabweichungen bleiben eigener Auftrag erst nach Vorbedingung 2.** Die 19 Außenorte, vier Phase-4-Lücken und unvollständige S
+   {LAEUFE}/biotop-reparatur-02/ZWISCHENBERICHT.md:28: 19 von 19 Außenorten und 4 von 4 Phase-4-Lücken bleiben offen; keine erneute Außensuche, keine Vollständigkeitsentwarnung. Im engen Umfang k
+   Philipp/Chat-Claude: 2 Nachrichten ['2026-09-20 17:34:38', '2026-09-20 18:32:50']
+
+## 19 Außenorte: 3 Dateien, 4 Zeilen
+   {LAEUFE}/biotop-phase-4-vorbedingung-1/nach-reparatur-02/abschluss-02/ZWISCHENBERICHT.md:23: Abgeschlossen: True; Urteil passed=True. Zusammenfassung: Vollständiger unabhängiger Review bestanden. Der ausdrücklich enge Nachtrag zu Tor
+   {LAEUFE}/biotop-phase-4-vorbedingung-1/nach-reparatur-02/abschluss-02/ZWISCHENBERICHT.md:31: 9von11 Ansage-/Erzeugnisabweichungen sind als eigener Auftrag NACH Vorbedingung2 erfasst, mit Philipps Wertung der fünften Wiederkehr der Fe
+   {LAEUFE}/biotop-phase-4-vorbedingung-1/nach-reparatur-02/uebergabe-abnahme-01/UEBERGABE-PHASE-4.md:33: **9 von 11 Ansageabweichungen bleiben eigener Auftrag erst nach Vorbedingung 2.** Die 19 Außenorte, vier Phase-4-Lücken und unvollständige S
+   {LAEUFE}/biotop-reparatur-02/ZWISCHENBERICHT.md:28: 19 von 19 Außenorten und 4 von 4 Phase-4-Lücken bleiben offen; keine erneute Außensuche, keine Vollständigkeitsentwarnung. Im engen Umfang k
+   Philipp/Chat-Claude: 0 Nachrichten []
+
+## Abweichungsquote Ansage↔Ausführung: 2 Dateien, 3 Zeilen
+   {LAEUFE}/biotop-phase-4-vorbedingung-1/nach-reparatur-02/abschluss-02/ZWISCHENBERICHT.md:23: Abgeschlossen: True; Urteil passed=True. Zusammenfassung: Vollständiger unabhängiger Review bestanden. Der ausdrücklich enge Nachtrag zu Tor
+   {LAEUFE}/biotop-phase-4-vorbedingung-1/nach-reparatur-02/abschluss-02/ZWISCHENBERICHT.md:31: 9von11 Ansage-/Erzeugnisabweichungen sind als eigener Auftrag NACH Vorbedingung2 erfasst, mit Philipps Wertung der fünften Wiederkehr der Fe
+   {LAEUFE}/biotop-phase-4-vorbedingung-1/nach-reparatur-02/uebergabe-abnahme-01/UEBERGABE-PHASE-4.md:33: **9 von 11 Ansageabweichungen bleiben eigener Auftrag erst nach Vorbedingung 2.** Die 19 Außenorte, vier Phase-4-Lücken und unvollständige S
+   Philipp/Chat-Claude: 2 Nachrichten ['2026-09-20 04:50:18', '2026-09-20 22:55:04']
+
+## Rauschmessung verwirft Einzelwerte: 0 Dateien, 0 Zeilen
+   Philipp/Chat-Claude: 1 Nachrichten ['2026-09-21 12:05:50']
+
+## Wächter-Ausnahmeliste Verfallsbedingung: 3 Dateien, 3 Zeilen
+   {LAEUFE}/biotop-t3-typescript/abschluss-01/ABSCHLUSSBERICHT.md:178: 2. **Ausnahmeliste des Python-Wächters braucht eine Verfallsbedingung.** Jeder Eintrag in
+   {LAEUFE}/biotop-t3-typescript/abschluss-03/ABSCHLUSS-03.md:453: - Verfallsbedingung der Ausnahmeliste des Python-Wächters;
+   {LAEUFE}/biotop-t3-typescript/uebernahme-01/ZWISCHENBERICHT.md:132: 2. **Ausnahmeliste des Python-Wächters braucht eine Verfallsbedingung.** Jeder Eintrag in
+   Philipp/Chat-Claude: 1 Nachrichten ['2026-09-21 16:58:53']
+
+## _beschleunigen entfernen: 0 Dateien, 0 Zeilen
+   Philipp/Chat-Claude: 1 Nachrichten ['2026-09-21 16:58:53']
+
+## Erreichbarkeitsführung Anbieter: 0 Dateien, 0 Zeilen
+   Philipp/Chat-Claude: 1 Nachrichten ['2026-09-21 20:15:07']
+
+## stiller Durchlass „0 von 0“/unbeobachtet: 0 Dateien, 0 Zeilen
+   Philipp/Chat-Claude: 0 Nachrichten []
+
+## Hermes-Fehlerklassierer (a)/(b): 1 Dateien, 1 Zeilen
+   /root/biotop-vor-t4-06/S1-ABBRUCH.md:38: Modellliste mit Pflicht-Denken oder im Muster des Fehlerklassierers. Das berührt die Hermes-Installation, also einen
+   Philipp/Chat-Claude: 0 Nachrichten []
+
+## Sperre 02 / VORHER-NACHHER-S3: 0 Dateien, 0 Zeilen
+   Philipp/Chat-Claude: 0 Nachrichten []
+=== Ende R52 ===

@@ -1,0 +1,48 @@
+commit 0aac612e41309473d85aa9202bed9566b93f1e97
+Author: Hermes (Biotop) <hermes@biotop.local>
+Date:   Thu Sep 24 07:32:51 2026 +0200
+
+    Vor T4, Runde 3, Nachtrag: Sprachweichen-Register für die neuen Teile der Python-Sonde
+    
+    Die volle Regression am Commit d54bf2f hatte 1 roten Test (532 bestanden, 2 übersprungen, 1 fehlgeschlagen):
+    tests/test_t3_python_annahmen.py::test_keine_ungeschuetzte_python_annahme_im_kern — verhalten.py:803
+    vertraege_ausfuehren() ['pytest-auswertung'] und verhalten.py:660 params() ['python-ast'] ohne Eintrag.
+    Beide laufen nur in der Kammer eines Python-Werks hinter den Weichen in verhaltensvergleich.py; eingetragen in
+    GEPRUEFT mit Zeilennachweis. Die Zeilennachweise der beiden vorhandenen Einträge waren veraltet (Review 02 Nr. 18)
+    und sind berichtigt. Nur tests/test_t3_python_annahmen.py geändert; biotop/ unverändert gegenüber d54bf2f.
+    Neuer Commit statt Änderung von d54bf2f: die Geschichte wird nicht umgeschrieben.
+
+diff --git a/tests/test_t3_python_annahmen.py b/tests/test_t3_python_annahmen.py
+index 4c61bcd..2f12db7 100644
+--- a/tests/test_t3_python_annahmen.py
++++ b/tests/test_t3_python_annahmen.py
+@@ -46,13 +46,24 @@ GEPRUEFT = {
+         'immuntest_typescript. Die Weiche steht damit zwei Ebenen höher.',
+     'biotop/kern/py/verhalten.py::signaturen_lesen':
+         'Teil der Python-Verhaltenssonde, die nur IN DER KAMMER eines Python-Werks läuft: verhaltensvergleich.py '
+-        'liest die Datei als Text (_python_sonde, verhaltensvergleich.py:209) und ruft sie nur hinter der Weiche '
+-        'verhaltensvergleich.py:238 (beobachten: if not ist_typescript) bzw. :195 (deckende_aufrufe: '
+-        'ist_typescript → TS-Aufzeichner, sonst Python). Der Aufruf in verhalten.py:main ist sondeninterner Ablauf.',
++        'liest die Datei als Text (_python_sonde, verhaltensvergleich.py:376) und ruft sie nur hinter den Weichen '
++        'verhaltensvergleich.py:406 (beobachten: if not ist_typescript), :426 (erreicht) und :319 (_aufzeichnen: '
++        'ist_typescript → TS-Aufzeichner, sonst Python). Der Aufruf in verhalten.py:main ist sondeninterner Ablauf. '
++        'Zeilennachweise berichtigt in der Behebungsrunde 3 vor T4 (Review 02 Nr. 18).',
++    'biotop/kern/py/verhalten.py::params':
++        'Innere Hilfsfunktion von signaturen_lesen (verhalten.py:651) in der Python-Verhaltenssonde, gerufen nur dort '
++        '(verhalten.py:668, :681) — also nur in der Kammer eines Python-Werks hinter denselben Weichen wie '
++        'signaturen_lesen (verhaltensvergleich.py:406, :426, :319). Neu in der Behebungsrunde 3 vor T4 (Signaturen je '
++        'Methode, Entscheidung Chat-Claude 3).',
++    'biotop/kern/py/verhalten.py::vertraege_ausfuehren':
++        'Führt in der Kammer die Vertragstests des Python-Werks mit pytest aus, um Instanzrezepte für Klassen zu '
++        'gewinnen (Entscheidung Chat-Claude 3, Behebungsrunde 3 vor T4). Gerufen nur aus verhalten.py:main (:1186), '
++        'also nur innerhalb der Python-Sonde hinter den Weichen verhaltensvergleich.py:406, :426 und :319.',
+     'biotop/kern/py/verhalten.py::main':
+         'Einstieg der Python-Verhaltenssonde in der Kammer (python _messgeraet/verhalten.py). Gestartet nur über '
+-        '_python_sonde (verhaltensvergleich.py:209) hinter den Weichen verhaltensvergleich.py:238 '
+-        '(beobachten) und :195 (deckende_aufrufe); die Aufrufe in verhalten.py sind der __main__-Block.',
++        '_python_sonde (verhaltensvergleich.py:376) hinter den Weichen verhaltensvergleich.py:406 (beobachten), :426 '
++        '(erreicht) und :319 (_aufzeichnen); die Aufrufe in verhalten.py sind der __main__-Block. Zeilennachweise '
++        'berichtigt in der Behebungsrunde 3 vor T4 (Review 02 Nr. 18).',
+     'biotop/organe/eichproben.py::_funktionen':
+         'Die Treffer in eichproben_ts.py:32 und :113 gelten dessen EIGENEM _funktionen '
+         '(eichproben_ts.py:6), nicht diesem — Namensgleichheit. Die echten Aufrufer in '

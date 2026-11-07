@@ -1,0 +1,46 @@
+BEFEHL: /root/reparatur-01/venv/bin/python -m pytest tests/test_rauschmessung.py -q --junitxml=/var/pruefkanal/oeffentlich/_akte/3qfc8gxpdvjsqxcbuj39mupe92a82agy/laeufe/biotop-reparatur-01/ausgaben/24-rausch-bereichssperre-rot.xml
+ARBEITSVERZEICHNIS: /root/biotop
+...................FF                                                    [100%]
+=================================== FAILURES ===================================
+_ test_rauschsperre_wirkt_nur_auf_betroffenen_wirkungskreis[wirkungskreis0-True] _
+
+messung = <function messung.<locals>.bauen at 0x7bbd7edefce0>
+wirkungskreis = ['alpha'], erwartet = True
+
+    @pytest.mark.parametrize("wirkungskreis,erwartet", [(["alpha"], True), (["alpha", "beta"], False)])
+    def test_rauschsperre_wirkt_nur_auf_betroffenen_wirkungskreis(messung, wirkungskreis, erwartet):
+        basis, kandidat = messung(tote_funktionen=1), messung(tote_funktionen=1)
+        kandidat["bereiche"]["alpha"]["tote_funktionen"] = 0
+        kandidat["bereiche"]["beta"]["laufzeit_ms"] = 10000.
+        r = M.urteil_f2(basis, kandidat, basis, ["alpha", "beta"], wirkungskreis,
+                        {"_rauschtoleranz": {"alpha": 1.15}, "_gesperrte_bereiche": ["beta"]})
+>       assert r["ok"] is erwartet
+E       assert False is True
+
+tests/test_rauschmessung.py:68: AssertionError
+_ test_rauschsperre_wirkt_nur_auf_betroffenen_wirkungskreis[wirkungskreis1-False] _
+
+messung = <function messung.<locals>.bauen at 0x7bbd7ee5c220>
+wirkungskreis = ['alpha', 'beta'], erwartet = False
+
+    @pytest.mark.parametrize("wirkungskreis,erwartet", [(["alpha"], True), (["alpha", "beta"], False)])
+    def test_rauschsperre_wirkt_nur_auf_betroffenen_wirkungskreis(messung, wirkungskreis, erwartet):
+        basis, kandidat = messung(tote_funktionen=1), messung(tote_funktionen=1)
+        kandidat["bereiche"]["alpha"]["tote_funktionen"] = 0
+        kandidat["bereiche"]["beta"]["laufzeit_ms"] = 10000.
+        r = M.urteil_f2(basis, kandidat, basis, ["alpha", "beta"], wirkungskreis,
+                        {"_rauschtoleranz": {"alpha": 1.15}, "_gesperrte_bereiche": ["beta"]})
+        assert r["ok"] is erwartet
+        if not erwartet:
+>           assert "gesperrt" in r["grund"] and "beta" in r["grund"]
+E           AssertionError: assert ('gesperrt' in 'Grenzmaß gerissen: beta.laufzeit_ms: 10000.0 > Grenze 200.0 (Ausgang 100.0 × 2.00)')
+
+tests/test_rauschmessung.py:70: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_rauschmessung.py::test_rauschsperre_wirkt_nur_auf_betroffenen_wirkungskreis[wirkungskreis0-True]
+FAILED tests/test_rauschmessung.py::test_rauschsperre_wirkt_nur_auf_betroffenen_wirkungskreis[wirkungskreis1-False]
+2 failed, 19 passed in 0.17s
+
+STDERR:
+
+RUECKGABEWERT: 1

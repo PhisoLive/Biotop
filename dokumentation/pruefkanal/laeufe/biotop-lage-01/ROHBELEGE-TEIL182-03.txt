@@ -1,0 +1,276 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 03 · Teil 182 (Teile 166–239 dieses Stands) · enthält R194 bis R195
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R194 · Abschnitt 4 Umfang 1 / Vorgehen 9: Abhängigkeiten zum Wiederherstellen (Pakete der Python-Umgebungen, Sperr- und Anforderungsdateien, Node, Docker-Abbilder mit Versionsvariablen), nur lesend
+Beginn: 2026-09-25 19:55:22 CEST (UTC+0200)
+Ende:   2026-09-25 19:55:26 CEST (UTC+0200)
+Dauer:  4.5 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/s8_abhaengigkeiten.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/s8_abhaengigkeiten.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Abhängigkeiten zum Wiederherstellen (Abschnitt 4 Umfang 1 und Vorgehen 9).
+1. Python-Umgebungen unter /root: Pakete mit Version aus den *.dist-info-Ordnern (gelesen, nichts ausgeführt).
+2. Sperr- und Anforderungsdateien in /root/biotop und den Werk-/Zweigordnern: Pfad, Bytes, SHA-256.
+3. Node: Version jedes vorhandenen node-Programms.
+4. Docker: Abbilder (docker images) und je Abbild nur die Versionsvariablen aus docker image inspect."""
+import glob
+import hashlib
+import os
+import subprocess
+from pathlib import Path
+
+sha = lambda p: hashlib.sha256(Path(p).read_bytes()).hexdigest()
+run = lambda a: subprocess.run(a, capture_output=True, text=True, timeout=60)
+
+print('== 1. Python-Umgebungen')
+venvs = sorted(set(glob.glob('/root/*/venv') + glob.glob('/root/*/.venv') + glob.glob('/root/*/*/venv')))
+for v in venvs:
+    cfg = Path(v) / 'pyvenv.cfg'
+    info = ' · '.join(z.strip() for z in cfg.read_text().splitlines() if z.strip()) if cfg.exists() else 'pyvenv.cfg fehlt'
+    pakete = sorted({Path(d).name[:-len('.dist-info')] for d in glob.glob(f'{v}/lib/python*/site-packages/*.dist-info')},
+                    key=str.lower)
+    print(f'{v}: {len(pakete)} Pakete · {info}')
+    for i in range(0, len(pakete), 6):
+        print('   ' + ' · '.join(pakete[i:i + 6]))
+
+print('== 2. Sperr- und Anforderungsdateien')
+NAMEN = {'requirements.txt', 'requirements-dev.txt', 'pyproject.toml', 'setup.cfg', 'setup.py', 'Pipfile', 'Pipfile.lock',
+         'poetry.lock', 'uv.lock', 'package.json', 'package-lock.json', 'pnpm-lock.yaml', 'yarn.lock', 'tsconfig.json',
+         'pytest.ini', 'tox.ini', '.python-version', '.nvmrc', 'Dockerfile', 'vitest.config.ts', 'vitest.config.js'}
+AUS = {'node_modules', 'venv', '.venv', '.git', '__pycache__', '.pytest_cache', '.mypy_cache', 'dist', 'build'}
+WURZELN = ['/root/biotop', '/root/biotop-t3', '/root/versandwerk-t3-02', '/root/versandwerk-t3', '/root/reparatur-01',
+           '/root/reparatur-02', '/root/phase-4-vorbedingung-1']
+n = 0
+for w in WURZELN:
+    if not os.path.isdir(w):
+        print(f'{w}: fehlt')
+        continue
+    treffer = []
+    for wurzel, dirs, files in os.walk(w):
+        dirs[:] = sorted(d for d in dirs if d not in AUS)
+        treffer += [os.path.join(wurzel, f) for f in sorted(files)
+                    if f in NAMEN or f.startswith('requirements') and f.endswith('.txt') or f.startswith('Dockerfile')]
+    print(f'{w}: {len(treffer)} Dateien')
+    for p in treffer[:40]:
+        print(f'   {p} · {os.path.getsize(p)} B · {sha(p)}')
+    if len(treffer) > 40:
+        print(f'   … {len(treffer) - 40} weitere (Werkkopien), nicht einzeln aufgeführt')
+    n += len(treffer)
+print(f'zusammen: {n} Dateien')
+
+print('== 3. Node')
+kandidaten = sorted({p for p in ['/usr/bin/node', '/usr/local/bin/node', '/opt/node22/bin/node'] + glob.glob('/opt/*/bin/node')
+                     + glob.glob('/root/.nvm/versions/node/*/bin/node') if os.path.exists(p)})
+for p in kandidaten:
+    r = run([p, '--version'])
+    print(f'{p} → {os.path.realpath(p)} · {r.stdout.strip() or r.stderr.strip()}')
+for p in ['/usr/bin/npm', '/usr/local/bin/npm', '/opt/node22/bin/npm']:
+    if os.path.exists(p):
+        r = run([p, '--version'])
+        print(f'{p} · {r.stdout.strip() or r.stderr.strip()[:200]}')
+print(f'python3: {run(["/usr/bin/python3", "--version"]).stdout.strip()}')
+
+print('== 4. Docker')
+r = run(['docker', 'images', '--format', '{{.Repository}}:{{.Tag}}\t{{.ID}}\t{{.Size}}\t{{.CreatedAt}}'])
+print(r.stdout.rstrip() or r.stderr.rstrip())
+for zeile in r.stdout.splitlines():
+    bild = zeile.split('\t')[1]
+    e = run(['docker', 'image', 'inspect', '--format', '{{range .Config.Env}}{{println .}}{{end}}', bild])
+    versionen = [z for z in e.stdout.splitlines() if 'VERSION' in z.split('=')[0]]
+    c = run(['docker', 'image', 'inspect', '--format', '{{json .Config.Cmd}} {{json .Config.Entrypoint}} {{.Os}}/{{.Architecture}}', bild])
+    print(f'{zeile.split(chr(9))[0]} ({bild}): {" · ".join(versionen) or "keine Versionsvariable"} · {c.stdout.strip()}')
+--- Ende /root/sicherung/biotop-lage-01/arbeit/s8_abhaengigkeiten.py ---
+Ausgabe (vollständig, stdout und stderr):
+== 1. Python-Umgebungen
+/root/biotop-t3/venv: 5 Pakete · home = /usr/bin · implementation = CPython · uv = 0.12.13 · version_info = 3.12.3 · include-system-site-packages = false
+   iniconfig-2.3.0 · packaging-26.3 · pluggy-1.6.0 · pygments-2.21.0 · pytest-9.1.1
+/root/reparatur-01/venv: 5 Pakete · home = /usr/bin · implementation = CPython · uv = 0.12.13 · version_info = 3.12.3 · include-system-site-packages = false
+   iniconfig-2.3.0 · packaging-26.3 · pluggy-1.6.0 · pygments-2.21.0 · pytest-9.1.1
+== 2. Sperr- und Anforderungsdateien
+/root/biotop: 31 Dateien
+   /root/biotop/pytest.ini · 198 B · a27235b7d9ad977316032c4efc29ab02989a2d1664158f782a6aebf2b117e6e4
+   /root/biotop/requirements-test.txt · 14 B · 93c4ab5f175d24229e46ec70a8ecaeb6db8b36e3f54d8005808044c060acbc92
+   /root/biotop/daten/werke/lagerhaus/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop/daten/werke/lagerhaus-c-25/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop/daten/werke/lagerhaus-kasse/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop/daten/werke/lagerhaus-kasse2/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop/daten/werke/lagerhaus-kasse3/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop/daten/werke/lagerhaus-nachlauf/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop/daten/werke/lagerhaus-nachlauf2/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop/daten/werke/lagerhaus-nachlauf8/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop/daten/werke/lagerhaus-nachlauf9/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop/daten/werke/lagerhaus-ohne-tests/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop/daten/werke/lagerhaus-p2/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop/daten/werke/lagerhaus-p2-13/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop/daten/werke/lagerhaus-p3-14/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop/daten/werke/lagerhaus-p3-15/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop/daten/werke/lagerhaus-p3-16/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop/daten/werke/lagerhaus-p3-18/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop/daten/werke/lagerhaus-p3-19/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop/daten/werke/lagerhaus-p3-20/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop/daten/werke/lagerhaus-p3-22/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop/daten/werke/lagerhaus-zeile8-24/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop/daten/werke/logmuehle-17/pyproject.toml · 325 B · 17ea8d31b572446a95197f3d179ab084fa969891e4fb0e16ac7dd10737a4a9cb
+   /root/biotop/daten/werke/logmuehle-23/pyproject.toml · 325 B · 17ea8d31b572446a95197f3d179ab084fa969891e4fb0e16ac7dd10737a4a9cb
+   /root/biotop/daten/werke/versandwerk-t3-02/package.json · 378 B · 82ca32479534be5813d71b645a05befb11909bdccd045aa3533361826a0f7748
+   /root/biotop/daten/werke/versandwerk-t3-02/tsconfig.json · 339 B · cdf50db76ffb0339e453e16db05ab24915404fa459f9637e8932b359a4eb1cb4
+   /root/biotop/daten/werke/versandwerk-t3-02/vitest.config.ts · 274 B · 9f790c39d48663cb2ad9fd82b02f7289c0d2e7255d583479c0210676698b41c7
+   /root/biotop/kammer/Dockerfile · 152 B · fb5724b68ace39ff9032800208c136d3ed6d11b3ebdb3288b48750823bad1ba3
+   /root/biotop/kammer/typescript/Dockerfile · 815 B · ffdcd935b09dc54b9b5029afbe9a3f7e3d03231dd4ef56f7015f1c1a7b0dad3d
+   /root/biotop/kammer/typescript/package-lock.json · 125863 B · ba6dd4d05537da81b8634dd17b3bb805adf46b2ebb81e0fe08e8bb87e4840f30
+   /root/biotop/kammer/typescript/package.json · 320 B · 1c74ff1dcb7dd03df8efef0b9319d1a28d5cd6251e8cefbbff05d04c034380c8
+/root/biotop-t3: 37 Dateien
+   /root/biotop-t3/arbeitsstand-sicherung/pytest.ini · 198 B · a27235b7d9ad977316032c4efc29ab02989a2d1664158f782a6aebf2b117e6e4
+   /root/biotop-t3/arbeitsstand-sicherung/requirements-test.txt · 14 B · 93c4ab5f175d24229e46ec70a8ecaeb6db8b36e3f54d8005808044c060acbc92
+   /root/biotop-t3/arbeitsstand-sicherung/kammer/Dockerfile · 152 B · fb5724b68ace39ff9032800208c136d3ed6d11b3ebdb3288b48750823bad1ba3
+   /root/biotop-t3/arbeitsstand-sicherung/kammer/typescript/Dockerfile · 815 B · ffdcd935b09dc54b9b5029afbe9a3f7e3d03231dd4ef56f7015f1c1a7b0dad3d
+   /root/biotop-t3/arbeitsstand-sicherung/kammer/typescript/package-lock.json · 125863 B · ba6dd4d05537da81b8634dd17b3bb805adf46b2ebb81e0fe08e8bb87e4840f30
+   /root/biotop-t3/arbeitsstand-sicherung/kammer/typescript/package.json · 320 B · 1c74ff1dcb7dd03df8efef0b9319d1a28d5cd6251e8cefbbff05d04c034380c8
+   /root/biotop-t3/repo-sicherung-vor-commits/pytest.ini · 198 B · a27235b7d9ad977316032c4efc29ab02989a2d1664158f782a6aebf2b117e6e4
+   /root/biotop-t3/repo-sicherung-vor-commits/requirements-test.txt · 14 B · 93c4ab5f175d24229e46ec70a8ecaeb6db8b36e3f54d8005808044c060acbc92
+   /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-c-25/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-kasse/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-kasse2/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-kasse3/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-nachlauf/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-nachlauf2/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-nachlauf8/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-nachlauf9/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-ohne-tests/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p2/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p2-13/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-14/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-15/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-16/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-18/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-19/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-20/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-22/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-zeile8-24/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/logmuehle-17/pyproject.toml · 325 B · 17ea8d31b572446a95197f3d179ab084fa969891e4fb0e16ac7dd10737a4a9cb
+   /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/logmuehle-23/pyproject.toml · 325 B · 17ea8d31b572446a95197f3d179ab084fa969891e4fb0e16ac7dd10737a4a9cb
+   /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/versandwerk-t3-02/package.json · 378 B · 82ca32479534be5813d71b645a05befb11909bdccd045aa3533361826a0f7748
+   /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/versandwerk-t3-02/tsconfig.json · 339 B · cdf50db76ffb0339e453e16db05ab24915404fa459f9637e8932b359a4eb1cb4
+   /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/versandwerk-t3-02/vitest.config.ts · 274 B · 9f790c39d48663cb2ad9fd82b02f7289c0d2e7255d583479c0210676698b41c7
+   /root/biotop-t3/repo-sicherung-vor-commits/kammer/Dockerfile · 152 B · fb5724b68ace39ff9032800208c136d3ed6d11b3ebdb3288b48750823bad1ba3
+   /root/biotop-t3/repo-sicherung-vor-commits/kammer/typescript/Dockerfile · 815 B · ffdcd935b09dc54b9b5029afbe9a3f7e3d03231dd4ef56f7015f1c1a7b0dad3d
+   /root/biotop-t3/repo-sicherung-vor-commits/kammer/typescript/package-lock.json · 125863 B · ba6dd4d05537da81b8634dd17b3bb805adf46b2ebb81e0fe08e8bb87e4840f30
+   /root/biotop-t3/repo-sicherung-vor-commits/kammer/typescript/package.json · 320 B · 1c74ff1dcb7dd03df8efef0b9319d1a28d5cd6251e8cefbbff05d04c034380c8
+/root/versandwerk-t3-02: 3 Dateien
+   /root/versandwerk-t3-02/package.json · 378 B · 82ca32479534be5813d71b645a05befb11909bdccd045aa3533361826a0f7748
+   /root/versandwerk-t3-02/tsconfig.json · 339 B · cdf50db76ffb0339e453e16db05ab24915404fa459f9637e8932b359a4eb1cb4
+   /root/versandwerk-t3-02/vitest.config.ts · 274 B · 9f790c39d48663cb2ad9fd82b02f7289c0d2e7255d583479c0210676698b41c7
+/root/versandwerk-t3: 3 Dateien
+   /root/versandwerk-t3/package.json · 378 B · 82ca32479534be5813d71b645a05befb11909bdccd045aa3533361826a0f7748
+   /root/versandwerk-t3/tsconfig.json · 339 B · cdf50db76ffb0339e453e16db05ab24915404fa459f9637e8932b359a4eb1cb4
+   /root/versandwerk-t3/vitest.config.ts · 274 B · 9f790c39d48663cb2ad9fd82b02f7289c0d2e7255d583479c0210676698b41c7
+/root/reparatur-01: 232 Dateien
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_benannter_vertrag_am_kopi0/werk/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_messgeraetwechsel_od0/instrument/kammer/Dockerfile · 152 B · fb5724b68ace39ff9032800208c136d3ed6d11b3ebdb3288b48750823bad1ba3
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_messgeraetwechsel_od1/instrument/kammer/Dockerfile · 152 B · fb5724b68ace39ff9032800208c136d3ed6d11b3ebdb3288b48750823bad1ba3
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_messgeraetwechsel_od2/instrument/kammer/Dockerfile · 152 B · fb5724b68ace39ff9032800208c136d3ed6d11b3ebdb3288b48750823bad1ba3
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_messgeraetwechsel_od3/instrument/kammer/Dockerfile · 152 B · fb5724b68ace39ff9032800208c136d3ed6d11b3ebdb3288b48750823bad1ba3
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_messgeraetwechsel_od4/instrument/kammer/Dockerfile · 152 B · fb5724b68ace39ff9032800208c136d3ed6d11b3ebdb3288b48750823bad1ba3
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_messgeraetwechsel_od5/instrument/kammer/Dockerfile · 152 B · fb5724b68ace39ff9032800208c136d3ed6d11b3ebdb3288b48750823bad1ba3
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_messgeraetwechsel_od6/instrument/kammer/Dockerfile · 152 B · fb5724b68ace39ff9032800208c136d3ed6d11b3ebdb3288b48750823bad1ba3
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_messgeraetwechsel_od7/instrument/kammer/Dockerfile · 152 B · fb5724b68ace39ff9032800208c136d3ed6d11b3ebdb3288b48750823bad1ba3
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_unit_messgeraetwechsel_od8/instrument/kammer/Dockerfile · 152 B · fb5724b68ace39ff9032800208c136d3ed6d11b3ebdb3288b48750823bad1ba3
+   /root/reparatur-01/eltern-temp/pytest-of-root/pytest-38/test_vier_paare_am_kopierten_p0/werk/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/reparatur-01/eltern-vorspann-01/werk/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/reparatur-01/eltern-vorspann-02/werk/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/reparatur-01/eltern-vorspann-sperre-01/werk/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/reparatur-01/gegenmutanten/kernmass-bestehende-tests/pytest.ini · 198 B · a27235b7d9ad977316032c4efc29ab02989a2d1664158f782a6aebf2b117e6e4
+   /root/reparatur-01/gegenmutanten/pareto-einzelregression/pytest.ini · 198 B · a27235b7d9ad977316032c4efc29ab02989a2d1664158f782a6aebf2b117e6e4
+   /root/reparatur-01/gegenmutanten/streuung-falsche-ebene/pytest.ini · 198 B · a27235b7d9ad977316032c4efc29ab02989a2d1664158f782a6aebf2b117e6e4
+   /root/reparatur-01/nachbesserung-01/vertrag/ausgang-repo/pytest.ini · 198 B · a27235b7d9ad977316032c4efc29ab02989a2d1664158f782a6aebf2b117e6e4
+   /root/reparatur-01/nachbesserung-01/vertrag/ausgang-repo/requirements-test.txt · 14 B · 93c4ab5f175d24229e46ec70a8ecaeb6db8b36e3f54d8005808044c060acbc92
+   /root/reparatur-01/nachbesserung-01/vertrag/ausgang-repo/kammer/Dockerfile · 152 B · fb5724b68ace39ff9032800208c136d3ed6d11b3ebdb3288b48750823bad1ba3
+   /root/reparatur-01/nachbesserung-01/vertrag/mutant/repo/pytest.ini · 198 B · a27235b7d9ad977316032c4efc29ab02989a2d1664158f782a6aebf2b117e6e4
+   /root/reparatur-01/nachbesserung-01/vertrag/mutant/repo/requirements-test.txt · 14 B · 93c4ab5f175d24229e46ec70a8ecaeb6db8b36e3f54d8005808044c060acbc92
+   /root/reparatur-01/nachbesserung-01/vertrag/mutant/repo/kammer/Dockerfile · 152 B · fb5724b68ace39ff9032800208c136d3ed6d11b3ebdb3288b48750823bad1ba3
+   /root/reparatur-01/nachbesserung-01/vertrag/patchnachweis/pytest.ini · 198 B · a27235b7d9ad977316032c4efc29ab02989a2d1664158f782a6aebf2b117e6e4
+   /root/reparatur-01/nachbesserung-01/vertrag/patchnachweis/requirements-test.txt · 14 B · 93c4ab5f175d24229e46ec70a8ecaeb6db8b36e3f54d8005808044c060acbc92
+   /root/reparatur-01/nachbesserung-01/vertrag/patchnachweis/kammer/Dockerfile · 152 B · fb5724b68ace39ff9032800208c136d3ed6d11b3ebdb3288b48750823bad1ba3
+   /root/reparatur-01/nachbesserung-01/vertrag/patchpruefung/pytest.ini · 198 B · a27235b7d9ad977316032c4efc29ab02989a2d1664158f782a6aebf2b117e6e4
+   /root/reparatur-01/nachbesserung-01/vertrag/patchpruefung/requirements-test.txt · 14 B · 93c4ab5f175d24229e46ec70a8ecaeb6db8b36e3f54d8005808044c060acbc92
+   /root/reparatur-01/nachbesserung-01/vertrag/patchpruefung/kammer/Dockerfile · 152 B · fb5724b68ace39ff9032800208c136d3ed6d11b3ebdb3288b48750823bad1ba3
+   /root/reparatur-01/nachbesserung-01/vertrag/repo/pytest.ini · 198 B · a27235b7d9ad977316032c4efc29ab02989a2d1664158f782a6aebf2b117e6e4
+   /root/reparatur-01/nachbesserung-01/vertrag/repo/requirements-test.txt · 14 B · 93c4ab5f175d24229e46ec70a8ecaeb6db8b36e3f54d8005808044c060acbc92
+   /root/reparatur-01/nachbesserung-01/vertrag/repo/kammer/Dockerfile · 152 B · fb5724b68ace39ff9032800208c136d3ed6d11b3ebdb3288b48750823bad1ba3
+   /root/reparatur-01/nachbesserung-01/vertrag/tmp/05-vertrag-abnahme/test_benannter_vertrag_am_kopi0/werk/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/reparatur-01/nachbesserung-01/vertrag/tmp/08-regression-gruen/test_benannter_vertrag_am_kopi0/werk/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/reparatur-01/nachbesserung-01/vertrag/tmp/08-regression-gruen/test_vier_paare_am_kopierten_p0/werk/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/reparatur-01/nachbesserung-01/vertrag/werk-lauf25-kopie/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/reparatur-01/nachbesserung-01/vorstufen/baseline-repo/pytest.ini · 198 B · a27235b7d9ad977316032c4efc29ab02989a2d1664158f782a6aebf2b117e6e4
+   /root/reparatur-01/nachbesserung-01/vorstufen/baseline-repo/requirements-test.txt · 14 B · 93c4ab5f175d24229e46ec70a8ecaeb6db8b36e3f54d8005808044c060acbc92
+   /root/reparatur-01/nachbesserung-01/vorstufen/baseline-repo/kammer/Dockerfile · 152 B · fb5724b68ace39ff9032800208c136d3ed6d11b3ebdb3288b48750823bad1ba3
+   /root/reparatur-01/nachbesserung-01/vorstufen/repo/pytest.ini · 198 B · a27235b7d9ad977316032c4efc29ab02989a2d1664158f782a6aebf2b117e6e4
+   … 192 weitere (Werkkopien), nicht einzeln aufgeführt
+/root/reparatur-02: 12 Dateien
+   /root/reparatur-02/privat-cli/werk/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/reparatur-02/temp/pytest-of-root/pytest-5/test_benannter_vertrag_am_kopi0/werk/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/reparatur-02/temp/pytest-of-root/pytest-5/test_unit_messgeraetwechsel_od0/instrument/kammer/Dockerfile · 152 B · fb5724b68ace39ff9032800208c136d3ed6d11b3ebdb3288b48750823bad1ba3
+   /root/reparatur-02/temp/pytest-of-root/pytest-5/test_unit_messgeraetwechsel_od1/instrument/kammer/Dockerfile · 152 B · fb5724b68ace39ff9032800208c136d3ed6d11b3ebdb3288b48750823bad1ba3
+   /root/reparatur-02/temp/pytest-of-root/pytest-5/test_unit_messgeraetwechsel_od2/instrument/kammer/Dockerfile · 152 B · fb5724b68ace39ff9032800208c136d3ed6d11b3ebdb3288b48750823bad1ba3
+   /root/reparatur-02/temp/pytest-of-root/pytest-5/test_unit_messgeraetwechsel_od3/instrument/kammer/Dockerfile · 152 B · fb5724b68ace39ff9032800208c136d3ed6d11b3ebdb3288b48750823bad1ba3
+   /root/reparatur-02/temp/pytest-of-root/pytest-5/test_unit_messgeraetwechsel_od4/instrument/kammer/Dockerfile · 152 B · fb5724b68ace39ff9032800208c136d3ed6d11b3ebdb3288b48750823bad1ba3
+   /root/reparatur-02/temp/pytest-of-root/pytest-5/test_unit_messgeraetwechsel_od5/instrument/kammer/Dockerfile · 152 B · fb5724b68ace39ff9032800208c136d3ed6d11b3ebdb3288b48750823bad1ba3
+   /root/reparatur-02/temp/pytest-of-root/pytest-5/test_unit_messgeraetwechsel_od6/instrument/kammer/Dockerfile · 152 B · fb5724b68ace39ff9032800208c136d3ed6d11b3ebdb3288b48750823bad1ba3
+   /root/reparatur-02/temp/pytest-of-root/pytest-5/test_unit_messgeraetwechsel_od7/instrument/kammer/Dockerfile · 152 B · fb5724b68ace39ff9032800208c136d3ed6d11b3ebdb3288b48750823bad1ba3
+   /root/reparatur-02/temp/pytest-of-root/pytest-5/test_unit_messgeraetwechsel_od8/instrument/kammer/Dockerfile · 152 B · fb5724b68ace39ff9032800208c136d3ed6d11b3ebdb3288b48750823bad1ba3
+   /root/reparatur-02/temp/pytest-of-root/pytest-5/test_vier_paare_am_kopierten_p0/werk/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+/root/phase-4-vorbedingung-1: 4 Dateien
+   /root/phase-4-vorbedingung-1/nachtrag-01/privat/basis/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/phase-4-vorbedingung-1/nachtrag-01/privat/kandidat/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/phase-4-vorbedingung-1/privat/werke/lagerhaus-vorbedingung1-26/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+   /root/phase-4-vorbedingung-1/privat/werkquelle/pyproject.toml · 219 B · 1dbd75f5282a7f8accf26042f099d116573f889c109d6e659b47bf7d92df6f32
+zusammen: 322 Dateien
+== 3. Node
+/opt/node22/bin/node → /opt/node22/bin/node · v22.14.0
+/usr/local/bin/node → /root/.hermes/node/bin/node · v26.8.2
+/usr/local/bin/npm · 11.19.1
+/opt/node22/bin/npm · 10.9.2
+python3: Python 3.12.3
+== 4. Docker
+biotop-kammer:ts1	212e6212cd16	535MB	2026-09-21 02:47:15 +0200 CEST
+node:22-bookworm-slim	48e4b67d85f8	329MB	2026-09-19 02:48:56 +0200 CEST
+biotop-kammer:1	ce7bbe944118	231MB	2026-09-18 23:26:54 +0200 CEST
+python:3.12-slim	78387bc3881b	190MB	2026-09-01 02:12:40 +0200 CEST
+biotop-kammer:ts1 (212e6212cd16): PYTHON_VERSION=3.12.14 · ["python3"] null linux/amd64
+node:22-bookworm-slim (48e4b67d85f8): NODE_VERSION=22.23.2 · YARN_VERSION=1.22.22 · ["node"] ["docker-entrypoint.sh"] linux/amd64
+biotop-kammer:1 (ce7bbe944118): PYTHON_VERSION=3.12.14 · ["python3"] null linux/amd64
+python:3.12-slim (78387bc3881b): PYTHON_VERSION=3.12.14 · ["python3"] null linux/amd64
+=== Ende R194 ===
+
+
+R195 · Sicherheitsprobe vor dem Testlauf: remount,bind,ro im eigenen Mount-Namensraum wirkt nur innen; Inhalt sicherung/probe/root
+Beginn: 2026-09-25 19:55:26 CEST (UTC+0200)
+Ende:   2026-09-25 19:55:26 CEST (UTC+0200)
+Dauer:  0.0 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/sicherung/biotop-lage-01/arbeit/ns_rofs_probe.sh
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/ns_rofs_probe.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-LAGE-01 · Sicherheitsprobe vor dem Testlauf: Ein remount,bind,ro im eigenen Mount-Namensraum darf nur innen
+# wirken. Innen muss / schreibgeschützt sein, außen muss der eigene Arbeitsordner beschreibbar bleiben.
+W=/root/sicherung/biotop-lage-01
+unshare --mount --net --propagation private --fork bash -c \
+  'mount -o remount,bind,ro / && if [ -w /root/sicherung/biotop-lage-01/tmp ]; then echo "innen: beschreibbar (FEHLER)"; else echo "innen: schreibgeschützt"; fi'
+echo "unshare rc=$?"
+if touch "$W/tmp/aussen-rw-probe" 2>/dev/null; then echo "außen: beschreibbar (soll)"; else echo "außen: NICHT beschreibbar (FEHLER)"; fi
+findmnt -rn -o TARGET,FSTYPE,OPTIONS / | cut -c1-120
+echo "Inhalt sicherung/probe/root: $(ls "$W/sicherung/probe/root" | tr '\n' ' ')"
+--- Ende /root/sicherung/biotop-lage-01/arbeit/ns_rofs_probe.sh ---
+Ausgabe (vollständig, stdout und stderr):
+innen: schreibgeschützt
+unshare rc=0
+außen: beschreibbar (soll)
+/ ext4 rw,relatime,discard,errors=remount-ro,commit=30
+Inhalt sicherung/probe/root: biotop biotop-einstieg-20260921-0122 biotop-t3 biotop-vor-t4 biotop-vor-t4-02 biotop-vor-t4-03 biotop-vor-t4-04 biotop-vor-t4-05 biotop-vor-t4-06 gesamtstand-01 phase-4-vorbedingung-1 reparatur-01 reparatur-02 sicherung traeger-umstellung-2026-09-20_22-32-03Z uebungswerk uebungswerk-nachlauf uebungswerk-p2 uebungswerk-p3 uebungswerk-p3b uebungswerk-p3c uebungswerk-p3d uebungswerk2 versandwerk-t3 versandwerk-t3-02 versiegelt w7 wiedereinstieg-01 
+=== Ende R195 ===

@@ -1,0 +1,47 @@
+start 2026-09-23T13:56:04+02:00 fremde_container=0
+kopiert: 206 Dateien
+aegis.py der Kopie: masseichung.anwenden-Aufrufe entfernt (2), verbleibend in aegis.py: 0
+--- /root/biotop/biotop/organe/aegis.py	2026-09-23 09:22:54.561763585 +0200
++++ /tmp/pflicht-gegenprobe/biotop/organe/aegis.py	2026-09-23 13:56:04.290959474 +0200
+@@ -832,8 +832,7 @@
+     # Maßeichung (T3, Befund Lauf 37/38): Regeln, die im sauberen Vergleichsbereich anschlagen, zählen nicht.
+     # Beide Seiten des Paars werden mit derselben, vor dem Lauf versiegelten Eichung bewertet.
+     eichung_mass = (tausch or {}).get("_masseichung")
+-    basis_paar = masseichung.anwenden(basis_paar, eichung_mass)
+-    mess = masseichung.anwenden(mess, eichung_mass)
++    pass  # GEGENPROBE: Maßeichung im Annahmepfad abgeklemmt
+     u = messgeraet.urteil_f2(basis_paar, mess, ausgang, bereiche, urteil["wirkungskreis"], tausch, nische=k["nische"])
+     urteil["mass"] = u
+     fb = set(basis_paar["werk"]["tests_fehlgeschlagen_liste"]); fk = set(mess["werk"]["tests_fehlgeschlagen_liste"])
+        fehlend = nie_gerufen(organe, gerufen)
+        jury_zeilen = con.execute("SELECT einstimmig, gewinner FROM jury").fetchall()
+        annahmepfad = sorted(k for k in kanten if k.endswith("← " + ANNAHMEPFAD))
+        beleg = {"organe": len(organe), "gerufen": len(organe) - len(fehlend), "nie_gerufen": fehlend,
+                 "erster_aufruf": dict(sorted(gerufen.items())), "annahmepfad": annahmepfad,
+                 "kanten": sorted(kanten), "schritte": protokoll,
+                 "anbietergrenze": grenze.anfragen, "jury": [tuple(z) for z in jury_zeilen],
+                 "modellkosten_eur": con.execute("SELECT COALESCE(SUM(kosten_eur),0) FROM kasse").fetchone()[0]}
+        ziel = os.environ.get("T3_VERDRAHTUNG_BELEG")
+        if ziel:
+            Path(ziel).write_text(json.dumps(beleg, ensure_ascii=False, indent=1))
+        assert fehlend == [], f"Organ existiert und wird im Lauf nie gerufen: {fehlend} (gerufen {len(organe) - len(fehlend)} von {len(organe)})"
+        # Gerufen irgendwo genügt für die zwei Abwehrorgane nicht: Sie müssen in der Funktion laufen, die über die
+        # Annahme entscheidet (Befund Lauf 38 — gebaut, getestet, aber nirgends im Annahmepfad).
+        fehlt_im_pfad = nicht_im_annahmepfad(kanten, ANNAHMEPFAD, PFLICHT_IM_ANNAHMEPFAD)
+>       assert fehlt_im_pfad == [], f"{fehlt_im_pfad} wird nicht aus {ANNAHMEPFAD} gerufen — Kanten dort: {annahmepfad}"
+E       AssertionError: ['masseichung.anwenden'] wird nicht aus biotop.organe.aegis:pruefen gerufen — Kanten dort: ['landkarte.wirkungskreis ← biotop.organe.aegis:pruefen', 'neutralzaehler._buchen ← biotop.organe.aegis:pruefen', 'neutralzaehler._tabelle ← biotop.organe.aegis:pruefen', 'neutralzaehler.geurteilt ← biotop.organe.aegis:pruefen', 'verfassung.lesen ← biotop.organe.aegis:pruefen', 'verfassung.mechanisch_pruefen ← biotop.organe.aegis:pruefen', 'verhaltensvergleich.beobachten ← biotop.organe.aegis:pruefen', 'verhaltensvergleich.deckung ← biotop.organe.aegis:pruefen', 'verhaltensvergleich.funktion_von ← biotop.organe.aegis:pruefen', 'verhaltensvergleich.geaenderte_module ← biotop.organe.aegis:pruefen', 'verhaltensvergleich.kurz ← biotop.organe.aegis:pruefen', 'verhaltensvergleich.pruefen ← biotop.organe.aegis:pruefen', 'verhaltensvergleich.vergleichen ← biotop.organe.aegis:pruefen', 'vertraege.verletzt ← biotop.organe.aegis:pruefen']
+E       assert ['masseichung.anwenden'] == []
+E         
+E         Left contains one more item: 'masseichung.anwenden'
+E         Use -v to get more diff
+
+tests/test_verdrahtung.py:254: AssertionError
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED tests/test_verdrahtung.py::test_pruefwerkzeug_meldet_organ_das_existiert_und_nie_gerufen_wird
+PASSED tests/test_verdrahtung.py::test_pruefwerkzeug_verlangt_den_aufruf_aus_der_annahmefunktion
+PASSED tests/test_verdrahtung.py::test_organliste_kommt_aus_dem_verzeichnis
+FAILED tests/test_verdrahtung.py::test_jedes_organ_wird_im_lauf_aufgerufen - ...
+1 failed, 3 passed in 672.78s (0:11:12)
+pytest-rc=1
+ende 2026-09-23T14:07:17+02:00

@@ -1,0 +1,23 @@
+#!/bin/bash
+# Verdrahtungstest am Arbeitsbaum (grün erwartet) und drei Gegenproben in Kopien (rot erwartet), nacheinander.
+# Wartet auf das Nachspiel (keine parallelen Kammerläufe). Kein Modellaufruf.
+set -u
+A=/root/biotop-vor-t4
+while pgrep -f "nachspiel_vor_t4.py" > /dev/null; do sleep 10; done
+echo "start $(date -Is) fremde_container=$(docker ps -q | wc -l)"
+export BIOTOP_KAMMER_IMAGE=biotop-kammer:ts1
+cd /root/biotop
+T3_VERDRAHTUNG_BELEG=$A/VERDRAHTUNG-GRUEN.json /root/biotop-t3/venv/bin/python -m pytest tests/test_verdrahtung.py -q \
+  -p no:cacheprovider -rA --tb=short > $A/VERDRAHTUNG-GRUEN.txt 2>&1
+echo "gruen pytest-rc=$? $(tail -1 $A/VERDRAHTUNG-GRUEN.txt)"
+for art in phase vv schwarm; do
+  Z=/tmp/verdrahtung-gegenprobe-$art
+  rm -rf "$Z"; mkdir -p "$Z"
+  git -C /root/biotop ls-files -z -co --exclude-standard | (cd /root/biotop && tar --null -T - -cf -) | tar -x -C "$Z"
+  /root/biotop-t3/venv/bin/python $A/verdrahtung_gegenprobe.py "$Z" "$art" || { echo "$art: nicht herstellbar"; continue; }
+  (cd "$Z" && T3_VERDRAHTUNG_BELEG=$A/VERDRAHTUNG-ROT-$art.json /root/biotop-t3/venv/bin/python -m pytest \
+     tests/test_verdrahtung.py::test_jedes_organ_wird_im_lauf_aufgerufen -q -p no:cacheprovider -rA --tb=short \
+     > $A/VERDRAHTUNG-ROT-$art.txt 2>&1)
+  echo "$art pytest-rc=$? $(grep -m1 'AssertionError: ' $A/VERDRAHTUNG-ROT-$art.txt | cut -c1-200)"
+done
+echo "ende $(date -Is)"

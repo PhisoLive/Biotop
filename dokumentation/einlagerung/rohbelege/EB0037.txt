@@ -1,0 +1,269 @@
+EB37 · Schritt 4: Verlauf Philipp ↔ Hermes seit 18.09. im Wortlaut (geschwärzt)
+Beginn: 2026-09-26 01:10:52 CEST (UTC+0200)
+Ende:   2026-09-26 01:10:55 CEST (UTC+0200)
+Dauer:  3.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/biotop-einlagerung/arbeit/d_verlauf.py
+--- Inhalt von /root/biotop-einlagerung/arbeit/d_verlauf.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-EINLAGERUNG-01 · Schritt 4: Verlauf Philipp ↔ Hermes zum Biotop seit dem 18.09.2026 im Wortlaut.
+
+Quelle: /root/.hermes/state.db, nur lesend (mode=ro). Verfahren wie BIOTOP-LAGE-01 (arbeit/verlauf_extrakt.py, R155):
+- Biotop-Sitzungen: die Telegram-Kette ab 20260918_205818_3767d1c9 (Masterprompt v1) über parent_session_id, samt
+  Kindsitzungen. Andere Sitzungen (andere Vorhaben) bleiben draußen.
+- Doppelzeilen nach Verdichtungen: zusammengefasst nach (Sitzung, Rolle, Zeitstempel, Inhalt), gezählt.
+- Absender wie dort; aufgenommen (Auslegung Hermes, wie LAGE-01 FK48 Nr. 3): Philipp, Hermes (Antwort),
+  Hermes-Zwischentext (Text neben einem Werkzeugaufruf). Nicht aufgenommen, nur gezählt: Systemmeldungen,
+  Hermes→Subagent, Subagent, CLI-Probe, reine Werkzeugaufrufe ohne Text, Werkzeugausgaben.
+- Schwärzung vor dem Schreiben: jedes Muster und jeder Wert aus geheimnis.py (Werte aus .env ≥ 8, auth.json ≥ 12 Zeichen).
+- Zeitraum: 18.09.2026 00:00 CEST bis zum Aufruf (Obergrenze wird ausgegeben).
+Ausgabe (exklusiv, Ordner darf nicht bestehen): paket/dokumentation/verlauf/
+  VERLAUF-TEIL-NNN.md (je ≤ 38.000 Bytes; eine längere Nachricht läuft über mehrere Teile, gekennzeichnet),
+  VERLAUF-VERZEICHNIS.tsv (jede Nachricht: Nummer, Zeit, Absender, id, Sitzung, Bytes, geschwärzt, Teile),
+  VERLAUF-UEBERSICHT.md (Menge, Regeln, Zählung, Teile), verlauf.jsonl (geschwärzt, maschinenlesbar).
+"""
+import datetime as dt
+import hashlib
+import json
+import re
+import sqlite3
+import sys
+import time
+from pathlib import Path
+
+sys.path.insert(0, '/root/biotop-einlagerung/arbeit')
+import geheimnis  # noqa: E402
+
+AUS = Path('/root/biotop-einlagerung/paket/dokumentation/verlauf')
+AUS.mkdir(parents=False, exist_ok=False)
+GRENZE = 38_000
+AB = dt.datetime(2026, 9, 18).timestamp()
+BIS = time.time()
+START = '20260918_205818_3767d1c9'
+MENGE = ('Philipp', 'Hermes', 'Hermes-Zwischentext')
+
+con = sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+sess = {r[0]: {'source': r[1], 'parent': r[2]} for r in con.execute(
+    'SELECT id, source, parent_session_id FROM sessions')}
+kinder = {}
+for sid, s in sess.items():
+    kinder.setdefault(s['parent'], []).append(sid)
+kette, stapel = set(), [START]
+while stapel:
+    x = stapel.pop()
+    if x not in kette:
+        kette.add(x)
+        stapel += kinder.get(x, [])
+
+WERTE = geheimnis.werte()
+SYS = [('[ASYNC DELEGATION', 'System-Delegationsergebnis'), ('[IMPORTANT: Background process', 'System-Hintergrundprozess'),
+       ('[IMPORTANT:', 'System-Hintergrundprozess'), ('[CONTEXT COMPACTION', 'System-Verdichtung'),
+       ('[PRIOR CONTEXT', 'System-Verdichtung'), ('[Your active task list', 'System-Hinweis'),
+       ('[System:', 'System-Hinweis'), ("You've reached the maximum", 'System-Hinweis'),
+       ('[SYSTEM', 'System-Hinweis'), ('[Note:', 'System-Hinweis'), ('[System note', 'System-Hinweis'),
+       ('[STILL IN PROGRESS', 'System-Hinweis')]
+REVIEW_BINDUNG = {'20260924_150913_a9326d': dt.datetime(2026, 9, 24, 16, 10, 41).timestamp(),
+                  '20260924_203120_e6c401': dt.datetime(2026, 9, 24, 21, 51, 24).timestamp()}
+
+
+def absender(rolle, quelle, inhalt, tool_calls, sid, zeit):
+    g = REVIEW_BINDUNG.get(sid)
+    if g and zeit < g:
+        quelle = 'subagent'
+    if rolle == 'user':
+        if quelle == 'subagent':
+            return 'Hermes→Subagent'
+        if quelle == 'cli':
+            return 'CLI-Probe'
+        for pre, name in SYS:
+            if inhalt.lstrip().startswith(pre):
+                return name
+        return 'Philipp'
+    hat_tool = bool(tool_calls) and tool_calls not in ('[]', 'null')
+    if quelle == 'subagent':
+        return 'Subagent-Zwischentext' if hat_tool else 'Subagent'
+    return 'Hermes-Zwischentext' if hat_tool else 'Hermes'
+
+
+def schwaerzen(t, mid):
+    n = 0
+    for name, m in geheimnis.MUSTER.items():
+        t, k = re.subn(m, f'[GESCHWÄRZT: {name}]', t)
+        n += k
+    for v, quelle in WERTE.items():
+        if v in t:
+            n += t.count(v)
+            t = t.replace(v, f'[GESCHWÄRZT: Wert aus {Path(quelle.split(":")[0]).name}]')
+    return t, n
+
+
+zeilen = con.execute("""SELECT id, session_id, role, content, tool_calls, timestamp FROM messages
+                        WHERE timestamp >= ? AND timestamp < ? AND role IN ('user','assistant') ORDER BY timestamp, id""",
+                     (AB, BIS)).fetchall()
+gesehen, zaehl = {}, {}
+for mid, sid, rolle, inhalt, tc, ts in zeilen:
+    inhalt = inhalt or ''
+    key = (sid, rolle, ts, hashlib.sha256(inhalt.encode()).hexdigest())
+    if key in gesehen:
+        gesehen[key]['doppel'] += 1
+        continue
+    if sid not in kette:
+        zaehl['andere Sitzungen (nicht Biotop)'] = zaehl.get('andere Sitzungen (nicht Biotop)', 0) + 1
+        gesehen[key] = {'doppel': 1, 'aus': True}
+        continue
+    a = absender(rolle, sess.get(sid, {}).get('source'), inhalt, tc, sid, ts)
+    if rolle == 'assistant' and not inhalt.strip():
+        zaehl['reiner Werkzeugaufruf ohne Text'] = zaehl.get('reiner Werkzeugaufruf ohne Text', 0) + 1
+        gesehen[key] = {'doppel': 1, 'aus': True}
+        continue
+    if a not in MENGE:
+        zaehl[a] = zaehl.get(a, 0) + 1
+        gesehen[key] = {'doppel': 1, 'aus': True}
+        continue
+    gesehen[key] = {'id': mid, 'ts': ts, 'sitzung': sid, 'absender': a, 'doppel': 1, '_inhalt': inhalt}
+liste = sorted((e for e in gesehen.values() if not e.get('aus')), key=lambda e: (e['ts'], e['id']))
+n_tool = con.execute("SELECT count(*) FROM messages WHERE timestamp >= ? AND timestamp < ? AND role='tool'",
+                     (AB, BIS)).fetchone()[0]
+
+
+def zaun(text):
+    lauf = max((len(m.group(0)) for m in re.finditer(r'`+', text)), default=0)
+    return '`' * max(3, lauf + 1)
+
+
+def stuecke(text, platz):
+    """Text in Stücke ≤ platz Bytes, an Zeilengrenzen, sonst an Zeichengrenzen."""
+    aus, akt = [], ''
+    for z in text.splitlines(keepends=True):
+        while len(z.encode()) > platz:
+            b = z.encode()[:platz].decode('utf-8', errors='ignore')
+            if akt:
+                aus.append(akt)
+                akt = ''
+            aus.append(b)
+            z = z[len(b):]
+        if len((akt + z).encode()) > platz and akt:
+            aus.append(akt)
+            akt = ''
+        akt += z
+    if akt or not aus:
+        aus.append(akt)
+    return aus
+
+
+teile, akt = [], []
+akt_b = 0
+verz = []
+jsonl = []
+n_geschw_nachr, n_geschw_stellen = 0, 0
+for i, e in enumerate(liste, 1):
+    text, n = schwaerzen(e.pop('_inhalt'), e['id'])
+    if n:
+        n_geschw_nachr += 1
+        n_geschw_stellen += n
+    zeit = dt.datetime.fromtimestamp(e['ts'])
+    kopf = (f"### V{i:04d} · {zeit:%d.%m.%Y %H:%M:%S} CEST · {e['absender']} · Nachricht id {e['id']} · "
+            f"Sitzung `{e['sitzung']}` · {len(text.encode())} B" + (f" · geschwärzt {n}" if n else '')
+            + (f" · {e['doppel']} gleiche Zeilen zusammengefasst" if e['doppel'] > 1 else ''))
+    z = zaun(text)
+    stk = stuecke(text, GRENZE - 1500)
+    teil_nr = []
+    for k, s in enumerate(stk, 1):
+        k_kopf = kopf if len(stk) == 1 else f'{kopf} · Stück {k} von {len(stk)}'
+        block = f'{k_kopf}\n\n{z}text\n{s}{"" if s.endswith(chr(10)) else chr(10)}{z}\n\n'
+        bb = len(block.encode())
+        if akt and akt_b + bb > GRENZE - 800:
+            teile.append(akt)
+            akt, akt_b = [], 0
+        akt.append((i, block))
+        akt_b += bb
+        teil_nr.append(len(teile) + 1)
+    verz.append(f"V{i:04d}\t{zeit:%Y-%m-%d %H:%M:%S}\t{e['absender']}\t{e['id']}\t{e['sitzung']}\t{len(text.encode())}\t{n}\t"
+                + ','.join(f'{t:03d}' for t in sorted(set(teil_nr))))
+    jsonl.append(json.dumps({'nr': f'V{i:04d}', 'zeit': f'{zeit:%Y-%m-%d %H:%M:%S}', 'absender': e['absender'],
+                             'id': e['id'], 'sitzung': e['sitzung'], 'geschwaerzt': n, 'text': text}, ensure_ascii=False))
+if akt:
+    teile.append(akt)
+
+N = len(teile)
+teil_info = []
+for t, bloecke in enumerate(teile, 1):
+    v_von, v_bis = bloecke[0][0], bloecke[-1][0]
+    kopf = (f'# BIOTOP-EINLAGERUNG-01 · Verlauf Philipp ↔ Hermes zum Biotop · Teil {t:03d} von {N:03d}\n\n'
+            f'- Einträge V{v_von:04d} bis V{v_bis:04d}. Menge, Regeln und Zählung: VERLAUF-UEBERSICHT.md im selben Ordner.\n'
+            f'- Zeiten in CEST (UTC+02:00). Geschwärzt ist jeder Wert aus `.env`/`auth.json` und jedes Schlüsselmuster.\n\n')
+    inhalt = kopf + ''.join(b for _, b in bloecke)
+    p = AUS / f'VERLAUF-TEIL-{t:03d}.md'
+    with open(p, 'x', encoding='utf-8') as f:
+        f.write(inhalt)
+    teil_info.append((p.name, v_von, v_bis, len(inhalt.encode())))
+
+with open(AUS / 'VERLAUF-VERZEICHNIS.tsv', 'x', encoding='utf-8') as f:
+    f.write('Nr\tZeit (CEST)\tAbsender\tNachricht id\tSitzung\tBytes\tgeschwärzt\tTeil(e)\n' + '\n'.join(verz) + '\n')
+with open(AUS / 'verlauf.jsonl', 'x', encoding='utf-8') as f:
+    f.write('\n'.join(jsonl) + '\n')
+
+je = {}
+for e in liste:
+    je[e['absender']] = je.get(e['absender'], 0) + 1
+je_tag = {}
+for e in liste:
+    d = dt.datetime.fromtimestamp(e['ts']).strftime('%d.%m.')
+    je_tag.setdefault(d, {}).setdefault(e['absender'], 0)
+    je_tag[d][e['absender']] += 1
+bis_txt = dt.datetime.fromtimestamp(BIS).strftime('%d.%m.%Y %H:%M:%S')
+ue = [f'# BIOTOP-EINLAGERUNG-01 · Verlauf Philipp ↔ Hermes zum Biotop seit dem 18.09.2026 · Übersicht', '',
+      f'- **Quelle:** `/root/.hermes/state.db`, nur lesend (`mode=ro`), Tabellen `sessions` und `messages`.',
+      f'- **Zeitraum:** 18.09.2026 00:00:00 CEST bis {bis_txt} CEST (Zeitpunkt des Auszugs).',
+      f'- **Biotop-Sitzungen:** die Kette ab `{START}` (Masterprompt v1) über `parent_session_id`: {len(kette)} Sitzungen. '
+      f'Andere Sitzungen gehören zu anderen Vorhaben und bleiben draußen.',
+      '- **Aufgenommen (Auslegung Hermes, wie BIOTOP-LAGE-01 FK48 Nr. 3):** Nachrichten Philipps (auch Texte in '
+      'Chat-Claudes Stimme aus Philipps Konto und eingelegte Dokumente), Antworten von Hermes und Zwischentexte von Hermes '
+      '(Text neben einem Werkzeugaufruf). Die Zuordnung „Philipp/System“ folgt dem Nachrichtenanfang (Systemkennungen '
+      'wie `[CONTEXT COMPACTION`, `[ASYNC DELEGATION`, `[STILL IN PROGRESS`).',
+      '- **Schwärzung:** jedes Schlüsselmuster und jeder Wert aus `.env` (≥ 8 Zeichen) und `auth.json` (≥ 12 Zeichen) '
+      '(Werkzeug `geheimnis.py` aus BIOTOP-LAGE-01), ersetzt durch `[GESCHWÄRZT: …]`.',
+      '- **Doppelzeilen:** Nach Verdichtungen steht dieselbe Nachricht mehrfach in der Datenbank; zusammengefasst nach '
+      '(Sitzung, Rolle, Zeitstempel, Inhalt).', '',
+      '## Zählung (abgelesen aus dem Auszug)', '',
+      f'- Aufgenommen: **{len(liste)}** Nachrichten = ' + ' + '.join(f'{k} {v}' for k, v in sorted(je.items())) + '.',
+      f'- Geschwärzt: {n_geschw_stellen} Stellen in {n_geschw_nachr} Nachrichten.',
+      '- Nicht aufgenommen (Nachrichten ohne Doppelzeilen): ' + '; '.join(f'{k}: {v}' for k, v in sorted(zaehl.items())) + '.',
+      f'- Werkzeugausgaben (Rolle `tool`) im Zeitraum, alle Sitzungen: {n_tool} Zeilen, nicht aufgenommen.', '',
+      '## Je Tag', '', '| Tag | ' + ' | '.join(MENGE) + ' |', '|---|' + '---|' * len(MENGE)]
+for d, w in je_tag.items():
+    ue.append(f'| {d} | ' + ' | '.join(str(w.get(a, 0)) for a in MENGE) + ' |')
+ue += ['', '## Teile', '', '| Datei | Einträge | Bytes |', '|---|---|---|']
+for name, a, b, by in teil_info:
+    ue.append(f'| {name} | V{a:04d}–V{b:04d} | {by} |')
+ue += ['', 'Weitere Dateien: `VERLAUF-VERZEICHNIS.tsv` (jede Nachricht mit Teil), `verlauf.jsonl` (maschinenlesbar, '
+       'geschwärzt).', '']
+with open(AUS / 'VERLAUF-UEBERSICHT.md', 'x', encoding='utf-8') as f:
+    f.write('\n'.join(ue))
+print('\n'.join(ue[:20]))
+print(f'Teile: {N} · größter Teil {max(x[3] for x in teil_info)} B · Obergrenze {bis_txt} CEST')
+--- Ende /root/biotop-einlagerung/arbeit/d_verlauf.py ---
+Ausgabe (vollständig, stdout und stderr):
+# BIOTOP-EINLAGERUNG-01 · Verlauf Philipp ↔ Hermes zum Biotop seit dem 18.09.2026 · Übersicht
+
+- **Quelle:** `/root/.hermes/state.db`, nur lesend (`mode=ro`), Tabellen `sessions` und `messages`.
+- **Zeitraum:** 18.09.2026 00:00:00 CEST bis 26.09.2026 01:10:52 CEST (Zeitpunkt des Auszugs).
+- **Biotop-Sitzungen:** die Kette ab `20260918_205818_3767d1c9` (Masterprompt v1) über `parent_session_id`: 60 Sitzungen. Andere Sitzungen gehören zu anderen Vorhaben und bleiben draußen.
+- **Aufgenommen (Auslegung Hermes, wie BIOTOP-LAGE-01 FK48 Nr. 3):** Nachrichten Philipps (auch Texte in Chat-Claudes Stimme aus Philipps Konto und eingelegte Dokumente), Antworten von Hermes und Zwischentexte von Hermes (Text neben einem Werkzeugaufruf). Die Zuordnung „Philipp/System“ folgt dem Nachrichtenanfang (Systemkennungen wie `[CONTEXT COMPACTION`, `[ASYNC DELEGATION`, `[STILL IN PROGRESS`).
+- **Schwärzung:** jedes Schlüsselmuster und jeder Wert aus `.env` (≥ 8 Zeichen) und `auth.json` (≥ 12 Zeichen) (Werkzeug `geheimnis.py` aus BIOTOP-LAGE-01), ersetzt durch `[GESCHWÄRZT: …]`.
+- **Doppelzeilen:** Nach Verdichtungen steht dieselbe Nachricht mehrfach in der Datenbank; zusammengefasst nach (Sitzung, Rolle, Zeitstempel, Inhalt).
+
+## Zählung (abgelesen aus dem Auszug)
+
+- Aufgenommen: **1016** Nachrichten = Hermes 245 + Hermes-Zwischentext 652 + Philipp 119.
+- Geschwärzt: 27 Stellen in 14 Nachrichten.
+- Nicht aufgenommen (Nachrichten ohne Doppelzeilen): Hermes→Subagent: 133; Subagent: 63; Subagent-Zwischentext: 159; System-Delegationsergebnis: 29; System-Hintergrundprozess: 51; System-Hinweis: 27; System-Verdichtung: 24; andere Sitzungen (nicht Biotop): 15; reiner Werkzeugaufruf ohne Text: 7725.
+- Werkzeugausgaben (Rolle `tool`) im Zeitraum, alle Sitzungen: 15956 Zeilen, nicht aufgenommen.
+
+## Je Tag
+
+| Tag | Philipp | Hermes | Hermes-Zwischentext |
+|---|---|---|---|
+Teile: 54 · größter Teil 37488 B · Obergrenze 26.09.2026 01:10:52 CEST
+=== Ende EB37 ===

@@ -1,0 +1,590 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 03 · Teil 225 (Teile 166–239 dieses Stands) · enthält R218 bis R222
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R218 · Stichproben, Teil (a) berichtigt: SHA-256 je Gruppe gilt für die folgenden Pfade (R217 fand nur 1 Zeile) — maßgeblich für (a)
+Beginn: 2026-09-25 20:39:12 CEST (UTC+0200)
+Ende:   2026-09-25 20:39:12 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/stichproben.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/stichproben.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Stichproben gegen die eingesetzten Entwürfe (VOLLSTAENDIGKEIT „Prüfung der Entwürfe“).
+(a) VERFASSUNGEN-TEIL4 §11: jede Zeile mit SHA-256 (64 hex) und Pfad; jede 10. solche Zeile wird neu gerechnet
+    (Prüfkanal-Adressen auf den Plattenpfad abgebildet); gleich/verschieden/fehlt gezählt.
+(b) KASSE: Summe kosten_eur aller entdoppelten Buchungen (KASSE-TEIL2..27) gegen CHRONIK „6.919 Buchungen, 18,814735 €“;
+    je Lauf (KASSE-TEIL1): Summe der T3-Läufe 26–38 gegen CHRONIK B14 „2.603, 9,728638 €“.
+(c) AUFBAU FK35 „598 bestanden, 2 übersprungen, 93 abgewählt, 2458 s“ gegen /root/biotop-vor-t4-05/REGRESSION.txt.
+(d) SOLL-IST: Zählzeile 117+37+2+24+0+1+15 = 196 nachgerechnet."""
+import csv
+import hashlib
+import io
+import re
+from pathlib import Path
+
+A = Path('/root/sicherung/biotop-lage-01/ausgabe')
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+URL = f'https://milieulux-reinigung-muenchen.de/_akte/{K}/laeufe/'
+PK = f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe/'
+print('== (a) VERFASSUNGEN-TEIL4: SHA-256 je Fundort neu gerechnet (jede 10. Zeile)')
+zeilen, aktuell = [], None
+for z in (A / 'VERFASSUNGEN-TEIL4-01.md').read_text(encoding='utf-8').splitlines():
+    h = re.search(r'\b([0-9a-f]{64})\b', z)
+    if h:
+        aktuell = h.group(1)
+    for p in re.findall(r'(https://[^\s`|)]+|/root/[^\s`|)]+|/tmp/[^\s`|)]+)', z):
+        if aktuell and not p.endswith('/'):
+            zeilen.append((aktuell, p.rstrip('.,;:').replace(URL, PK)))
+gleich = verschieden = fehlt = 0
+for h, p in zeilen[::10]:
+    q = Path(p)
+    if not q.is_file():
+        fehlt += 1; print(f'  fehlt: {p}'); continue
+    ok = hashlib.sha256(q.read_bytes()).hexdigest() == h
+    gleich += ok; verschieden += not ok
+    if not ok:
+        print(f'  VERSCHIEDEN: {p}')
+print(f'  Zeilen mit SHA und Pfad: {len(zeilen)} · geprüft {len(zeilen[::10])}: gleich {gleich}, verschieden {verschieden}, fehlt {fehlt}')
+print('== (b) KASSE')
+def lese(n):
+    return list(csv.reader(io.StringIO((A / f'KASSE-TEIL{n}-01.csv').read_text(encoding='utf-8')), delimiter=';'))
+t1 = lese(1)
+print(f'  KASSE-TEIL1 Kopf: {t1[0]}')
+t2 = lese(2)
+print(f'  KASSE-TEIL2 Kopf: {t2[0]}')
+kopf = t2[0]
+ik = next(i for i, s in enumerate(kopf) if s.startswith('kosten_eur'))
+summe, n = 0.0, 0
+for k in range(2, 28):
+    rows = lese(k)
+    start = 1 if rows and rows[0] == kopf else 0
+    for r in rows[start:]:
+        if len(r) > ik and r[ik] not in ('', 'kosten_eur'):
+            summe += float(r[ik]); n += 1
+print(f'  Buchungen TEIL2–27: {n} · Summe kosten_eur {summe:.6f} € · CHRONIK: 6.919 · 18,814735 €')
+ilauf = next(i for i, s in enumerate(t1[0]) if 'lauf' in s.lower())
+ikos = next(i for i, s in enumerate(t1[0]) if 'kosten' in s.lower() or 'summe' in s.lower())
+ibu = next((i for i, s in enumerate(t1[0]) if 'buchung' in s.lower() or 'anzahl' in s.lower()), None)
+t3 = [r for r in t1[1:] if r and r[ilauf].startswith('T3/') and 26 <= int(re.sub(r'\D', '', r[ilauf].split('/')[-1]) or 0) <= 38]
+print(f'  T3-Läufe 26–38 in TEIL1: {len(t3)} · Summe {sum(float(r[ikos]) for r in t3):.6f} €'
+      + (f' · Buchungen {sum(int(float(r[ibu])) for r in t3)}' if ibu is not None else '') + ' · CHRONIK B14: 2.603 · 9,728638 €')
+print('== (c) REGRESSION.txt')
+print('  ' + [z for z in Path('/root/biotop-vor-t4-05/REGRESSION.txt').read_text().splitlines() if 'passed' in z][-1])
+print('== (d) SOLL-IST-Zählung: 117+37+2+24+0+1+15 =', 117 + 37 + 2 + 24 + 0 + 1 + 15)
+--- Ende /root/sicherung/biotop-lage-01/arbeit/stichproben.py ---
+Ausgabe (vollständig, stdout und stderr):
+== (a) VERFASSUNGEN-TEIL4: SHA-256 je Fundort neu gerechnet (jede 10. Zeile)
+  Zeilen mit SHA und Pfad: 323 · geprüft 33: gleich 33, verschieden 0, fehlt 0
+== (b) KASSE
+  KASSE-TEIL1 Kopf: ['lauf', 'nr', 'zweige', 'begonnen_am', 'beendet_am', 'status', 'werk', 'budget_eur', 'buchungen', 'kosten_eur', 'erste_buchung', 'letzte_buchung']
+  KASSE-TEIL2 Kopf: ['lauf', 'zweige', 'id', 'lauf_id', 'zeit', 'anbieter', 'modell', 'tokens_ein', 'tokens_aus', 'kosten_eur', 'zweck', 'kontingent', 'protokoll_nr']
+  Buchungen TEIL2–27: 6919 · Summe kosten_eur 18.814735 € · CHRONIK: 6.919 · 18,814735 €
+  T3-Läufe 26–38 in TEIL1: 13 · Summe 9.728637 € · Buchungen 2603 · CHRONIK B14: 2.603 · 9,728638 €
+== (c) REGRESSION.txt
+  598 passed, 2 skipped, 93 deselected in 2457.93s (0:40:57)
+== (d) SOLL-IST-Zählung: 117+37+2+24+0+1+15 = 196
+=== Ende R218 ===
+
+
+R219 · Nennungen von UNBEKANNT / NICHT GEFUNDEN / NICHT ERHOBEN u. a. je Ausgabedatei (-01), für die Antworttafel
+Beginn: 2026-09-25 20:40:30 CEST (UTC+0200)
+Ende:   2026-09-25 20:40:30 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/n21_unbekannt.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/n21_unbekannt.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Nennungen von UNBEKANNT, NICHT GEFUNDEN, NICHT ERHOBEN, NICHT GELESEN, NICHT GEPRÜFT
+je Ausgabedatei (-01) in ausgabe/ (Zeilen mit dem Wort; ein Teilpunkt kann mehrere Zeilen haben)."""
+import collections
+import re
+from pathlib import Path
+
+A = Path('/root/sicherung/biotop-lage-01/ausgabe')
+W = ['UNBEKANNT', 'NICHT GEFUNDEN', 'NICHT ERHOBEN', 'NICHT GELESEN', 'NICHT GEPRÜFT', 'NICHT AUSGEFÜHRT', 'QUELLE FEHLT',
+     'NICHT ABGEDECKT']
+summe = collections.Counter()
+for p in sorted(A.glob('*-01.md')):
+    if p.name.startswith(('START', 'ROHBELEGE')):
+        continue
+    z = p.read_text(encoding='utf-8').splitlines()
+    c = {w: sum(1 for s in z if w in s) for w in W}
+    summe.update(c)
+    if any(c.values()):
+        print(f'{p.name}: ' + ' · '.join(f'{w} {n}' for w, n in c.items() if n))
+print('Summe (Zeilen): ' + ' · '.join(f'{w} {summe[w]}' for w in W))
+--- Ende /root/sicherung/biotop-lage-01/arbeit/n21_unbekannt.py ---
+Ausgabe (vollständig, stdout und stderr):
+AUFBAU-TEIL1-01.md: NICHT GELESEN 1
+AUFBAU-TEIL2-01.md: NICHT GEFUNDEN 1 · NICHT GEPRÜFT 1 · NICHT AUSGEFÜHRT 1
+AUFBAU-TEIL3-01.md: UNBEKANNT 1 · NICHT GEFUNDEN 2 · NICHT GELESEN 1 · NICHT GEPRÜFT 5
+CHRONIK-TEIL1-01.md: UNBEKANNT 1 · NICHT GEFUNDEN 2 · NICHT GEPRÜFT 1
+CHRONIK-TEIL2-01.md: UNBEKANNT 1 · NICHT GEFUNDEN 2
+CHRONIK-TEIL3-01.md: UNBEKANNT 1
+ENTSCHEIDUNGEN-TEIL1-01.md: UNBEKANNT 1
+ENTSCHEIDUNGEN-TEIL2-01.md: UNBEKANNT 1 · NICHT GEFUNDEN 9
+ENTSCHEIDUNGEN-TEIL3-01.md: NICHT GEFUNDEN 2
+ENTSCHEIDUNGEN-TEIL4-01.md: UNBEKANNT 3 · NICHT GEFUNDEN 1
+INVENTAR-TEIL2-01.md: UNBEKANNT 2 · NICHT GEFUNDEN 1 · NICHT ABGEDECKT 7
+LAGE-TEIL1-01.md: UNBEKANNT 2
+LAGE-TEIL2-01.md: UNBEKANNT 4
+LAGE-TEIL3-01.md: UNBEKANNT 6 · NICHT GEFUNDEN 3 · NICHT AUSGEFÜHRT 1
+LAGE-TEIL4-01.md: UNBEKANNT 7 · NICHT GEFUNDEN 3
+LAGE-TEIL5-01.md: UNBEKANNT 2 · NICHT GEFUNDEN 5
+LAGE-TEIL6-01.md: UNBEKANNT 2 · NICHT GEFUNDEN 6
+SOLL-IST-TEIL1-01.md: NICHT GEFUNDEN 3 · NICHT AUSGEFÜHRT 1
+SOLL-IST-TEIL2-01.md: UNBEKANNT 1 · NICHT GEFUNDEN 10
+SOLL-IST-TEIL3-01.md: UNBEKANNT 1 · NICHT GEFUNDEN 2
+TORE-TEIL1-01.md: NICHT GEFUNDEN 2
+TORE-TEIL2-01.md: NICHT GEFUNDEN 3 · NICHT GELESEN 2
+TORE-TEIL3-01.md: NICHT GEFUNDEN 2 · NICHT ERHOBEN 19 · NICHT GELESEN 5
+TORE-TEIL4-01.md: NICHT GEFUNDEN 4 · NICHT ERHOBEN 3 · NICHT GELESEN 3 · NICHT GEPRÜFT 3
+VERFASSUNGEN-TEIL1-01.md: UNBEKANNT 1 · NICHT GEFUNDEN 4
+VERFASSUNGEN-TEIL2-01.md: UNBEKANNT 1 · NICHT GEFUNDEN 3
+VERFASSUNGEN-TEIL3-01.md: NICHT GEFUNDEN 1
+Summe (Zeilen): UNBEKANNT 38 · NICHT GEFUNDEN 71 · NICHT ERHOBEN 22 · NICHT GELESEN 12 · NICHT GEPRÜFT 10 · NICHT AUSGEFÜHRT 3 · QUELLE FEHLT 0 · NICHT ABGEDECKT 7
+=== Ende R219 ===
+
+
+R220 · Lückenliste zählen (vergeben, je Zuständigkeit, nicht schließbar) und LU-Verweise in den übrigen Dateien prüfen
+Beginn: 2026-09-25 20:44:30 CEST (UTC+0200)
+Ende:   2026-09-25 20:44:30 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/lu_zaehlen.py
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/lu_zaehlen.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 (nur lesend): Zählung der Lückenliste (VOLLSTAENDIGKEIT-TEIL2-01.md) und Prüfung der LU-Verweise.
+Je Tabellenzeile „| LUnn |“: Nummer, letzte Spalte (wer). Zählt vergeben, je wer (erste Stelle), „–“; nennt Lücken in der
+Nummernfolge. Prüft jede Nennung LUnn in ausgabe/*-01.md: steht sie in der Tafel oder in „Geschlossen oder zusammengelegt“?"""
+import collections
+import re
+from pathlib import Path
+
+A = Path('/root/sicherung/biotop-lage-01/ausgabe')
+t = (A / 'VOLLSTAENDIGKEIT-TEIL2-01.md').read_text(encoding='utf-8')
+zeilen = [z for z in t.splitlines() if re.match(r'\| LU\d+ \|', z)]
+nr = [int(re.match(r'\| LU(\d+)', z).group(1)) for z in zeilen]
+wer = [z.rstrip().rstrip('|').split('|')[-1].strip() for z in zeilen]
+print(f'vergeben: {len(nr)} · doppelt: {[n for n, k in collections.Counter(nr).items() if k > 1]}')
+print(f'je wer: {dict(collections.Counter(wer))}')
+strich = [f'LU{n:02d}' for n, w in zip(nr, wer) if w == '–']
+print(f'„–“: {len(strich)} {strich}')
+print(f'offen (wer H/P/C): {sum(1 for w in wer if w in "HPC")}')
+luecken = [n for n in range(1, max(nr) + 1) if n not in nr]
+print(f'nicht vergeben in 1..{max(nr)}: {[f"LU{n:02d}" for n in luecken]}')
+geschl = set(int(n) for n in re.findall(r'LU(\d+)', t.split('**Geschlossen oder zusammengelegt:**')[1]))
+print(f'im Abschnitt „Geschlossen …“ genannt: {sorted(geschl)}')
+print(f'nicht vergeben und nicht erklärt: {[n for n in luecken if n not in geschl]}')
+for p in sorted(A.glob('*-01.md')):
+    if p.name == 'VOLLSTAENDIGKEIT-TEIL2-01.md':
+        continue
+    for m in sorted(set(int(x) for x in re.findall(r'\bLU(\d+)\b', p.read_text(encoding='utf-8')))):
+        ziel = next((z for z in zeilen if z.startswith(f'| LU{m:02d} |')), None)
+        print(f'  {p.name}: LU{m:02d} → ' + (ziel[:110] if ziel else ('geschlossen/zusammengelegt' if m in geschl else 'FEHLT')))
+--- Ende /root/sicherung/biotop-lage-01/arbeit/lu_zaehlen.py ---
+Ausgabe (vollständig, stdout und stderr):
+vergeben: 92 · doppelt: []
+je wer: {'H': 44, 'C': 21, 'P': 21, '–': 6}
+„–“: 6 ['LU18', 'LU19', 'LU27', 'LU70', 'LU88', 'LU95']
+offen (wer H/P/C): 86
+nicht vergeben in 1..99: ['LU17', 'LU51', 'LU67', 'LU68', 'LU76', 'LU78', 'LU81']
+im Abschnitt „Geschlossen …“ genannt: [17, 29, 49, 51, 61, 67, 68, 76, 78, 81, 100]
+nicht vergeben und nicht erklärt: []
+  LAGE-TEIL5-01.md: LU01 → | LU01 | Plattenkopien v1–v5 außerhalb des Prüfkanals nicht gesucht (A L-2) | nicht gesucht | Suche über `/roo
+  VOLLSTAENDIGKEIT-TEIL1-01.md: LU25 → | LU25 | Mehrfach vergebene Kennungen: Lauf 26 (drei Zweige), Werk-id 23 (VB1 und T3), Kandidat 2680 (C L6, G)
+  VOLLSTAENDIGKEIT-TEIL1-01.md: LU49 → | LU49 | Die Kasse führt den Laufstatus nicht nach: T3/31, /32, /36 „laeuft“, T3/38, STAMM 24 und 25 „bereit“,
+  VOLLSTAENDIGKEIT-TEIL1-01.md: LU82 → | LU82 | 11 Laufnummern in Ordnertexten ohne Lauf: 0, 52, 53, 59, 60, 62, 66, 84, 128, 848, 991 (I LV-I-04) | 
+  VOLLSTAENDIGKEIT-TEIL1-01.md: LU83 → | LU83 | 54 von 114 Aufträgen und Anweisungen Philipps ohne Status in der Zuordnung (I, Abgleich 4) | Die Zuor
+  VOLLSTAENDIGKEIT-TEIL1-01.md: LU84 → | LU84 | 7 Aufträge Hermes → Subagent ohne Schlussbericht in ihrer Sitzung, 5 davon vor diesem Auftrag (ids 16
+  VOLLSTAENDIGKEIT-TEIL1-01.md: LU85 → | LU85 | Die Differenz OpenRouter − Kasse (+0,2161 USD bis 14:54) ist nicht einzeln erklärt (I LV-I-07) | Die 
+  VOLLSTAENDIGKEIT-TEIL1-01.md: LU86 → | LU86 | Tagesbilanz: Spalte OpenRouter für 18.–24.09. NICHT ABGEDECKT (I) | nur eine Abfrage vom 25.09. | Akt
+  VOLLSTAENDIGKEIT-TEIL1-01.md: LU87 → | LU87 | Befehle ohne Rohbeleg: seit 14:44:20 liefen 226 von 540 Terminalbefehlen ohne `rb.py` (Hauptsitzung 1
+  VOLLSTAENDIGKEIT-TEIL1-01.md: LU98 → | LU98 | Die Entwürfe A–I sind nur mechanisch und in Stichproben geprüft (VOLLSTAENDIGKEIT-TEIL1 §4) | Umfang 
+  VOLLSTAENDIGKEIT-TEIL1-01.md: LU99 → | LU99 | Zeitgeber und Prozesse nur zu Beginn erhoben (R2), nicht zum Stich | Ablauf | Die Übergabe S1c und R1
+=== Ende R220 ===
+
+
+R221 · Einsetzen neu (noch nicht veröffentlicht, --ersetzen): Kopfzeile „Inhalt“ nennt Entwurf und Stück statt „Teil k von n“ (Verwechslung mit der Dateinummer bei LAGE-TEIL2..6)
+Beginn: 2026-09-25 20:45:25 CEST (UTC+0200)
+Ende:   2026-09-25 20:45:25 CEST (UTC+0200)
+Dauer:  0.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/arbeit/einsetzen.py --ersetzen ENTSCHEIDUNGEN VERFASSUNGEN TORE AUFBAU GLOSSAR SOLL-IST CHRONIK LAGE INVENTAR
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/einsetzen.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 · Einsetzen der Entwurfsteile in die Dateien des Abschlussordners (Abschnitt 8), Stand 03.
+Je Zeile der Tafel TEILE: Entwurfsdatei (oder ein Zeilenbereich daraus) → ausgabe/<ziel>.
+- Kopf (nur .md): Kennung, Fragen, Stichzeitpunkt, Verfasser und Arbeitszeit, Quelle mit Bytes und SHA-256,
+  Änderungen beim Einsetzen, Verweis auf die Prüfung, Nachtrag Hermes (entwurf/hermes/nachtrag/<ziel>, sonst
+  entwurf/hermes/nachtrag/ALLGEMEIN.md).
+- .txt über 40.000 B nach dem Einsetzen: an Zeilengrenzen geteilt (je ≤ 38.000 B), die folgenden Nummern rücken nach;
+  jeder Teil beginnt mit einer Zeile „# <Quelle> Zeilen a–b von n (geteilt beim Einsetzen)“.
+- `{LAEUFE}` → volle Adresse; jeder andere Platzhalter `{GROSSBUCHSTABEN}` bricht ab.
+- Prüfungen: Größe ≤ 40.000 B; jede `{LAEUFE}/…`-Adresse im Prüfkanal vorhanden (Musterangaben mit …, *, < oder
+  endendem - werden als Muster gezählt, nicht geprüft); jede Rohbeleg-Nennung R<n> als rohbelege/R<nnnn>.txt vorhanden.
+- Schreibt exklusiv. Liegt das Ziel schon in ausgabe/: Abbruch, außer mit --ersetzen und nur, wenn es noch nicht im
+  Prüfkanal liegt. --probe: nur prüfen und zählen, nichts schreiben.
+Aufruf: einsetzen.py [--probe] [--ersetzen] <zielpräfix> [...]"""
+import datetime as dt
+import hashlib
+import os
+import re
+import sys
+from pathlib import Path
+
+W = Path('/root/sicherung/biotop-lage-01')
+E = W / 'entwurf'
+A = W / 'ausgabe'
+K = Path('/etc/pruefkanal/schluessel').read_text().strip()
+PK = Path(f'/var/pruefkanal/oeffentlich/_akte/{K}/laeufe')
+LAEUFE = f'https://milieulux-reinigung-muenchen.de/_akte/{K}/laeufe'
+ORDNER = f'{LAEUFE}/biotop-lage-01'
+MAX, TEIL_MAX = 40_000, 38_000
+START_TEILE = dt.datetime(2026, 9, 25, 16, 10, 47)
+DAUER = {'A': 5774.98, 'B': 5524.72, 'C': 4285.17, 'D': 5904.11, 'E': 9885.15, 'F': 7214.53, 'G': 7523.87,
+         'H': 5767.94}
+ersetze = lambda t: t.replace('{LAEUFE}', LAEUFE)
+
+TEILE = []  # (teil, quelle, ziel, k, n, fragen, zeilenbereich oder None)
+def teile(teil, quelle, ziel, n, fragen, nummern=None):
+    for k in range(1, n + 1):
+        TEILE.append((teil, quelle.format(k=k), ziel.format(k=(nummern[k - 1] if nummern else k)), k, n, fragen, None))
+def teile_geteilt(teil, quelle, ziel, n, fragen):
+    """.txt-Rohlisten: zu große Teile an Zeilengrenzen teilen, Zielnummern fortlaufend."""
+    z = 0
+    for k in range(1, n + 1):
+        q = quelle.format(k=k)
+        zeilen = ersetze((E / q).read_text(encoding='utf-8')).splitlines(keepends=True)
+        if sum(len(s.encode()) for s in zeilen) <= MAX:
+            z += 1; TEILE.append((teil, q, ziel.format(k=z), k, n, fragen, None)); continue
+        a, groesse = 0, 0
+        for i, s in enumerate(zeilen + [None]):
+            b = len(s.encode()) if s is not None else 0
+            if s is None or groesse + b > TEIL_MAX - 200:
+                z += 1; TEILE.append((teil, q, ziel.format(k=z), k, n, fragen, (a, i, len(zeilen))))
+                a, groesse = i, 0
+            groesse += b
+teile('A', 'entscheidungen/ENTSCHEIDUNGEN-TEIL{k}.md', 'ENTSCHEIDUNGEN-TEIL{k}-01.md', 4, 'FK15–FK19, FK21')
+teile('B', 'verfassungen/VERFASSUNGEN-TEIL{k}.md', 'VERFASSUNGEN-TEIL{k}-01.md', 4, 'FK22')
+teile('C', 'tore/TORE-TEIL{k}.md', 'TORE-TEIL{k}-01.md', 4, 'FK24, FK27–FK29')
+teile('D', 'aufbau/AUFBAU-TEIL{k}.md', 'AUFBAU-TEIL{k}-01.md', 3, 'FK31–FK38')
+teile('D', 'aufbau/GLOSSAR.md', 'GLOSSAR-TEIL1-01.md', 1, 'FK50')
+teile('E', 'soll-ist/SOLL-IST-TEIL{k}.md', 'SOLL-IST-TEIL{k}-01.md', 4, 'FK30')
+teile('F', 'chronik/CHRONIK-TEIL{k}.md', 'CHRONIK-TEIL{k}-01.md', 3, 'FK10, FK12, FK20')
+teile('G', 'lage-werke/LAGE-BAUSTEINE-G-TEIL{k}.md', 'LAGE-TEIL{k}-01.md', 2,
+      'Abgleich des Wissensstands WS01–WS19; FK23, FK25, FK26, FK44, FK45', nummern=[2, 3])
+for k in (1, 2, 3):
+    TEILE.append(('H', f'lage-offen/LAGE-BAUSTEINE-H-TEIL{k}.md', f'LAGE-TEIL{k + 3}-01.md', k, 3,
+                  ['FK08, FK09, FK13', 'FK39', 'FK40–FK43'][k - 1], None))
+teile('I', 'inventar/lauf-stich-v3/INVENTAR-TEIL{k}.md', 'INVENTAR-TEIL{k}-01.md', 3, 'Abschnitt 5')
+teile_geteilt('I', 'inventar/lauf-stich-v3/LISTEN-TEIL{k}.txt', 'LISTEN-TEIL{k}-01.txt', 6, 'Abschnitt 5, Rohlisten')
+teile('I', 'inventar/lauf-stich-v3/KASSE-TEIL{k}.csv', 'KASSE-TEIL{k}-01.csv', 28, 'Abschnitt 5, Rohlisten')
+for name in sorted(p.name for p in (E / 'hermes').glob('*.md')) if (E / 'hermes').exists() else []:
+    TEILE.append(('Hermes', f'hermes/{name}', name, 0, 0, '', None))
+
+sha = lambda b: hashlib.sha256(b).hexdigest()
+R_MUSTER = re.compile(r'(?<![\w\-/.])R0*(\d{1,4})(?![\w\-])')
+L_MUSTER = re.compile(r'\{LAEUFE\}/([^\s)`\'"|<>\]\[,;]+)')
+MAX_R = max(int(p.stem[1:]) for p in (W / 'rohbelege').glob('R*.txt'))
+
+
+def kopf(teil, quelle, ziel, k, n, fragen, roh, stellen):
+    if teil == 'Hermes':
+        return ''
+    ende = START_TEILE + dt.timedelta(seconds=DAUER[teil]) if teil in DAUER else None
+    arbeit = (f'Subagent Teil {teil}, Arbeitszeit 25.09.2026 {START_TEILE:%H:%M:%S}–{ende:%H:%M:%S} CEST '
+              f'(Delegationsbuch, R193)' if ende else
+              'Skript `entwurf/inventar/inventar.py` (Subagent Teil I), ausgeführt von Hermes zum Stichzeitpunkt (R191)')
+    n_p = E / 'hermes' / 'nachtrag' / ziel
+    n_p = n_p if n_p.exists() else E / 'hermes' / 'nachtrag' / 'ALLGEMEIN.md'
+    nachtrag = n_p.read_text(encoding='utf-8').strip() if n_p.exists() else 'keiner.'
+    z = [f'# BIOTOP-LAGE-01 · Fassung 2 · `{ziel}`', '',
+         f'- **Inhalt:** {fragen}' + (f' · Entwurf {teil}, Stück {k} von {n}' if n > 1 else f' · Entwurf {teil}'),
+         '- **Stichzeitpunkt:** 25.09.2026 17:29:59 CEST (Ende des Baus S1c). Der Entwurf beschreibt den Stand zur '
+         'Zeit seines Lesens; was sich bis zum Stich geändert hat, steht im Nachtrag unten.',
+         f'- **Verfasser:** {arbeit}. Eingesetzt von Hermes.',
+         f'- **Quelle:** `/root/sicherung/biotop-lage-01/entwurf/{quelle}` · {len(roh)} B · SHA-256 `{sha(roh)}`. '
+         f'Änderungen beim Einsetzen: nur dieser Kopf und `{{LAEUFE}}` → `{LAEUFE}` ({stellen} Stellen).',
+         f'- **Prüfung durch Hermes und Rohbelege je Datei:** {ORDNER}/VOLLSTAENDIGKEIT-TEIL1-01.md',
+         f'- **Nachtrag Hermes:** {nachtrag}', '', '---', '']
+    return '\n'.join(z)
+
+
+def main():
+    args = sys.argv[1:]
+    probe, ersetzen = '--probe' in args, '--ersetzen' in args
+    praefixe = [a for a in args if not a.startswith('--')]
+    auswahl = [t for t in TEILE if any(t[2].startswith(p) for p in praefixe)]
+    print(f'{dt.datetime.now():%Y-%m-%d %H:%M:%S} · Auswahl {praefixe}: {len(auswahl)} von {len(TEILE)} Zeilen der Tafel '
+          f'· Modus {"PROBE" if probe else "SCHREIBEN"} · höchster Rohbeleg R{MAX_R}')
+    fehler, adr_ok, muster, adr_fehlt, r_fehlt, summe = 0, 0, 0, [], [], 0
+    for teil, quelle, ziel, k, n, fragen, bereich in auswahl:
+        q = E / quelle
+        if not q.exists():
+            print(f'FEHLT Quelle: {quelle}'); fehler += 1; continue
+        roh = q.read_bytes()
+        text = roh.decode('utf-8')
+        if bereich:
+            a, b, gesamt = bereich
+            teil_zeilen = text.splitlines(keepends=True)[a:b]
+            text = f'# {Path(quelle).name} Zeilen {a + 1}–{b} von {gesamt} (geteilt beim Einsetzen, Grenze 40.000 B)\n' \
+                   + ''.join(teil_zeilen)
+        andere = sorted(set(re.findall(r'\{[A-ZÄÖÜ_]{3,}\}', text)) - {'{LAEUFE}'})
+        pfade = [p.rstrip('.:') for p in L_MUSTER.findall(text)]
+        ist_muster = lambda p: any(c in p for c in '…*<{') or p.endswith('-') or not p
+        muster += sum(map(ist_muster, pfade))
+        echt = [p for p in pfade if not ist_muster(p)]
+        da = [p for p in echt if (PK / p).exists()]
+        weg = sorted(set(p for p in echt if not (PK / p).exists()))
+        adr_ok += len(da); adr_fehlt += [f'{ziel}: {p}' for p in weg]
+        rs = sorted({int(m) for m in R_MUSTER.findall(text)})
+        rw = [r for r in rs if not (W / 'rohbelege' / f'R{r:04d}.txt').exists()]
+        r_fehlt += [f'{ziel}: R{r}' for r in rw]
+        stellen = text.count('{LAEUFE}')
+        neu = ersetze(text)
+        if ziel.endswith('.md'):
+            neu = kopf(teil, quelle, ziel, k, n, fragen, roh, stellen) + neu
+        b = neu.encode('utf-8')
+        summe += len(b)
+        zeile = (f'{ziel} ← {quelle}{f" Z. {bereich[0] + 1}–{bereich[1]}" if bereich else ""} · Teil {teil} · {len(b)} B · '
+                 f'{{LAEUFE}} {stellen} · Adressen {len(da)} da, {len(weg)} fehlen · Rohbelege {len(rs)}, fehlen {len(rw)}')
+        if andere:
+            zeile += f' · ANDERE PLATZHALTER {andere}'; fehler += 1
+        if len(b) > MAX:
+            zeile += f' · ZU GROSS (> {MAX})'; fehler += 1
+        print(zeile)
+        if probe or andere or len(b) > MAX:
+            continue
+        z = A / ziel
+        if z.exists():
+            if (PK / 'biotop-lage-01' / ziel).exists() or not ersetzen:
+                print(f'   ABBRUCH für {ziel}: liegt schon in ausgabe/' +
+                      (' und im Prüfkanal' if (PK / 'biotop-lage-01' / ziel).exists() else ' (ohne --ersetzen)'))
+                fehler += 1; continue
+            z.unlink()
+        fd = os.open(z, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+        with os.fdopen(fd, 'wb') as f:
+            f.write(b)
+        print(f'   geschrieben: ausgabe/{ziel} · SHA-256 {sha(b)}')
+    print(f'Dateien {len(auswahl)} · Bytes zusammen {summe}')
+    print(f'Adressen {{LAEUFE}}/…: {adr_ok} geprüft und vorhanden, {len(adr_fehlt)} fehlen, {muster} Musterangaben (nicht geprüft)')
+    for a in adr_fehlt:
+        print(f'   FEHLT im Prüfkanal: {a}')
+    print(f'Rohbeleg-Nennungen ohne Datei: {len(r_fehlt)}')
+    for r in r_fehlt:
+        print(f'   {r}')
+    print(f'Fehler: {fehler}')
+    sys.exit(1 if fehler else 0)
+
+
+if __name__ == '__main__':
+    main()
+--- Ende /root/sicherung/biotop-lage-01/arbeit/einsetzen.py ---
+Ausgabe (vollständig, stdout und stderr):
+2026-09-25 20:45:25 · Auswahl ['ENTSCHEIDUNGEN', 'VERFASSUNGEN', 'TORE', 'AUFBAU', 'GLOSSAR', 'SOLL-IST', 'CHRONIK', 'LAGE', 'INVENTAR']: 31 von 66 Zeilen der Tafel · Modus SCHREIBEN · höchster Rohbeleg R221
+ENTSCHEIDUNGEN-TEIL1-01.md ← entscheidungen/ENTSCHEIDUNGEN-TEIL1.md · Teil A · 29785 B · {LAEUFE} 9 · Adressen 5 da, 0 fehlen · Rohbelege 11, fehlen 0
+   geschrieben: ausgabe/ENTSCHEIDUNGEN-TEIL1-01.md · SHA-256 198dfc5ac7ddb463305c43d52a5ca8b95ca3510c58d331db9f99f56f0bdaf354
+ENTSCHEIDUNGEN-TEIL2-01.md ← entscheidungen/ENTSCHEIDUNGEN-TEIL2.md · Teil A · 28615 B · {LAEUFE} 4 · Adressen 4 da, 0 fehlen · Rohbelege 8, fehlen 0
+   geschrieben: ausgabe/ENTSCHEIDUNGEN-TEIL2-01.md · SHA-256 2877b9ce536e8c250645c1562c7fb3297744cffa0a8808e970066adb865360e5
+ENTSCHEIDUNGEN-TEIL3-01.md ← entscheidungen/ENTSCHEIDUNGEN-TEIL3.md · Teil A · 23385 B · {LAEUFE} 9 · Adressen 6 da, 0 fehlen · Rohbelege 4, fehlen 0
+   geschrieben: ausgabe/ENTSCHEIDUNGEN-TEIL3-01.md · SHA-256 73c74ceb38b0863134cba056fcc119a5837e128fefa634ccba03862d3d557027
+ENTSCHEIDUNGEN-TEIL4-01.md ← entscheidungen/ENTSCHEIDUNGEN-TEIL4.md · Teil A · 21108 B · {LAEUFE} 3 · Adressen 2 da, 0 fehlen · Rohbelege 18, fehlen 0
+   geschrieben: ausgabe/ENTSCHEIDUNGEN-TEIL4-01.md · SHA-256 6cdb138312dd053db31edf07604dbbb71f5e61d729a98e7b0fd86aea508c5e33
+VERFASSUNGEN-TEIL1-01.md ← verfassungen/VERFASSUNGEN-TEIL1.md · Teil B · 30717 B · {LAEUFE} 3 · Adressen 2 da, 0 fehlen · Rohbelege 9, fehlen 0
+   geschrieben: ausgabe/VERFASSUNGEN-TEIL1-01.md · SHA-256 d415d5a53eb849d7d9bfdfb8b5a3054d557bbee129f81b9d12650810de3cdfff
+VERFASSUNGEN-TEIL2-01.md ← verfassungen/VERFASSUNGEN-TEIL2.md · Teil B · 30603 B · {LAEUFE} 12 · Adressen 12 da, 0 fehlen · Rohbelege 5, fehlen 0
+   geschrieben: ausgabe/VERFASSUNGEN-TEIL2-01.md · SHA-256 109b852d3f5b986fe79b71e10850bc0420e9e06750e82fc62c5b30d46ea41174
+VERFASSUNGEN-TEIL3-01.md ← verfassungen/VERFASSUNGEN-TEIL3.md · Teil B · 9704 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege 5, fehlen 0
+   geschrieben: ausgabe/VERFASSUNGEN-TEIL3-01.md · SHA-256 430d9d8fe5dd72b1c8722009936e77c5960a5a138d59636b1d410a9e85d4af2b
+VERFASSUNGEN-TEIL4-01.md ← verfassungen/VERFASSUNGEN-TEIL4.md · Teil B · 34325 B · {LAEUFE} 34 · Adressen 34 da, 0 fehlen · Rohbelege 4, fehlen 0
+   geschrieben: ausgabe/VERFASSUNGEN-TEIL4-01.md · SHA-256 e0573e05a58408147560efdc1446263b8a991f2306f703dedfde2b435f3ab149
+TORE-TEIL1-01.md ← tore/TORE-TEIL1.md · Teil C · 19692 B · {LAEUFE} 1 · Adressen 0 da, 0 fehlen · Rohbelege 2, fehlen 0
+   geschrieben: ausgabe/TORE-TEIL1-01.md · SHA-256 37af75d4afd47d264ca28e9d54d457dfb1e99c9a6e5012a742ff9091907b737b
+TORE-TEIL2-01.md ← tore/TORE-TEIL2.md · Teil C · 22564 B · {LAEUFE} 8 · Adressen 8 da, 0 fehlen · Rohbelege 4, fehlen 0
+   geschrieben: ausgabe/TORE-TEIL2-01.md · SHA-256 3a180cb85d6f3b090fb21199f23888ee74bfb55161d2d1c4889c98da50b5bb05
+TORE-TEIL3-01.md ← tore/TORE-TEIL3.md · Teil C · 24152 B · {LAEUFE} 2 · Adressen 2 da, 0 fehlen · Rohbelege 9, fehlen 0
+   geschrieben: ausgabe/TORE-TEIL3-01.md · SHA-256 9564dafb1fc788d4acb08ae89bd5e99bc435430a4b225a421096663bde80c249
+TORE-TEIL4-01.md ← tore/TORE-TEIL4.md · Teil C · 19951 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege 8, fehlen 0
+   geschrieben: ausgabe/TORE-TEIL4-01.md · SHA-256 ae6f2e11103a09b1421517d3066c8efbade17591981375bb9226516eaaa74214
+AUFBAU-TEIL1-01.md ← aufbau/AUFBAU-TEIL1.md · Teil D · 30131 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege 15, fehlen 0
+   geschrieben: ausgabe/AUFBAU-TEIL1-01.md · SHA-256 6bc02089eb00ec4592b1a9b816f3a7347ceb34dc83d77daecb3dc7268a3a3a25
+AUFBAU-TEIL2-01.md ← aufbau/AUFBAU-TEIL2.md · Teil D · 22674 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege 11, fehlen 0
+   geschrieben: ausgabe/AUFBAU-TEIL2-01.md · SHA-256 284957d188866666181a00901f9b42d2019c876fd4da841e00a99684c95fe5ce
+AUFBAU-TEIL3-01.md ← aufbau/AUFBAU-TEIL3.md · Teil D · 28223 B · {LAEUFE} 33 · Adressen 29 da, 0 fehlen · Rohbelege 22, fehlen 0
+   geschrieben: ausgabe/AUFBAU-TEIL3-01.md · SHA-256 637e663091e5a7ff4cd0aadfe21b19611a5123bae9971466c7e10b70affdb4d6
+GLOSSAR-TEIL1-01.md ← aufbau/GLOSSAR.md · Teil D · 29488 B · {LAEUFE} 3 · Adressen 2 da, 0 fehlen · Rohbelege 16, fehlen 0
+   geschrieben: ausgabe/GLOSSAR-TEIL1-01.md · SHA-256 67a733a62c4e0d7dfe5c697cf5b12d6907f71f02c6f201077188e5704714c615
+SOLL-IST-TEIL1-01.md ← soll-ist/SOLL-IST-TEIL1.md · Teil E · 30644 B · {LAEUFE} 12 · Adressen 12 da, 0 fehlen · Rohbelege 14, fehlen 0
+   geschrieben: ausgabe/SOLL-IST-TEIL1-01.md · SHA-256 08b45a92991dae953c8e743526554c298e5d23a680961eff0716c25b2a1625f8
+SOLL-IST-TEIL2-01.md ← soll-ist/SOLL-IST-TEIL2.md · Teil E · 32242 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege 9, fehlen 0
+   geschrieben: ausgabe/SOLL-IST-TEIL2-01.md · SHA-256 e71a32f8de915ca85fd2ba6d99d2e3d055eceebd4a041b428ab73e67e09e47c4
+SOLL-IST-TEIL3-01.md ← soll-ist/SOLL-IST-TEIL3.md · Teil E · 22261 B · {LAEUFE} 1 · Adressen 1 da, 0 fehlen · Rohbelege 8, fehlen 0
+   geschrieben: ausgabe/SOLL-IST-TEIL3-01.md · SHA-256 d1859da18ce6063befb006008cd35cfeb10e83455bb50f09802e57964d0486e0
+SOLL-IST-TEIL4-01.md ← soll-ist/SOLL-IST-TEIL4.md · Teil E · 10843 B · {LAEUFE} 2 · Adressen 2 da, 0 fehlen · Rohbelege 11, fehlen 0
+   geschrieben: ausgabe/SOLL-IST-TEIL4-01.md · SHA-256 bffbd205dd4e4e47b3df2e0dceeefc7c0c9ee2a763354200fe89ece8c6f9e6f4
+CHRONIK-TEIL1-01.md ← chronik/CHRONIK-TEIL1.md · Teil F · 29163 B · {LAEUFE} 25 · Adressen 24 da, 0 fehlen · Rohbelege 14, fehlen 0
+   geschrieben: ausgabe/CHRONIK-TEIL1-01.md · SHA-256 6a60a43e2a4cc998ee1933747864ecd88c91def340c8a3356dd71a4da7eb2791
+CHRONIK-TEIL2-01.md ← chronik/CHRONIK-TEIL2.md · Teil F · 26798 B · {LAEUFE} 1 · Adressen 0 da, 0 fehlen · Rohbelege 11, fehlen 0
+   geschrieben: ausgabe/CHRONIK-TEIL2-01.md · SHA-256 90698f5dbfead2978ca1035403ee1afb84b016700c8ab617f2a096979237ba66
+CHRONIK-TEIL3-01.md ← chronik/CHRONIK-TEIL3.md · Teil F · 18463 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege 4, fehlen 0
+   geschrieben: ausgabe/CHRONIK-TEIL3-01.md · SHA-256 77d4a79365ad2a40af6d29bc0681114139623427b1c46cf56376b32c0dcbf7e0
+LAGE-TEIL2-01.md ← lage-werke/LAGE-BAUSTEINE-G-TEIL1.md · Teil G · 30675 B · {LAEUFE} 14 · Adressen 13 da, 0 fehlen · Rohbelege 6, fehlen 0
+   geschrieben: ausgabe/LAGE-TEIL2-01.md · SHA-256 da9d759bffc2005cbdab40d24abd921d2c53d1d6a5e686a74901e8881bb8e7a8
+LAGE-TEIL3-01.md ← lage-werke/LAGE-BAUSTEINE-G-TEIL2.md · Teil G · 36852 B · {LAEUFE} 24 · Adressen 23 da, 0 fehlen · Rohbelege 10, fehlen 0
+   geschrieben: ausgabe/LAGE-TEIL3-01.md · SHA-256 b4c51553b313a23a662b95a252805b163adaa5ec84ebfea4516e1808d0f28247
+LAGE-TEIL4-01.md ← lage-offen/LAGE-BAUSTEINE-H-TEIL1.md · Teil H · 32405 B · {LAEUFE} 1 · Adressen 1 da, 0 fehlen · Rohbelege 11, fehlen 0
+   geschrieben: ausgabe/LAGE-TEIL4-01.md · SHA-256 d3970a34e5fc64fee58f5fccb413994e46098c41710ec34e2b67493f5b0cd472
+LAGE-TEIL5-01.md ← lage-offen/LAGE-BAUSTEINE-H-TEIL2.md · Teil H · 17306 B · {LAEUFE} 4 · Adressen 4 da, 0 fehlen · Rohbelege 3, fehlen 0
+   geschrieben: ausgabe/LAGE-TEIL5-01.md · SHA-256 67bec1bf1a451861d599d03b62918261729878db42e6001d29d05329ea9fb6dd
+LAGE-TEIL6-01.md ← lage-offen/LAGE-BAUSTEINE-H-TEIL3.md · Teil H · 22233 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege 9, fehlen 0
+   geschrieben: ausgabe/LAGE-TEIL6-01.md · SHA-256 84a32ee321d8de5c15c5fed5d880c053c4d996cf5eab65fc91824143539800ed
+INVENTAR-TEIL1-01.md ← inventar/lauf-stich-v3/INVENTAR-TEIL1.md · Teil I · 28804 B · {LAEUFE} 63 · Adressen 60 da, 0 fehlen · Rohbelege 3, fehlen 0
+   geschrieben: ausgabe/INVENTAR-TEIL1-01.md · SHA-256 baf81caca056b2c7de172aa92d4d51cbce85ab59c38d3e52a26ed36efd2dea32
+INVENTAR-TEIL2-01.md ← inventar/lauf-stich-v3/INVENTAR-TEIL2.md · Teil I · 37625 B · {LAEUFE} 32 · Adressen 32 da, 0 fehlen · Rohbelege 25, fehlen 0
+   geschrieben: ausgabe/INVENTAR-TEIL2-01.md · SHA-256 f27f101d023890fc908a23073e3fcfcef2380f2cf10944b79a7f6568de45089b
+INVENTAR-TEIL3-01.md ← inventar/lauf-stich-v3/INVENTAR-TEIL3.md · Teil I · 3919 B · {LAEUFE} 0 · Adressen 0 da, 0 fehlen · Rohbelege 1, fehlen 0
+   geschrieben: ausgabe/INVENTAR-TEIL3-01.md · SHA-256 08709dabe56d41749e171437e9b4d91f2044169f28956269796026e700b3dbd3
+Dateien 31 · Bytes zusammen 785350
+Adressen {LAEUFE}/…: 278 geprüft und vorhanden, 0 fehlen, 11 Musterangaben (nicht geprüft)
+Rohbeleg-Nennungen ohne Datei: 0
+Fehler: 0
+=== Ende R221 ===
+
+
+R222 · Stand 03: 87 Dateien -01 veröffentlichen, 17 Gruppen (je Geheimnissuche, exklusiv schreiben, Abruf über HTTPS mit Vergleich)
+Beginn: 2026-09-25 20:45:55 CEST (UTC+0200)
+Ende:   2026-09-25 20:46:03 CEST (UTC+0200)
+Dauer:  8.1 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/sicherung/biotop-lage-01/arbeit/s10_veroeffentlichen.sh
+--- Inhalt von /root/sicherung/biotop-lage-01/arbeit/s10_veroeffentlichen.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-LAGE-01 · Stand 03: alle Dateien mit Endung -01 aus ausgabe/ veröffentlichen, gruppenweise mit pk_stand.py
+# (Geheimnissuche über genau diese Dateien, dann exklusiv schreiben, dann Abruf über HTTPS mit Vergleich).
+# Bricht beim ersten Fehler ab (set -e); bereits veröffentlichte Gruppen bleiben stehen (nie überschrieben).
+set -eu
+cd /root/sicherung/biotop-lage-01
+for g in "MASTERPROMPT-V8-WORTLAUT-TEIL -01.txt" "MASTERPROMPT-GUELTIG-TEIL -01.md" "AUFTRAG-V2-WORTLAUT-TEIL -01.txt" \
+         "LAGE-TEIL -01.md" "CHRONIK-TEIL -01.md" "VERLAUF-TEIL -01.md" "ENTSCHEIDUNGEN-TEIL -01.md" \
+         "VERFASSUNGEN-TEIL -01.md" "TORE-TEIL -01.md" "SOLL-IST-TEIL -01.md" "AUFBAU-TEIL -01.md" "GLOSSAR-TEIL -01.md" \
+         "INVENTAR-TEIL -01.md" "KASSE-TEIL -01.csv" "LISTEN-TEIL -01.txt" "SICHERUNG-TEIL -01.md" \
+         "VOLLSTAENDIGKEIT-TEIL -01.md"; do
+  set -- $g
+  echo "######## Gruppe $1…$2"
+  python3 arbeit/pk_stand.py "$1" "$2" | grep -E '^(Ausgewählt|Geheimnissuche sauber|Durchsucht|TREFFER|ABBRUCH|Ergebnis|stderr|pk.py rc)|gleich NEIN'
+done
+echo "######## fertig"
+--- Ende /root/sicherung/biotop-lage-01/arbeit/s10_veroeffentlichen.sh ---
+Ausgabe (vollständig, stdout und stderr):
+######## Gruppe MASTERPROMPT-V8-WORTLAUT-TEIL…-01.txt
+Ausgewählt (MASTERPROMPT-V8-WORTLAUT-TEIL…-01.txt): 3 Dateien: MASTERPROMPT-V8-WORTLAUT-TEIL1-01.txt … MASTERPROMPT-V8-WORTLAUT-TEIL3-01.txt
+Durchsucht: 3 Dateien · Treffer: 0
+Geheimnissuche sauber: 3 von 3 Dateien durchsucht, 0 Treffer
+Ergebnis: 3 von 3 Dateien mit HTTP 200 und gleicher SHA-256
+pk.py rc=0
+######## Gruppe MASTERPROMPT-GUELTIG-TEIL…-01.md
+Ausgewählt (MASTERPROMPT-GUELTIG-TEIL…-01.md): 1 Dateien: MASTERPROMPT-GUELTIG-TEIL1-01.md … MASTERPROMPT-GUELTIG-TEIL1-01.md
+Durchsucht: 1 Dateien · Treffer: 0
+Geheimnissuche sauber: 1 von 1 Dateien durchsucht, 0 Treffer
+Ergebnis: 1 von 1 Dateien mit HTTP 200 und gleicher SHA-256
+pk.py rc=0
+######## Gruppe AUFTRAG-V2-WORTLAUT-TEIL…-01.txt
+Ausgewählt (AUFTRAG-V2-WORTLAUT-TEIL…-01.txt): 2 Dateien: AUFTRAG-V2-WORTLAUT-TEIL1-01.txt … AUFTRAG-V2-WORTLAUT-TEIL2-01.txt
+Durchsucht: 2 Dateien · Treffer: 0
+Geheimnissuche sauber: 2 von 2 Dateien durchsucht, 0 Treffer
+Ergebnis: 2 von 2 Dateien mit HTTP 200 und gleicher SHA-256
+pk.py rc=0
+######## Gruppe LAGE-TEIL…-01.md
+Ausgewählt (LAGE-TEIL…-01.md): 6 Dateien: LAGE-TEIL1-01.md … LAGE-TEIL6-01.md
+Durchsucht: 6 Dateien · Treffer: 0
+Geheimnissuche sauber: 6 von 6 Dateien durchsucht, 0 Treffer
+Ergebnis: 6 von 6 Dateien mit HTTP 200 und gleicher SHA-256
+pk.py rc=0
+######## Gruppe CHRONIK-TEIL…-01.md
+Ausgewählt (CHRONIK-TEIL…-01.md): 3 Dateien: CHRONIK-TEIL1-01.md … CHRONIK-TEIL3-01.md
+Durchsucht: 3 Dateien · Treffer: 0
+Geheimnissuche sauber: 3 von 3 Dateien durchsucht, 0 Treffer
+Ergebnis: 3 von 3 Dateien mit HTTP 200 und gleicher SHA-256
+pk.py rc=0
+######## Gruppe VERLAUF-TEIL…-01.md
+Ausgewählt (VERLAUF-TEIL…-01.md): 10 Dateien: VERLAUF-TEIL1-01.md … VERLAUF-TEIL10-01.md
+Durchsucht: 10 Dateien · Treffer: 0
+Geheimnissuche sauber: 10 von 10 Dateien durchsucht, 0 Treffer
+Ergebnis: 10 von 10 Dateien mit HTTP 200 und gleicher SHA-256
+pk.py rc=0
+######## Gruppe ENTSCHEIDUNGEN-TEIL…-01.md
+Ausgewählt (ENTSCHEIDUNGEN-TEIL…-01.md): 4 Dateien: ENTSCHEIDUNGEN-TEIL1-01.md … ENTSCHEIDUNGEN-TEIL4-01.md
+Durchsucht: 4 Dateien · Treffer: 0
+Geheimnissuche sauber: 4 von 4 Dateien durchsucht, 0 Treffer
+Ergebnis: 4 von 4 Dateien mit HTTP 200 und gleicher SHA-256
+pk.py rc=0
+######## Gruppe VERFASSUNGEN-TEIL…-01.md
+Ausgewählt (VERFASSUNGEN-TEIL…-01.md): 4 Dateien: VERFASSUNGEN-TEIL1-01.md … VERFASSUNGEN-TEIL4-01.md
+Durchsucht: 4 Dateien · Treffer: 0
+Geheimnissuche sauber: 4 von 4 Dateien durchsucht, 0 Treffer
+Ergebnis: 4 von 4 Dateien mit HTTP 200 und gleicher SHA-256
+pk.py rc=0
+######## Gruppe TORE-TEIL…-01.md
+Ausgewählt (TORE-TEIL…-01.md): 4 Dateien: TORE-TEIL1-01.md … TORE-TEIL4-01.md
+Durchsucht: 4 Dateien · Treffer: 0
+Geheimnissuche sauber: 4 von 4 Dateien durchsucht, 0 Treffer
+Ergebnis: 4 von 4 Dateien mit HTTP 200 und gleicher SHA-256
+pk.py rc=0
+######## Gruppe SOLL-IST-TEIL…-01.md
+Ausgewählt (SOLL-IST-TEIL…-01.md): 4 Dateien: SOLL-IST-TEIL1-01.md … SOLL-IST-TEIL4-01.md
+Durchsucht: 4 Dateien · Treffer: 0
+Geheimnissuche sauber: 4 von 4 Dateien durchsucht, 0 Treffer
+Ergebnis: 4 von 4 Dateien mit HTTP 200 und gleicher SHA-256
+pk.py rc=0
+######## Gruppe AUFBAU-TEIL…-01.md
+Ausgewählt (AUFBAU-TEIL…-01.md): 3 Dateien: AUFBAU-TEIL1-01.md … AUFBAU-TEIL3-01.md
+Durchsucht: 3 Dateien · Treffer: 0
+Geheimnissuche sauber: 3 von 3 Dateien durchsucht, 0 Treffer
+Ergebnis: 3 von 3 Dateien mit HTTP 200 und gleicher SHA-256
+pk.py rc=0
+######## Gruppe GLOSSAR-TEIL…-01.md
+Ausgewählt (GLOSSAR-TEIL…-01.md): 2 Dateien: GLOSSAR-TEIL1-01.md … GLOSSAR-TEIL2-01.md
+Durchsucht: 2 Dateien · Treffer: 0
+Geheimnissuche sauber: 2 von 2 Dateien durchsucht, 0 Treffer
+Ergebnis: 2 von 2 Dateien mit HTTP 200 und gleicher SHA-256
+pk.py rc=0
+######## Gruppe INVENTAR-TEIL…-01.md
+Ausgewählt (INVENTAR-TEIL…-01.md): 3 Dateien: INVENTAR-TEIL1-01.md … INVENTAR-TEIL3-01.md
+Durchsucht: 3 Dateien · Treffer: 0
+Geheimnissuche sauber: 3 von 3 Dateien durchsucht, 0 Treffer
+Ergebnis: 3 von 3 Dateien mit HTTP 200 und gleicher SHA-256
+pk.py rc=0
+######## Gruppe KASSE-TEIL…-01.csv
+Ausgewählt (KASSE-TEIL…-01.csv): 28 Dateien: KASSE-TEIL1-01.csv … KASSE-TEIL28-01.csv
+Durchsucht: 28 Dateien · Treffer: 0
+Geheimnissuche sauber: 28 von 28 Dateien durchsucht, 0 Treffer
+Ergebnis: 28 von 28 Dateien mit HTTP 200 und gleicher SHA-256
+pk.py rc=0
+######## Gruppe LISTEN-TEIL…-01.txt
+Ausgewählt (LISTEN-TEIL…-01.txt): 7 Dateien: LISTEN-TEIL1-01.txt … LISTEN-TEIL7-01.txt
+Durchsucht: 7 Dateien · Treffer: 0
+Geheimnissuche sauber: 7 von 7 Dateien durchsucht, 0 Treffer
+Ergebnis: 7 von 7 Dateien mit HTTP 200 und gleicher SHA-256
+pk.py rc=0
+######## Gruppe SICHERUNG-TEIL…-01.md
+Ausgewählt (SICHERUNG-TEIL…-01.md): 1 Dateien: SICHERUNG-TEIL1-01.md … SICHERUNG-TEIL1-01.md
+Durchsucht: 1 Dateien · Treffer: 0
+Geheimnissuche sauber: 1 von 1 Dateien durchsucht, 0 Treffer
+Ergebnis: 1 von 1 Dateien mit HTTP 200 und gleicher SHA-256
+pk.py rc=0
+######## Gruppe VOLLSTAENDIGKEIT-TEIL…-01.md
+Ausgewählt (VOLLSTAENDIGKEIT-TEIL…-01.md): 2 Dateien: VOLLSTAENDIGKEIT-TEIL1-01.md … VOLLSTAENDIGKEIT-TEIL2-01.md
+Durchsucht: 2 Dateien · Treffer: 0
+Geheimnissuche sauber: 2 von 2 Dateien durchsucht, 0 Treffer
+Ergebnis: 2 von 2 Dateien mit HTTP 200 und gleicher SHA-256
+pk.py rc=0
+######## fertig
+=== Ende R222 ===

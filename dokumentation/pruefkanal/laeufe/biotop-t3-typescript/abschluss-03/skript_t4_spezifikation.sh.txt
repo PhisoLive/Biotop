@@ -1,0 +1,23 @@
+#!/bin/bash
+# Review-Befunde als ausführbare Spezifikation für T4 ablegen (am Commit f821707 rot) und den Arbeitsbaum auf den
+# reviewten Stand f821707 zurücksetzen. Die geänderten Testdateien werden vorher vollständig gesichert.
+set -u
+A=/root/biotop-t3/abschluss3
+Z=$A/t4-vorbedingungen
+mkdir -p $Z
+cd /root/biotop
+cp tests/test_t3_verhaltensvergleich.py $Z/test_t4_verhaltensvergleich.py
+cp tests/test_t3_masseichung.py $Z/test_t4_masseichung.py
+cp tests/conftest.py $Z/conftest.py
+git diff f821707 -- tests/test_t3_verhaltensvergleich.py tests/test_t3_masseichung.py > $Z/REVIEW03-TESTS.diff
+echo "gesichert: $(ls $Z | tr '\n' ' ')"
+echo "=== Rot-Nachweis: die Spezifikation gegen den Kern f821707 ==="
+/root/biotop-t3/venv/bin/python -m pytest $Z -q -p no:cacheprovider -rfE 2>&1 | tail -16
+echo "pytest-rc=${PIPESTATUS[0]}"
+git checkout f821707 -- tests/test_t3_verhaltensvergleich.py tests/test_t3_masseichung.py
+echo "=== git status nach dem Zurücksetzen (leer = reviewter Stand) ==="
+git status --short
+echo "(Ende Status)"
+sha256sum tests/test_t3_verhaltensvergleich.py tests/test_t3_masseichung.py
+git show f821707:tests/test_t3_verhaltensvergleich.py | sha256sum
+git show f821707:tests/test_t3_masseichung.py | sha256sum

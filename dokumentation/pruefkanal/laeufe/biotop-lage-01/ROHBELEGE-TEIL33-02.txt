@@ -1,0 +1,526 @@
+BIOTOP-LAGE-01 · ROHBELEGE Stand 02 · Teil 33 (Teile 4–165 dieses Stands) · enthält R38 bis R38
+Jeder Beleg: Befehl wörtlich (mit dem Inhalt aufgerufener Skriptdateien) und vollständige Ausgabe.
+Zeiten in CEST (UTC+0200), soweit nicht anders angegeben.
+Geschwärzt vor der Veröffentlichung (Regel 2.4): 0 Stellen.
+
+R38 · Teil D: Bauteile am Commit 0c2f058 — Modulköpfe und öffentliche Namen (FK31, FK32)
+Beginn: 2026-09-25 16:13:08 CEST (UTC+0200)
+Ende:   2026-09-25 16:13:08 CEST (UTC+0200)
+Dauer:  0.3 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/sicherung/biotop-lage-01/entwurf/aufbau/d2_module.py
+--- Inhalt von /root/sicherung/biotop-lage-01/entwurf/aufbau/d2_module.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-LAGE-01 Teil D (nur lesend): Bauteile am Commit 0c2f058 — FK31/FK32.
+
+Liest ausschließlich über `git ls-tree` und `git show <commit>:<pfad>` (kein Checkout, kein Import von Biotop-Code).
+Ausgabe:
+  A. alle Dateien unterhalb Tiefe 3 (Pfad, Bytes, Zeilen) und die zehn größten Dateien
+  B. Kopf jedes Moduls unter biotop/ (Modul-Docstring bzw. Kopfkommentar, höchstens 18 Zeilen) und die
+     öffentlichen Funktionen/Klassen (def/class ohne führenden Unterstrich auf oberster Ebene)
+"""
+import re
+import subprocess
+
+REPO = '/root/biotop'
+C = '0c2f058'
+
+
+def git(*a) -> str:
+    return subprocess.run(['git', '-C', REPO, *a], check=True, stdout=subprocess.PIPE).stdout.decode('utf-8', 'replace')
+
+
+dateien = []
+for z in git('ls-tree', '-r', '-l', C).splitlines():
+    meta, pfad = z.split('\t', 1)
+    _, typ, _, groesse = meta.split()
+    if typ == 'blob':
+        dateien.append((pfad, int(groesse)))
+
+print('== A1. Dateien unterhalb Tiefe 3 (Pfad | Bytes)')
+for p, g in dateien:
+    if p.count('/') >= 3:
+        print(f'{p} | {g}')
+print('== A2. Die zehn größten Dateien (Bytes)')
+for p, g in sorted(dateien, key=lambda x: -x[1])[:10]:
+    print(f'{g} | {p}')
+
+print('\n== B. Kopf je Modul und öffentliche Namen')
+for p, _ in dateien:
+    if not p.startswith('biotop/') or not p.endswith(('.py', '.mjs', '.js', '.ts')):
+        continue
+    t = git('show', f'{C}:{p}')
+    zeilen = t.splitlines()
+    kopf = []
+    if p.endswith('.py'):
+        m = re.match(r'\s*(?:#[^\n]*\n\s*)*(?:"""|\'\'\')(.*?)(?:"""|\'\'\')', t, re.S)
+        if m:
+            kopf = m.group(1).strip().splitlines()
+    else:
+        for z in zeilen[:30]:
+            if z.strip().startswith(('//', '/*', '*')):
+                kopf.append(z.strip())
+            elif kopf:
+                break
+    oeff = [re.sub(r'\s+', ' ', z.strip())[:110] for z in zeilen
+            if re.match(r'^(def|class|async def) [A-Za-z]', z)]
+    exp = [z.strip()[:110] for z in zeilen if z.startswith('export ')] if not p.endswith('.py') else []
+    print(f'\n--- {p} ({len(zeilen)} Zeilen)')
+    for k in kopf[:18]:
+        print('  | ' + k)
+    if len(kopf) > 18:
+        print(f'  | […{len(kopf) - 18} Kopfzeilen mehr]')
+    if oeff or exp:
+        print('  öffentlich: ' + ' ; '.join((oeff + exp)[:40]) + (f' ; […{len(oeff) + len(exp) - 40} mehr]' if len(oeff) + len(exp) > 40 else ''))
+--- Ende /root/sicherung/biotop-lage-01/entwurf/aufbau/d2_module.py ---
+Ausgabe (vollständig, stdout und stderr):
+== A1. Dateien unterhalb Tiefe 3 (Pfad | Bytes)
+biotop/kern/py/verhalten.py | 78014
+biotop/kern/referenzlast/lagerhaus.py | 7258
+biotop/kern/referenzlast/logmuehle.py | 7831
+biotop/kern/referenzlast/versandwerk-t3-02.mjs | 4425
+biotop/kern/referenzlast/versandwerk-t3-02.stufe2.mjs | 4008
+biotop/kern/ts/ast.mjs | 4043
+biotop/kern/ts/bau.mjs | 1665
+biotop/kern/ts/deck-setup.mjs | 2254
+biotop/kern/ts/deckung.mjs | 3112
+biotop/kern/ts/einwickeln.mjs | 4305
+biotop/kern/ts/eslint.config.mjs | 400
+biotop/kern/ts/kanon.mjs | 6903
+biotop/kern/ts/main.mjs | 2190
+biotop/kern/ts/messen.mjs | 3914
+biotop/kern/ts/mutanten.mjs | 1833
+biotop/kern/ts/referenz-runner.mjs | 2776
+biotop/kern/ts/referenz.mjs | 839
+biotop/kern/ts/reporter.mjs | 890
+biotop/kern/ts/statik.mjs | 4286
+biotop/kern/ts/testlauf.mjs | 3518
+biotop/kern/ts/tests-ast.mjs | 5890
+biotop/kern/ts/verhalten-runner.mjs | 22829
+biotop/kern/ts/verhalten.mjs | 3893
+biotop/kern/ts/vitest.config.mjs | 631
+biotop/kern/ts/vitest.deck.config.mjs | 1698
+== A2. Die zehn größten Dateien (Bytes)
+125863 | kammer/typescript/package-lock.json
+78014 | biotop/kern/py/verhalten.py
+75310 | biotop/organe/aegis.py
+62298 | biotop/lauf.py
+52285 | biotop/kern/messgeraet.py
+49690 | biotop/organe/verhaltensvergleich.py
+48644 | tests/test_vor_t4.py
+37801 | biotop/organe/eichproben.py
+36390 | pruefung_vorbedingung1/uebergabe_schreiben.py
+33133 | biotop/organe/gedaechtnis.py
+
+== B. Kopf je Modul und öffentliche Namen
+
+--- biotop/__init__.py (0 Zeilen)
+
+--- biotop/__main__.py (166 Zeilen)
+  | Befehlszeile des Biotops (Phase 1: einzige Oberfläche).
+  | 
+  |   biotop lauf anlegen --budget 30
+  |   biotop einlegen <lauf> <name> <quelle>
+  |   biotop kartieren <lauf>
+  |   biotop vorspann <lauf>            (Generation minus eins, vor gen0 und mass)
+  |   biotop tor4 <lauf> --altlasten <liste.json>   (Tor-4-Skript: Torzeile „Schwächen“ mit doppelter Prüfung)
+  |   biotop gen0 <lauf>
+  |   biotop mass <lauf> --bestaetigt-von Philipp
+  |   biotop generation <lauf>
+  |   biotop freigabe <lauf> <nummer> frei|ablehnen --grund "..." --von Philipp
+  |   biotop abbrechen <lauf> --grund "..." --von "..." [--art satz2|budget|philipp|sonst]   (Pflicht, nie gesperrt)
+  |   biotop lazarus liste|rueckkehr <lauf> [nummer] [--ziel PFAD]
+  |   biotop kasse <lauf>
+  |   biotop protokoll [--ab N] [--art X]
+  |   biotop benutzer <name>            (Kennwort über Umgebungsvariable BIOTOP_KENNWORT)
+  öffentlich: def main(argv=None) -> int:
+
+--- biotop/anbieter/__init__.py (246 Zeilen)
+  | Anbieterschicht: ein Port, mehrere Adapter.
+  | 
+  | Jeder Aufruf geht durch `aufrufen()`, das die Kasse VOR dem Aufruf fragt
+  | (Verfassungssatz 8) und NACH dem Aufruf die tatsächlichen Token bucht und
+  | protokolliert. Es gibt keinen anderen Weg zu einem Modell.
+  öffentlich: def ist_wiederholbar(fehler: 'AnbieterFehler') -> bool: ; def ist_drosselung(fehler: 'AnbieterFehler') -> bool: ; class Antwort: ; class AnbieterFehler(RuntimeError): ; class OpenRouterAdapter: ; def adapter(name: str) -> OpenRouterAdapter: ; def aufrufen(
+
+--- biotop/dienst.py (245 Zeilen)
+  | HTTP-Dienst des Biotops (nur lesend in Phase 1, Bindung an 127.0.0.1).
+  | 
+  | Anmeldezwang fest verdrahtet: JEDE Route außer POST /anmelden verlangt
+  | `Authorization: Bearer <token>`; ohne gültigen Token → 401. Es gibt keinen
+  | Schalter, der das abstellt.
+  | 
+  | Routen:
+  |   POST /anmelden                      {name, kennwort} → {token}
+  |   GET  /laeufe                        alle Läufe
+  |   GET  /laeufe/<id>                   Lauf mit Maß und Kasse
+  |   GET  /laeufe/<id>/generationen      Generationen mit Maßen
+  |   GET  /laeufe/<id>/kandidaten        Kandidaten
+  |   GET  /laeufe/<id>/kasse             Kassenstand
+  |   GET  /laeufe/<id>/lazarus           Schnappschüsse
+  |   GET  /werke                         Werke
+  |   GET  /werke/<id>/landkarte          Landkarte (Stufen 0–3, Straßen, Verträge)
+  |   GET  /protokoll                     Protokoll (letzte 200)
+  öffentlich: class Handler(BaseHTTPRequestHandler): ; def starten(host: str = "127.0.0.1", port: int = 8642): ; def main(port: int = 8642):
+
+--- biotop/kern/__init__.py (0 Zeilen)
+
+--- biotop/kern/anmeldung.py (50 Zeilen)
+  | Kern: Anmeldung — Benutzer, Kennwort, Token. Fest verdrahtet, nicht abschaltbar.
+  | Alle Routen des Dienstes (dienst.py) verlangen einen gültigen Token.
+  öffentlich: def benutzer_anlegen(con: sqlite3.Connection, name: str, kennwort: str) -> None: ; def anmelden(con: sqlite3.Connection, name: str, kennwort: str) -> str | None: ; def pruefen(con: sqlite3.Connection, token: str | None) -> str | None:
+
+--- biotop/kern/befundklassen.py (158 Zeilen)
+  | Kern: Befundklassen-Katalog — je statischer Befundklasse (Bandit-Kennung) die
+  | bekannten Umgehungen als Immuntests. Teil des Messgeräts (nur Philipp ändert).
+  | 
+  | Regel 3.5 Fassung 2: „Behoben heißt verschwunden" — ein Sicherheitsbefund gilt
+  | erst als behoben, wenn der statische Befund weg ist UND die Umgehung der
+  | Befundklasse als Immuntest im Werk liegt. Diese Tests werden jedem Kandidaten
+  | und seiner Vorgeneration paarweise mitgegeben, sobald ein Bereich einen Befund
+  | dieser Klasse trägt. Die Tests sind werkunabhängig formuliert und werden über
+  | eine Einstiegsfunktion (`einstieg`) an das Werk gebunden.
+  öffentlich: def immuntest_code(klasse: str, einstieg_import: str, einstieg_aufruf: str, fehlerklasse_import: str, fehlerkl ; def immuntest_typescript(klasse: str, einstieg_import: str, einstieg_aufruf: str) -> str | None: ; def beschreibung(klasse: str) -> str:
+
+--- biotop/kern/datenbank.py (101 Zeilen)
+  | Kern: Datenbank (SQLite, Transaktionen).
+  | 
+  | Alle Gedächtnisse liegen hier, dauerhaft auf dem Server (Verfassungssatz 9).
+  | Phase 1: eine Datei, ein Prozess. Rollentrennung (eigener Kern-Prozess mit
+  | ausschließlichem Schreibrecht) steht auf der Liste für danach.
+  öffentlich: def verbinden(pfad: Path | None = None) -> sqlite3.Connection: ; def transaktion(con: sqlite3.Connection): ; def j(obj) -> str: ; def lj(text: str | None):
+
+--- biotop/kern/diffwerk.py (128 Zeilen)
+  | Kern: Diff-Anwendung — tolerant gegenüber falschen Hunk-Zählern.
+  | 
+  | Modelle liefern häufig unified diffs mit falschen `@@ -a,b +c,d @@`-Zählern.
+  | Hier wird ein Hunk als (alter Block, neuer Block) gelesen und der alte Block
+  | im Text gesucht — erst exakt, dann mit abgeschnittenem Weißraum am
+  | Zeilenende. Das ist deterministisch; kein Modell beurteilt etwas.
+  | 
+  | Regel (3.6 Fassung 2): Ein Hunk, dessen alter Block mehr als 60 % der Datei
+  | ersetzt, ist eine Neuschreibung und wird abgelehnt — AUSSER die Datei hat unter
+  | 100 Zeilen; dann ist die Neuschreibung ein zulässiger Kandidat (die Verträge
+  | prüft der Ankläger paarweise).
+  öffentlich: class DiffFehler(ValueError): ; class Hunk: ; class DateiDiff: ; def parsen(diff: str) -> list[DateiDiff]: ; def anwenden(text: str | None, d: DateiDiff) -> str | None:
+
+--- biotop/kern/gegenzeugen.py (79 Zeilen)
+  | Doppelprüfung der Gegenzeugen versiegelter Testwerke (Entscheidung Chat-Claude 4, 24.09.2026).
+  | 
+  | Befund der Behebungsrunden 1 und 2 vor T4: K3044 (Lauf 38) führte den versiegelten Marker von S1 nicht mehr aus — ein
+  | Gegenzeuge, der nur die Schwäche prüft, meldete „Schwäche weg“ —, wies aber 12.206 von 12.206 Ausdrücken mit
+  | Zeilenumbruch ab, die die Normalversion rechnet. So zählt eine neue Fehlfunktion als Behebung.
+  | 
+  | Regel: Für jedes künftige Testwerk prüft jeder Gegenzeuge zweierlei — (a) die Schwäche ist weg und (b) das gültige
+  | Verhalten ist gegen die Normalversion unverändert. „Behoben“ nur, wenn beides gemessen ist und beides hält. Scheitert
+  | eine gemessene Prüfung: nicht behoben. Fehlt eine Prüfung oder ist ihr Vergleich leer (und keine gemessene ist
+  | gescheitert): nicht beurteilbar (None) — nie „behoben“.
+  | 
+  | Das Kriterium S1 des T3-Versandwerks wird dafür NICHT neu versiegelt (nach der Messung ändert man kein Kriterium). Am
+  | T3-Werk wird die Regel nur zusätzlich angewandt und getrennt berichtet (s1_aus_messung).
+  öffentlich: def doppelurteil(schwaeche: dict | None, normal: dict | None) -> dict: ; def torzeile_schwaechen(schwaechen: dict[str, dict], schwelle: float = 0.8) -> dict: ; def s1_aus_messung(e: dict) -> tuple[dict, dict]:
+
+--- biotop/kern/kasse.py (313 Zeilen)
+  | Kern: Kasse — zählt jeden Modellaufruf und führt ihn gegen das Laufbudget.
+  | 
+  | Regel (3.14, Verfassungssatz 8): VOR jedem Aufruf wird geprüft, ob der Aufruf
+  | das Budget überschreiten würde. Wenn ja: BudgetErschoepft, kein Aufruf.
+  | 
+  | Preistabelle: Teil des unantastbaren Kerns (Abschnitt 5). Preise in USD je
+  | Million Token laut OpenRouter-Katalog vom 18.09.2026; Umrechnung mit fest
+  | hinterlegtem Kurs. Beides ändert nur Philipp.
+  öffentlich: def auftrag_stand(con: sqlite3.Connection) -> float: ; class BudgetErschoepft(RuntimeError): ; class AuftragsgrenzeFehlt(RuntimeError): ; def auftragsgrenze_verlangen() -> tuple[int, float]: ; def kosten_eur(modell: str, tokens_ein: int, tokens_aus: int) -> float: ; def stand(con: sqlite3.Connection, lauf_id: int) -> dict: ; def vorpruefung( ; def ausfall_klaeren(con: sqlite3.Connection, lauf_id: int, aufruf_nr: int, beleg: str, ; def ausfallklaerungen(con: sqlite3.Connection, lauf_id: int) -> dict: ; def buchen( ; def bericht_md(con: sqlite3.Connection, lauf_id: int | None = None) -> str: ; def generationskosten(con: sqlite3.Connection, lauf_id: int) -> dict[int, float]: ; def generation_vorpruefung(con: sqlite3.Connection, lauf_id: int, nummer: int) -> float:
+
+--- biotop/kern/messgeraet.py (878 Zeilen)
+  | Kern: Messgerät — die harten Maße. Läuft ausschließlich in der Kammer.
+  | 
+  | Maße je Bereich (Richtung: ↑ = größer ist besser, ↓ = kleiner ist besser):
+  |   tests_bestanden        ↑  bestandene Tests des Bereichs (Bezug: tests_gesamt)
+  |   tests_fehlgeschlagen   ↓
+  |   sicherheit_punkte      ↓  bandit: HIGH=10, MEDIUM=3, LOW=1 je Befund
+  |   tote_funktionen        ↓  vulture, Vertrauen ≥ 60 %, nur Funktionen/Methoden/Klassen
+  |   laufzeit_ms            ↓  Referenzlast (Kern-Skript je Werk), Minimum aus 3 Läufen
+  |   groesste_funktion      ↓  Zeilen der längsten Funktion
+  | Werkebene zusätzlich:  zyklen ↓ (Import-Zyklen zwischen Bereichen), bauzeit_ms ↓
+  | 
+  | Kernmaß FASSUNG 2 (Masterprompt v2, 3.5) — gilt ab Lauf 3:
+  |   kern_bereich = −tests_fehlgeschlagen − sicherheit_punkte − tote_funktionen
+  |   (sicherheit_punkte = 10·HIGH + 3·MEDIUM + 1·LOW). Höchstwert 0. Bestandene
+  |   Tests zählen nicht. Paarweise Messung: Vorgeneration und Kandidat mit demselben
+  |   Testbestand (dem des Kandidaten). Pareto-Maße (nie schlechter im Wirkungskreis):
+  |   tests_fehlgeschlagen, sicherheit_punkte, tote_funktionen, baut. Grenzmaße
+  |   (gegen den Ausgangszustand des Laufs; Vorgabe ohne Verfassung: laufzeit ×2,
+  | […10 Kopfzeilen mehr]
+  öffentlich: def lauf(cmd, timeout=100): ; def zuordnung(f): ; class Nachweis: ; def bandit(pfad): ; def vulture(pfad): ; def groesste_funktion(pfad): ; def zyklen(): ; def messen(werk: Path, bereiche: list[str], paket: str, referenzlast: str | None, ; def kernmass(m: dict) -> int: ; def bereich_masse(m: dict, bereich: str) -> dict: ; def werk_masse(m: dict) -> dict: ; def vergleichen(vorher: dict, nachher: dict) -> dict: ; def kernmass_f2_bereich(b: dict) -> int: ; def kernmass_f2(m: dict) -> int: ; def kernmass_f1(m: dict) -> int: ; def pareto_f2(basis: dict, kandidat: dict, bereiche: list[str]) -> tuple[list[str], list[str]]: ; def streuung(messungen: list[float], ebene: str = "zwischen") -> dict: ; def rauschtoleranz_aus_werten(werte: list[float]) -> dict: ; def bestwerte(angenommene: list[dict], bereiche: list[str]) -> dict: ; def grenzen_f2(ausgang: dict, kandidat: dict, bereiche: list[str], tausch: dict | None = None, ; def urteil_f2(basis: dict, kandidat: dict, ausgang: dict, bereiche: list[str], wirkungskreis: list[str], ; def laufzeit_messen(werk: Path, bereiche: list[str], paket: str, referenzlast: str | None, ; def laufzeit_gepaart(werk: Path, bereiche: list[str], paket: str, referenzlast: str | None, ; def laufzeit_einsetzen(basis: dict, kandidat: dict, gepaart: dict) -> tuple[dict, dict]: ; def laufzeitrisse(u: dict) -> list[str]: ; def gewinn_band(rauschtoleranz: dict | None, bereich: str) -> tuple[float, float]: ; def gewinn_quoten(basis: dict, kandidat: dict, bereiche: list[str]) -> dict[str, float]: ; def gewinn_bestaetigen(werk: Path, bereiche: list[str], paket: str, referenzlast: str | None, ; def gewinne_beschraenken(u: dict, bereiche: list[str]) -> dict: ; def laufzeit_bestaetigen(werk: Path, bereiche: list[str], paket: str, referenzlast: str | None, ; def laufzeit_entscheidet(u: dict, nische: str | None) -> bool:
+
+--- biotop/kern/protokoll.py (57 Zeilen)
+  | Kern: Protokoll — jeder Aufruf, jedes Ergebnis, unveränderlich, fortlaufend
+  | nummeriert. Jede Zeile trägt den Hash der Vorzeile (Kette); eine nachträgliche
+  | Änderung bricht die Kette und ist mit `pruefen()` nachweisbar.
+  öffentlich: def jetzt() -> str: ; def schreiben(con: sqlite3.Connection, art: str, **inhalt) -> int: ; def pruefen(con: sqlite3.Connection) -> tuple[bool, int]: ; def lesen(con: sqlite3.Connection, ab: int = 0, art: str | None = None, limit: int = 200):
+
+--- biotop/kern/py/verhalten.py (1769 Zeilen)
+  | Verhaltenssonde für Python-Werke (T4, Grundsatz 11). Läuft in der netzlosen Kammer (cwd /werk):
+  |     python _messgeraet/verhalten.py _messgeraet/anfrage.json
+  | Gegenstück zu kern/ts/verhalten.mjs + verhalten-runner.mjs.
+  | 
+  | Beobachtet werden die öffentlichen Funktionen UND die öffentlichen Methoden und Eigenschaften der Klassen der
+  | geänderten Module (Behebungsrunde 3 vor T4, Entscheidung Chat-Claude 3). Eingewickelt wird jede Funktion und jedes
+  | aufrufbare Objekt mit `__wrapped__` (functools.lru_cache, wraps; Review 02 Nr. 5), auch dort, wo andere Module sie
+  | gebunden haben.
+  | - Referenzlast (`beobachten()`, `last_<bereich>()`): je Funktion die ersten KAPPE äußeren Aufrufe (#0…#7), je Aufruf
+  |   vier Muster — der Aufruf, @alias (dieselben Referenzen noch einmal), @mutation (Zahlenblätter der Eingaben an Ort und
+  |   Stelle geändert), @nach_ruecksetzung. Nach jedem Aufruf ist der ZUSTAND der veränderlichen Argumente eine eigene
+  |   Beobachtung (`>args`, Review 02 Nr. 2; bei Methoden gehört self dazu). Den Zustand von self VOR den Korpusaufrufen
+  |   hält je Klasse `Klasse.__init__~instanz#0` fest (die frische Instanz aus dem Rezept).
+  | - Zu jedem Aufruf (auch dem echten) ruft die Sonde die Funktion zusätzlich mit einer tiefen KOPIE der Eingabe vor dem
+  |   Aufruf; weicht das Ergebnis ab, hängt es an Referenz oder verborgenem Zustand statt am Inhalt (`kopien`). Eine solche
+  |   Abweichung deckt kein Test (verhaltensvergleich.deckung).
+  | - Generatoren und Iteratoren werden begrenzt ausgelesen (erste ITER_KAPPE Elemente, Review 02 Nr. 1); der Aufrufer
+  |   bekommt einen Iterator über dieselben Elemente. Koroutinen sind nicht vergleichbar (gezählt: `unvergleichbar`).
+  | […13 Kopfzeilen mehr]
+  öffentlich: def kan(x, anc=None, t=0, fehlend=None): ; def text_von(x, fehlend=None): ; def knapp(t): ; def eingabe_text(args, kwargs): ; class Verfaelscht: ; def klassen_von(werte): ; def wert(f, name=None): ; def schnappschuss(werte): ; def zuruecksetzen(log): ; def mutieren(werte): ; def muster(schl, args, kwargs, call, name=None, kl=()): ; def wickeln(name, orig, art='fn'): ; def deck_wickeln(name, orig, art='fn'): ; def alle_wickeln(module, fabrik, init=False): ; def signaturen_lesen(mod): ; def pack(x, t=0): ; def unpack(x): ; def rezept_aus_zustand(obj): ; def klassen_sammeln(module): ; def konstruktion_aufzeichnen(herkunft): ; def vertraege_ausfuehren(): ; def instanz(n): ; def schrumpfen(p): ; def teilen(t, zeichen): ; def typ_kandidaten(t, b, stufe=0): ; def argumentlisten(typen, beispiel): ; def form_werte(p): ; def formvarianten(quellen): ; def instanz_erproben(n, signaturen): ; def korpus_randfaelle(module, signaturen): ; def main():
+
+--- biotop/kern/referenzlast/lagerhaus.py (119 Zeilen)
+  öffentlich: def last_formeln(): ; def last_preise(): ; def last_lager(): ; def last_bericht(): ; def beobachten():
+
+--- biotop/kern/referenzlast/logmuehle.py (140 Zeilen)
+  öffentlich: def last_lesen(): ; def last_filtern(): ; def last_zaehlen(): ; def last_ausgabe(): ; def beobachten():
+
+--- biotop/kern/referenzlast/versandwerk-t3-02.mjs (106 Zeilen)
+  | // Deterministische Referenzlast; außerhalb des Werks verwaltet (Kern, Messgerät).
+  | // Zwei getrennte Zwecke:
+  | //   last_<bereich>()  — LAUFZEITLAST. Muss groß genug sein, dass die Messung über dem Timer-Jitter liegt.
+  | //                       Bei 0,6–2,5 ms war das Eigenrauschen 42–44 % und der Vorspann sperrte die Bereiche
+  | //                       zu Recht ("unstete Referenzlast"). Die Wiederholungszahlen unten heben jede Bereichslast
+  | //                       in den Bereich einiger zehn Millisekunden. Die Schwelle 1,5 bleibt unverändert.
+  | //   beobachten()      — VERHALTENSRASTER für die Äquivalenzprüfung. Bewusst klein und unverändert gelassen:
+  | //                       es soll Verhalten festhalten, nicht Zeit verbrauchen.
+  öffentlich: export function last_eingang() { ; export function last_tarife() { ; export function last_planung() { ; export function last_bericht() { ; export function last_zahlen() { ; export function beobachten() {
+
+--- biotop/kern/referenzlast/versandwerk-t3-02.stufe2.mjs (89 Zeilen)
+  | // Deterministische Referenzlast, ZWEITE STUFE (Behebungsrunde 4 vor T4, Entscheidung Chat-Claude 1, 24.09.2026).
+  | // Dieselben Bereichslasten wie versandwerk-t3-02.mjs (Stufe 1, unverändert — T3s Ergebnisse bleiben unverändert),
+  | // aber mit ZEHNFACHER EINGABEGRÖSSE je Bereich; die Wiederholungszahlen W sind dieselben wie in Stufe 1.
+  | // An dieser Stufe misst die Nische „schnell“ den Gewinn und jede Nische ihre Laufzeitgrenze (gepaarte Messung,
+  | // Nachmessungen, Rauschmessung der Stufe 2). Ein Kammerlauf der Laufzeitmessung muss unter einer Minute bleiben
+  | // (gemessen: proben/STUFE2-ZEITEN.txt; der Vorspann verweigert einen Lauf, dessen Stufe-2-Kammerlauf länger dauert).
+  | // Nur Laufzeitlast: das Verhaltensraster beobachten() bleibt in Stufe 1.
+  öffentlich: export function last_eingang() { ; export function last_tarife() { ; export function last_planung() { ; export function last_bericht() { ; export function last_zahlen() {
+
+--- biotop/kern/register.py (56 Zeilen)
+  | Register der verlangten Aufrufe (Behebungsrunde 5 vor T4, Entscheidung Chat-Claude 5, 24.09.2026).
+  | 
+  | Zum dritten Mal war etwas gebaut und nie gerufen (Lauf 38: verhaltensvergleich und masseichung; Review 04 Nr. 7: die
+  | Torzeile „Schwächen“). Jede Funktion, deren Aufruf der Entwurf verlangt, steht hier — mit dem Aufrufer und der
+  | Laufphase, in der sie laufen muss. Der Verdrahtungstest (tests/test_verdrahtung.py) fährt einen ganzen Lauf über die
+  | Befehlszeile und verlangt jeden Eintrag als Aufrufkante „funktion ← aufrufer @ phase“; ein Eintrag ohne Kante macht
+  | die Regression rot. Zusätzlich muss jedes Organmodul unter biotop/organe/ gerufen werden (Organliste aus dem
+  | Verzeichnis, eigene Prüfung im selben Test).
+  | 
+  | Form je Eintrag: (funktion, aufrufer, phase, grund)
+  | - funktion: „modul.name“ — Modul als Kurzname (Organ oder Kernmodul, siehe MODULE), wie der Aufzeichner die Kante
+  |   schreibt;
+  | - aufrufer: „paket.modul:funktion“ — der erste Rahmen außerhalb des Moduls der Funktion;
+  | - phase: der Befehlsschritt des Laufs (vorspann, gen0, mass, generation, freigabe, tor4).
+  öffentlich: def kante(eintrag: tuple[str, str, str, str]) -> str: ; def fehlend(kanten: set[str], verlangt=VERLANGT) -> list[str]:
+
+--- biotop/kern/sprachprofil.py (38 Zeilen)
+  | Sprachnaht: Dateipopulation und Testkonventionen, keine Werk-Ausführung.
+  | 
+  | Pythonbestand bleibt unverändert. TypeScript wird am Paket und an echten
+  | Quellen erkannt, nie am Werknamen oder an einer Tor-Probe.
+  öffentlich: def ist_typescript(werk: Path) -> bool: ; def quellendung(werk: Path) -> str: ; def testendung(werk: Path) -> str: ; def testdateien(werk: Path, bereich: str | None = None) -> list[Path]: ; def tests_ist_ts(code: str) -> bool: ; def testname_ohne_endung(pfad: str) -> str:
+
+--- biotop/kern/ts/ast.mjs (64 Zeilen)
+  | // Path.read_text() benutzt universal newlines; Spans passen zu dessen Text.
+  öffentlich: export { ts }; ; export function dateien(dir) { ; export function parse(code, name='eingabe.ts') { ; export function funktionen(sf) { ; export function struktur() {
+
+--- biotop/kern/ts/bau.mjs (17 Zeilen)
+  öffentlich: export function quellenbau() { ; export function baulauf() {
+
+--- biotop/kern/ts/deck-setup.mjs (45 Zeilen)
+  | // Je Aufruf: Test, Funktion und Merkmalsklassen der Argumente (Deckung je Muster). Mit req.verfaelschen {f, art}
+  | // liefert genau diese Funktion ein verfälschtes Ergebnis ('rueckgabe') bzw. stört den Argumentzustand ('zustand').
+
+--- biotop/kern/ts/deckung.mjs (46 Zeilen)
+  | // Deckung je Abweichung (Grundsatz 11, Entscheidung Chat-Claude 23.09.): die deckenden Tests am Kandidaten mit einem
+  | // Aufzeichner ausführen. Das Vite-Plugin in vitest.deck.config.mjs wickelt die exportierten Funktionen der geänderten
+  | // Module ein; deck-setup.mjs hält je Test jeden Aufruf fest (Funktion, kanonische Argumente, Identität und Inhalt
+  | // der Objektargumente). Die Zuordnung Abweichung → Test macht Python (verhaltensvergleich.deckung_je_abweichung).
+  öffentlich: export function deckung(req) {
+
+--- biotop/kern/ts/einwickeln.mjs (71 Zeilen)
+  | // Exportierte Funktionen eines Moduls einwickeln — gemeinsam für die Verhaltenssonde (verhalten.mjs, gebautes dist-JS)
+  | // und den Aufzeichner der deckenden Tests (vitest.deck.config.mjs, TypeScript-Quelle). Am Syntaxbaum statt per Regex
+  | // (Behebungsrunde 3 vor T4, Review 02 Nr. 9b): `export (async) function f` (auch generisch, überladen, Generator) UND
+  | // `export const f = (…) => …` bzw. `= function …`. Bisher wurden Pfeilfunktions-Exporte nicht eingewickelt; ein Test,
+  | // der sie rief, zeichnete 0 Aufrufe auf.
+  | // Jede Funktion wird umbenannt (__vv_orig_f) und durch einen gleichnamigen Export ersetzt, der über
+  | // globalThis[hook](name, args, call) läuft. Funktionsdeklarationen: Hülle am Modulende (hochgezogen wie das Original).
+  | // Pfeil-Exporte: Hülle unmittelbar nach der Anweisung (keine neue Zeitzone vor der Initialisierung).
+  | // Nicht eingewickelt (gezählt, mit Name): Klassen, export default, export-Listen, let/var, Nicht-Funktionskonstanten
+  | // werden übergangen (sie sind kein Verhalten), gemischte const-Anweisungen.
+  | // Rückgabe {code, namen, nicht_eingewickelt: [name + ' (Grund)']}.
+  öffentlich: export function einwickeln(ts, code, modul, hook, {typen = false} = {}) {
+
+--- biotop/kern/ts/eslint.config.mjs (7 Zeilen)
+  öffentlich: export default [
+
+--- biotop/kern/ts/kanon.mjs (135 Zeilen)
+  | // Kanonische Form beobachteter Werte — gemeinsam für die Verhaltenssonde (verhalten-runner.mjs) und den
+  | // Aufzeichner der deckenden Tests (deck-setup.mjs), damit beide Seiten Argumente gleich schreiben.
+  öffentlich: export const VERFAELSCHT = Symbol.for('biotop.verfaelscht'); ; export function kan(x, anc, fehlend) { ; export function knapp(t) { ; export function ergebnisText(v) { ; export function fehlerText(e) { return 'Fehler:' + (e?.constructor?.name ?? 'unbekannt'); } ; export function eingabeText(args) { ; export function textMerkmale(x) { ; export function klassenVon(werte) {
+
+--- biotop/kern/ts/main.mjs (36 Zeilen)
+
+--- biotop/kern/ts/messen.mjs (54 Zeilen)
+  öffentlich: export function messen(req) {
+
+--- biotop/kern/ts/mutanten.mjs (32 Zeilen)
+  öffentlich: export function mutanten(maximum=6) {
+
+--- biotop/kern/ts/referenz-runner.mjs (45 Zeilen)
+  | // Erst ALLE Bereiche aufwärmen, dann messen: der erste Aufruf einer Funktion trägt JIT-Übersetzung
+  | // und Erstallokation (gemessen: 0,98 ms gegen 0,12 ms beim dritten Aufruf). Diese Kosten gehören
+  | // nicht in die Laufzeit des Werks, sonst streut die Rauschmessung zwischen Durchläufen.
+
+--- biotop/kern/ts/referenz.mjs (13 Zeilen)
+  öffentlich: export function referenz(code,modus='beobachten',bereiche=[]) {
+
+--- biotop/kern/ts/reporter.mjs (18 Zeilen)
+  öffentlich: export default class Nachweis {
+
+--- biotop/kern/ts/statik.mjs (55 Zeilen)
+  | // Unveränderliche Regelzuordnung: HIGH=10, MEDIUM=3, LOW=1; alle Pluginregeln.
+  öffentlich: export const SICHERHEIT={ ; export function statik(struktur) {
+
+--- biotop/kern/ts/testlauf.mjs (46 Zeilen)
+  | // `art` trennt zwei Fälle, die bisher gleich aussahen:
+  | //   'inhalt'        — die gelieferte Testdatei ist unbrauchbar (Sammlung, Skip, leer,
+  | //                     Widerspruch). Ein Befund über die Datei, kein Messgerätfehler.
+  | //   'infrastruktur' — Runner tot, JUnit unlesbar, Kammer weg. Ohne Messgerät kein Urteil.
+  öffentlich: export function lauf(cmd,args,timeout=100000) { ; export function testlauf(req) {
+
+--- biotop/kern/ts/tests-ast.mjs (90 Zeilen)
+  öffentlich: export function testsAst(code,behalten=null,zeuge=null) {
+
+--- biotop/kern/ts/verhalten-runner.mjs (435 Zeilen)
+  | // Läuft in der Kammer, nachdem verhalten.mjs die geänderten Module eingewickelt hat.
+  | // Installiert den Aufzeichner, führt die Referenzlast aus (beobachten() und last_<bereich>())
+  | // und schreibt die Beobachtungen nach /tmp/ts-vv-ergebnis.json.
+  | //
+  | // Je Funktion werden die ersten KAPPE äußeren Aufrufe beobachtet. Nach dem echten Aufruf
+  | // (dessen Ergebnis der Aufrufer bekommt) folgen drei Zusatzaufrufe; vor jedem wird der Zustand
+  | // der Eingaben festgehalten und danach vollständig wiederhergestellt, so dass der Aufrufer
+  | // genau den Zustand nach dem echten Aufruf weiterverwendet:
+  | //   @alias               dieselben Referenzen sofort noch einmal
+  | //   @mutation            Zahlenblätter an Ort und Stelle geändert (gleiche Referenzen, gleiche Längen)
+  | //   @nach_ruecksetzung   wieder auf den Zustand nach dem echten Aufruf gesetzt, erneut aufgerufen
+
+--- biotop/kern/ts/verhalten.mjs (70 Zeilen)
+  | // Verhaltensvergleich (T3, Befund K2934/K3121): „schneller, aber falsch" sichtbar machen.
+  | //
+  | // Wickelt jede exportierte Funktion der geänderten Module in einen Aufzeichner und lässt
+  | // dann die Referenzlast laufen — genau die Codepfade, deren Laufzeit das Maß belohnt.
+  | // Je Funktion werden die ersten `kappe` äußeren Aufrufe in vier Mustern beobachtet:
+  | //   #i                  der Aufruf selbst
+  | //   #i@alias            dieselben Referenzen sofort noch einmal
+  | //   #i@mutation         Eingabe an Ort und Stelle geändert (gleiche Länge), erneut aufgerufen
+  | //   #i@nach_ruecksetzung  Eingabe zurückgesetzt, erneut aufgerufen
+  | // Ein Zwischenspeicher, der an der Referenz statt am Inhalt hängt, liefert bei @mutation
+  | // oder @nach_ruecksetzung ein veraltetes Ergebnis — der Einzelaufruf sieht das nie.
+  | //
+  | // Fassung 8 (Grundsatz 11): Zusätzlich bekommt jede exportierte Funktion einen Randfall-Korpus aus ihrer
+  | // deklarierten Signatur (Typvertrag). Die Signaturen stammen immer von der VORGENERATION (req.signaturen, sonst aus
+  | // dem Quelltext dieses Stands gelesen und zurückgegeben), damit beide Seiten dieselben Aufrufe bekommen.
+  öffentlich: export function einwickeln(code, modul) { ; export function signaturen_lesen(module) { ; export function verhalten(req) {
+
+--- biotop/kern/ts/vitest.config.mjs (11 Zeilen)
+  öffentlich: export default {
+
+--- biotop/kern/ts/vitest.deck.config.mjs (25 Zeilen)
+  | // TypeScript per require laden: Vite bündelt die Konfiguration, ein statischer Import der CommonJS-Datei scheitert dort
+  | // („Dynamic require of fs is not supported“).
+  öffentlich: export default {
+
+--- biotop/kern/typescript.py (185 Zeilen)
+  | TypeScript-Sprachadapter: Parser und Werkzeuge ausschließlich in der Kammer.
+  | 
+  | BIOTOP_KAMMER_IMAGE=biotop-kammer:ts1 vor Prozessstart setzen. Kein globaler
+  | Imagewechsel. Offsets sind Python-kompatible Unicode-Codepoints, halb offen.
+  öffentlich: class TypeScriptFehler(ValueError): ; def ist_typescript(werk: Path) -> bool: ; def struktur(werk: Path) -> dict: ; def mutanten(werk: Path, max_je_datei: int = 6) -> list[dict]: ; def messen(werk: Path, bereiche: list, paket: str, referenzlast: str | None, ; def laufzeit(werk: Path, referenzlast: str, bereiche: list, dateien: dict | None = None) -> dict: ; def ref_beobachten(werk: Path, referenzlast: str, dateien: dict | None = None) -> dict: ; def quellfunktionen(code: str) -> list[dict]: ; def testfunktionen(code: str) -> list[dict]: ; def nur_tests(code: str, behalten: set[str]) -> str | None: ; def verbraucherzeuge(code: str, name: str, von: str, nach: str) -> str: ; def baulauf(werk: Path, dateien: dict | None = None) -> dict: ; def testlauf(werk: Path, dateien: dict | None = None, testdateien: list | None = None) -> dict:
+
+--- biotop/lauf.py (854 Zeilen)
+  | Ablauf eines Laufs (Abschnitt 4) — Phase 1: Aufnahme → Landkarte → Maß
+  | (eingefroren) → Generationen (Schwarm → Ankläger → Zusammensetzen →
+  | Generalprobe → Pareto → Schnappschuss → Freigabe durch Philipp).
+  | 
+  | Die Messung entscheidet; kein Modell beurteilt einen Vorschlag.
+  öffentlich: class LaufFehler(RuntimeError): ; def anlegen(con: sqlite3.Connection, budget_eur: float) -> int: ; def einlegen(con: sqlite3.Connection, lauf_id: int, name: str, quelle: str) -> dict: ; def kartieren(con: sqlite3.Connection, lauf_id: int) -> dict: ; def mass_einfrieren(con: sqlite3.Connection, lauf_id: int, bestaetigt_von: str) -> dict: ; def bestwert_des_laufs(con, lauf_id, bereiche) -> dict: ; def letzte_angenommene(con, lauf_id) -> dict: ; def annahme_tausch(mass: dict, nachweis: dict) -> dict: ; def generation(con: sqlite3.Connection, lauf_id: int, einschleusen: list[dict] | None = None) -> dict: ; def abbrechen(con: sqlite3.Connection, lauf_id: int, grund: str, von: str, art: str = "satz2") -> dict: ; def freigabe(con: sqlite3.Connection, lauf_id: int, nummer: int, entscheidung: str, grund: str, von: str) -> d ; def kurve_nachrechnen(con: sqlite3.Connection, lauf_id: int, testbestand_von_lauf: int | None = None) -> dict: ; def paar_bestanden(u: dict) -> bool: ; def generation0(con: sqlite3.Connection, lauf_id: int, mutanten_json: str | None, ziel: int) -> dict:
+
+--- biotop/nachspiel.py (298 Zeilen)
+  | Nachspiel des Annahmepfads: aufgezeichnete Kandidaten durch genau die Funktion, die ein Lauf zur Annahme ruft.
+  | 
+  | Anlass (T3, Lauf 38): `verhaltensvergleich` und `masseichung` waren gebaut, getestet und gegen das Modul
+  | gegengeprüft — und nirgends eingehängt. Die Gegenproben liefen gegen das Modul, nicht durch den Lauf. Ein
+  | Nachspiel ruft deshalb `aegis.pruefen` mit dem Aufbau, den `lauf.generation()` dafür herstellt
+  | (`lauf.annahme_tausch`, `lauf.bestwert_des_laufs`, `lauf.letzte_angenommene`, `lauf._referenzlast`) — keine
+  | Nachbildung davon.
+  | 
+  | Woher jede Eingabe kommt:
+  | - Kandidat (Diff, Nische, Bereich, Verträge): aus der Lauf-DB; Status in der KOPIE auf „erzeugt" zurückgesetzt.
+  | - Vorgeneration: Lazarus-Schnappschuss über `lazarus.rueckkehr(ziel=…)`; weicht die Prüfsumme von der DB ab,
+  |   bricht das Nachspiel ab.
+  | - Maß, Rauschtoleranzen, Eichausgang: eingefrorenes Maß und versiegelter Vorspann-Nachweis des Laufs (gelesen,
+  |   nicht über `vorspann.verlangen` — das würde den Nachweis wegen des seither geänderten Kerns zu Recht verwerfen).
+  | - Maßeichung: `masseichung.eichen(nachweis.basis, masseichung.sauberer_bereich(verfassung))` — dieselben zwei
+  |   Aufrufe wie im Vorspann, an der dort versiegelten Ausgangsmessung. Läufe vor dem Einbau tragen die Eichung nicht
+  |   im Nachweis; sie wird dann aus denselben Daten gebildet und so gekennzeichnet (`eichung_herkunft`).
+  | - Bestwert/Vorgeneration: aus der DB-Kopie, in der Generationen ab der Kandidatengeneration ausgeblendet sind.
+  | […9 Kopfzeilen mehr]
+  öffentlich: class NachspielFehler(RuntimeError): ; class AufgezeichneteGrenze: ; def vorbereiten(quelle_db: Path, kandidat_id: int, arbeit: Path, *, urteil_nr: int | None = None, ; def spielen(fall: dict, *, verhaltensvergleich_an: bool = True, vv_optionen: dict | None = None) -> dict:
+
+--- biotop/oberflaeche.py (172 Zeilen)
+  | Web-Oberfläche des Biotops (3.15, Phase 3). Eine HTML-Seite hinter der Anmeldung; jedes Bedienelement liest oder
+  | schreibt genau eine Stelle im Kern — die Zuordnung steht in ELEMENTE (Element → Route → Datei:Funktion) und wird von
+  | `biotop oberflaeche-belege` mit Zeilennummern ausgegeben (Tor 3, Zeile „Oberfläche").
+  | 
+  | Der HTML/JS-Text ist bewusst schlicht (kein Framework), vom Tablet bedienbar (große Schaltflächen, eine Spalte).
+  | Der Token liegt nach der Anmeldung im sessionStorage des Browsers; jede Anfrage trägt ihn als Bearer.
+  öffentlich: def belege() -> list[dict]:
+
+--- biotop/organe/__init__.py (0 Zeilen)
+
+--- biotop/organe/aegis.py (1174 Zeilen)
+  | Organ 3.7: Aegis — der Ankläger. Fassung 2 (Masterprompt v2).
+  | 
+  | Schritte 1 (Wirkungskreis), 3 (Verfassung: mechanisch prüfbare Sätze), 4 (Angriff)
+  | und 5 (Ausführung, paarweise Messung nach 3.5 F2). Schritt 2 (explizite Verträge) = Phase 2.
+  | 
+  | Paarweise Messung: Vorgeneration und Kandidat werden mit DEMSELBEN Testbestand
+  | gemessen — dem des Kandidaten: vorhandene Tests + gültige neue Tests des Kandidaten
+  | + offene Immuntests des Bereichs + Befundklassen-Immuntests (3.5 „behoben heißt
+  | verschwunden") + Angriffstests, die einen Fehler bestätigen. Zuwachs = Differenz
+  | des Kernmaßes F2. Bestandene Tests zählen nicht.
+  | 
+  | Sicherheitsbefunde (3.7 F2): Trägt der Bereich in der Vorgeneration einen
+  | statischen Befund, bekommt der Ankläger die Befundklasse mit Beschreibung, muss
+  | deren bekannte Umgehungen angreifen, und der Angriff läuft mit einem schweren Modell.
+  | 
+  | Klassifikation von Angriffstests: nur AssertionError oder Ausnahme im Werk zählt
+  | als bestätigter Fehler; ein Test, der an sich selbst stirbt, zählt nicht.
+  öffentlich: def kandidat_dateien(werk: Path, diff: str) -> dict[str, str | None] | None: ; def diff_grund(werk: Path, diff: str) -> str: ; def junit_lauf(werk: Path, paket: str, dateien: dict[str, str], testdateien: list[str]) -> dict[str, dict]: ; def nur_funktionen(code: str, behalten: set[str]) -> str | None: ; def zaehlkontext_setzen(con, lauf_id) -> None: ; def eigene_tests(werk: Path, tests_kandidat: dict, vertrag_dateien: dict) -> set[str]: ; def ist_eigener_test(t: str, eigene: set[str]) -> bool: ; def befundklassen_tests(con, werk_id: int, bereich: str, basis: dict) -> dict[str, str]: ; def behauptung(code: str, testname: str, paket: str = "") -> str: ; def bisherige_behauptungen(con, werk_id: int, bereich: str, lauf_id: int | None = None, limit: int | None = 25 ; def aufnahmesperre(con, werk_id: int, lauf_id: int, bereich: str, code: str, testnamen, paket: str, ; def wirkungskreis_dateien(bereich, dateien, paket, bstrassen): ; def pruefen(con: sqlite3.Connection, lauf_id: int, werk_id: int, kandidat_id: int, werk: Path, paket: str,
+
+--- biotop/organe/aufnahme.py (196 Zeilen)
+  | Organ 3.1: Aufnahme — Werk entgegennehmen, erkennen, erster Testlauf,
+  | ethische Prüfung. Kein Fremdcode außerhalb der Kammer.
+  | 
+  | Regel: ohne Tests oder ohne bauenden Zustand → „Messgerät fehlt“, kein Lauf.
+  öffentlich: class MessgeraetFehlt(RuntimeError): ; def aufnehmen(con: sqlite3.Connection, name: str, quelle: str, lauf_id: int, referenzlast: str | None = None) 
+
+--- biotop/organe/eichgegenstand.py (199 Zeilen)
+  | Gegenstand der Eichproben — je Werk EINMAL gewählt, versiegelt, danach unverändert
+  | (Festlegung Chat-Claude 19.09.2026, Fassung 6).
+  | 

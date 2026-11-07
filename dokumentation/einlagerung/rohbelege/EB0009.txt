@@ -1,0 +1,64 @@
+EB9 · Schritt 1: Trockenlauf Zwischenbericht mit neuem Auftrag, Geheimnissuche (veröffentlicht nichts)
+Beginn: 2026-09-25 23:44:15 CEST (UTC+0200)
+Ende:   2026-09-25 23:44:15 CEST (UTC+0200)
+Dauer:  0.3 s
+Exit-Code: 0
+Befehl (wörtlich):
+python3 /root/biotop-einlagerung/arbeit/s1_waechter_trocken.py
+--- Inhalt von /root/biotop-einlagerung/arbeit/s1_waechter_trocken.py (wörtlich) ---
+#!/usr/bin/env python3
+"""BIOTOP-EINLAGERUNG-01 Schritt 1 (nur lesend, veröffentlicht nichts): Trockenlauf des Zwischenberichts, den der Wächter
+jetzt für diesen Turn schreiben würde — mit dem NEUEN Auftrag (biotop-einlagerung-01) als Wörterbuch übergeben, ohne
+auftrag.json zu ändern. Danach Geheimnissuche über den erzeugten Text (Muster und .env-/auth.json-Werte, geheimnis.py
+aus BIOTOP-LAGE-01). Ausgegeben werden nur Zählungen, Zeilennummern und die Kopfzeilen des Berichts, keine Werte.
+Zweck: Vor der Umstellung prüfen, dass ein ausgelöster Zwischenbericht kein Geheimnis in den Prüfkanal trägt (P2-Fall)."""
+import importlib.util
+import re
+import sqlite3
+import sys
+import time
+from pathlib import Path
+
+sys.path.insert(0, '/root/sicherung/biotop-lage-01/arbeit')
+import geheimnis  # noqa: E402
+
+spec = importlib.util.spec_from_file_location('w', '/root/.hermes/scripts/zwischenbericht_waechter.py')
+w = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(w)
+NEU = {"auftrag": "biotop-einlagerung-01", "uebergabe": ["/root/biotop-einlagerung/UEBERGABE.md"], "repos": [],
+       "arbeitsordner": ["/root/biotop-einlagerung/arbeit", "/root/biotop-einlagerung/ausgabe"], "ausschluss": []}
+jetzt = time.time()
+con = sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True, timeout=30)
+con.row_factory = sqlite3.Row
+home = Path('/root/.hermes')
+g = w.grenze(home)
+wt = geheimnis.werte()
+ss = w.sitzungen(con, jetzt)
+print(f'Grenze {g} · Schwellen {w.schwellen(g)} · offene Sitzungen (nicht subagent/cron, 2 h): {len(ss)}')
+for s in ss:
+    tb = w.turn_beginn(con, s['id'], jetzt)
+    if not tb:
+        print(f"Sitzung {s['id']}: kein Turn")
+        continue
+    tid, turn = tb
+    n = w.runden(con, s['id'], tid, jetzt)
+    text = w.bericht(con, s['id'], tid, turn, n, g, 110, NEU, jetzt, 'Trockenlauf')
+    tr_m, tr_w = 0, 0
+    for i, z in enumerate(text.splitlines(), 1):
+        for name, m in geheimnis.MUSTER.items():
+            for _ in re.finditer(m, z):
+                tr_m += 1
+                print(f'  TREFFER Muster {name}: Zeile {i}')
+        for v, quelle in wt.items():
+            if v in z:
+                tr_w += 1
+                print(f"  TREFFER Wert ({quelle.split(':')[-1]}, {len(v)} Zeichen): Zeile {i}")
+    print(f"Sitzung {s['id']} · Quelle {s['source']} · Turn ab Nachricht {tid} ({w.iso(turn['zeit'])}) · Runden {n} · "
+          f"Bericht {len(text)} Zeichen · Treffer Muster {tr_m} · Treffer Werte {tr_w}")
+    print('  Turntext beginnt mit: ' + re.sub(r'\d{8,}', '[ZIFFERN]', turn['text'][:120]).replace('\n', ' '))
+--- Ende /root/biotop-einlagerung/arbeit/s1_waechter_trocken.py ---
+Ausgabe (vollständig, stdout und stderr):
+Grenze 150 · Schwellen [110, 140] · offene Sitzungen (nicht subagent/cron, 2 h): 1
+Sitzung 20260925_230742_55a68b3c · Quelle telegram · Turn ab Nachricht 27087 (2026-09-25T23:08:25+02:00) · Runden 29 · Bericht 6061 Zeichen · Treffer Muster 0 · Treffer Werte 0
+  Turntext beginnt mit: [The user sent a text document: 'BIOTOP-EINLAGERUNG-01-Auftrag.md'. Its content has been included below. The file is als
+=== Ende EB9 ===

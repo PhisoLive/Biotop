@@ -1,0 +1,401 @@
+EB14 · Schritt 2: Git-Repositorys mit Biotop-Bezug (nur lesend, --no-optional-locks)
+Beginn: 2026-09-25 23:52:58 CEST (UTC+0200)
+Ende:   2026-09-25 23:53:05 CEST (UTC+0200)
+Dauer:  6.6 s
+Exit-Code: 0
+Befehl (wörtlich):
+bash /root/biotop-einlagerung/arbeit/s2_repos.sh
+--- Inhalt von /root/biotop-einlagerung/arbeit/s2_repos.sh (wörtlich) ---
+#!/bin/bash
+# BIOTOP-EINLAGERUNG-01 Schritt 2 (nur lesend): jedes Git-Repository mit Biotop-Bezug — HEAD, Zweig, Zweige, Markierungen,
+# git status. Alle git-Befehle mit --no-optional-locks (schreiben den Index nicht). Gesucht wird nach „.git“ (Ordner oder
+# Datei) in den Orten der Fundstellenliste von BIOTOP-LAGE-01 (AUFBAU FK38, INVENTAR I4/I5, sich.py ARBEITSORDNER) und
+# in /tmp. Getrennt gezählt: Kopien in den Probe-/Stufenordnern von BIOTOP-LAGE-01 (sicherung/, testlauf/).
+date '+== Zeitpunkt %Y-%m-%d %H:%M:%S %Z (UTC%z)'
+ORTE="/root/biotop /root/biotop-t3 /root/biotop-vor-t4 /root/biotop-vor-t4-02 /root/biotop-vor-t4-03 /root/biotop-vor-t4-04
+/root/biotop-vor-t4-05 /root/biotop-vor-t4-06 /root/phase-4-vorbedingung-1 /root/reparatur-01 /root/reparatur-02
+/root/uebungswerk /root/uebungswerk2 /root/uebungswerk-nachlauf /root/uebungswerk-p2 /root/uebungswerk-p3 /root/uebungswerk-p3b
+/root/uebungswerk-p3c /root/uebungswerk-p3d /root/versandwerk-t3 /root/versandwerk-t3-02 /root/gesamtstand-01
+/root/wiedereinstieg-01 /root/biotop-einstieg-20260921-0122 /root/traeger-umstellung-2026-09-20_22-32-03Z /root/versiegelt
+/root/w7 /root/sicherung/biotop-lage-01 /tmp"
+L=/root/biotop-einlagerung/tmp/git-fundorte.txt
+: > $L
+for o in $ORTE; do
+  find "$o" \( -name node_modules -o -name venv -o -name .venv \) -prune -o -name .git -print 2>/dev/null >> $L
+done
+sort -u -o $L $L
+echo "== .git-Fundorte gesamt: $(wc -l < $L)"
+echo "   davon in /root/sicherung/biotop-lage-01/{sicherung,testlauf} (Kopien der Probe von BIOTOP-LAGE-01): $(grep -c -E '^/root/sicherung/biotop-lage-01/(sicherung|testlauf)/' $L)"
+echo "   davon in /tmp: $(grep -c '^/tmp/' $L)"
+echo "== Je Repository außerhalb der Probe-Kopien: Pfad | HEAD | Zweig | Zweige | Markierungen | Status-Zeilen (M/??/sonst)"
+grep -v -E '^/root/sicherung/biotop-lage-01/(sicherung|testlauf)/' $L | while read g; do
+  r=$(dirname "$g")
+  head=$(git --no-optional-locks -C "$r" rev-parse --short=12 HEAD 2>&1 | head -1)
+  zw=$(git --no-optional-locks -C "$r" symbolic-ref -q --short HEAD 2>/dev/null || echo "(losgelöst)")
+  zws=$(git --no-optional-locks -C "$r" for-each-ref --format='%(refname:short)=%(objectname:short=12)' refs/heads 2>/dev/null | tr '\n' ' ')
+  tags=$(git --no-optional-locks -C "$r" tag -l 2>/dev/null | tr '\n' ' ')
+  st=$(git --no-optional-locks -C "$r" status --porcelain 2>&1)
+  n=$(printf '%s' "$st" | grep -c .)
+  nm=$(printf '%s' "$st" | grep -c '^ M\|^M')
+  nu=$(printf '%s' "$st" | grep -c '^??')
+  top=$(git --no-optional-locks -C "$r" rev-parse --show-toplevel 2>&1)
+  echo "$r | HEAD $head | Zweig $zw | Zweige: ${zws:-–} | Markierungen: ${tags:-keine} | Status $n Zeilen ($nm geändert, $nu unverfolgt) | Wurzel $top"
+done
+echo "== /root/biotop im Einzelnen"
+git --no-optional-locks -C /root/biotop log -1 --format='%H %ci %s'
+git --no-optional-locks -C /root/biotop for-each-ref --format='%(refname) %(objectname)'
+git --no-optional-locks -C /root/biotop status --porcelain=v1 --untracked-files=all
+git --no-optional-locks -C /root/biotop stash list | sed 's/^/stash: /'; echo "(stash-Einträge: $(git --no-optional-locks -C /root/biotop stash list | wc -l))"
+git --no-optional-locks -C /root/biotop worktree list
+echo "== Liste der .git-Fundorte (vollständig)"
+cat $L
+--- Ende /root/biotop-einlagerung/arbeit/s2_repos.sh ---
+Ausgabe (vollständig, stdout und stderr):
+== Zeitpunkt 2026-09-25 23:52:58 CEST (UTC+0200)
+== .git-Fundorte gesamt: 258
+   davon in /root/sicherung/biotop-lage-01/{sicherung,testlauf} (Kopien der Probe von BIOTOP-LAGE-01): 205
+   davon in /tmp: 4
+== Je Repository außerhalb der Probe-Kopien: Pfad | HEAD | Zweig | Zweige | Markierungen | Status-Zeilen (M/??/sonst)
+/root/biotop-t3/repo-sicherung-vor-commits | HEAD b42dc941e7fc | Zweig main | Zweige: main=b42dc941e7fc  | Markierungen: keine | Status 31 Zeilen (20 geändert, 11 unverfolgt) | Wurzel /root/biotop-t3/repo-sicherung-vor-commits
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-c-25 | HEAD fb07f3636df3 | Zweig main | Zweige: main=fb07f3636df3  | Markierungen: lauf25-gen0 lauf25-gen2  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-c-25
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-kasse | HEAD 03de2df2e7fc | Zweig main | Zweige: main=03de2df2e7fc  | Markierungen: lauf4-gen0 lauf4-gen1 lauf4-gen2  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-kasse
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-kasse2 | HEAD f679842dd050 | Zweig main | Zweige: main=f679842dd050  | Markierungen: lauf5-gen0 lauf5-gen1 lauf5-gen2  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-kasse2
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-kasse3 | HEAD e5ce2ee15088 | Zweig main | Zweige: main=e5ce2ee15088  | Markierungen: lauf10-gen0 lauf10-gen1  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-kasse3
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-nachlauf | HEAD b48c510bd478 | Zweig main | Zweige: main=b48c510bd478  | Markierungen: lauf6-gen0 lauf6-gen1 lauf6-gen2 lauf6-gen4 lauf6-gen7 lauf6-gen8 lauf6-gen9  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-nachlauf
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-nachlauf2 | HEAD 3858cad8d9ca | Zweig main | Zweige: main=3858cad8d9ca  | Markierungen: lauf7-gen0 lauf7-gen1 lauf7-gen2 lauf7-gen4  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-nachlauf2
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-nachlauf8 | HEAD 5eaa089aa82b | Zweig main | Zweige: main=5eaa089aa82b  | Markierungen: lauf8-gen0 lauf8-gen1 lauf8-gen2 lauf8-gen4  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-nachlauf8
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-nachlauf9 | HEAD f116f8fbf547 | Zweig main | Zweige: main=f116f8fbf547  | Markierungen: lauf9-gen0 lauf9-gen1 lauf9-gen2 lauf9-gen5 lauf9-gen6  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-nachlauf9
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p2-13 | HEAD f491f0ed4274 | Zweig main | Zweige: main=f491f0ed4274  | Markierungen: lauf13-gen0 lauf13-gen1 lauf13-gen10 lauf13-gen11 lauf13-gen13 lauf13-gen3 lauf13-gen5 lauf13-gen6  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p2-13
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p2 | HEAD a6c6927edb5f | Zweig main | Zweige: main=a6c6927edb5f  | Markierungen: lauf12-gen0 lauf12-gen1 lauf12-gen2 lauf12-gen3 lauf12-gen6  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p2
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-14 | HEAD 70af211103b0 | Zweig main | Zweige: main=70af211103b0  | Markierungen: lauf14-gen0  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-14
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-15 | HEAD 73167e340a4a | Zweig main | Zweige: main=73167e340a4a  | Markierungen: lauf15-gen0  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-15
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-16 | HEAD 826683baedbb | Zweig main | Zweige: main=826683baedbb  | Markierungen: lauf16-gen0 lauf16-gen3 lauf16-gen8  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-16
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-18 | HEAD 61f7174b9603 | Zweig main | Zweige: main=61f7174b9603  | Markierungen: lauf18-gen0 lauf18-gen1  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-18
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-19 | HEAD ca43d37b1ca7 | Zweig main | Zweige: main=ca43d37b1ca7  | Markierungen: lauf19-gen0 lauf19-gen3  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-19
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-20 | HEAD 98038e512ef6 | Zweig main | Zweige: main=98038e512ef6  | Markierungen: lauf20-gen0 lauf20-gen1  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-20
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-22 | HEAD 4b1f0d86a3ce | Zweig main | Zweige: main=4b1f0d86a3ce  | Markierungen: lauf22-gen0  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-22
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-zeile8-24 | HEAD 3052db093ef1 | Zweig main | Zweige: main=3052db093ef1  | Markierungen: lauf24-gen0 lauf24-gen1  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-zeile8-24
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus | HEAD 23cff0815ec0 | Zweig main | Zweige: main=23cff0815ec0  | Markierungen: lauf2-gen0 lauf2-gen1 lauf2-gen3 lauf2-gen5  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/logmuehle-17 | HEAD 4743f55eb3f5 | Zweig main | Zweige: main=4743f55eb3f5  | Markierungen: lauf17-gen0 lauf17-gen2 lauf17-gen3 lauf17-gen4 lauf17-gen5  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/logmuehle-17
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/logmuehle-23 | HEAD fd7f259daf02 | Zweig main | Zweige: main=fd7f259daf02  | Markierungen: lauf23-gen0 lauf23-gen1 lauf23-gen5  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop-t3/repo-sicherung-vor-commits/daten/werke/logmuehle-23
+/root/biotop | HEAD 0c2f058d57f6 | Zweig main | Zweige: main=0c2f058d57f6  | Markierungen: keine | Status 25 Zeilen (19 geändert, 6 unverfolgt) | Wurzel /root/biotop
+/root/biotop/daten/werke/lagerhaus-c-25 | HEAD fb07f3636df3 | Zweig main | Zweige: main=fb07f3636df3  | Markierungen: lauf25-gen0 lauf25-gen2  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop/daten/werke/lagerhaus-c-25
+/root/biotop/daten/werke/lagerhaus-kasse | HEAD 03de2df2e7fc | Zweig main | Zweige: main=03de2df2e7fc  | Markierungen: lauf4-gen0 lauf4-gen1 lauf4-gen2  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop/daten/werke/lagerhaus-kasse
+/root/biotop/daten/werke/lagerhaus-kasse2 | HEAD f679842dd050 | Zweig main | Zweige: main=f679842dd050  | Markierungen: lauf5-gen0 lauf5-gen1 lauf5-gen2  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop/daten/werke/lagerhaus-kasse2
+/root/biotop/daten/werke/lagerhaus-kasse3 | HEAD e5ce2ee15088 | Zweig main | Zweige: main=e5ce2ee15088  | Markierungen: lauf10-gen0 lauf10-gen1  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop/daten/werke/lagerhaus-kasse3
+/root/biotop/daten/werke/lagerhaus-nachlauf | HEAD b48c510bd478 | Zweig main | Zweige: main=b48c510bd478  | Markierungen: lauf6-gen0 lauf6-gen1 lauf6-gen2 lauf6-gen4 lauf6-gen7 lauf6-gen8 lauf6-gen9  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop/daten/werke/lagerhaus-nachlauf
+/root/biotop/daten/werke/lagerhaus-nachlauf2 | HEAD 3858cad8d9ca | Zweig main | Zweige: main=3858cad8d9ca  | Markierungen: lauf7-gen0 lauf7-gen1 lauf7-gen2 lauf7-gen4  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop/daten/werke/lagerhaus-nachlauf2
+/root/biotop/daten/werke/lagerhaus-nachlauf8 | HEAD 5eaa089aa82b | Zweig main | Zweige: main=5eaa089aa82b  | Markierungen: lauf8-gen0 lauf8-gen1 lauf8-gen2 lauf8-gen4  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop/daten/werke/lagerhaus-nachlauf8
+/root/biotop/daten/werke/lagerhaus-nachlauf9 | HEAD f116f8fbf547 | Zweig main | Zweige: main=f116f8fbf547  | Markierungen: lauf9-gen0 lauf9-gen1 lauf9-gen2 lauf9-gen5 lauf9-gen6  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop/daten/werke/lagerhaus-nachlauf9
+/root/biotop/daten/werke/lagerhaus-p2-13 | HEAD f491f0ed4274 | Zweig main | Zweige: main=f491f0ed4274  | Markierungen: lauf13-gen0 lauf13-gen1 lauf13-gen10 lauf13-gen11 lauf13-gen13 lauf13-gen3 lauf13-gen5 lauf13-gen6  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop/daten/werke/lagerhaus-p2-13
+/root/biotop/daten/werke/lagerhaus-p2 | HEAD a6c6927edb5f | Zweig main | Zweige: main=a6c6927edb5f  | Markierungen: lauf12-gen0 lauf12-gen1 lauf12-gen2 lauf12-gen3 lauf12-gen6  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop/daten/werke/lagerhaus-p2
+/root/biotop/daten/werke/lagerhaus-p3-14 | HEAD 70af211103b0 | Zweig main | Zweige: main=70af211103b0  | Markierungen: lauf14-gen0  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop/daten/werke/lagerhaus-p3-14
+/root/biotop/daten/werke/lagerhaus-p3-15 | HEAD 73167e340a4a | Zweig main | Zweige: main=73167e340a4a  | Markierungen: lauf15-gen0  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop/daten/werke/lagerhaus-p3-15
+/root/biotop/daten/werke/lagerhaus-p3-16 | HEAD 826683baedbb | Zweig main | Zweige: main=826683baedbb  | Markierungen: lauf16-gen0 lauf16-gen3 lauf16-gen8  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop/daten/werke/lagerhaus-p3-16
+/root/biotop/daten/werke/lagerhaus-p3-18 | HEAD 61f7174b9603 | Zweig main | Zweige: main=61f7174b9603  | Markierungen: lauf18-gen0 lauf18-gen1  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop/daten/werke/lagerhaus-p3-18
+/root/biotop/daten/werke/lagerhaus-p3-19 | HEAD ca43d37b1ca7 | Zweig main | Zweige: main=ca43d37b1ca7  | Markierungen: lauf19-gen0 lauf19-gen3  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop/daten/werke/lagerhaus-p3-19
+/root/biotop/daten/werke/lagerhaus-p3-20 | HEAD 98038e512ef6 | Zweig main | Zweige: main=98038e512ef6  | Markierungen: lauf20-gen0 lauf20-gen1  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop/daten/werke/lagerhaus-p3-20
+/root/biotop/daten/werke/lagerhaus-p3-22 | HEAD 4b1f0d86a3ce | Zweig main | Zweige: main=4b1f0d86a3ce  | Markierungen: lauf22-gen0  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop/daten/werke/lagerhaus-p3-22
+/root/biotop/daten/werke/lagerhaus-zeile8-24 | HEAD 3052db093ef1 | Zweig main | Zweige: main=3052db093ef1  | Markierungen: lauf24-gen0 lauf24-gen1  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop/daten/werke/lagerhaus-zeile8-24
+/root/biotop/daten/werke/lagerhaus | HEAD 23cff0815ec0 | Zweig main | Zweige: main=23cff0815ec0  | Markierungen: lauf2-gen0 lauf2-gen1 lauf2-gen3 lauf2-gen5  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop/daten/werke/lagerhaus
+/root/biotop/daten/werke/logmuehle-17 | HEAD 4743f55eb3f5 | Zweig main | Zweige: main=4743f55eb3f5  | Markierungen: lauf17-gen0 lauf17-gen2 lauf17-gen3 lauf17-gen4 lauf17-gen5  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop/daten/werke/logmuehle-17
+/root/biotop/daten/werke/logmuehle-23 | HEAD fd7f259daf02 | Zweig main | Zweige: main=fd7f259daf02  | Markierungen: lauf23-gen0 lauf23-gen1 lauf23-gen5  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop/daten/werke/logmuehle-23
+/root/biotop/daten/werke/versandwerk-t3-02 | HEAD c7b5a1284843 | Zweig main | Zweige: main=c7b5a1284843  | Markierungen: lauf38-gen0 lauf38-gen1 lauf38-gen10 lauf38-gen12 lauf38-gen13 lauf38-gen16 lauf38-gen4 lauf38-gen5 lauf38-gen9  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/biotop/daten/werke/versandwerk-t3-02
+/root/phase-4-vorbedingung-1/privat/werke/lagerhaus-vorbedingung1-26 | HEAD 942290b10b7e | Zweig main | Zweige: main=942290b10b7e  | Markierungen: lauf26-gen0 lauf26-gen1 lauf26-gen3  | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/phase-4-vorbedingung-1/privat/werke/lagerhaus-vorbedingung1-26
+/root/reparatur-01/teil-eichung/repo | HEAD 3bb9325d5d84 | Zweig master | Zweige: master=3bb9325d5d84  | Markierungen: keine | Status 4 Zeilen (3 geändert, 0 unverfolgt) | Wurzel /root/reparatur-01/teil-eichung/repo
+/root/uebungswerk | HEAD 058b33e89778 | Zweig main | Zweige: main=058b33e89778  | Markierungen: keine | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/uebungswerk
+/root/uebungswerk2 | HEAD 68d91c12e557 | Zweig master | Zweige: master=68d91c12e557  | Markierungen: keine | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /root/uebungswerk2
+/tmp/k3 | HEAD 058b33e89778 | Zweig main | Zweige: main=058b33e89778  | Markierungen: keine | Status 0 Zeilen (0 geändert, 0 unverfolgt) | Wurzel /tmp/k3
+/tmp/r6-s2/baum | HEAD 0c2f058d57f6 | Zweig main | Zweige: main=0c2f058d57f6  | Markierungen: keine | Status 2 Zeilen (1 geändert, 1 unverfolgt) | Wurzel /tmp/r6-s2/baum
+/tmp/r6-s2/baum2 | HEAD 0c2f058d57f6 | Zweig main | Zweige: main=0c2f058d57f6  | Markierungen: keine | Status 2 Zeilen (1 geändert, 1 unverfolgt) | Wurzel /tmp/r6-s2/baum2
+/tmp/r6-s2/baum3 | HEAD 0c2f058d57f6 | Zweig main | Zweige: main=0c2f058d57f6  | Markierungen: keine | Status 2 Zeilen (1 geändert, 1 unverfolgt) | Wurzel /tmp/r6-s2/baum3
+== /root/biotop im Einzelnen
+0c2f058d57f68b8891b535d6e00214172c82fefa 2026-09-24 20:24:54 +0200 Vor T4, Runde 5: Vollständigkeitsprüfung, fallende Zusicherung, Ausfall je Funktion, Register und Tor-4-Skript, Stufe 2 überall
+refs/heads/main 0c2f058d57f68b8891b535d6e00214172c82fefa
+ M biotop/__main__.py
+ M biotop/kern/py/verhalten.py
+ M biotop/kern/register.py
+ M biotop/lauf.py
+ M biotop/nachspiel.py
+ M biotop/organe/aegis.py
+ M biotop/organe/verhaltensvergleich.py
+ M biotop/organe/vorspann.py
+ M biotop/tor4.py
+ M tests/drahtwerk.py
+ M tests/test_nachweis_verbraucher.py
+ M tests/test_t3_eichpfad.py
+ M tests/test_t3_python_annahmen.py
+ M tests/test_t3_verhaltensvergleich.py
+ M tests/test_verdrahtung.py
+ M tests/test_vor_t4_03.py
+ M tests/test_vor_t4_04.py
+ M tests/test_vor_t4_05.py
+ M tests/test_vorspann.py
+?? biotop/organe/stufe2.py
+?? tests/test_stufe2_eichphase.py
+?? tests/test_tor4_zeilen.py
+?? tests/test_vor_t4_06.py
+?? tests/test_vor_t4_06_hermes.py
+?? tests/test_vor_t4_06_register.py
+(stash-Einträge: 0)
+/root/biotop  0c2f058 [main]
+== Liste der .git-Fundorte (vollständig)
+/root/biotop-t3/repo-sicherung-vor-commits/.git
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-c-25/.git
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-kasse/.git
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-kasse2/.git
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-kasse3/.git
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-nachlauf/.git
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-nachlauf2/.git
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-nachlauf8/.git
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-nachlauf9/.git
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p2-13/.git
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p2/.git
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-14/.git
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-15/.git
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-16/.git
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-18/.git
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-19/.git
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-20/.git
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-22/.git
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-zeile8-24/.git
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus/.git
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/logmuehle-17/.git
+/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/logmuehle-23/.git
+/root/biotop/.git
+/root/biotop/daten/werke/lagerhaus-c-25/.git
+/root/biotop/daten/werke/lagerhaus-kasse/.git
+/root/biotop/daten/werke/lagerhaus-kasse2/.git
+/root/biotop/daten/werke/lagerhaus-kasse3/.git
+/root/biotop/daten/werke/lagerhaus-nachlauf/.git
+/root/biotop/daten/werke/lagerhaus-nachlauf2/.git
+/root/biotop/daten/werke/lagerhaus-nachlauf8/.git
+/root/biotop/daten/werke/lagerhaus-nachlauf9/.git
+/root/biotop/daten/werke/lagerhaus-p2-13/.git
+/root/biotop/daten/werke/lagerhaus-p2/.git
+/root/biotop/daten/werke/lagerhaus-p3-14/.git
+/root/biotop/daten/werke/lagerhaus-p3-15/.git
+/root/biotop/daten/werke/lagerhaus-p3-16/.git
+/root/biotop/daten/werke/lagerhaus-p3-18/.git
+/root/biotop/daten/werke/lagerhaus-p3-19/.git
+/root/biotop/daten/werke/lagerhaus-p3-20/.git
+/root/biotop/daten/werke/lagerhaus-p3-22/.git
+/root/biotop/daten/werke/lagerhaus-zeile8-24/.git
+/root/biotop/daten/werke/lagerhaus/.git
+/root/biotop/daten/werke/logmuehle-17/.git
+/root/biotop/daten/werke/logmuehle-23/.git
+/root/biotop/daten/werke/versandwerk-t3-02/.git
+/root/phase-4-vorbedingung-1/privat/werke/lagerhaus-vorbedingung1-26/.git
+/root/reparatur-01/teil-eichung/repo/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop-t3/repo-sicherung-vor-commits/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-c-25/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-kasse/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-kasse2/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-kasse3/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-nachlauf/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-nachlauf2/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-nachlauf8/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-nachlauf9/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p2-13/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p2/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-14/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-15/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-16/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-18/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-19/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-20/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-22/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-zeile8-24/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/logmuehle-17/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/logmuehle-23/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop/daten/werke/lagerhaus-c-25/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop/daten/werke/lagerhaus-kasse/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop/daten/werke/lagerhaus-kasse2/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop/daten/werke/lagerhaus-kasse3/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop/daten/werke/lagerhaus-nachlauf/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop/daten/werke/lagerhaus-nachlauf2/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop/daten/werke/lagerhaus-nachlauf8/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop/daten/werke/lagerhaus-nachlauf9/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop/daten/werke/lagerhaus-p2-13/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop/daten/werke/lagerhaus-p2/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop/daten/werke/lagerhaus-p3-14/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop/daten/werke/lagerhaus-p3-15/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop/daten/werke/lagerhaus-p3-16/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop/daten/werke/lagerhaus-p3-18/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop/daten/werke/lagerhaus-p3-19/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop/daten/werke/lagerhaus-p3-20/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop/daten/werke/lagerhaus-p3-22/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop/daten/werke/lagerhaus-zeile8-24/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop/daten/werke/lagerhaus/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop/daten/werke/logmuehle-17/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop/daten/werke/logmuehle-23/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/biotop/daten/werke/versandwerk-t3-02/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/phase-4-vorbedingung-1/privat/werke/lagerhaus-vorbedingung1-26/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/reparatur-01/teil-eichung/repo/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/uebungswerk/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/root/uebungswerk2/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/tmp/k3/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/tmp/r6-s2/baum/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/tmp/r6-s2/baum2/.git
+/root/sicherung/biotop-lage-01/sicherung/gegenprobe/tmp/r6-s2/baum3/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop-t3/repo-sicherung-vor-commits/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-c-25/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-kasse/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-kasse2/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-kasse3/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-nachlauf/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-nachlauf2/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-nachlauf8/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-nachlauf9/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p2-13/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p2/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-14/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-15/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-16/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-18/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-19/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-20/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-22/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-zeile8-24/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/logmuehle-17/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/logmuehle-23/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop/daten/werke/lagerhaus-c-25/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop/daten/werke/lagerhaus-kasse/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop/daten/werke/lagerhaus-kasse2/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop/daten/werke/lagerhaus-kasse3/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop/daten/werke/lagerhaus-nachlauf/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop/daten/werke/lagerhaus-nachlauf2/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop/daten/werke/lagerhaus-nachlauf8/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop/daten/werke/lagerhaus-nachlauf9/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop/daten/werke/lagerhaus-p2-13/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop/daten/werke/lagerhaus-p2/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop/daten/werke/lagerhaus-p3-14/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop/daten/werke/lagerhaus-p3-15/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop/daten/werke/lagerhaus-p3-16/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop/daten/werke/lagerhaus-p3-18/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop/daten/werke/lagerhaus-p3-19/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop/daten/werke/lagerhaus-p3-20/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop/daten/werke/lagerhaus-p3-22/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop/daten/werke/lagerhaus-zeile8-24/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop/daten/werke/lagerhaus/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop/daten/werke/logmuehle-17/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop/daten/werke/logmuehle-23/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/biotop/daten/werke/versandwerk-t3-02/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/phase-4-vorbedingung-1/privat/werke/lagerhaus-vorbedingung1-26/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/reparatur-01/teil-eichung/repo/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/uebungswerk/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/root/uebungswerk2/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/tmp/k3/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/tmp/r6-s2/baum/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/tmp/r6-s2/baum2/.git
+/root/sicherung/biotop-lage-01/sicherung/probe/tmp/r6-s2/baum3/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop-t3/repo-sicherung-vor-commits/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-c-25/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-kasse/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-kasse2/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-kasse3/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-nachlauf/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-nachlauf2/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-nachlauf8/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-nachlauf9/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p2-13/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p2/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-14/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-15/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-16/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-18/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-19/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-20/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-22/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-zeile8-24/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/logmuehle-17/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/logmuehle-23/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop/daten/werke/lagerhaus-c-25/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop/daten/werke/lagerhaus-kasse/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop/daten/werke/lagerhaus-kasse2/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop/daten/werke/lagerhaus-kasse3/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop/daten/werke/lagerhaus-nachlauf/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop/daten/werke/lagerhaus-nachlauf2/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop/daten/werke/lagerhaus-nachlauf8/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop/daten/werke/lagerhaus-nachlauf9/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop/daten/werke/lagerhaus-p2-13/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop/daten/werke/lagerhaus-p2/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop/daten/werke/lagerhaus-p3-14/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop/daten/werke/lagerhaus-p3-15/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop/daten/werke/lagerhaus-p3-16/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop/daten/werke/lagerhaus-p3-18/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop/daten/werke/lagerhaus-p3-19/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop/daten/werke/lagerhaus-p3-20/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop/daten/werke/lagerhaus-p3-22/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop/daten/werke/lagerhaus-zeile8-24/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop/daten/werke/lagerhaus/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop/daten/werke/logmuehle-17/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop/daten/werke/logmuehle-23/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/biotop/daten/werke/versandwerk-t3-02/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/phase-4-vorbedingung-1/privat/werke/lagerhaus-vorbedingung1-26/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/reparatur-01/teil-eichung/repo/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/uebungswerk/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/root/uebungswerk2/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/tmp/k3/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/tmp/r6-s2/baum/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/tmp/r6-s2/baum2/.git
+/root/sicherung/biotop-lage-01/sicherung/stufe/tmp/r6-s2/baum3/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop-t3/repo-sicherung-vor-commits/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-c-25/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-kasse/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-kasse2/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-kasse3/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-nachlauf/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-nachlauf2/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-nachlauf8/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-nachlauf9/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p2-13/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p2/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-14/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-15/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-16/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-18/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-19/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-20/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-p3-22/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus-zeile8-24/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/lagerhaus/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/logmuehle-17/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop-t3/repo-sicherung-vor-commits/daten/werke/logmuehle-23/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop/daten/werke/lagerhaus-c-25/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop/daten/werke/lagerhaus-kasse/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop/daten/werke/lagerhaus-kasse2/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop/daten/werke/lagerhaus-kasse3/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop/daten/werke/lagerhaus-nachlauf/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop/daten/werke/lagerhaus-nachlauf2/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop/daten/werke/lagerhaus-nachlauf8/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop/daten/werke/lagerhaus-nachlauf9/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop/daten/werke/lagerhaus-p2-13/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop/daten/werke/lagerhaus-p2/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop/daten/werke/lagerhaus-p3-14/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop/daten/werke/lagerhaus-p3-15/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop/daten/werke/lagerhaus-p3-16/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop/daten/werke/lagerhaus-p3-18/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop/daten/werke/lagerhaus-p3-19/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop/daten/werke/lagerhaus-p3-20/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop/daten/werke/lagerhaus-p3-22/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop/daten/werke/lagerhaus-zeile8-24/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop/daten/werke/lagerhaus/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop/daten/werke/logmuehle-17/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop/daten/werke/logmuehle-23/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/biotop/daten/werke/versandwerk-t3-02/.git
+/root/sicherung/biotop-lage-01/testlauf/baum/root/reparatur-01/teil-eichung/repo/.git
+/root/uebungswerk/.git
+/root/uebungswerk2/.git
+/tmp/k3/.git
+/tmp/r6-s2/baum/.git
+/tmp/r6-s2/baum2/.git
+/tmp/r6-s2/baum3/.git
+=== Ende EB14 ===
